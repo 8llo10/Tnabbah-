@@ -9,8 +9,6 @@ export default function Settings() {
     const router = useRouter();
     const [loggingOut, setLoggingOut] = useState(false);
 
-
-
     const handleLogout = () => {
         Alert.alert(
             "تسجيل الخروج",
@@ -22,7 +20,7 @@ export default function Settings() {
                     style: "destructive",
                     onPress: async () => {
                         try {
-                            setLoggingOut(true); // ← يبدأ التحميل
+                            setLoggingOut(true);
 
                             const { error } = await supabase.auth.signOut();
 
@@ -33,14 +31,13 @@ export default function Settings() {
 
                             router.replace("/start");
                         } finally {
-                            setLoggingOut(false); // ← يوقف التحميل
+                            setLoggingOut(false);
                         }
                     },
                 },
             ]
         );
     };
-
 
     return (
         <View style={styles.container}>
@@ -51,7 +48,7 @@ export default function Settings() {
                 <Text style={styles.value}>{profile?.full_name || "—"}</Text>
 
                 <Text style={styles.label}>البريد</Text>
-                <Text style={styles.value}>{profile?.email || "—"}</Text>
+                <Text style={styles.value}>{profile?.username || "—"}</Text>
             </View>
 
             <TouchableOpacity
@@ -63,7 +60,6 @@ export default function Settings() {
                     {loggingOut ? "جاري تسجيل الخروج..." : "تسجيل الخروج"}
                 </Text>
             </TouchableOpacity>
-
         </View>
     );
 }

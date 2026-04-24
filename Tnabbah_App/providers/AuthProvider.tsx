@@ -31,16 +31,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             return null;
         }
 
+        // ✔ هذا هو الشيء الوحيد اللي نحتاجه
         setProfile(data);
-        if (data.session?.user) {
-            const profileData = await loadProfile(data.session.user.id);
-            setProfile(profileData); // ← مهم جدًا
-        }
-
 
         return data;
     };
-
 
     useEffect(() => {
         const init = async () => {
@@ -62,11 +57,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
                 if (session?.user) {
                     const profileData = await loadProfile(session.user.id);
-                    setProfile(profileData); // ← مهم
+                    setProfile(profileData);
                 } else {
                     setProfile(null);
                 }
-
             }
         );
 
