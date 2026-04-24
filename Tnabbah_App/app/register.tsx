@@ -40,13 +40,17 @@ export default function RegisterScreen() {
                     .from('profiles')
                     .insert({
                         id: data.user.id,
-                        full_name: fullName,
+                        username: email.trim(),     // ← الإيميل مكان اليوزر نيم
+                        full_name: fullName,        // ← الاسم مكان الفل نيم
+                        avatar_url: null,           // ← تقدرين تغيرينه لاحقاً
+                        website: null,              // ← قيمة افتراضية
                     });
 
                 if (profileError) {
                     console.log('Profile Insert Error:', profileError);
                 }
             }
+
 
             // 3) إذا دخل مباشرة
             if (data.session) {

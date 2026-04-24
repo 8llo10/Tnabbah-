@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ImageBackground, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '../providers/AuthProvider';
+import { useAuth } from '../../providers/AuthProvider';
 import { useEffect, useState } from "react";
 
 
@@ -34,12 +34,13 @@ export default function HomeScreen() {
              source={require('../assets/images/appBackground.png')} // ← الخلفية العامة
              style={styles.pageBackground}
          > */
+
         <View style={styles.pageBackground}>
 
             {/* البطاقة */}
             <View style={styles.cardWrapper}>
                 <ImageBackground
-                    source={require('../assets/images/carCard.png')}
+                    source={require('../../assets/images/carCard.png')}
 
                     style={styles.bgImage}
                     imageStyle={styles.bgImageStyle}
@@ -108,6 +109,8 @@ export default function HomeScreen() {
                 </View>
 
             </View>
+
+
         </View>
 
 
