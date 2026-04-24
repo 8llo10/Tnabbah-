@@ -1,27 +1,85 @@
-import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAuth } from '../providers/AuthProvider';
+import { useEffect, useState } from 'react';
 
 export default function StartScreen() {
     const router = useRouter();
+    const { session, loading } = useAuth();
 
+    // ---------------------------------------------------------
+    // state للتحكم بظهور الأنميشن
+    // true = الأنميشن ظاهر
+    // false = الأنميشن انتهى
+    // ---------------------------------------------------------
+    const [showAnimation, setShowAnimation] = useState(true);
+
+    // ---------------------------------------------------------
+    // الأنميشن يشتغل أول 1.2 ثانية على الجميع
+    // سواء كان المستخدم مسجل دخول أو جديد
+    // ---------------------------------------------------------
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setShowAnimation(false); // نخفي الأنميشن بعد 1.2 ثانية
+        }, 1200);
+
+        return () => clearTimeout(timer);
+    }, []);
+
+    // ---------------------------------------------------------
+    // بعد انتهاء الأنميشن:
+    // لو المستخدم مسجل دخول → نحوله مباشرة للـ Home
+    // ---------------------------------------------------------
+    useEffect(() => {
+        if (!loading && session && !showAnimation) {
+            router.replace('/home');
+        }
+    }, [loading, session, showAnimation]);
+
+    // ---------------------------------------------------------
+    // 1) أثناء الأنميشن (للحالتين: مستخدم جديد أو مسجل دخول)
+    // نعرض اللوقو + دائرة التحميل
+    // ---------------------------------------------------------
+    if (showAnimation || loading) {
+        return (
+            <View style={styles.center}>
+                <Image
+                    source={require('../assets/images/logo.png')}
+                    style={{ width: 180, height: 180 }}
+                    resizeMode="contain"
+                />
+                <ActivityIndicator size="large" style={{ marginTop: 20 }} />
+            </View>
+        );
+    }
+
+    // ---------------------------------------------------------
+    // 2) بعد الأنميشن:
+    // لو المستخدم مسجل دخول → ما نعرض الصفحة
+    // (لأن التحويل صار في useEffect فوق)
+    // ---------------------------------------------------------
+    if (session) {
+        return null;
+    }
+
+    // ---------------------------------------------------------
+    // 3) مستخدم جديد:
+    // بعد الأنميشن نعرض صفحة Start كاملة
+    // ---------------------------------------------------------
     return (
         <View style={styles.container}>
-            {/* Logo */}
             <Image
-                source={require('../assets/images/logo.png')} // غيري المسار حسب لوقو تطبيقك
+                source={require('../assets/images/logo.png')}
                 style={styles.logo}
                 resizeMode="contain"
             />
 
-            {/* Title */}
             <Text style={styles.title}>Welcome</Text>
 
-            {/* Subtitle */}
             <Text style={styles.subtitle}>
                 Create an account or log in to continue
             </Text>
 
-            {/* Buttons */}
             <TouchableOpacity
                 style={styles.loginButton}
                 onPress={() => router.push('/login')}
@@ -40,6 +98,12 @@ export default function StartScreen() {
 }
 
 const styles = StyleSheet.create({
+    center: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+    },
     container: {
         flex: 1,
         justifyContent: 'center',

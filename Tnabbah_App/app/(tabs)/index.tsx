@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+/* import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../providers/AuthProvider';
 import { View, ActivityIndicator } from 'react-native';
@@ -22,4 +22,11 @@ export default function Index() {
       <ActivityIndicator size="large" />
     </View>
   );
+} */
+
+import { Redirect } from 'expo-router';
+
+export default function Index() {
+  // دايم نوجّه المستخدم لصفحة Start
+  return <Redirect href="/start" />;
 }
