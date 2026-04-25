@@ -61,7 +61,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 } else {
                     setProfile(null);
                 }
+                setLoading(false);
             }
+
         );
 
         return () => listener.subscription.unsubscribe();
