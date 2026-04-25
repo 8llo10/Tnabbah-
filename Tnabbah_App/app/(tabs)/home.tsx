@@ -12,12 +12,13 @@ export const unstable_settings = {
 export default function HomeScreen() {
     const { profile } = useAuth();
 
-    const [carData, setCarData] = useState({});
+    const [carData, setCarData] = useState<any>({});
+
 
     useEffect(() => {
         const interval = setInterval(async () => {
             try {
-                const res = await fetch("http://172.20.10.7:3000/car");
+                const res = await fetch("http://127.0.0.1:3000/car");
                 const data = await res.json();
                 setCarData(data);
             } catch (e) {
@@ -91,22 +92,26 @@ export default function HomeScreen() {
             <View style={styles.dataContainer}>
 
                 {/* لايف داتا */}
-                <View style={styles.dataBox}>
-                    <Text style={styles.dataTitle}>Live Data</Text>
-                    <Text style={styles.dataPlaceholder}>— لا توجد بيانات بعد —</Text>
-                </View>
+                <Text style={styles.dataPlaceholder}>
+                    {carData.live
+                        ? `Live Code: ${carData.live.codes?.[0] || "-"}`
+                        : "جاري التحميل..."}
+                </Text>
 
                 {/* DTCs */}
-                <View style={styles.dataBox}>
-                    <Text style={styles.dataTitle}>DTCs (الأعطال)</Text>
-                    <Text style={styles.dataPlaceholder}>— لا توجد أعطال —</Text>
-                </View>
+                <Text style={styles.dataPlaceholder}>
+                    {carData.dtcs
+                        ? `DTC: ${carData.dtcs.codes?.[0] || "لا توجد أكواد"}`
+                        : "جاري التحميل..."}
+                </Text>
 
                 {/* معلومات السيارة */}
-                <View style={styles.dataBox}>
-                    <Text style={styles.dataTitle}>Vehicle Info</Text>
-                    <Text style={styles.dataPlaceholder}>— سيتم عرض المعلومات هنا —</Text>
-                </View>
+                <Text style={styles.dataPlaceholder}>
+                    {carData.status
+                        ? `الحالة: ${carData.status.state}`
+                        : "جاري التحميل..."}
+                </Text>
+
 
             </View>
 
