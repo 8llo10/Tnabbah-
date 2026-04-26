@@ -1,6 +1,10 @@
 import { Stack } from "expo-router";
 import { AuthProvider } from "../providers/AuthProvider";
-import { ThemeProvider, DarkTheme, DefaultTheme } from "@react-navigation/native";
+import {
+  ThemeProvider,
+  DarkTheme,
+  DefaultTheme,
+} from "@react-navigation/native";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { StatusBar } from "expo-status-bar";
 
@@ -11,6 +15,7 @@ export default function RootLayout() {
     <AuthProvider>
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
         <Stack
+          initialRouteName="index"
           screenOptions={{
             headerShown: false,
             animation: "fade",
@@ -20,6 +25,12 @@ export default function RootLayout() {
             },
           }}
         >
+          <Stack.Screen name="auth/reset-password" />
+          <Stack.Screen name="index" />
+          <Stack.Screen name="start" />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="register" />
+          <Stack.Screen name="forgot-password" />
           <Stack.Screen name="(tabs)" />
         </Stack>
 

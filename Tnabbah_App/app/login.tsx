@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useRouter } from "expo-router";
 import {
     View,
     Text,
@@ -9,7 +10,7 @@ import {
     Dimensions,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { useRouter } from 'expo-router';
+
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, Ionicons } from '@expo/vector-icons';
 
@@ -76,7 +77,13 @@ export default function LoginScreen() {
 
                 <View style={styles.formArea}>
                     <View style={styles.inputBox}>
-                        <Feather name="mail" size={22} color="#7C6A6A" style={styles.inputIcon} />
+                        <Feather
+                            name="mail"
+                            size={22}
+                            color="#7C6A6A"
+                            style={styles.inputIcon}
+                        />
+
                         <TextInput
                             style={styles.input}
                             placeholder="البريد الإلكتروني"
@@ -90,7 +97,13 @@ export default function LoginScreen() {
                     </View>
 
                     <View style={styles.inputBox}>
-                        <Feather name="lock" size={23} color="#7C6A6A" style={styles.inputIcon} />
+                        <Feather
+                            name="lock"
+                            size={23}
+                            color="#7C6A6A"
+                            style={styles.inputIcon}
+                        />
+
                         <TextInput
                             style={styles.input}
                             placeholder="كلمة المرور"
@@ -102,8 +115,12 @@ export default function LoginScreen() {
                         />
                     </View>
 
-                    <TouchableOpacity activeOpacity={0.8}>
-                        <Text style={styles.forgotText}>هل نسيت كلمة المرور؟</Text>
+                    <TouchableOpacity
+                        activeOpacity={0.7}
+                        style={styles.forgotPasswordButton}
+                        onPress={() => router.push("/forgot-password" as any)}
+                    >
+                        <Text style={styles.forgotPasswordText}>نسيت كلمة المرور؟</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -122,6 +139,7 @@ export default function LoginScreen() {
                         style={styles.loginGradient}
                     >
                         <View style={styles.loginHighlight} />
+
                         <Text style={styles.loginText}>
                             {loading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
                         </Text>
@@ -164,10 +182,7 @@ const styles = StyleSheet.create({
         width: 54,
         height: 54,
         borderRadius: 27,
-
-        // هنا التعديل فقط: نفس لون زر اللغة تقريبًا
         backgroundColor: 'rgba(248, 238, 238, 0.85)',
-
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 10,
@@ -238,13 +253,18 @@ const styles = StyleSheet.create({
         includeFontPadding: false,
     },
 
-    forgotText: {
-        marginTop: 12,
-        textAlign: 'right',
+    forgotPasswordButton: {
         alignSelf: 'flex-end',
-        fontSize: 15.5,
-        color: '#7C6A6A',
-        fontWeight: '700',
+        paddingVertical: 10,
+        zIndex: 999,
+        elevation: 999,
+    },
+
+    forgotPasswordText: {
+        color: '#871B17',
+        fontSize: 14,
+        textAlign: 'right',
+        fontWeight: '900',
         includeFontPadding: false,
     },
 
