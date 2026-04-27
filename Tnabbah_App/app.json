@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "tnabbahapp",
+    "scheme": "tnabbah",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -48,4 +49,4 @@
       "reactCompiler": true
     }
   }
-}
+  }
