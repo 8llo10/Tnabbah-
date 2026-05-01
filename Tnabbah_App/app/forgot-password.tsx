@@ -37,6 +37,7 @@ export default function ForgotPasswordScreen() {
 
     const redirectTo = "tnabbahapp://auth/reset-password";
 
+
 const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
   redirectTo,
 });
