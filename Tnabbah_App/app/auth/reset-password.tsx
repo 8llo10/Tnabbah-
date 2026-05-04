@@ -10,7 +10,6 @@ import {
   View,
   Dimensions,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 
 import { LinearGradient } from "expo-linear-gradient";
@@ -29,7 +28,7 @@ export default function ResetPasswordScreen() {
       ? params.email[0]
       : "";
 
-  // الإيميل جاي تلقائيًا من صفحة Forgot Password
+  // الإيميل جاي من صفحة Forgot Password
   // المستخدم ما يحتاج يكتبه مرة ثانية
   const [email] = useState(initialEmail || "");
 
@@ -123,14 +122,11 @@ export default function ResetPasswordScreen() {
       setConfirmPassword("");
       setErrorMessage("");
 
+      // مهم جدًا: نطلع من جلسة الريست عشان ما يوديك Home مباشرة
       await supabase.auth.signOut();
 
-      Alert.alert("تم بنجاح", "تم تغيير كلمة المرور، سجلي دخولك الآن", [
-        {
-          text: "حسنًا",
-          onPress: () => router.replace("/login" as any),
-        },
-      ]);
+      // بعدها نوديه Login
+      router.replace("/login" as any);
     } catch (error) {
       console.log("reset password error:", error);
       setErrorMessage("حدث خطأ غير متوقع، حاولي مرة أخرى");

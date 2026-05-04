@@ -39,11 +39,17 @@ export default function ForgotPasswordScreen() {
     try {
       setLoading(true);
 
-      // هنا ما نستخدم redirectTo
-      // لأننا بنستخدم كود OTP بدل رابط يفتح التطبيق
-      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
+      /*
+        مهم:
+        هنا لا نستخدم redirectTo
+        لأننا نستخدم طريقة الكود OTP بدل الرابط
+      */
       
-
+const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
+router.push({
+  pathname: "/auth/reset-password" as any,
+  params: { email: cleanEmail },
+});
       if (error) {
         console.log("Forgot password error:", error.message);
         Alert.alert("خطأ", error.message);
