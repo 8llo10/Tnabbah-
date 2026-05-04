@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
 import * as Linking from "expo-linking";
+
 import {
   StyleSheet,
   Text,
@@ -11,6 +12,7 @@ import {
   Alert,
   Dimensions,
 } from "react-native";
+
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather, Ionicons } from "@expo/vector-icons";
 
@@ -26,38 +28,42 @@ export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
- const handleSubmit = async () => {
-  if (!email.trim()) {
-    Alert.alert("تنبيه", "الرجاء إدخال البريد الإلكتروني");
-    return;
-  }
+  const handleSubmit = async () => {
+    const cleanEmail = email.trim().toLowerCase();
 
-  try {
-    setLoading(true);
-
-    const redirectTo = "tnabbahapp://auth/reset-password";
-
-
-const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-  redirectTo,
-});
-    console.log("PASSWORD RESET REDIRECT URL:", redirectTo);
-
-    if (error) {
-      Alert.alert("خطأ", error.message);
+    if (!cleanEmail) {
+      Alert.alert("تنبيه", "الرجاء إدخال البريد الإلكتروني");
       return;
     }
 
-    Alert.alert(
-      "تم الإرسال",
-      "تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني"
-    );
-  } catch (err) {
-    Alert.alert("خطأ", "حدث خطأ غير متوقع");
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      setLoading(true);
+
+     
+     const redirectTo = "tnabbah://auth/reset-password";
+
+console.log("PASSWORD RESET REDIRECT URL:", redirectTo);
+
+const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+  redirectTo,
+});
+
+      if (error) {
+        Alert.alert("خطأ", error.message);
+        return;
+      }
+
+      Alert.alert(
+        "تم الإرسال",
+        "تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني. افتحي الإيميل واضغطي على الزر."
+      );
+    } catch (err) {
+      console.log("Forgot password error:", err);
+      Alert.alert("خطأ", "حدث خطأ غير متوقع");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -93,6 +99,7 @@ const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
               placeholderTextColor="#7C6A6A"
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
               value={email}
               onChangeText={setEmail}
               textAlign="right"
@@ -121,8 +128,6 @@ const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
             </Text>
           </LinearGradient>
         </TouchableOpacity>
-
-        
       </View>
     </View>
   );
@@ -264,14 +269,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 20,
     fontWeight: "900",
-    includeFontPadding: false,
-  },
-
-  backToLoginText: {
-    color: "#871B17",
-    fontWeight: "900",
-    fontSize: 15.5,
-    textAlign: "center",
     includeFontPadding: false,
   },
 });

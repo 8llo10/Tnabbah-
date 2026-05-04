@@ -27,49 +27,98 @@ export default function RegisterScreen() {
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+
+    const [showPassword, setShowPassword] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
+
     const [loading, setLoading] = useState(false);
+
+    const validatePassword = () => {
+        const hasMinLength = password.length >= 6;
+        const hasUpperCase = /[A-Z]/.test(password);
+        const hasLowerCase = /[a-z]/.test(password);
+        const hasNumber = /[0-9]/.test(password);
+
+        if (!password.trim()) {
+            setErrorMessage('اكتبي كلمة المرور');
+            return false;
+        }
+
+        if (!hasMinLength) {
+            setErrorMessage('كلمة المرور لازم تكون 6 خانات على الأقل');
+            return false;
+        }
+
+        if (!hasUpperCase || !hasLowerCase || !hasNumber) {
+            setErrorMessage('كلمة المرور لازم تحتوي على حرف كبير، حرف صغير، ورقم');
+            return false;
+        }
+
+        setErrorMessage('');
+        return true;
+    };
 
     const handleRegister = async () => {
         try {
-            if (!fullName.trim()) return Alert.alert('خطأ', 'أدخلي الاسم الكامل');
-            if (!email.trim()) return Alert.alert('خطأ', 'أدخلي البريد الإلكتروني');
-            if (!password.trim()) return Alert.alert('خطأ', 'أدخلي كلمة المرور');
-            if (password.length < 6) return Alert.alert('خطأ', 'كلمة المرور لازم تكون 6 أحرف أو أكثر');
+            if (!fullName.trim()) {
+                setErrorMessage('');
+                return Alert.alert('خطأ', 'أدخلي الاسم الكامل');
+            }
 
-            setLoading(true);
+            if (!email.trim()) {
+                setErrorMessage('');
+                return Alert.alert('خطأ', 'أدخلي البريد الإلكتروني');
+            }
 
-            // 1) تسجيل المستخدم مع redirect URL
-            const { data, error } = await supabase.auth.signUp({
-                email: email.trim(),
-                password,
-                options: {
-                    emailRedirectTo: 'https://qzhnghwmgujgthbkivdi.supabase.co/auth/v1/callback'
-                }
-            });
-
-            if (error) {
-                Alert.alert('خطأ', error.message);
+            if (!validatePassword()) {
                 return;
             }
 
-            // 2) حفظ الاسم في جدول profiles
+            setLoading(true);
+
+            const cleanName = fullName.trim();
+            const cleanEmail = email.trim().toLowerCase();
+
+            const { data, error } = await supabase.auth.signUp({
+                email: cleanEmail,
+                password,
+                options: {
+                    data: {
+                        full_name: cleanName,
+                    },
+                    emailRedirectTo: 'https://qzhnghwmgujgthbkivdi.supabase.co/auth/v1/callback',
+                },
+            });
+
+            if (error) {
+                setErrorMessage(error.message);
+                return;
+            }
+
             if (data.user) {
                 const { error: profileError } = await supabase
                     .from('profiles')
-                    .insert({
+                    .upsert({
                         id: data.user.id,
-                        username: email.trim(),
-                        full_name: fullName,
+                        username: cleanEmail,
+                        full_name: cleanName,
                         avatar_url: null,
                         website: null,
                     });
 
                 if (profileError) {
-                    console.log('Profile Insert Error:', profileError);
+                    console.log('Profile Upsert Error:', profileError);
+                    Alert.alert(
+                        'تنبيه',
+                        'تم إنشاء الحساب، لكن الاسم لم يُحفظ في جدول profiles. راجعي صلاحيات Supabase.'
+                    );
+                    return;
                 }
             }
 
-            // 3) إذا دخل مباشرة
+            setPassword('');
+            setErrorMessage('');
+
             if (data.session) {
                 router.replace('/home');
             } else {
@@ -79,7 +128,7 @@ export default function RegisterScreen() {
 
         } catch (err) {
             console.log(err);
-            Alert.alert('خطأ', 'صار خطأ غير متوقع');
+            setErrorMessage('صار خطأ غير متوقع، حاولي مرة أخرى');
         } finally {
             setLoading(false);
         }
@@ -106,43 +155,92 @@ export default function RegisterScreen() {
 
                 <View style={styles.formArea}>
                     <View style={styles.inputBox}>
-                        <Feather name="user" size={22} color="#7C6A6A" style={styles.inputIcon} />
+                        <Feather
+                            name="user"
+                            size={22}
+                            color="#7C6A6A"
+                            style={styles.inputIcon}
+                        />
+
                         <TextInput
                             style={styles.input}
                             placeholder="الاسم الكامل"
                             placeholderTextColor="#7C6A6A"
                             value={fullName}
-                            onChangeText={setFullName}
+                            onChangeText={(text) => {
+                                setFullName(text);
+                                setErrorMessage('');
+                            }}
                             textAlign="right"
                         />
                     </View>
 
                     <View style={styles.inputBox}>
-                        <Feather name="mail" size={22} color="#7C6A6A" style={styles.inputIcon} />
+                        <Feather
+                            name="mail"
+                            size={22}
+                            color="#7C6A6A"
+                            style={styles.inputIcon}
+                        />
+
                         <TextInput
                             style={styles.input}
                             placeholder="البريد الإلكتروني"
                             placeholderTextColor="#7C6A6A"
                             keyboardType="email-address"
                             autoCapitalize="none"
+                            autoCorrect={false}
                             value={email}
-                            onChangeText={setEmail}
+                            onChangeText={(text) => {
+                                setEmail(text);
+                                setErrorMessage('');
+                            }}
                             textAlign="right"
                         />
                     </View>
 
-                    <View style={styles.inputBox}>
-                        <Feather name="lock" size={23} color="#7C6A6A" style={styles.inputIcon} />
+                    <View style={[styles.inputBox, errorMessage && styles.inputBoxError]}>
+                        <Feather
+                            name="lock"
+                            size={23}
+                            color={errorMessage ? "#D32F2F" : "#7C6A6A"}
+                            style={styles.inputIcon}
+                        />
+
                         <TextInput
                             style={styles.input}
                             placeholder="كلمة المرور"
                             placeholderTextColor="#7C6A6A"
-                            secureTextEntry
+                            secureTextEntry={!showPassword}
                             value={password}
-                            onChangeText={setPassword}
+                            onChangeText={(text) => {
+                                setPassword(text);
+                                setErrorMessage('');
+                            }}
                             textAlign="right"
+                            autoCapitalize="none"
+                            autoCorrect={false}
                         />
+
+                        <TouchableOpacity
+                            style={styles.eyeButton}
+                            activeOpacity={0.7}
+                            onPress={() => setShowPassword(!showPassword)}
+                        >
+                            <Ionicons
+                                name={showPassword ? "eye-outline" : "eye-off-outline"}
+                                size={22}
+                                color="#7C6A6A"
+                            />
+                        </TouchableOpacity>
                     </View>
+
+                    {errorMessage ? (
+                        <View style={styles.errorBox}>
+                            <Ionicons name="alert-circle" size={18} color="#D32F2F" />
+                            <Text style={styles.errorText}>{errorMessage}</Text>
+                        </View>
+                    ) : null}
                 </View>
             </View>
 
@@ -160,6 +258,7 @@ export default function RegisterScreen() {
                         style={styles.registerGradient}
                     >
                         <View style={styles.registerHighlight} />
+
                         <Text style={styles.registerText}>
                             {loading ? 'جاري التسجيل...' : 'تسجيل حساب جديد'}
                         </Text>
@@ -266,6 +365,11 @@ const styles = StyleSheet.create({
         elevation: 1,
     },
 
+    inputBoxError: {
+        borderColor: '#D32F2F',
+        backgroundColor: 'rgba(255, 245, 245, 0.88)',
+    },
+
     inputIcon: {
         marginLeft: 13,
     },
@@ -276,6 +380,38 @@ const styles = StyleSheet.create({
         color: '#2E1D1D',
         fontWeight: '600',
         paddingVertical: 0,
+        includeFontPadding: false,
+    },
+
+    eyeButton: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 8,
+    },
+
+    errorBox: {
+        flexDirection: 'row-reverse',
+        alignItems: 'center',
+        alignSelf: 'flex-end',
+        marginTop: -6,
+        marginBottom: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 18,
+        backgroundColor: 'rgba(211, 47, 47, 0.08)',
+        borderWidth: 1,
+        borderColor: 'rgba(211, 47, 47, 0.18)',
+        gap: 7,
+    },
+
+    errorText: {
+        color: '#D32F2F',
+        fontSize: 13.5,
+        fontWeight: '800',
+        textAlign: 'right',
         includeFontPadding: false,
     },
 

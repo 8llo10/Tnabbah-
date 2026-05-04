@@ -27,6 +27,7 @@ export default function LoginScreen() {
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
 
     const handleLogin = async () => {
@@ -90,6 +91,7 @@ export default function LoginScreen() {
                             placeholderTextColor="#7C6A6A"
                             keyboardType="email-address"
                             autoCapitalize="none"
+                            autoCorrect={false}
                             value={email}
                             onChangeText={setEmail}
                             textAlign="right"
@@ -108,11 +110,25 @@ export default function LoginScreen() {
                             style={styles.input}
                             placeholder="كلمة المرور"
                             placeholderTextColor="#7C6A6A"
-                            secureTextEntry
+                            secureTextEntry={!showPassword}
                             value={password}
                             onChangeText={setPassword}
                             textAlign="right"
+                            autoCapitalize="none"
+                            autoCorrect={false}
                         />
+
+                        <TouchableOpacity
+                            style={styles.eyeButton}
+                            activeOpacity={0.7}
+                            onPress={() => setShowPassword(!showPassword)}
+                        >
+                            <Ionicons
+                                name={showPassword ? "eye-outline" : "eye-off-outline"}
+                                size={22}
+                                color="#7C6A6A"
+                            />
+                        </TouchableOpacity>
                     </View>
 
                     <TouchableOpacity
@@ -251,6 +267,15 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         paddingVertical: 0,
         includeFontPadding: false,
+    },
+
+    eyeButton: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 8,
     },
 
     forgotPasswordButton: {

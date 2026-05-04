@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
+import * as Linking from "expo-linking";
 
 import {
   StyleSheet,
@@ -8,8 +9,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Alert,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather, Ionicons } from "@expo/vector-icons";
@@ -20,128 +21,143 @@ export default function ResetPasswordScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  const hasProcessedRecovery = useRef(false);
+  const [tokenHash, setTokenHash] = useState<string | null>(null);
 
-  const [sessionReady, setSessionReady] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [errorMessage, setErrorMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
-    const prepareSession = async () => {
-      try {
-        console.log("RESET PASSWORD PARAMS:", params);
+  const getStringParam = (value: unknown) => {
+    if (typeof value === "string") return value;
+    if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+    return null;
+  };
 
-        if (sessionReady || hasProcessedRecovery.current) {
-          setReady(true);
-          return;
-        }
+  const getParamsFromUrl = (url: string | null) => {
+    const result: Record<string, string> = {};
 
-        const tokenHash =
-          typeof params.token_hash === "string"
-            ? params.token_hash
-            : Array.isArray(params.token_hash)
-            ? params.token_hash[0]
-            : null;
+    if (!url) return result;
 
-        if (!tokenHash) {
-          setReady(true);
-          return;
-        }
-
-        hasProcessedRecovery.current = true;
-
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: "recovery",
-        });
-
-        if (error) {
-          console.log("verifyOtp recovery error:", error.message);
-          Alert.alert("خطأ", "رابط إعادة التعيين غير صالح أو منتهي");
-          setSessionReady(false);
-        } else {
-          console.log("Password recovery session created from token_hash");
-          setSessionReady(true);
-        }
-      } catch (error) {
-        console.log("Reset password token_hash error:", error);
-        setSessionReady(false);
-      } finally {
-        setReady(true);
-      }
-    };
-
-    prepareSession();
-  }, [params, sessionReady]);
-
-  const goToLoginAfterReset = async () => {
     try {
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.log("Sign out after reset error:", e);
-    } finally {
-      router.replace("/login" as any);
+      const queryPart = url.includes("?") ? url.split("?")[1]?.split("#")[0] : "";
+      const hashPart = url.includes("#") ? url.split("#")[1] : "";
+
+      const queryParams = new URLSearchParams(queryPart || "");
+      const hashParams = new URLSearchParams(hashPart || "");
+
+      queryParams.forEach((value, key) => {
+        result[key] = value;
+      });
+
+      hashParams.forEach((value, key) => {
+        result[key] = value;
+      });
+
+      return result;
+    } catch {
+      return result;
     }
   };
 
-  const handleUpdatePassword = async () => {
-    if (!sessionReady) {
-      Alert.alert(
-        "تنبيه",
-        "افتحي صفحة إعادة التعيين من رابط الإيميل الجديد، وليس من زر داخل التطبيق"
-      );
-      return;
-    }
+  useEffect(() => {
+    const preparePage = async () => {
+      const initialUrl = await Linking.getInitialURL();
+      const urlParams = getParamsFromUrl(initialUrl);
+
+      const tokenFromParams = getStringParam(params.token_hash);
+      const tokenFromUrl = urlParams.token_hash;
+
+      setTokenHash(tokenFromParams || tokenFromUrl || null);
+      setReady(true);
+    };
+
+    preparePage();
+  }, [params]);
+
+  const validatePassword = () => {
+    const hasMinLength = password.length >= 6;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
 
     if (!password.trim() || !confirmPassword.trim()) {
-      Alert.alert("تنبيه", "الرجاء إدخال كلمة المرور وتأكيدها");
-      return;
+      setErrorMessage("اكتبي كلمة المرور وتأكيدها");
+      return false;
     }
 
-    if (password.length < 6) {
-      Alert.alert("تنبيه", "كلمة المرور يجب أن تكون 6 أحرف على الأقل");
-      return;
+    if (!hasMinLength) {
+      setErrorMessage("كلمة المرور لازم تكون 6 خانات على الأقل");
+      return false;
+    }
+
+    if (!hasUpperCase || !hasLowerCase || !hasNumber) {
+      setErrorMessage("كلمة المرور لازم تحتوي على حرف كبير، حرف صغير، ورقم");
+      return false;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert("تنبيه", "كلمة المرور غير متطابقة");
+      setErrorMessage("كلمة المرور وتأكيدها غير متطابقين");
+      return false;
+    }
+
+    setErrorMessage("");
+    return true;
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!validatePassword()) {
+      return;
+    }
+
+    if (!tokenHash) {
+      setErrorMessage("الرابط غير صالح، اطلبي رابط جديد");
       return;
     }
 
     try {
       setLoading(true);
 
-      const { error } = await supabase.auth.updateUser({
-        password: password,
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: "recovery",
       });
 
-     if (error) {
-  Alert.alert("خطأ", error.message);
-  return;
-}
+      if (verifyError) {
+        console.log("verifyOtp error:", verifyError.message);
+        setErrorMessage("الرابط غير صالح أو تم استخدامه من قبل، اطلبي رابط جديد");
+        return;
+      }
 
-setPassword("");
-setConfirmPassword("");
-setSessionReady(false);
+      const { error: updateError } = await supabase.auth.updateUser({
+        password,
+      });
 
-try {
-  await supabase.auth.signOut();
-} catch (e) {
-  console.log("Sign out after reset error:", e);
-}
+      if (updateError) {
+        console.log("update password error:", updateError.message);
+        setErrorMessage("تعذر تحديث كلمة المرور، حاولي مرة أخرى");
+        return;
+      }
 
-Alert.alert("تم", "تم تغيير كلمة المرور بنجاح", [
-  {
-    text: "تسجيل الدخول",
-    onPress: () => {
+      setPassword("");
+      setConfirmPassword("");
+      setErrorMessage("");
+
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        console.log("signOut error:", e);
+      }
+
       router.replace("/login" as any);
-    },
-  },
-]);
     } catch (error) {
-      Alert.alert("خطأ", "حدث خطأ غير متوقع");
+      console.log("reset password error:", error);
+      setErrorMessage("حدث خطأ غير متوقع، حاولي مرة أخرى");
     } finally {
       setLoading(false);
     }
@@ -172,11 +188,11 @@ Alert.alert("تم", "تم تغيير كلمة المرور بنجاح", [
           أدخلي كلمة مرور جديدة لحسابك، ثم أكديها لإتمام التغيير
         </Text>
 
-        <View style={styles.inputBox}>
+        <View style={[styles.inputBox, errorMessage && styles.inputBoxError]}>
           <Feather
             name="lock"
             size={23}
-            color="#7C6A6A"
+            color={errorMessage ? "#D32F2F" : "#7C6A6A"}
             style={styles.inputIcon}
           />
 
@@ -184,18 +200,35 @@ Alert.alert("تم", "تم تغيير كلمة المرور بنجاح", [
             style={styles.input}
             placeholder="كلمة المرور الجديدة"
             placeholderTextColor="#7C6A6A"
-            secureTextEntry
+            secureTextEntry={!showPassword}
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              setErrorMessage("");
+            }}
             textAlign="right"
+            autoCapitalize="none"
+            autoCorrect={false}
           />
+
+          <TouchableOpacity
+            style={styles.eyeButton}
+            activeOpacity={0.7}
+            onPress={() => setShowPassword(!showPassword)}
+          >
+            <Ionicons
+              name={showPassword ? "eye-outline" : "eye-off-outline"}
+              size={22}
+              color="#7C6A6A"
+            />
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.inputBox}>
+        <View style={[styles.inputBox, errorMessage && styles.inputBoxError]}>
           <Feather
             name="lock"
             size={23}
-            color="#7C6A6A"
+            color={errorMessage ? "#D32F2F" : "#7C6A6A"}
             style={styles.inputIcon}
           />
 
@@ -203,17 +236,41 @@ Alert.alert("تم", "تم تغيير كلمة المرور بنجاح", [
             style={styles.input}
             placeholder="تأكيد كلمة المرور"
             placeholderTextColor="#7C6A6A"
-            secureTextEntry
+            secureTextEntry={!showConfirmPassword}
             value={confirmPassword}
-            onChangeText={setConfirmPassword}
+            onChangeText={(text) => {
+              setConfirmPassword(text);
+              setErrorMessage("");
+            }}
             textAlign="right"
+            autoCapitalize="none"
+            autoCorrect={false}
           />
+
+          <TouchableOpacity
+            style={styles.eyeButton}
+            activeOpacity={0.7}
+            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+          >
+            <Ionicons
+              name={showConfirmPassword ? "eye-outline" : "eye-off-outline"}
+              size={22}
+              color="#7C6A6A"
+            />
+          </TouchableOpacity>
         </View>
+
+        {errorMessage ? (
+          <View style={styles.errorBox}>
+            <Ionicons name="alert-circle" size={18} color="#D32F2F" />
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.buttonsArea}>
         <TouchableOpacity
-          style={[styles.resetButton, loading && { opacity: 0.5 }]}
+          style={[styles.resetButton, loading && { opacity: 0.75 }]}
           onPress={handleUpdatePassword}
           disabled={loading}
           activeOpacity={0.9}
@@ -226,9 +283,14 @@ Alert.alert("تم", "تم تغيير كلمة المرور بنجاح", [
           >
             <View style={styles.buttonHighlight} />
 
-            <Text style={styles.resetText}>
-              {loading ? "جاري التحديث..." : "تحديث كلمة المرور"}
-            </Text>
+            {loading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={styles.resetText}>جاري التحديث...</Text>
+              </View>
+            ) : (
+              <Text style={styles.resetText}>تحديث كلمة المرور</Text>
+            )}
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -314,6 +376,11 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
 
+  inputBoxError: {
+    borderColor: "#D32F2F",
+    backgroundColor: "rgba(255, 245, 245, 0.88)",
+  },
+
   inputIcon: {
     marginLeft: 13,
   },
@@ -324,6 +391,37 @@ const styles = StyleSheet.create({
     color: "#2E1D1D",
     fontWeight: "600",
     paddingVertical: 0,
+    includeFontPadding: false,
+  },
+
+  eyeButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
+
+  errorBox: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    alignSelf: "flex-end",
+    marginTop: -6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+    backgroundColor: "rgba(211, 47, 47, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(211, 47, 47, 0.18)",
+    gap: 7,
+  },
+
+  errorText: {
+    color: "#D32F2F",
+    fontSize: 13.5,
+    fontWeight: "800",
+    textAlign: "right",
     includeFontPadding: false,
   },
 
@@ -363,6 +461,13 @@ const styles = StyleSheet.create({
     right: 0,
     height: "50%",
     backgroundColor: "rgba(255,255,255,0.08)",
+  },
+
+  loadingRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
   },
 
   resetText: {

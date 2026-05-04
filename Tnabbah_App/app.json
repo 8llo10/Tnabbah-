@@ -5,14 +5,16 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo.png",
-    "scheme": "tnabbahapp",
     "scheme": "tnabbah",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rawanamoodi.tnabbahapp",
-      "icon": "./assets/images/logo.png"
+      "icon": "./assets/images/logo.png",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.rawanamoodi.tnabbahapp",
@@ -21,8 +23,7 @@
         "foregroundImage": "./assets/images/logo.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.TnabbahApp"
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
@@ -47,6 +48,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6710494a-2287-4cfb-ac1b-411f5fbf062e"
+      }
     }
   }
 }

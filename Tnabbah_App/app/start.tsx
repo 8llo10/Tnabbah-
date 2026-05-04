@@ -4,12 +4,13 @@ import {
     TouchableOpacity,
     Image,
     StyleSheet,
-    ActivityIndicator,
-    Dimensions
+    Dimensions,
+    Animated,
+    Easing,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../providers/AuthProvider';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -29,8 +30,10 @@ export default function StartScreen() {
     const { session, loading } = useAuth();
 
     const [showAnimation, setShowAnimation] = useState(true);
-
     const [language, setLanguage] = useState<'ar' | 'en'>('ar');
+
+    const logoAnim = useRef(new Animated.Value(0)).current;
+    const contentAnim = useRef(new Animated.Value(0)).current;
 
     const isArabic = language === 'ar';
 
@@ -40,173 +43,256 @@ export default function StartScreen() {
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            setShowAnimation(false);
-        }, 1200);
+            Animated.parallel([
+                Animated.timing(logoAnim, {
+                    toValue: 1,
+                    duration: 950,
+                    easing: Easing.out(Easing.cubic),
+                    useNativeDriver: true,
+                }),
+                Animated.timing(contentAnim, {
+                    toValue: 1,
+                    duration: 750,
+                    delay: 250,
+                    easing: Easing.out(Easing.cubic),
+                    useNativeDriver: true,
+                }),
+            ]).start(() => {
+                setShowAnimation(false);
+            });
+        }, 2000);
 
         return () => clearTimeout(timer);
-    }, []);
+    }, [logoAnim, contentAnim]);
 
     useEffect(() => {
         if (!loading && session && !showAnimation) {
             router.replace('/home');
         }
-    }, [loading, session, showAnimation]);
+    }, [loading, session, showAnimation, router]);
 
-    if (showAnimation || loading) {
-        return (
-            <View style={styles.center}>
-                <TnabbahBackground />
+    const logoStartSize = 180;
+    const logoEndWidth = 88;
+    const logoEndHeight = 64;
 
-                <Image
-                    source={require('../assets/images/logo.png')}
-                    style={{ width: 180, height: 180 }}
-                    resizeMode="contain"
-                />
-                <ActivityIndicator size="large" style={{ marginTop: 20 }} color="#871B17" />
-            </View>
-        );
-    }
+    const startX = width / 2 - logoStartSize / 2;
+    const startY = height / 2 - logoStartSize / 2;
 
-    if (session) {
+    const finalLogoLeft = width - 24 - logoEndWidth ;
+    const finalLogoTop = height * 0.105 - 6;
+
+    const endX = finalLogoLeft - (logoStartSize - logoEndWidth) / 2;
+    const endY = finalLogoTop - (logoStartSize - logoEndHeight) / 2;
+
+    const logoTranslateX = logoAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [startX, endX],
+    });
+
+    const logoTranslateY = logoAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [startY, endY],
+    });
+
+    const logoScale = logoAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, logoEndWidth / logoStartSize],
+    });
+
+    const contentOpacity = contentAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, 1],
+    });
+
+    if (session && !showAnimation) {
         return null;
     }
 
     return (
         <View style={styles.container}>
-            <TnabbahBackground />
+            <Animated.View
+                style={[
+                    styles.fullContent,
+                    {
+                        opacity: contentOpacity,
+                    },
+                ]}
+            >
+                <TnabbahBackground />
 
-            <View style={styles.header}>
-                <TouchableOpacity
-                    style={styles.langButton}
-                    activeOpacity={0.8}
-                    onPress={toggleLanguage}
-                >
-                    <Feather name="globe" size={17} color="#2E1D1D" />
-                    <Text style={styles.langText}>
-                        {isArabic ? 'EN' : 'AR'}
-                    </Text>
-                </TouchableOpacity>
-
-                <Image
-                    source={require('../assets/images/logo.png')}
-                    style={styles.logo}
-                    resizeMode="contain"
-                />
-            </View>
-
-            <View style={styles.welcomeArea}>
-                <Text style={styles.title}>
-                    {isArabic ? 'مرحباً بك في تنبه' : 'Welcome to Tnabbah'}
-                </Text>
-
-                <Text style={styles.subtitle}>
-                    {isArabic
-                        ? 'لأن سيارتك تحتاج من ينتبه لها'
-                        : 'Because your car needs someone to watch over it'}
-                </Text>
-            </View>
-
-            <View style={styles.carSection}>
-                <View style={styles.aiBubble}>
-                    <Text style={styles.aiText}>AI</Text>
-                </View>
-
-                <View style={styles.warningBubble}>
-                    <Ionicons name="warning-outline" size={24} color="#871B17" />
-                </View>
-
-                <View style={styles.shieldBubble}>
-                    <Feather name="shield" size={23} color="#871B17" />
-                </View>
-
-                <View style={styles.engineBubble}>
-                    <MaterialCommunityIcons name="engine" size={25} color="#871B17" />
-                </View>
-
-                <Image
-                    source={require('../assets/images/car-front.png')}
-                    style={styles.carImage}
-                    resizeMode="contain"
-                />
-            </View>
-
-            <View style={styles.buttonsArea}>
-                <TouchableOpacity
-                    style={styles.loginButton}
-                    onPress={() => router.push('/login')}
-                    activeOpacity={0.9}
-                >
-                    <LinearGradient
-                        colors={['#9A3A33', '#5F130F']}
-                        start={{ x: 0.5, y: 0 }}
-                        end={{ x: 0.5, y: 1 }}
-                        style={styles.loginGradient}
+                <View style={styles.header}>
+                    <TouchableOpacity
+                        style={styles.langButton}
+                        activeOpacity={0.8}
+                        onPress={toggleLanguage}
                     >
-                        <View style={styles.loginHighlight} />
-                        <Text style={styles.loginText}>
-                            {isArabic ? 'تسجيل الدخول' : 'Login'}
+                        <Feather name="globe" size={17} color="#2E1D1D" />
+                        <Text style={styles.langText}>
+                            {isArabic ? 'EN' : 'AR'}
                         </Text>
-                    </LinearGradient>
-                </TouchableOpacity>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={styles.registerButton}
-                    onPress={() => router.push('/register')}
-                    activeOpacity={0.9}
-                >
-                    <Text style={styles.registerText}>
-                        {isArabic ? 'إنشاء حساب جديد' : 'Create Account'}
+                    <View style={styles.logoPlaceholder} />
+                </View>
+
+                <View style={styles.welcomeArea}>
+                    <Text style={styles.title}>
+                        {isArabic ? 'مرحباً بك في تنبه' : 'Welcome to Tnabbah'}
                     </Text>
-                </TouchableOpacity>
-            </View>
+
+                    <Text style={styles.subtitle}>
+                        {isArabic
+                            ? 'لأن سيارتك تحتاج من ينتبه لها'
+                            : 'Because your car needs someone to watch over it'}
+                    </Text>
+                </View>
+
+                <View style={styles.carSection}>
+                    {/* فوق: AI */}
+                    <View style={styles.aiBubble}>
+                        <Text style={styles.aiText}>AI</Text>
+                    </View>
+
+                    {/* يسار: تحذير */}
+                    <View style={styles.warningBubble}>
+                        <Ionicons
+                            name="warning-outline"
+                            size={24}
+                            color="#871B17"
+                        />
+                    </View>
+
+                    {/* يمين: تنبيه بدل الدرع */}
+                    <View style={styles.alertBubble}>
+                        <Ionicons
+                            name="notifications-outline"
+                            size={26}
+                            color="#871B17"
+                        />
+                    </View>
+
+                    {/* تحت: صيانة بدل المحرك */}
+                    <View style={styles.maintenanceBubble}>
+                        <MaterialCommunityIcons
+    name="tools"
+    size={34}
+    color="#871B17"
+/>
+                    </View>
+
+                    <Image
+                        source={require('../assets/images/car-front.png')}
+                        style={styles.carImage}
+                        resizeMode="contain"
+                    />
+                </View>
+
+                <View style={styles.buttonsArea}>
+                    <TouchableOpacity
+                        style={styles.loginButton}
+                        onPress={() => router.push('/login')}
+                        activeOpacity={0.9}
+                    >
+                        <LinearGradient
+                            colors={['#9A3A33', '#5F130F']}
+                            start={{ x: 0.5, y: 0 }}
+                            end={{ x: 0.5, y: 1 }}
+                            style={styles.loginGradient}
+                        >
+                            <View style={styles.loginHighlight} />
+                            <Text style={styles.loginText}>
+                                {isArabic ? 'تسجيل الدخول' : 'Login'}
+                            </Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.registerButton}
+                        onPress={() => router.push('/register')}
+                        activeOpacity={0.9}
+                    >
+                        <Text style={styles.registerText}>
+                            {isArabic ? 'إنشاء حساب جديد' : 'Create Account'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </Animated.View>
+
+            <Animated.Image
+                source={require('../assets/images/logo.png')}
+                style={[
+                    styles.animatedLogo,
+                    {
+                        transform: [
+                            { translateX: logoTranslateX },
+                            { translateY: logoTranslateY },
+                            { scale: logoScale },
+                        ],
+                    },
+                ]}
+                resizeMode="contain"
+            />
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    dashedCircle: {
-    position: 'absolute',
-    width: width * 0.66,
-    height: width * 0.66,
-    borderRadius: width * 0.33,
-    borderWidth: 1.4,
-    borderColor: 'rgba(135, 27, 23, 0.32)',
-    borderStyle: 'dashed',
-    backgroundColor: 'transparent',
-    top: height * 0.385,
-    left: width / 2 - (width * 0.66) / 2,
-},
-
-innerCircle: {
-    position: 'absolute',
-    width: width * 0.50,
-    height: width * 0.50,
-    borderRadius: width * 0.25,
-    borderWidth: 1.2,
-    borderColor: 'rgba(135, 27, 23, 0.18)',
-    backgroundColor: 'transparent',
-    top: height * 0.385 + (width * 0.08),
-    left: width / 2 - (width * 0.50) / 2,
-},
-    background: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-},
-
-    center: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#FFFFFF',
-        overflow: 'hidden',
-    },
-
     container: {
         flex: 1,
         paddingHorizontal: 24,
         backgroundColor: '#FFFFFF',
         overflow: 'hidden',
+    },
+
+    fullContent: {
+        flex: 1,
+        zIndex: 5,
+    },
+
+    background: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: '#FFFFFF',
+        overflow: 'hidden',
+    },
+
+    animatedLogo: {
+        position: 'absolute',
+        width: 180,
+        height: 180,
+        top: 0,
+        left: 0,
+        zIndex: 30,
+    },
+
+    logoPlaceholder: {
+        width: 88,
+        height: 64,
+        marginTop: -6,
+    },
+
+    dashedCircle: {
+        position: 'absolute',
+        width: width * 0.66,
+        height: width * 0.66,
+        borderRadius: width * 0.33,
+        borderWidth: 1.4,
+        borderColor: 'rgba(135, 27, 23, 0.32)',
+        borderStyle: 'dashed',
+        backgroundColor: 'transparent',
+        top: height * 0.385,
+        left: width / 2 - (width * 0.66) / 2 - 24,
+    },
+
+    innerCircle: {
+        position: 'absolute',
+        width: width * 0.50,
+        height: width * 0.50,
+        borderRadius: width * 0.25,
+        borderWidth: 1.2,
+        borderColor: 'rgba(135, 27, 23, 0.18)',
+        backgroundColor: 'transparent',
+        top: height * 0.385 + width * 0.08,
+        left: width / 2 - (width * 0.50) / 2 - 24,
     },
 
     header: {
@@ -241,12 +327,6 @@ innerCircle: {
         fontWeight: '500',
     },
 
-    logo: {
-        width: 88,
-        height: 64,
-        marginTop: -6,
-    },
-
     welcomeArea: {
         marginTop: height * 0.06,
         alignItems: 'center',
@@ -274,7 +354,7 @@ innerCircle: {
         width: width * 0.66,
         height: width * 0.66,
         top: height * 0.385,
-        left: width / 2 - (width * 0.66) / 2,
+        left: width / 2 - (width * 0.66) / 2 - 24,
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 6,
@@ -314,7 +394,7 @@ innerCircle: {
         zIndex: 8,
     },
 
-    shieldBubble: {
+    alertBubble: {
         position: 'absolute',
         width: 62,
         height: 62,
@@ -328,7 +408,7 @@ innerCircle: {
         zIndex: 8,
     },
 
-    engineBubble: {
+    maintenanceBubble: {
         position: 'absolute',
         width: 62,
         height: 62,
@@ -343,15 +423,15 @@ innerCircle: {
     },
 
     carImage: {
-        width: width * 0.24,
-        height: width * 0.17,
+        width: width * 0.30,
+        height: width * 0.21,
         zIndex: 7,
     },
 
     buttonsArea: {
         position: 'absolute',
-        left: 24,
-        right: 24,
+        left: 0,
+        right: 0,
         bottom: height * 0.065,
         zIndex: 8,
     },
