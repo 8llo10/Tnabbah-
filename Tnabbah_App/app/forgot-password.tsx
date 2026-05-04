@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
-import * as Linking from "expo-linking";
 
 import {
   StyleSheet,
@@ -11,6 +10,7 @@ import {
   View,
   Alert,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 
 import { LinearGradient } from "expo-linear-gradient";
@@ -39,26 +39,33 @@ export default function ForgotPasswordScreen() {
     try {
       setLoading(true);
 
-     
-     const redirectTo = "tnabbah://auth/reset-password";
-
-console.log("PASSWORD RESET REDIRECT URL:", redirectTo);
-
-const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-  redirectTo,
-});
+      // هنا ما نستخدم redirectTo
+      // لأننا بنستخدم كود OTP بدل رابط يفتح التطبيق
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
+      
 
       if (error) {
+        console.log("Forgot password error:", error.message);
         Alert.alert("خطأ", error.message);
         return;
       }
 
       Alert.alert(
         "تم الإرسال",
-        "تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني. افتحي الإيميل واضغطي على الزر."
+        "تم إرسال كود إعادة تعيين كلمة المرور إلى بريدك الإلكتروني.",
+        [
+          {
+            text: "حسنًا",
+            onPress: () =>
+              router.push({
+                pathname: "/auth/reset-password" as any,
+                params: { email: cleanEmail },
+              }),
+          },
+        ]
       );
     } catch (err) {
-      console.log("Forgot password error:", err);
+      console.log("Forgot password unexpected error:", err);
       Alert.alert("خطأ", "حدث خطأ غير متوقع");
     } finally {
       setLoading(false);
@@ -81,7 +88,7 @@ const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
         <Text style={styles.title}>نسيت كلمة المرور؟</Text>
 
         <Text style={styles.subtitle}>
-          أدخلي البريد الإلكتروني المرتبط بحسابك لإرسال رابط إعادة تعيين كلمة المرور
+          أدخلي البريد الإلكتروني المرتبط بحسابك لإرسال كود إعادة تعيين كلمة المرور
         </Text>
 
         <View style={styles.formArea}>
@@ -110,7 +117,7 @@ const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
 
       <View style={styles.buttonsArea}>
         <TouchableOpacity
-          style={[styles.resetButton, loading && { opacity: 0.5 }]}
+          style={[styles.resetButton, loading && { opacity: 0.6 }]}
           onPress={handleSubmit}
           disabled={loading}
           activeOpacity={0.9}
@@ -123,9 +130,14 @@ const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
           >
             <View style={styles.buttonHighlight} />
 
-            <Text style={styles.resetText}>
-              {loading ? "جاري الإرسال..." : "إرسال رابط التعيين"}
-            </Text>
+            {loading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={styles.resetText}>جاري الإرسال...</Text>
+              </View>
+            ) : (
+              <Text style={styles.resetText}>إرسال الكود</Text>
+            )}
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -262,6 +274,13 @@ const styles = StyleSheet.create({
     right: 0,
     height: "50%",
     backgroundColor: "rgba(255,255,255,0.08)",
+  },
+
+  loadingRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
   },
 
   resetText: {

@@ -1,4 +1,10 @@
-import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
 import { supabase } from "../lib/supabase";
 import { Session } from "@supabase/supabase-js";
 
@@ -6,23 +12,18 @@ type AuthContextType = {
   session: Session | null;
   profile: any | null;
   loading: boolean;
-  isPasswordRecovery: boolean;
 };
 
 const AuthContext = createContext<AuthContextType>({
   session: null,
   profile: null,
   loading: true,
-  isPasswordRecovery: false,
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
-
-  const recoveryModeRef = useRef(false);
 
   const loadProfile = async (userId: string) => {
     const { data, error } = await supabase
@@ -33,6 +34,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     if (error) {
       console.log("Profile Load Error:", error);
+      setProfile(null);
       return null;
     }
 
@@ -42,19 +44,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const init = async () => {
-      const { data } = await supabase.auth.getSession();
+      const { data, error } = await supabase.auth.getSession();
 
-      if (recoveryModeRef.current) {
-        setSession(null);
-        setProfile(null);
-        setLoading(false);
-        return;
+      if (error) {
+        console.log("Get Session Error:", error.message);
       }
 
       setSession(data.session);
 
       if (data.session?.user) {
         await loadProfile(data.session.user.id);
+      } else {
+        setProfile(null);
       }
 
       setLoading(false);
@@ -66,42 +67,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       async (event, authSession) => {
         console.log("AUTH EVENT:", event);
 
-        if (event === "PASSWORD_RECOVERY") {
-          recoveryModeRef.current = true;
-          setIsPasswordRecovery(true);
-
-          // لا نخزن جلسة الريست كجلسة دخول عادية
-          setSession(null);
-          setProfile(null);
-          setLoading(false);
-          return;
-        }
-
-        if (recoveryModeRef.current && event !== "SIGNED_OUT") {
-          // أثناء reset password تجاهلي USER_UPDATED وغيره
-          // عشان ما يوديك Home
-          setIsPasswordRecovery(true);
-          setSession(null);
-          setProfile(null);
-          setLoading(false);
-          return;
-        }
-
-        if (event === "SIGNED_OUT") {
-          recoveryModeRef.current = false;
-          setIsPasswordRecovery(false);
-          setSession(null);
-          setProfile(null);
-          setLoading(false);
-          return;
-        }
-
-        setIsPasswordRecovery(false);
         setSession(authSession);
 
         if (authSession?.user) {
-          const profileData = await loadProfile(authSession.user.id);
-          setProfile(profileData);
+          await loadProfile(authSession.user.id);
         } else {
           setProfile(null);
         }
@@ -110,7 +79,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   return (
@@ -119,7 +90,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         session,
         profile,
         loading,
-        isPasswordRecovery,
       }}
     >
       {children}

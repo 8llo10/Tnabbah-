@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
-import * as Linking from "expo-linking";
 
 import {
   StyleSheet,
@@ -11,7 +10,9 @@ import {
   View,
   Dimensions,
   ActivityIndicator,
+  Alert,
 } from "react-native";
+
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather, Ionicons } from "@expo/vector-icons";
 
@@ -21,8 +22,18 @@ export default function ResetPasswordScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  const [tokenHash, setTokenHash] = useState<string | null>(null);
+  const initialEmail =
+    typeof params.email === "string"
+      ? params.email
+      : Array.isArray(params.email)
+      ? params.email[0]
+      : "";
 
+  // الإيميل جاي تلقائيًا من صفحة Forgot Password
+  // المستخدم ما يحتاج يكتبه مرة ثانية
+  const [email] = useState(initialEmail || "");
+
+  const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -31,130 +42,95 @@ export default function ResetPasswordScreen() {
 
   const [errorMessage, setErrorMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [ready, setReady] = useState(false);
-
-  const getStringParam = (value: unknown) => {
-    if (typeof value === "string") return value;
-    if (Array.isArray(value) && typeof value[0] === "string") return value[0];
-    return null;
-  };
-
-  const getParamsFromUrl = (url: string | null) => {
-    const result: Record<string, string> = {};
-
-    if (!url) return result;
-
-    try {
-      const queryPart = url.includes("?") ? url.split("?")[1]?.split("#")[0] : "";
-      const hashPart = url.includes("#") ? url.split("#")[1] : "";
-
-      const queryParams = new URLSearchParams(queryPart || "");
-      const hashParams = new URLSearchParams(hashPart || "");
-
-      queryParams.forEach((value, key) => {
-        result[key] = value;
-      });
-
-      hashParams.forEach((value, key) => {
-        result[key] = value;
-      });
-
-      return result;
-    } catch {
-      return result;
-    }
-  };
-
-  useEffect(() => {
-    const preparePage = async () => {
-      const initialUrl = await Linking.getInitialURL();
-      const urlParams = getParamsFromUrl(initialUrl);
-
-      const tokenFromParams = getStringParam(params.token_hash);
-      const tokenFromUrl = urlParams.token_hash;
-
-      setTokenHash(tokenFromParams || tokenFromUrl || null);
-      setReady(true);
-    };
-
-    preparePage();
-  }, [params]);
-
-  const validatePassword = () => {
-    const hasMinLength = password.length >= 6;
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-
-    if (!password.trim() || !confirmPassword.trim()) {
-      setErrorMessage("اكتبي كلمة المرور وتأكيدها");
-      return false;
-    }
-
-    if (!hasMinLength) {
-      setErrorMessage("كلمة المرور لازم تكون 6 خانات على الأقل");
-      return false;
-    }
-
-    if (!hasUpperCase || !hasLowerCase || !hasNumber) {
-      setErrorMessage("كلمة المرور لازم تحتوي على حرف كبير، حرف صغير، ورقم");
-      return false;
-    }
-
-    if (password !== confirmPassword) {
-      setErrorMessage("كلمة المرور وتأكيدها غير متطابقين");
-      return false;
-    }
-
-    setErrorMessage("");
-    return true;
-  };
 
   const handleUpdatePassword = async () => {
-    if (!validatePassword()) {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = otp.trim();
+    const cleanPassword = password.trim();
+    const cleanConfirmPassword = confirmPassword.trim();
+
+    if (!cleanEmail) {
+      setErrorMessage(
+        "لم يتم العثور على البريد الإلكتروني. ارجعي لصفحة نسيت كلمة المرور وارسلي الكود من جديد"
+      );
       return;
     }
 
-    if (!tokenHash) {
-      setErrorMessage("الرابط غير صالح، اطلبي رابط جديد");
+    if (!cleanOtp) {
+      setErrorMessage("اكتبي كود التحقق");
+      return;
+    }
+
+    if (!cleanPassword) {
+      setErrorMessage("اكتبي كلمة المرور الجديدة");
+      return;
+    }
+
+    if (!cleanConfirmPassword) {
+      setErrorMessage("أكدي كلمة المرور الجديدة");
+      return;
+    }
+
+    if (cleanPassword !== cleanConfirmPassword) {
+      setErrorMessage("كلمة المرور وتأكيدها غير متطابقين");
       return;
     }
 
     try {
       setLoading(true);
+      setErrorMessage("");
+
+      console.log("VERIFY RECOVERY OTP START");
 
       const { error: verifyError } = await supabase.auth.verifyOtp({
-        token_hash: tokenHash,
+        email: cleanEmail,
+        token: cleanOtp,
         type: "recovery",
       });
 
       if (verifyError) {
         console.log("verifyOtp error:", verifyError.message);
-        setErrorMessage("الرابط غير صالح أو تم استخدامه من قبل، اطلبي رابط جديد");
+        setErrorMessage("الكود غير صحيح أو انتهت صلاحيته");
+        return;
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+
+      console.log(
+        "SESSION AFTER OTP:",
+        sessionData.session ? "FOUND" : "MISSING"
+      );
+
+      if (!sessionData.session) {
+        setErrorMessage("لم يتم إنشاء جلسة تغيير كلمة المرور، اطلبي كود جديد");
         return;
       }
 
       const { error: updateError } = await supabase.auth.updateUser({
-        password,
+        password: cleanPassword,
       });
 
       if (updateError) {
         console.log("update password error:", updateError.message);
-        setErrorMessage("تعذر تحديث كلمة المرور، حاولي مرة أخرى");
+        setErrorMessage("ما قدرنا نحفظ كلمة المرور الجديدة");
         return;
       }
 
+      console.log("PASSWORD UPDATED SUCCESSFULLY");
+
+      setOtp("");
       setPassword("");
       setConfirmPassword("");
       setErrorMessage("");
 
-      try {
-        await supabase.auth.signOut();
-      } catch (e) {
-        console.log("signOut error:", e);
-      }
+      await supabase.auth.signOut();
 
-      router.replace("/login" as any);
+      Alert.alert("تم بنجاح", "تم تغيير كلمة المرور، سجلي دخولك الآن", [
+        {
+          text: "حسنًا",
+          onPress: () => router.replace("/login" as any),
+        },
+      ]);
     } catch (error) {
       console.log("reset password error:", error);
       setErrorMessage("حدث خطأ غير متوقع، حاولي مرة أخرى");
@@ -162,14 +138,6 @@ export default function ResetPasswordScreen() {
       setLoading(false);
     }
   };
-
-  if (!ready) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.loadingText}>جاري تجهيز الصفحة...</Text>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>
@@ -185,8 +153,32 @@ export default function ResetPasswordScreen() {
         <Text style={styles.title}>إعادة تعيين كلمة المرور</Text>
 
         <Text style={styles.subtitle}>
-          أدخلي كلمة مرور جديدة لحسابك، ثم أكديها لإتمام التغيير
+          أدخلي كود التحقق المرسل إلى بريدك، ثم اكتبي كلمة المرور الجديدة
         </Text>
+
+        <View style={[styles.inputBox, errorMessage && styles.inputBoxError]}>
+          <Feather
+            name="key"
+            size={22}
+            color={errorMessage ? "#D32F2F" : "#7C6A6A"}
+            style={styles.inputIcon}
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="كود التحقق"
+            placeholderTextColor="#7C6A6A"
+            keyboardType="number-pad"
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={otp}
+            onChangeText={(text) => {
+              setOtp(text);
+              setErrorMessage("");
+            }}
+            textAlign="right"
+          />
+        </View>
 
         <View style={[styles.inputBox, errorMessage && styles.inputBoxError]}>
           <Feather
@@ -234,7 +226,7 @@ export default function ResetPasswordScreen() {
 
           <TextInput
             style={styles.input}
-            placeholder="تأكيد كلمة المرور"
+            placeholder="تأكيد كلمة المرور الجديدة"
             placeholderTextColor="#7C6A6A"
             secureTextEntry={!showConfirmPassword}
             value={confirmPassword}
@@ -286,10 +278,10 @@ export default function ResetPasswordScreen() {
             {loading ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator size="small" color="#FFFFFF" />
-                <Text style={styles.resetText}>جاري التحديث...</Text>
+                <Text style={styles.resetText}>جاري الحفظ...</Text>
               </View>
             ) : (
-              <Text style={styles.resetText}>تحديث كلمة المرور</Text>
+              <Text style={styles.resetText}>حفظ كلمة المرور</Text>
             )}
           </LinearGradient>
         </TouchableOpacity>
@@ -304,14 +296,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     backgroundColor: "#FFFFFF",
     overflow: "hidden",
-  },
-
-  loadingText: {
-    marginTop: height * 0.45,
-    textAlign: "center",
-    color: "#7C6A6A",
-    fontSize: 16,
-    fontWeight: "700",
   },
 
   backButton: {
@@ -335,11 +319,11 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     zIndex: 5,
-    paddingTop: height * 0.19,
+    paddingTop: height * 0.17,
   },
 
   title: {
-    fontSize: 32,
+    fontSize: 31,
     fontWeight: "900",
     color: "#2E1D1D",
     textAlign: "center",
@@ -349,8 +333,8 @@ const styles = StyleSheet.create({
 
   subtitle: {
     marginTop: 18,
-    marginBottom: 58,
-    fontSize: 16,
+    marginBottom: 44,
+    fontSize: 15.5,
     color: "#7C6A6A",
     fontWeight: "600",
     textAlign: "center",
@@ -407,7 +391,7 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "center",
     alignSelf: "flex-end",
-    marginTop: -6,
+    marginTop: -4,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 18,
