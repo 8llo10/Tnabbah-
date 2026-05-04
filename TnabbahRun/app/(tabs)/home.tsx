@@ -31,159 +31,93 @@ export default function HomeScreen() {
 
 
     return (
-        < View style={styles.dataContainer} >
+        /*  <ImageBackground
+             source={require('../assets/images/appBackground.png')} // ← الخلفية العامة
+             style={styles.pageBackground}
+         > */
 
-            {/* 1. الحالة العامة */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>الحالة العامة</Text>
+        <View style={styles.pageBackground}>
+
+            {/* البطاقة */}
+            <View style={styles.cardWrapper}>
+                <ImageBackground
+                    source={require('../../assets/images/carCard.png')}
+
+                    style={styles.bgImage}
+                    imageStyle={styles.bgImageStyle}
+                >
+
+
+                    <View style={styles.topRightStatus}>
+                        <Text style={styles.topRightText}>سيارتك بيرفكت يا الطيب</Text>
+                    </View>
+
+                    {/* زر صغير تحت البطاقة */}
+                    <TouchableOpacity style={styles.smallButton}>
+                        <Text style={styles.smallButtonText}>عرض التفاصيل</Text>
+                    </TouchableOpacity>
+
+                    {/* دمج الصورة مع الخلفية */}
+                    <LinearGradient
+                        colors={['transparent', 'rgba(255,255,255,0.95)']}
+                        style={styles.fadeBottom}
+                    />
+
+                    {/* بيانات المستخدم - يسار تحت */}
+                    <View style={styles.leftInfo}>
+                        <Text style={styles.username}>
+                            {profile?.full_name || "—"}
+                        </Text>
+
+                        <Text style={styles.carName}>
+                            Porsche 911 Turbo
+                        </Text>
+
+                    </View>
+
+                    {/* بيانات البطارية - يمين تحت */}
+                    <View style={styles.rightInfo}>
+                        <Text style={styles.battery}>🔋 30.6V</Text>
+                        <Text style={styles.fuel}>⛽ 90</Text>
+                    </View>
+
+
+
+                </ImageBackground>
+            </View>
+
+
+
+            {/* أقسام البيانات */}
+            <View style={styles.dataContainer}>
+
+                {/* لايف داتا */}
                 <Text style={styles.dataPlaceholder}>
-                    {carData.status?.state || "—"}
+                    {carData.live
+                        ? `Live Code: ${carData.live.codes?.[0] || "-"}`
+                        : "جاري التحميل..."}
                 </Text>
-            </View >
 
-            {/* 2. التنبيهات */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>التنبيهات (Abnormal Events)</Text>
+                {/* DTCs */}
                 <Text style={styles.dataPlaceholder}>
-                    {carData.events?.[0] || "لا توجد تنبيهات"}
+                    {carData.dtcs
+                        ? `DTC: ${carData.dtcs.codes?.[0] || "لا توجد أكواد"}`
+                        : "جاري التحميل..."}
                 </Text>
-            </View >
 
-            {/* 3. الأعطال */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>أكواد الأعطال (DTCs)</Text>
+                {/* معلومات السيارة */}
                 <Text style={styles.dataPlaceholder}>
-                    {carData.dtcs?.codes?.[0] || "لا توجد أعطال"}
+                    {carData.status
+                        ? `الحالة: ${carData.status.state}`
+                        : "جاري التحميل..."}
                 </Text>
-            </View >
 
-            {/* 4. المحرك والأداء */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>المحرك والأداء</Text>
-                <Text style={styles.dataPlaceholder}>
-                    {carData.live?.rpm ? `RPM: ${carData.live.rpm}` : "—"}
-                </Text>
-            </View >
 
-            {/* 5. الحرارة والتبريد */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>الحرارة والتبريد</Text>
-                <Text style={styles.dataPlaceholder}>
-                    {carData.live?.coolant_temp || "—"}
-                </Text>
-            </View >
+            </View>
 
-            {/* 6. الكهرباء والطاقة */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>الكهرباء والطاقة</Text>
-                <Text style={styles.dataPlaceholder}>
-                    {carData.live?.voltage || "—"}
-                </Text>
-            </View >
 
-            {/* 7. الوقود والكفاءة */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>الوقود والكفاءة</Text>
-                <Text style={styles.dataPlaceholder}>
-                    {carData.live?.fuel_level || "—"}
-                </Text>
-            </View >
+        </View>
 
-            {/* 8. سلوك القيادة */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>سلوك القيادة</Text>
-                <Text style={styles.dataPlaceholder}>—</Text>
-            </View >
-
-            {/* 9. نظام الهواء */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>نظام الهواء (Air Intake)</Text>
-                <Text style={styles.dataPlaceholder}>
-                    {carData.live?.intake_temp || "—"}
-                </Text>
-            </View >
-
-            {/* 10. نظام العادم */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>نظام العادم والانبعاثات</Text>
-                <Text style={styles.dataPlaceholder}>—</Text>
-            </View >
-
-            {/* 11. ناقل الحركة */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>ناقل الحركة (Transmission)</Text>
-                <Text style={styles.dataPlaceholder}>—</Text>
-            </View >
-
-            {/* 12. نظام الفرامل */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>نظام الفرامل</Text>
-                <Text style={styles.dataPlaceholder}>—</Text>
-            </View >
-
-            {/* 13. نظام التوجيه */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>نظام التوجيه</Text>
-                <Text style={styles.dataPlaceholder}>—</Text>
-            </View >
-
-            {/* 14. نظام التعليق */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>نظام التعليق والثبات</Text>
-                <Text style={styles.dataPlaceholder}>—</Text>
-            </View >
-
-            {/* 15. حالة الحساسات */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>حالة الحساسات (Sensors Health)</Text>
-                <Text style={styles.dataPlaceholder}>—</Text>
-            </View >
-
-            {/* 16. استجابة السيارة */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>استجابة السيارة</Text>
-                <Text style={styles.dataPlaceholder}>—</Text>
-            </View >
-
-            {/* 17. استقرار الأنظمة */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>استقرار الأنظمة</Text>
-                <Text style={styles.dataPlaceholder}>—</Text>
-            </View >
-
-            {/* 18. ظروف التشغيل */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>ظروف التشغيل (Driving Context)</Text>
-                <Text style={styles.dataPlaceholder}>—</Text>
-            </View >
-
-            {/* 19. سجل الأحداث */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>سجل الأحداث (Events History)</Text>
-                <Text style={styles.dataPlaceholder}>—</Text>
-            </View >
-
-            {/* 20. التوقعات */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>التوقعات (Predictions)</Text>
-                <Text style={styles.dataPlaceholder}>—</Text>
-            </View >
-
-            {/* 21. النصائح */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>النصائح والتوصيات</Text>
-                <Text style={styles.dataPlaceholder}>—</Text>
-            </View >
-
-            {/* 22. معلومات السيارة */}
-            < View style={styles.dataBox} >
-                <Text style={styles.dataTitle}>معلومات السيارة (Vehicle Info)</Text>
-                <Text style={styles.dataPlaceholder}>
-                    {carData.info?.model || "—"}
-                </Text>
-            </View >
-
-        </View >
 
         /*  </ImageBackground> */
     );

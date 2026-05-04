@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
-0
+
 function TnabbahBackground() {
     return (
         <View style={styles.background}>
