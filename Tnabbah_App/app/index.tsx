@@ -24,9 +24,12 @@ export default function Index() {
   );
 } */
 
-import { Redirect } from 'expo-router';
+
+
+
+  // دايم نوجّه المستخدم لصفحة Start
+import { Redirect } from "expo-router";
 
 export default function Index() {
-  // دايم نوجّه المستخدم لصفحة Start
   return <Redirect href="/start" />;
 }
