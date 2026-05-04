@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 import { AuthProvider } from "../providers/AuthProvider";
 import {
-  ThemeProvider,
+  ThemeProvider as NavigationThemeProvider,
   DarkTheme,
   DefaultTheme,
 } from "@react-navigation/native";
@@ -13,7 +13,9 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <NavigationThemeProvider
+        value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+      >
         <Stack
           initialRouteName="index"
           screenOptions={{
@@ -35,7 +37,7 @@ export default function RootLayout() {
         </Stack>
 
         <StatusBar style="auto" />
-      </ThemeProvider>
+      </NavigationThemeProvider>
     </AuthProvider>
   );
 }
