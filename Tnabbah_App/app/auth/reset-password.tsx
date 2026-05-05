@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
 
@@ -10,12 +10,25 @@ import {
   View,
   Dimensions,
   ActivityIndicator,
+  Keyboard,
 } from "react-native";
 
 import { LinearGradient } from "expo-linear-gradient";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 
-const { height } = Dimensions.get("window");
+const { height, width } = Dimensions.get("window");
+
+const OTP_DIGITS = 8;
+const RESEND_COOLDOWN = 60;
+
+const TOP_RED = "#9A3A33";
+const DARK_RED = "#5F130F";
+const TEXT_DARK = "#2E1D1D";
+const SOFT_PINK = "rgba(248, 238, 238, 0.85)";
+const SOFT_PINK_SOLID = "#FCF7F7";
+const LIGHT_BORDER = "#E6DADA";
+const FILLED_BORDER = "#EADADA";
+const SOFT_LINK_RED = "#9A3A33";
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
@@ -28,58 +41,115 @@ export default function ResetPasswordScreen() {
       ? params.email[0]
       : "";
 
-  // الإيميل جاي من صفحة Forgot Password
-  // المستخدم ما يحتاج يكتبه مرة ثانية
   const [email] = useState(initialEmail || "");
 
-  const [otp, setOtp] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [otpValues, setOtpValues] = useState<string[]>(
+    Array(OTP_DIGITS).fill("")
+  );
 
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const otpRefs = useRef<Array<TextInput | null>>([]);
 
   const [errorMessage, setErrorMessage] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [infoMessage, setInfoMessage] = useState("");
 
-  const handleUpdatePassword = async () => {
+  const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendTimer, setResendTimer] = useState(RESEND_COOLDOWN);
+
+  const otpCode = otpValues.join("");
+
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+
+    const interval: ReturnType<typeof setInterval> = setInterval(() => {
+      setResendTimer((prev) => {
+        if (prev <= 1) return 0;
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  const clearMessages = () => {
+    setErrorMessage("");
+    setInfoMessage("");
+  };
+
+  const handleOtpChange = (text: string, index: number) => {
+    const onlyNumber = text.replace(/[^0-9]/g, "");
+
+    if (!onlyNumber) {
+      const updated = [...otpValues];
+      updated[index] = "";
+      setOtpValues(updated);
+      clearMessages();
+      return;
+    }
+
+    const updated = [...otpValues];
+
+    if (onlyNumber.length > 1) {
+      const pasted = onlyNumber.slice(0, OTP_DIGITS).split("");
+
+      for (let i = 0; i < OTP_DIGITS; i++) {
+        updated[i] = pasted[i] || "";
+      }
+
+      setOtpValues(updated);
+      clearMessages();
+
+      const nextEmpty = updated.findIndex((item) => item === "");
+
+      if (nextEmpty !== -1) {
+        otpRefs.current[nextEmpty]?.focus();
+      } else {
+        Keyboard.dismiss();
+      }
+
+      return;
+    }
+
+    updated[index] = onlyNumber;
+    setOtpValues(updated);
+    clearMessages();
+
+    if (index < OTP_DIGITS - 1) {
+      otpRefs.current[index + 1]?.focus();
+    } else {
+      Keyboard.dismiss();
+    }
+  };
+
+  const handleOtpKeyPress = (key: string, index: number) => {
+    if (key === "Backspace" && !otpValues[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+
+      const updated = [...otpValues];
+      updated[index - 1] = "";
+      setOtpValues(updated);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
     const cleanEmail = email.trim().toLowerCase();
-    const cleanOtp = otp.trim();
-    const cleanPassword = password.trim();
-    const cleanConfirmPassword = confirmPassword.trim();
+    const cleanOtp = otpCode.trim();
 
     if (!cleanEmail) {
       setErrorMessage(
-        "لم يتم العثور على البريد الإلكتروني. ارجعي لصفحة نسيت كلمة المرور وارسلي الكود من جديد"
+        "لم يتم العثور على البريد الإلكتروني، ارجعي وأرسلي الكود من جديد"
       );
       return;
     }
 
-    if (!cleanOtp) {
-      setErrorMessage("اكتبي كود التحقق");
-      return;
-    }
-
-    if (!cleanPassword) {
-      setErrorMessage("اكتبي كلمة المرور الجديدة");
-      return;
-    }
-
-    if (!cleanConfirmPassword) {
-      setErrorMessage("أكدي كلمة المرور الجديدة");
-      return;
-    }
-
-    if (cleanPassword !== cleanConfirmPassword) {
-      setErrorMessage("كلمة المرور وتأكيدها غير متطابقين");
+    if (cleanOtp.length !== OTP_DIGITS) {
+      setErrorMessage(`أدخلي رمز التحقق المكوّن من ${OTP_DIGITS} أرقام`);
       return;
     }
 
     try {
       setLoading(true);
-      setErrorMessage("");
-
-      console.log("VERIFY RECOVERY OTP START");
+      clearMessages();
 
       const { error: verifyError } = await supabase.auth.verifyOtp({
         email: cleanEmail,
@@ -89,50 +159,117 @@ export default function ResetPasswordScreen() {
 
       if (verifyError) {
         console.log("verifyOtp error:", verifyError.message);
-        setErrorMessage("الكود غير صحيح أو انتهت صلاحيته");
+        setErrorMessage("رمز التحقق غير صحيح أو انتهت صلاحيته");
         return;
       }
 
       const { data: sessionData } = await supabase.auth.getSession();
 
-      console.log(
-        "SESSION AFTER OTP:",
-        sessionData.session ? "FOUND" : "MISSING"
-      );
-
       if (!sessionData.session) {
-        setErrorMessage("لم يتم إنشاء جلسة تغيير كلمة المرور، اطلبي كود جديد");
+        setErrorMessage("ما قدرنا نكمل التحقق، اطلبي رمز جديد");
         return;
       }
 
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: cleanPassword,
+      router.replace({
+        pathname: "/auth/new-password" as any,
+        params: { email: cleanEmail },
       });
-
-      if (updateError) {
-        console.log("update password error:", updateError.message);
-        setErrorMessage("ما قدرنا نحفظ كلمة المرور الجديدة");
-        return;
-      }
-
-      console.log("PASSWORD UPDATED SUCCESSFULLY");
-
-      setOtp("");
-      setPassword("");
-      setConfirmPassword("");
-      setErrorMessage("");
-
-      // مهم جدًا: نطلع من جلسة الريست عشان ما يوديك Home مباشرة
-      await supabase.auth.signOut();
-
-      // بعدها نوديه Login
-      router.replace("/login" as any);
     } catch (error) {
-      console.log("reset password error:", error);
-      setErrorMessage("حدث خطأ غير متوقع، حاولي مرة أخرى");
+      console.log("verify otp error:", error);
+      setErrorMessage("حدث خطأ غير متوقع، حاولي مرة ثانية");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleResendCode = async () => {
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail) {
+      setErrorMessage("البريد الإلكتروني غير موجود");
+      return;
+    }
+
+    if (resendTimer > 0 || resendLoading) {
+      return;
+    }
+
+    try {
+      setResendLoading(true);
+      clearMessages();
+
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
+
+      if (error) {
+        console.log("resend code error:", error.message);
+        setErrorMessage("ما قدرنا نعيد إرسال الرمز الآن، حاولي بعد قليل");
+        return;
+      }
+
+      setOtpValues(Array(OTP_DIGITS).fill(""));
+      setResendTimer(RESEND_COOLDOWN);
+      setInfoMessage("تم إعادة إرسال رمز التحقق إلى بريدك الإلكتروني");
+
+      setTimeout(() => {
+        otpRefs.current[0]?.focus();
+      }, 100);
+    } catch (error) {
+      console.log("resend error:", error);
+      setErrorMessage("حدث خطأ أثناء إعادة إرسال الرمز");
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
+  const renderMessage = () => {
+    if (errorMessage) {
+      return (
+        <View style={styles.messageBoxError}>
+          <Ionicons name="alert-circle" size={18} color="#D32F2F" />
+          <Text style={styles.messageTextError}>{errorMessage}</Text>
+        </View>
+      );
+    }
+
+    if (infoMessage) {
+      return (
+        <View style={styles.messageBoxInfo}>
+          <Ionicons name="checkmark-circle" size={18} color="#2E7D32" />
+          <Text style={styles.messageTextInfo}>{infoMessage}</Text>
+        </View>
+      );
+    }
+
+    return null;
+  };
+
+  const renderResendArea = () => {
+    if (resendTimer > 0) {
+      return (
+        <View style={styles.timerBox}>
+          <Ionicons name="time-outline" size={16} color="#9A9A9A" />
+          <Text style={styles.timerText}>
+            يمكنك إعادة الإرسال بعد {resendTimer} ثانية
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.resendRow}>
+        <Text style={styles.resendQuestion}>هل تريد إعادة الإرسال؟</Text>
+
+        <TouchableOpacity
+          activeOpacity={0.75}
+          onPress={handleResendCode}
+          disabled={resendLoading}
+        >
+          <Text style={styles.resendText}>
+            {resendLoading ? "جاري الإرسال..." : "إعادة إرسال رمز التحقق"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
   };
 
   return (
@@ -142,166 +279,97 @@ export default function ResetPasswordScreen() {
         activeOpacity={0.8}
         onPress={() => router.replace("/login" as any)}
       >
-        <Ionicons name="arrow-forward" size={24} color="#2E1D1D" />
+        <Ionicons name="arrow-back" size={24} color={TEXT_DARK} />
       </TouchableOpacity>
 
       <View style={styles.content}>
-        <Text style={styles.title}>إعادة تعيين كلمة المرور</Text>
+        <Text style={styles.title}>أدخل رمز التحقق</Text>
 
         <Text style={styles.subtitle}>
-          أدخلي كود التحقق المرسل إلى بريدك، ثم اكتبي كلمة المرور الجديدة
+          يرجى إدخال الرمز المكوّن من {OTP_DIGITS} أرقام المرسل إلى
         </Text>
 
-        <View style={[styles.inputBox, errorMessage && styles.inputBoxError]}>
-          <Feather
-            name="key"
-            size={22}
-            color={errorMessage ? "#D32F2F" : "#7C6A6A"}
-            style={styles.inputIcon}
-          />
+        <Text style={styles.emailText}>{email || "البريد الإلكتروني"}</Text>
 
-          <TextInput
-            style={styles.input}
-            placeholder="كود التحقق"
-            placeholderTextColor="#7C6A6A"
-            keyboardType="number-pad"
-            autoCapitalize="none"
-            autoCorrect={false}
-            value={otp}
-            onChangeText={(text) => {
-              setOtp(text);
-              setErrorMessage("");
-            }}
-            textAlign="right"
-          />
-        </View>
-
-        <View style={[styles.inputBox, errorMessage && styles.inputBoxError]}>
-          <Feather
-            name="lock"
-            size={23}
-            color={errorMessage ? "#D32F2F" : "#7C6A6A"}
-            style={styles.inputIcon}
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="كلمة المرور الجديدة"
-            placeholderTextColor="#7C6A6A"
-            secureTextEntry={!showPassword}
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              setErrorMessage("");
-            }}
-            textAlign="right"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-
-          <TouchableOpacity
-            style={styles.eyeButton}
-            activeOpacity={0.7}
-            onPress={() => setShowPassword(!showPassword)}
-          >
-            <Ionicons
-              name={showPassword ? "eye-outline" : "eye-off-outline"}
-              size={22}
-              color="#7C6A6A"
+        <View style={styles.otpRow}>
+          {otpValues.map((digit, index) => (
+            <TextInput
+              key={index}
+              ref={(ref) => {
+                otpRefs.current[index] = ref;
+              }}
+              style={[
+                styles.otpBox,
+                digit ? styles.otpBoxFilled : null,
+                errorMessage ? styles.otpBoxError : null,
+              ]}
+              value={digit}
+              onChangeText={(text) => handleOtpChange(text, index)}
+              onKeyPress={({ nativeEvent }) =>
+                handleOtpKeyPress(nativeEvent.key, index)
+              }
+              keyboardType="number-pad"
+              maxLength={index === 0 ? OTP_DIGITS : 1}
+              textAlign="center"
+              autoCorrect={false}
+              autoCapitalize="none"
+              selectionColor={DARK_RED}
             />
-          </TouchableOpacity>
+          ))}
         </View>
 
-        <View style={[styles.inputBox, errorMessage && styles.inputBoxError]}>
-          <Feather
-            name="lock"
-            size={23}
-            color={errorMessage ? "#D32F2F" : "#7C6A6A"}
-            style={styles.inputIcon}
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="تأكيد كلمة المرور الجديدة"
-            placeholderTextColor="#7C6A6A"
-            secureTextEntry={!showConfirmPassword}
-            value={confirmPassword}
-            onChangeText={(text) => {
-              setConfirmPassword(text);
-              setErrorMessage("");
-            }}
-            textAlign="right"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-
-          <TouchableOpacity
-            style={styles.eyeButton}
-            activeOpacity={0.7}
-            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-          >
-            <Ionicons
-              name={showConfirmPassword ? "eye-outline" : "eye-off-outline"}
-              size={22}
-              color="#7C6A6A"
-            />
-          </TouchableOpacity>
-        </View>
-
-        {errorMessage ? (
-          <View style={styles.errorBox}>
-            <Ionicons name="alert-circle" size={18} color="#D32F2F" />
-            <Text style={styles.errorText}>{errorMessage}</Text>
-          </View>
-        ) : null}
+        {renderMessage()}
       </View>
 
-      <View style={styles.buttonsArea}>
+      <View style={styles.bottomArea}>
         <TouchableOpacity
-          style={[styles.resetButton, loading && { opacity: 0.75 }]}
-          onPress={handleUpdatePassword}
+          style={[styles.mainButton, loading && { opacity: 0.75 }]}
+          onPress={handleVerifyOtp}
           disabled={loading}
           activeOpacity={0.9}
         >
           <LinearGradient
-            colors={["#9A3A33", "#5F130F"]}
+            colors={[TOP_RED, DARK_RED]}
             start={{ x: 0.5, y: 0 }}
             end={{ x: 0.5, y: 1 }}
-            style={styles.resetGradient}
+            style={styles.buttonGradient}
           >
             <View style={styles.buttonHighlight} />
 
             {loading ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator size="small" color="#FFFFFF" />
-                <Text style={styles.resetText}>جاري الحفظ...</Text>
+                <Text style={styles.buttonText}>جاري التحقق...</Text>
               </View>
             ) : (
-              <Text style={styles.resetText}>حفظ كلمة المرور</Text>
+              <Text style={styles.buttonText}>متابعة</Text>
             )}
           </LinearGradient>
         </TouchableOpacity>
+
+        {renderResendArea()}
       </View>
     </View>
   );
 }
 
+const boxSize = Math.min((width - 54) / 8, 44);
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 18,
     backgroundColor: "#FFFFFF",
-    overflow: "hidden",
   },
 
   backButton: {
     position: "absolute",
-    top: height * 0.112,
+    top: height * 0.095,
     left: 24,
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: "rgba(248, 238, 238, 0.85)",
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: SOFT_PINK,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 10,
@@ -314,119 +382,92 @@ const styles = StyleSheet.create({
 
   content: {
     flex: 1,
-    zIndex: 5,
-    paddingTop: height * 0.17,
+    paddingTop: height * 0.18,
+    alignItems: "center",
   },
 
   title: {
     fontSize: 31,
     fontWeight: "900",
-    color: "#2E1D1D",
+    color: "#000000",
     textAlign: "center",
-    letterSpacing: -0.4,
     includeFontPadding: false,
+    textDecorationLine: "none",
   },
 
   subtitle: {
-    marginTop: 18,
-    marginBottom: 44,
-    fontSize: 15.5,
-    color: "#7C6A6A",
-    fontWeight: "600",
+    marginTop: 12,
+    fontSize: 14.5,
+    color: "#9A9A9A",
+    fontWeight: "500",
     textAlign: "center",
-    lineHeight: 24,
+    lineHeight: 22,
     includeFontPadding: false,
   },
 
-  inputBox: {
+  emailText: {
+    marginTop: 7,
+    marginBottom: 28,
+    fontSize: 15,
+    color: SOFT_LINK_RED,
+    fontWeight: "700",
+    textAlign: "center",
+    includeFontPadding: false,
+  },
+
+  otpRow: {
     width: "100%",
-    height: 62,
-    borderRadius: 31,
-    borderWidth: 1.3,
-    borderColor: "#E7C6C6",
-    backgroundColor: "rgba(255,255,255,0.68)",
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 18,
-    paddingHorizontal: 22,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    shadowColor: "#5F130F",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.025,
-    shadowRadius: 10,
-    elevation: 1,
   },
 
-  inputBoxError: {
-    borderColor: "#D32F2F",
-    backgroundColor: "rgba(255, 245, 245, 0.88)",
-  },
-
-  inputIcon: {
-    marginLeft: 13,
-  },
-
-  input: {
-    flex: 1,
-    fontSize: 17,
-    color: "#2E1D1D",
-    fontWeight: "600",
+  otpBox: {
+    width: boxSize,
+    height: 84,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: LIGHT_BORDER,
+    backgroundColor: "#FFFFFF",
+    fontSize: 28,
+    fontWeight: "800",
+    color: TEXT_DARK,
+    textAlign: "center",
     paddingVertical: 0,
     includeFontPadding: false,
   },
 
-  eyeButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 8,
+  otpBoxFilled: {
+    borderColor: FILLED_BORDER,
+    backgroundColor: SOFT_PINK_SOLID,
   },
 
-  errorBox: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    alignSelf: "flex-end",
-    marginTop: -4,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
-    backgroundColor: "rgba(211, 47, 47, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(211, 47, 47, 0.18)",
-    gap: 7,
+  otpBoxError: {
+    borderColor: "#D8A5A5",
+    backgroundColor: "#FFF7F7",
   },
 
-  errorText: {
-    color: "#D32F2F",
-    fontSize: 13.5,
-    fontWeight: "800",
-    textAlign: "right",
-    includeFontPadding: false,
-  },
-
-  buttonsArea: {
+  bottomArea: {
     position: "absolute",
-    left: 24,
-    right: 24,
-    bottom: height * 0.064,
-    zIndex: 8,
+    left: 18,
+    right: 18,
+    bottom: height * 0.09,
+    alignItems: "center",
   },
 
-  resetButton: {
+  mainButton: {
     width: "100%",
     height: 62,
     borderRadius: 31,
     overflow: "hidden",
-    marginBottom: 22,
-    shadowColor: "#5F130F",
+    shadowColor: DARK_RED,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.16,
     shadowRadius: 16,
     elevation: 4,
   },
 
-  resetGradient: {
+  buttonGradient: {
     flex: 1,
     borderRadius: 31,
     justifyContent: "center",
@@ -443,6 +484,14 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.08)",
   },
 
+  buttonText: {
+    color: "#FFFFFF",
+    textAlign: "center",
+    fontSize: 20,
+    fontWeight: "900",
+    includeFontPadding: false,
+  },
+
   loadingRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
@@ -450,11 +499,92 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
-  resetText: {
-    color: "#fff",
-    textAlign: "center",
-    fontSize: 20,
-    fontWeight: "900",
+  timerBox: {
+    marginTop: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 18,
+    backgroundColor: "#FAF7F7",
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+
+  timerText: {
+    color: "#9A9A9A",
+    fontSize: 14,
+    fontWeight: "600",
     includeFontPadding: false,
+  },
+
+  resendRow: {
+    marginTop: 18,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+
+  resendQuestion: {
+    color: "#9A9A9A",
+    fontSize: 14,
+    fontWeight: "500",
+    includeFontPadding: false,
+  },
+
+  resendText: {
+    color: SOFT_LINK_RED,
+    fontSize: 14,
+    fontWeight: "800",
+    textDecorationLine: "underline",
+    includeFontPadding: false,
+  },
+
+  messageBoxError: {
+    width: "100%",
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    marginTop: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
+    backgroundColor: "rgba(211, 47, 47, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(211, 47, 47, 0.14)",
+    gap: 7,
+  },
+
+  messageBoxInfo: {
+    width: "100%",
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    marginTop: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
+    backgroundColor: "rgba(46, 125, 50, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(46, 125, 50, 0.14)",
+    gap: 7,
+  },
+
+  messageTextError: {
+    color: "#D32F2F",
+    fontSize: 13.5,
+    fontWeight: "700",
+    textAlign: "right",
+    includeFontPadding: false,
+    flex: 1,
+  },
+
+  messageTextInfo: {
+    color: "#2E7D32",
+    fontSize: 13.5,
+    fontWeight: "700",
+    textAlign: "right",
+    includeFontPadding: false,
+    flex: 1,
   },
 });

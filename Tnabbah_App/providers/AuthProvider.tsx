@@ -7,23 +7,27 @@ import {
 } from "react";
 import { supabase } from "../lib/supabase";
 import { Session } from "@supabase/supabase-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type AuthContextType = {
   session: Session | null;
   profile: any | null;
   loading: boolean;
+  isPasswordRecovery: boolean;
 };
 
 const AuthContext = createContext<AuthContextType>({
   session: null,
   profile: null,
   loading: true,
+  isPasswordRecovery: false,
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   const loadProfile = async (userId: string) => {
     const { data, error } = await supabase
@@ -42,23 +46,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return data;
   };
 
+  const checkRecoveryStorage = async () => {
+    const value = await AsyncStorage.getItem("password_recovery_flow");
+    return value === "true";
+  };
+
   useEffect(() => {
     const init = async () => {
-      const { data, error } = await supabase.auth.getSession();
+      try {
+        setLoading(true);
 
-      if (error) {
-        console.log("Get Session Error:", error.message);
-      }
+        const recoveryMode = await checkRecoveryStorage();
+        setIsPasswordRecovery(recoveryMode);
 
-      setSession(data.session);
+        const { data, error } = await supabase.auth.getSession();
 
-      if (data.session?.user) {
-        await loadProfile(data.session.user.id);
-      } else {
+        if (error) {
+          console.log("Get Session Error:", error.message);
+        }
+
+        if (recoveryMode) {
+          setSession(null);
+          setProfile(null);
+          return;
+        }
+
+        setSession(data.session);
+
+        if (data.session?.user) {
+          await loadProfile(data.session.user.id);
+        } else {
+          setProfile(null);
+        }
+      } catch (error) {
+        console.log("Auth Init Error:", error);
+        setSession(null);
         setProfile(null);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     init();
@@ -67,15 +93,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       async (event, authSession) => {
         console.log("AUTH EVENT:", event);
 
-        setSession(authSession);
+        try {
+          setLoading(true);
 
-        if (authSession?.user) {
-          await loadProfile(authSession.user.id);
-        } else {
+          const recoveryModeFromStorage = await checkRecoveryStorage();
+
+          const recoveryMode =
+            recoveryModeFromStorage || event === "PASSWORD_RECOVERY";
+
+          if (event === "PASSWORD_RECOVERY") {
+            await AsyncStorage.setItem("password_recovery_flow", "true");
+          }
+
+          setIsPasswordRecovery(recoveryMode);
+
+          if (recoveryMode) {
+            setSession(null);
+            setProfile(null);
+            return;
+          }
+
+          setSession(authSession);
+
+          if (authSession?.user) {
+            await loadProfile(authSession.user.id);
+          } else {
+            setProfile(null);
+          }
+        } catch (error) {
+          console.log("Auth State Change Error:", error);
+          setSession(null);
           setProfile(null);
+        } finally {
+          setLoading(false);
         }
-
-        setLoading(false);
       }
     );
 
@@ -90,6 +141,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         session,
         profile,
         loading,
+        isPasswordRecovery,
       }}
     >
       {children}
