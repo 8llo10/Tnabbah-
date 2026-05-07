@@ -67,7 +67,7 @@ export default function LoginScreen() {
                 activeOpacity={0.8}
                 onPress={() => router.back()}
             >
-                <Ionicons name="arrow-forward" size={24} color="#2E1D1D" />
+                <Ionicons name="chevron-back" size={28} color="#871B17" />
             </TouchableOpacity>
 
             <View style={styles.content}>
@@ -195,18 +195,13 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: height * 0.112,
         left: 24,
-        width: 54,
-        height: 54,
-        borderRadius: 27,
-        backgroundColor: 'rgba(248, 238, 238, 0.85)',
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(248, 238, 238, 0.55)',
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 10,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.04,
-        shadowRadius: 12,
-        elevation: 2,
     },
 
     content: {

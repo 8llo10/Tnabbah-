@@ -120,7 +120,7 @@ export default function RegisterScreen() {
             setErrorMessage('');
 
             if (data.session) {
-                router.replace('/(tabs)/home' as any);
+                router.replace("/connection-intro" as any);
             } else {
                 Alert.alert('تم التسجيل', 'تم إرسال رابط التفعيل إلى بريدك 📩');
                 router.replace('/login');
