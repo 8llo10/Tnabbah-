@@ -1,13 +1,77 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, TextInput } from "react-native";
+import { useState } from "react";
 
 export default function Wallet() {
+
+    const [maintenance, setMaintenance] = useState([
+        {
+            id: 1,
+            title: "زيت المحرك",
+            lastDate: "2026-01-10",
+            intervalKm: 5000,
+            remainingKm: 2500,
+        },
+        {
+            id: 2,
+            title: "الكفرات",
+            lastDate: "2025-11-20",
+            intervalKm: 40000,
+            remainingKm: 8000,
+        },
+         {
+            id: 3,
+            title: "الفرامل",
+            lastDate: "2025-12-01",
+            intervalKm: 10000,
+            remainingKm: 5000,
+        },
+        {
+            id: 4,
+            title: "فلتر الهواء",
+            lastDate: "2025-12-01",
+            intervalKm: 10000,
+            remainingKm: 5000,
+        },
+        {
+          id: 5,
+            title: "البطارية",
+            lastDate: "2025-12-01",
+            intervalKm: 10000,
+            remainingKm: 5000,
+        },
+    ]);
+
+    const [modalVisible, setModalVisible] = useState(false);
+    const [editData, setEditData] = useState(maintenance);
+
+    const openModal = () => {
+        setEditData(maintenance);
+        setModalVisible(true);
+    };
+
+    const updateDate = (id:number, value:string) => {
+        const updated = editData.map((item) => {
+            if (item.id === id) {
+                return { ...item, lastDate: value };
+            }
+            return item;
+        });
+
+        setEditData(updated);
+    };
+
+    const saveAll = () => {
+        setMaintenance(editData);
+        setModalVisible(false);
+    };
+
     return (
         <View style={styles.container}>
             <Text style={styles.title}>المحفظة</Text>
 
             <ScrollView style={{ flex: 1 }}>
 
-                {/* قسم التقارير المحفوظة */}
+                {/* التقارير */}
                 <Text style={styles.sectionTitle}>التقارير المحفوظة</Text>
 
                 <View style={styles.card}>
@@ -26,28 +90,62 @@ export default function Wallet() {
                     </TouchableOpacity>
                 </View>
 
-                {/* قسم الصيانات الدورية */}
+                {/* الصيانات */}
                 <Text style={styles.sectionTitle}>الصيانات الدورية</Text>
 
-                <View style={styles.maintenanceCard}>
-                    <Text style={styles.maintenanceTitle}>تغيير زيت المحرك</Text>
-                    <Text style={styles.maintenanceInfo}>آخر تغيير: 10 يناير 2026</Text>
-                    <Text style={styles.maintenanceInfo}>المتبقي: 2500 كم</Text>
-                </View>
+                {/* زر واحد فقط */}
+                <TouchableOpacity style={styles.detailsBtn} onPress={openModal}>
+                    <Text style={styles.detailsText}>تعديل </Text>
+                </TouchableOpacity>
 
-                <View style={styles.maintenanceCard}>
-                    <Text style={styles.maintenanceTitle}>تغيير الكفرات</Text>
-                    <Text style={styles.maintenanceInfo}>آخر تغيير: 20 نوفمبر 2025</Text>
-                    <Text style={styles.maintenanceInfo}>المتبقي: 8000 كم</Text>
-                </View>
-
-                <View style={styles.maintenanceCard}>
-                    <Text style={styles.maintenanceTitle}>تغيير فلتر الهواء</Text>
-                    <Text style={styles.maintenanceInfo}>آخر تغيير: 1 ديسمبر 2025</Text>
-                    <Text style={styles.maintenanceInfo}>المتبقي: 5000 كم</Text>
-                </View>
+                {maintenance.map((item) => (
+                    <View key={item.id} style={styles.maintenanceCard}>
+                        <Text style={styles.maintenanceTitle}>{item.title}</Text>
+                        <Text style={styles.maintenanceInfo}>آخر تغيير: {item.lastDate}</Text>
+                        <Text style={styles.maintenanceInfo}>المتبقي: {item.remainingKm} كم</Text>
+                    </View>
+                ))}
 
             </ScrollView>
+
+            {/* Modal تعديل الصيانات */}
+            <Modal visible={modalVisible} transparent animationType="slide">
+                <View style={styles.modalContainer}>
+                    <View style={styles.modalBox}>
+
+                        <Text style={{ fontSize: 18, fontWeight: "700", marginBottom: 10 }}>
+                            تعديل الصيانات
+                        </Text>
+
+                        <ScrollView>
+                            {editData.map((item) => (
+                                <View key={item.id} style={{ marginBottom: 15 }}>
+                                    <Text style={{ fontWeight: "700", marginBottom: 5 }}>
+                                        {item.title}
+                                    </Text>
+
+                                    <TextInput
+                                        value={item.lastDate}
+                                        onChangeText={(text) => updateDate(item.id, text)}
+                                        placeholder="2026-01-10"
+                                        style={styles.input}
+                                    />
+                                </View>
+                            ))}
+                        </ScrollView>
+
+                        <TouchableOpacity style={styles.detailsBtn} onPress={saveAll}>
+                            <Text style={styles.detailsText}>حفظ الكل</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity onPress={() => setModalVisible(false)}>
+                            <Text style={{ marginTop: 10, color: "#777" }}>إلغاء</Text>
+                        </TouchableOpacity>
+
+                    </View>
+                </View>
+            </Modal>
+
         </View>
     );
 }
@@ -89,7 +187,7 @@ const styles = StyleSheet.create({
         backgroundColor: "#7a0f1f",
         paddingVertical: 8,
         borderRadius: 8,
-        width: 120,
+        width: 140,
     },
     detailsText: {
         color: "#fff",
@@ -112,5 +210,24 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: "#555",
         marginTop: 5,
+    },
+    modalContainer: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.5)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    modalBox: {
+        width: "85%",
+        backgroundColor: "#fff",
+        padding: 20,
+        borderRadius: 12,
+        maxHeight: "80%",
+    },
+    input: {
+        borderWidth: 1,
+        borderColor: "#ddd",
+        padding: 10,
+        borderRadius: 8,
     },
 });
