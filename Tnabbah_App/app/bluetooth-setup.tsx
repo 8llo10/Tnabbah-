@@ -1,18 +1,30 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useMemo, useState } from "react";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   SafeAreaView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { BleManager, Device, State } from "react-native-ble-plx";
 
-const BURGUNDY = "#871B17";
+const { height } = Dimensions.get("window");
+
+const BURGUNDY = "#971B1B";
+const BURGUNDY_LIGHT = "#9A3A33";
+const BURGUNDY_DARK = "#5F130F";
+
+const DARK_TEXT = "#111111";
+const GRAY_TEXT = "#9A9A9A";
+const LIGHT_GRAY = "#EFEFEF";
+const LINE_GRAY = "#E3E3E3";
 
 type DeviceItem = {
   id: string;
@@ -27,7 +39,33 @@ export default function BluetoothSetupScreen() {
   const [isScanning, setIsScanning] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<DeviceItem | null>(null);
+  const [showDeviceList, setShowDeviceList] = useState(false);
+  const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+
+  const getBluetoothStateMessage = (state: State) => {
+    if (state === State.PoweredOff) {
+      return "البلوتوث مقفل. فعّليه من إعدادات الجوال ثم أعيدي المحاولة.";
+    }
+
+    if (state === State.Unauthorized) {
+      return "التطبيق لا يملك صلاحية البلوتوث. افتحي إعدادات الجوال وفعّلي صلاحية البلوتوث لتطبيق تنبه.";
+    }
+
+    if (state === State.Unsupported) {
+      return "هذا الجهاز لا يدعم البحث عن أجهزة البلوتوث المطلوبة.";
+    }
+
+    if (state === State.Resetting) {
+      return "البلوتوث يعيد التشغيل الآن. انتظري ثواني ثم أعيدي المحاولة.";
+    }
+
+    if (state === State.Unknown) {
+      return "حالة البلوتوث غير جاهزة الآن. انتظري ثواني ثم أعيدي المحاولة.";
+    }
+
+    return "البلوتوث غير جاهز الآن. انتظري ثواني ثم أعيدي المحاولة.";
+  };
 
   const startScan = async () => {
     try {
@@ -36,48 +74,56 @@ export default function BluetoothSetupScreen() {
       setErrorMessage("");
       setDevices([]);
       setSelectedDevice(null);
+      setShowDeviceList(true);
 
       const state = await manager.state();
       console.log("Bluetooth state:", state);
 
       if (state !== State.PoweredOn) {
-        setErrorMessage(
-          "البلوتوث غير مفعّل. فعّلي البلوتوث من الجوال ثم اضغطي بحث."
-        );
+        setErrorMessage(getBluetoothStateMessage(state));
         return;
       }
 
       setIsScanning(true);
 
-      manager.startDeviceScan(null, { allowDuplicates: false }, (error, device) => {
-        if (error) {
-          console.log("Bluetooth scan error:", error);
-          setErrorMessage(error.message || "صار خطأ أثناء البحث عن الأجهزة.");
-          setIsScanning(false);
-          return;
+      manager.startDeviceScan(
+        null,
+        { allowDuplicates: false },
+        (error, device) => {
+          if (error) {
+            console.log("Bluetooth scan error:", error);
+            console.log("Bluetooth state:", state);
+
+            setErrorMessage(
+              error.message || "صار خطأ أثناء البحث عن أجهزة البلوتوث."
+            );
+
+            setIsScanning(false);
+            return;
+          }
+
+          if (!device) return;
+
+          const deviceName =
+            device.name ||
+            device.localName ||
+            `جهاز بلوتوث ${device.id.slice(-5)}`;
+
+          setDevices((prev) => {
+            const exists = prev.some((item) => item.id === device.id);
+            if (exists) return prev;
+
+            return [
+              ...prev,
+              {
+                id: device.id,
+                name: deviceName,
+                raw: device,
+              },
+            ];
+          });
         }
-
-        if (!device) return;
-
-        const deviceName =
-          device.name ||
-          device.localName ||
-          `جهاز قريب ${device.id.slice(-5)}`;
-
-        setDevices((prev) => {
-          const exists = prev.some((item) => item.id === device.id);
-          if (exists) return prev;
-
-          return [
-            ...prev,
-            {
-              id: device.id,
-              name: deviceName,
-              raw: device,
-            },
-          ];
-        });
-      });
+      );
 
       setTimeout(() => {
         manager.stopDeviceScan();
@@ -147,76 +193,140 @@ export default function BluetoothSetupScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
+        <TouchableOpacity
+          style={styles.backButton}
+          activeOpacity={0.8}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="arrow-back" size={28} color={BURGUNDY} />
+        </TouchableOpacity>
+
+        <View style={styles.stepsContainer}>
+          <StepItem label="اختر" iconName="bluetooth" active />
+
+          <View style={styles.lineActive} />
+
+          <StepItem label="جهّز" iconName="car-outline" active />
+
+          <View style={styles.lineActive} />
+
+          <StepItem label="ابدأ" iconName="cellphone-cog" active />
+        </View>
+
         <View style={styles.card}>
-          <View style={styles.header}>
-            <View style={styles.iconBox}>
-              <Ionicons name="bluetooth" size={38} color={BURGUNDY} />
+          <View style={styles.cardHeader}>
+            <View style={styles.cardIconCircle}>
+              <Ionicons name="bluetooth" size={36} color="#9B6B6B" />
             </View>
 
-            <Text style={styles.title}>أجهزة البلوتوث المتوفرة</Text>
-            <Text style={styles.subtitle}>
-              اضغطي بحث لعرض أجهزة البلوتوث القريبة من جوالك.
-            </Text>
+            <View style={styles.headerTextBox}>
+              <Text style={styles.title}>اختاري اتصال البلوتوث</Text>
+
+              <Text style={styles.subtitle}>
+                ابحثي عن القطعة من الأجهزة المتاحة، ثم اختاريها لإكمال الربط.
+              </Text>
+            </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.scanButton}
-            onPress={startScan}
-            disabled={isScanning || isConnecting}
-          >
-            {isScanning ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Ionicons name="search" size={20} color="#fff" />
+          <View style={styles.formArea}>
+            <Text style={styles.inputLabel}>الأجهزة المتاحة</Text>
+
+            <TouchableOpacity
+              style={styles.deviceSelectBox}
+              activeOpacity={0.8}
+              onPress={() => {
+                setShowDeviceList(true);
+                startScan();
+              }}
+              disabled={isConnecting}
+            >
+              <Ionicons name="chevron-down" size={24} color="#8B8B8B" />
+
+              <Text style={styles.deviceSelectText}>
+                {isScanning
+                  ? "جاري البحث..."
+                  : selectedDevice
+                  ? selectedDevice.name
+                  : "اختاري الجهاز"}
+              </Text>
+            </TouchableOpacity>
+
+            {showDeviceList && (
+              <View style={styles.dropdownBox}>
+                {isScanning && (
+                  <View style={styles.loadingRow}>
+                    <ActivityIndicator color={BURGUNDY} />
+                    <Text style={styles.loadingText}>
+                      جاري البحث عن الأجهزة...
+                    </Text>
+                  </View>
+                )}
+
+                <FlatList
+                  data={devices}
+                  keyExtractor={(item) => item.id}
+                  style={styles.deviceList}
+                  keyboardShouldPersistTaps="handled"
+                  ListEmptyComponent={
+                    !isScanning ? (
+                      <TouchableOpacity
+                        style={styles.emptyBox}
+                        onPress={startScan}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.emptyText}>
+                          لا توجد أجهزة بلوتوث متاحة الآن. تأكدي أن الجهاز قريب
+                          ويعمل بنظام BLE، ثم اضغطي لإعادة البحث.
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null
+                  }
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={[
+                        styles.deviceItem,
+                        selectedDevice?.id === item.id &&
+                          styles.deviceItemSelected,
+                      ]}
+                      disabled={isConnecting}
+                      onPress={() => {
+                        setSelectedDevice(item);
+                        setShowDeviceList(false);
+                        setErrorMessage("");
+                      }}
+                    >
+                      <Ionicons name="bluetooth" size={22} color={BURGUNDY} />
+
+                      <View style={styles.deviceInfo}>
+                        <Text style={styles.deviceName}>{item.name}</Text>
+                        <Text style={styles.deviceId}>ID: {item.id}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                />
+              </View>
             )}
 
-            <Text style={styles.scanButtonText}>
-              {isScanning ? "جاري البحث..." : "بحث عن الأجهزة"}
-            </Text>
-          </TouchableOpacity>
+            <Text style={styles.inputLabel}>كلمة مرور</Text>
 
-          {!!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+            <View style={styles.passwordBox}>
+              <Ionicons name="lock-closed-outline" size={23} color="#9A9A9A" />
 
-          {selectedDevice && (
-            <View style={styles.selectedBox}>
-              <Text style={styles.selectedLabel}>الجهاز المختار:</Text>
-              <Text style={styles.selectedName}>{selectedDevice.name}</Text>
-              <Text style={styles.selectedId}>ID: {selectedDevice.id}</Text>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="اكتب كلمة المرور"
+                placeholderTextColor="#B0B0B0"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                textAlign="right"
+              />
             </View>
-          )}
 
-          <FlatList
-            data={devices}
-            keyExtractor={(item) => item.id}
-            style={styles.list}
-            ListEmptyComponent={
-              !isScanning ? (
-                <Text style={styles.emptyText}>
-                  ما ظهرت أجهزة حتى الآن. تأكدي أن البلوتوث شغال والقطعة قريبة.
-                </Text>
-              ) : null
-            }
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[
-                  styles.deviceItem,
-                  selectedDevice?.id === item.id && styles.deviceItemSelected,
-                ]}
-                disabled={isConnecting}
-                onPress={() => {
-                  setSelectedDevice(item);
-                  setErrorMessage("");
-                }}
-              >
-                <Ionicons name="bluetooth" size={24} color={BURGUNDY} />
-
-                <View style={styles.deviceTextBox}>
-                  <Text style={styles.deviceName}>{item.name}</Text>
-                  <Text style={styles.deviceId}>ID: {item.id}</Text>
-                </View>
-              </TouchableOpacity>
+            {!!errorMessage && (
+              <Text style={styles.errorText}>{errorMessage}</Text>
             )}
-          />
+          </View>
 
           <TouchableOpacity
             style={[
@@ -224,20 +334,56 @@ export default function BluetoothSetupScreen() {
               (!selectedDevice || isConnecting) && styles.disabledButton,
             ]}
             disabled={!selectedDevice || isConnecting}
+            activeOpacity={0.9}
             onPress={handleConnectDevice}
           >
-            {isConnecting ? (
-              <View style={styles.connectingRow}>
-                <ActivityIndicator color="#FFFFFF" />
-                <Text style={styles.connectButtonText}>جاري الاتصال...</Text>
-              </View>
-            ) : (
-              <Text style={styles.connectButtonText}>اختيار الجهاز</Text>
-            )}
+            <LinearGradient
+              colors={[BURGUNDY_LIGHT, BURGUNDY_DARK]}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={styles.connectGradient}
+            >
+              <View style={styles.buttonHighlight} />
+
+              {isConnecting ? (
+                <View style={styles.connectingRow}>
+                  <ActivityIndicator color="#FFFFFF" />
+                  <Text style={styles.connectButtonText}>جاري الربط...</Text>
+                </View>
+              ) : (
+                <Text style={styles.connectButtonText}>ربط الجهاز</Text>
+              )}
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </View>
     </SafeAreaView>
+  );
+}
+
+function StepItem({
+  label,
+  iconName,
+  active,
+}: {
+  label: string;
+  iconName: keyof typeof MaterialCommunityIcons.glyphMap;
+  active: boolean;
+}) {
+  return (
+    <View style={styles.stepItem}>
+      <View style={[styles.stepCircle, active && styles.stepCircleActive]}>
+        <MaterialCommunityIcons
+          name={iconName}
+          size={25}
+          color={active ? "#FFFFFF" : "#9B6B6B"}
+        />
+      </View>
+
+      <Text style={[styles.stepLabel, active && styles.stepLabelActive]}>
+        {label}
+      </Text>
+    </View>
   );
 }
 
@@ -246,152 +392,312 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
+
   container: {
     flex: 1,
-    padding: 20,
-    justifyContent: "center",
-  },
-  card: {
-    borderWidth: 1,
-    borderColor: "#E0D0D0",
-    borderRadius: 22,
-    padding: 22,
     backgroundColor: "#FFFFFF",
-    minHeight: 560,
+    paddingHorizontal: 16,
+    paddingTop: height * 0.055,
   },
-  header: {
-    alignItems: "center",
-    marginBottom: 22,
-  },
-  iconBox: {
-    width: 70,
-    height: 70,
-    borderRadius: 18,
-    backgroundColor: "#F8E8E8",
+
+  backButton: {
+    width: 40,
+    height: 40,
     justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 14,
+    alignItems: "flex-start",
+    marginLeft: 6,
+    marginBottom: 28,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: "900",
-    color: "#1F1F1F",
-    textAlign: "center",
-  },
-  subtitle: {
-    marginTop: 8,
-    fontSize: 14,
-    color: "#777",
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  scanButton: {
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: BURGUNDY,
+
+  stepsContainer: {
     flexDirection: "row",
+    alignItems: "flex-start",
     justifyContent: "center",
+    marginBottom: 36,
+  },
+
+  stepItem: {
+    width: 58,
+    alignItems: "center",
+  },
+
+  stepCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: LIGHT_GRAY,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  stepCircleActive: {
+    backgroundColor: BURGUNDY,
+  },
+
+  stepLabel: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "#B0B0B0",
+    fontWeight: "700",
+    includeFontPadding: false,
+  },
+
+  stepLabelActive: {
+    color: BURGUNDY,
+    fontWeight: "900",
+  },
+
+  lineActive: {
+    width: 72,
+    height: 1.5,
+    backgroundColor: BURGUNDY,
+    marginTop: 23,
+  },
+
+  card: {
+    width: "100%",
+    minHeight: 470,
+    borderWidth: 1,
+    borderColor: "#D8D8D8",
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 22,
+    paddingTop: 26,
+    paddingBottom: 18,
+    justifyContent: "space-between",
+  },
+
+  cardHeader: {
+    width: "100%",
+    flexDirection: "row-reverse",
+    alignItems: "flex-start",
+  },
+
+  cardIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: LIGHT_GRAY,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 10,
+  },
+
+  headerTextBox: {
+    flex: 1,
+    alignItems: "flex-end",
+    paddingTop: 2,
+  },
+
+  title: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: DARK_TEXT,
+    textAlign: "right",
+    marginBottom: 8,
+    includeFontPadding: false,
+  },
+
+  subtitle: {
+    fontSize: 14,
+    color: GRAY_TEXT,
+    fontWeight: "500",
+    textAlign: "right",
+    lineHeight: 24,
+    includeFontPadding: false,
+  },
+
+  formArea: {
+    width: "100%",
+    marginTop: 34,
+  },
+
+  inputLabel: {
+    fontSize: 13,
+    color: "#B0B0B0",
+    fontWeight: "600",
+    textAlign: "right",
+    marginBottom: 8,
+    includeFontPadding: false,
+  },
+
+  deviceSelectBox: {
+    width: "100%",
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: "#EFEFEF",
+    borderWidth: 1,
+    borderColor: "#E2E2E2",
+    paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 18,
+  },
+
+  deviceSelectText: {
+    flex: 1,
+    fontSize: 17,
+    color: DARK_TEXT,
+    fontWeight: "900",
+    textAlign: "right",
+    includeFontPadding: false,
+  },
+
+  dropdownBox: {
+    width: "100%",
+    maxHeight: 170,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E5E5E5",
+    backgroundColor: "#FFFFFF",
+    marginTop: -10,
+    marginBottom: 16,
+    overflow: "hidden",
+  },
+
+  loadingRow: {
+    minHeight: 46,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+
+  loadingText: {
+    color: GRAY_TEXT,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  deviceList: {
+    maxHeight: 165,
+  },
+
+  emptyBox: {
+    minHeight: 58,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 14,
+  },
+
+  emptyText: {
+    color: "#888888",
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+
+  deviceItem: {
+    minHeight: 58,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+    flexDirection: "row-reverse",
     alignItems: "center",
     gap: 10,
   },
-  scanButtonText: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "800",
-  },
-  errorText: {
-    marginTop: 14,
-    color: "#C62828",
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 21,
-  },
-  selectedBox: {
-    marginTop: 16,
-    padding: 12,
-    borderRadius: 14,
-    backgroundColor: "#F8E8E8",
-  },
-  selectedLabel: {
-    fontSize: 12,
-    color: "#777",
-    textAlign: "right",
-  },
-  selectedName: {
-    marginTop: 4,
-    fontSize: 16,
-    fontWeight: "900",
-    color: BURGUNDY,
-    textAlign: "right",
-  },
-  selectedId: {
-    marginTop: 4,
-    fontSize: 11,
-    color: "#999",
-    textAlign: "right",
-  },
-  list: {
-    marginTop: 18,
-    maxHeight: 280,
-  },
-  emptyText: {
-    marginTop: 30,
-    textAlign: "center",
-    color: "#888",
-    lineHeight: 22,
-  },
-  deviceItem: {
-    minHeight: 66,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: "#EEEEEE",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "#FAFAFA",
-  },
+
   deviceItemSelected: {
-    borderColor: BURGUNDY,
     backgroundColor: "#FFF4F4",
   },
-  deviceTextBox: {
+
+  deviceInfo: {
     flex: 1,
   },
+
   deviceName: {
-    fontSize: 15,
+    fontSize: 14.5,
+    color: DARK_TEXT,
     fontWeight: "800",
-    color: "#1F1F1F",
     textAlign: "right",
   },
+
   deviceId: {
-    marginTop: 4,
-    fontSize: 11,
-    color: "#999",
+    marginTop: 3,
+    fontSize: 10.5,
+    color: "#A0A0A0",
     textAlign: "right",
   },
-  connectButton: {
-    marginTop: 14,
-    height: 50,
+
+  passwordBox: {
+    width: "100%",
+    height: 46,
     borderRadius: 15,
-    backgroundColor: BURGUNDY,
+    borderWidth: 1,
+    borderColor: "#E2E2E2",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+
+  passwordInput: {
+    flex: 1,
+    fontSize: 14,
+    color: DARK_TEXT,
+    fontWeight: "600",
+    paddingVertical: 0,
+    marginRight: 10,
+    includeFontPadding: false,
+  },
+
+  errorText: {
+    color: "#C62828",
+    fontSize: 13,
+    textAlign: "right",
+    lineHeight: 20,
+    marginTop: 4,
+  },
+
+  connectButton: {
+    width: "100%",
+    height: 62,
+    borderRadius: 31,
+    overflow: "hidden",
+    marginTop: 36,
+    shadowColor: "#5F130F",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+
+  disabledButton: {
+    opacity: 0.55,
+  },
+
+  connectGradient: {
+    flex: 1,
+    borderRadius: 31,
     justifyContent: "center",
     alignItems: "center",
+    overflow: "hidden",
   },
-  disabledButton: {
-    opacity: 0.45,
+
+  buttonHighlight: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "50%",
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
+
   connectingRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
   },
+
   connectButtonText: {
     color: "#FFFFFF",
-    fontSize: 17,
+    textAlign: "center",
+    fontSize: 20,
     fontWeight: "900",
+    includeFontPadding: false,
   },
 });

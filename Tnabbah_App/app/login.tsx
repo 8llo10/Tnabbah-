@@ -30,34 +30,33 @@ export default function LoginScreen() {
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
 
-    const handleLogin = async () => {
-        try {
-            if (!email.trim()) return Alert.alert('خطأ', 'أدخلي البريد الإلكتروني');
-            if (!password.trim()) return Alert.alert('خطأ', 'أدخلي كلمة المرور');
+   const handleLogin = async () => {
+  try {
+    if (!email.trim()) return Alert.alert("خطأ", "أدخلي البريد الإلكتروني");
+    if (!password.trim()) return Alert.alert("خطأ", "أدخلي كلمة المرور");
 
-            setLoading(true);
+    setLoading(true);
 
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email: email.trim(),
-                password,
-            });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
 
-            if (error) {
-                Alert.alert('خطأ', error.message);
-                return;
-            }
+    if (error) {
+      Alert.alert("خطأ", error.message);
+      return;
+    }
 
-          if (data.session) {
-  router.replace("/connection-intro" as any);
-}
-
-        } catch (err) {
-            console.log(err);
-            Alert.alert('خطأ', 'صار خطأ غير متوقع');
-        } finally {
-            setLoading(false);
-        }
-    };
+    if (data.session) {
+      router.replace("/connection-intro" as any);
+    }
+  } catch (err) {
+    console.log("Login Error:", err);
+    Alert.alert("خطأ", "صار خطأ غير متوقع");
+  } finally {
+    setLoading(false);
+  }
+};
 
     return (
         <View style={styles.container}>
@@ -174,6 +173,7 @@ export default function LoginScreen() {
                 </View>
             </View>
         </View>
+        
     );
 }
 

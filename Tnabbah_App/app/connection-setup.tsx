@@ -1,9 +1,11 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import LottieView from "lottie-react-native";
 import {
   Dimensions,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -21,7 +23,7 @@ const GRAY_TEXT = "#9A9A9A";
 const LIGHT_GRAY = "#EFEFEF";
 const LINE_GRAY = "#E3E3E3";
 
-export default function ConnectionIntroScreen() {
+export default function ConnectionSetupScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -40,54 +42,74 @@ export default function ConnectionIntroScreen() {
 
           <View style={styles.lineInactive} />
 
-          <StepItem label="جهّز" iconName="car-outline" active={false} />
+          <StepItem label="جهّز" iconName="car-outline" active={true} />
 
           <View style={styles.lineActive} />
 
           <StepItem label="ابدأ" iconName="cellphone-cog" active={true} />
         </View>
 
-        {/* الكارد */}
+        {/* الكارد الكبير فقط هو اللي فيه سكرول */}
         <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardIconCircle}>
-              <MaterialCommunityIcons
-                name="cellphone-cog"
-                size={34}
-                color="#9B6B6B"
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.cardScrollContent}
+          >
+            <View style={styles.cardHeader}>
+              <View style={styles.cardIconCircle}>
+                <MaterialCommunityIcons
+                  name="car-outline"
+                  size={34}
+                  color="#9B6B6B"
+                />
+              </View>
+
+              <View style={styles.headerTextBox}>
+                <Text style={styles.title}>جهّزي القطعة</Text>
+
+                <Text style={styles.subtitle}>
+                  ابدئي بتجهيز السيارة والقطعة حتى يتمكن التطبيق من التعرف
+                  عليها قبل اختيار طريقة الاتصال.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.instructionsBox}>
+              <InstructionRow number="1" text="شغّلي السيارة" />
+              <InstructionRow number="2" text="ركّبي القطعة في مدخل OBD" />
+            </View>
+
+            {/* الأنيميشن بدون تحديد وبدون كتابة */}
+            <View style={styles.animationBox}>
+              <LottieView
+                source={require("../assets/animations/connected-car.json")}
+                autoPlay
+                loop
+                resizeMode="contain"
+                style={styles.lottie}
               />
             </View>
 
-            <View style={styles.headerTextBox}>
-              <Text style={styles.title}>ابدئي ربط القطعة</Text>
-
-              <Text style={styles.subtitle}>
-                اتبعي خطوتين بسيطتين لتوصيل القطعة الذكية بسيارتك وربطها
-                بالتطبيق بنجاح
-              </Text>
+            <View style={styles.lastInstructionBox}>
+              <InstructionRow number="3" text="انتظري حتى تضيء لمبة القطعة" />
             </View>
-          </View>
 
-          <View style={styles.instructionsBox}>
-            <InstructionRow number="1" text="جهّزي القطعة والسيارة" />
-            <InstructionRow number="2" text="اختاري اتصال البلوتوث" />
-          </View>
-
-          <TouchableOpacity
-            style={styles.startButton}
-            activeOpacity={0.9}
-            onPress={() => router.push("/connection-setup" as any)}
-          >
-            <LinearGradient
-              colors={[BURGUNDY_LIGHT, BURGUNDY_DARK]}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-              style={styles.startGradient}
+            <TouchableOpacity
+              style={styles.nextButton}
+              activeOpacity={0.9}
+              onPress={() => router.push("/bluetooth-setup" as any)}
             >
-              <View style={styles.buttonHighlight} />
-              <Text style={styles.startButtonText}>ابدأ الآن</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={[BURGUNDY_LIGHT, BURGUNDY_DARK]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.nextGradient}
+              >
+                <View style={styles.buttonHighlight} />
+                <Text style={styles.nextButtonText}>تم توصيل القطعة</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
       </View>
     </SafeAreaView>
@@ -163,7 +185,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "center",
-    marginBottom: 36,
+    marginBottom: 30,
   },
 
   stepItem: {
@@ -212,16 +234,20 @@ const styles = StyleSheet.create({
   },
 
   card: {
+    flex: 1,
     width: "100%",
-    minHeight: 368,
     borderWidth: 1,
     borderColor: "#D8D8D8",
     borderRadius: 18,
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 12,
+    overflow: "hidden",
+    marginBottom: 18,
+  },
+
+  cardScrollContent: {
+    paddingHorizontal: 14,
     paddingTop: 28,
-    paddingBottom: 22,
-    justifyContent: "space-between",
+    paddingBottom: 24,
   },
 
   cardHeader: {
@@ -267,8 +293,8 @@ const styles = StyleSheet.create({
   instructionsBox: {
     width: "100%",
     alignItems: "flex-end",
-    marginTop: 22,
-    gap: 14,
+    marginTop: 34,
+    gap: 18,
   },
 
   instructionRow: {
@@ -297,19 +323,39 @@ const styles = StyleSheet.create({
   },
 
   instructionText: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: DARK_TEXT,
+    flex: 1,
+    fontSize: 15.5,
+    fontWeight: "700",
+    color: "#4A4A4A",
     textAlign: "right",
     includeFontPadding: false,
   },
 
-  startButton: {
+  animationBox: {
+    width: "100%",
+    height: 250,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 14,
+  },
+
+  lottie: {
+    width: 250,
+    height: 250,
+  },
+
+  lastInstructionBox: {
+    width: "100%",
+    alignItems: "flex-end",
+    marginTop: 8,
+    marginBottom: 26,
+  },
+
+  nextButton: {
     width: "100%",
     height: 62,
     borderRadius: 31,
     overflow: "hidden",
-    marginTop: 28,
     shadowColor: "#5F130F",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.16,
@@ -317,7 +363,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
 
-  startGradient: {
+  nextGradient: {
     flex: 1,
     borderRadius: 31,
     justifyContent: "center",
@@ -334,7 +380,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.08)",
   },
 
-  startButtonText: {
+  nextButtonText: {
     color: "#FFFFFF",
     textAlign: "center",
     fontSize: 20,

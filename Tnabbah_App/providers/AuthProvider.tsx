@@ -30,108 +30,145 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   const loadProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
+    try {
+      console.log("Loading profile for:", userId);
 
-    if (error) {
-      console.log("Profile Load Error:", error);
+      const profilePromise = supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle();
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Profile load timeout")), 10000)
+      );
+
+      const { data, error }: any = await Promise.race([
+        profilePromise,
+        timeoutPromise,
+      ]);
+
+      if (error) {
+        console.log("Profile Load Error:", error.message || error);
+        setProfile(null);
+        return null;
+      }
+
+      setProfile(data ?? null);
+      return data ?? null;
+    } catch (error: any) {
+      console.log("Profile Catch Error:", error?.message || error);
       setProfile(null);
       return null;
     }
-
-    setProfile(data);
-    return data;
   };
 
   const checkRecoveryStorage = async () => {
-    const value = await AsyncStorage.getItem("password_recovery_flow");
-    return value === "true";
+    try {
+      const value = await AsyncStorage.getItem("password_recovery_flow");
+      setIsPasswordRecovery(value === "true");
+    } catch (error) {
+      console.log("Recovery Storage Error:", error);
+      setIsPasswordRecovery(false);
+    }
   };
 
   useEffect(() => {
-    const init = async () => {
+    let mounted = true;
+
+    const initAuth = async () => {
       try {
-        setLoading(true);
+        console.log("Init Auth Started");
 
-        const recoveryMode = await checkRecoveryStorage();
-        setIsPasswordRecovery(recoveryMode);
+        await checkRecoveryStorage();
 
-        const { data, error } = await supabase.auth.getSession();
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (!mounted) return;
 
         if (error) {
           console.log("Get Session Error:", error.message);
-        }
-
-        if (recoveryMode) {
           setSession(null);
           setProfile(null);
+          setLoading(false);
           return;
         }
 
-        setSession(data.session);
+        setSession(session);
 
-        if (data.session?.user) {
-          await loadProfile(data.session.user.id);
+        if (session?.user) {
+          setTimeout(() => {
+            if (mounted) {
+              loadProfile(session.user.id);
+            }
+          }, 0);
         } else {
           setProfile(null);
         }
-      } catch (error) {
-        console.log("Auth Init Error:", error);
+
+        setLoading(false);
+        console.log("Init Auth Done");
+      } catch (error: any) {
+        console.log("Init Auth Catch Error:", error?.message || error);
+
+        if (!mounted) return;
+
         setSession(null);
         setProfile(null);
-      } finally {
         setLoading(false);
       }
     };
 
-    init();
+    initAuth();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, authSession) => {
-        console.log("AUTH EVENT:", event);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("AUTH EVENT:", event);
 
-        try {
-          setLoading(true);
+      if (!mounted) return;
 
-          const recoveryModeFromStorage = await checkRecoveryStorage();
+      setSession(session);
 
-          const recoveryMode =
-            recoveryModeFromStorage || event === "PASSWORD_RECOVERY";
+      if (event === "PASSWORD_RECOVERY") {
+        setIsPasswordRecovery(true);
 
-          if (event === "PASSWORD_RECOVERY") {
-            await AsyncStorage.setItem("password_recovery_flow", "true");
-          }
-
-          setIsPasswordRecovery(recoveryMode);
-
-          if (recoveryMode) {
-            setSession(null);
-            setProfile(null);
-            return;
-          }
-
-          setSession(authSession);
-
-          if (authSession?.user) {
-            await loadProfile(authSession.user.id);
-          } else {
-            setProfile(null);
-          }
-        } catch (error) {
-          console.log("Auth State Change Error:", error);
-          setSession(null);
-          setProfile(null);
-        } finally {
-          setLoading(false);
-        }
+        AsyncStorage.setItem("password_recovery_flow", "true").catch((error) =>
+          console.log("Set Recovery Storage Error:", error)
+        );
       }
-    );
+
+      if (event === "SIGNED_OUT") {
+        setProfile(null);
+        setIsPasswordRecovery(false);
+
+        AsyncStorage.removeItem("password_recovery_flow").catch((error) =>
+          console.log("Remove Recovery Storage Error:", error)
+        );
+
+        setLoading(false);
+        return;
+      }
+
+      if (session?.user) {
+        setTimeout(() => {
+          if (mounted) {
+            loadProfile(session.user.id);
+          }
+        }, 0);
+      } else {
+        setProfile(null);
+      }
+
+      setLoading(false);
+    });
 
     return () => {
-      listener.subscription.unsubscribe();
+      mounted = false;
+      subscription.unsubscribe();
     };
   }, []);
 
