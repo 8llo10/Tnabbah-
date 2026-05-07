@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 import { AuthProvider } from "../providers/AuthProvider";
+
 import {
   ThemeProvider as NavigationThemeProvider,
   DarkTheme,
@@ -17,6 +18,7 @@ export default function RootLayout() {
         value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
       >
         <Stack
+        
           initialRouteName="index"
           screenOptions={{
             headerShown: false,
@@ -27,12 +29,13 @@ export default function RootLayout() {
             },
           }}
         >
-          <Stack.Screen name="index" />
+           <Stack.Screen name="index" />
           <Stack.Screen name="start" />
           <Stack.Screen name="login" />
           <Stack.Screen name="register" />
           <Stack.Screen name="forgot-password" />
 
+          <Stack.Screen name="connection-intro" />
           <Stack.Screen name="bluetooth-setup" />
           <Stack.Screen name="connection-success" />
 

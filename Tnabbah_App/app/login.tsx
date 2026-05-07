@@ -47,8 +47,8 @@ export default function LoginScreen() {
                 return;
             }
 
-           if (data.session) {
-  router.replace("/bluetooth-setup" as any);
+          if (data.session) {
+  router.replace("/connection-intro" as any);
 }
 
         } catch (err) {
