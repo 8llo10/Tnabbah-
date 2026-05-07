@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
-
+import { setPasswordRecoveryMode } from "../../utils/passwordRecoveryFlag";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   StyleSheet,
   Text,
@@ -151,7 +152,9 @@ export default function ResetPasswordScreen() {
       setLoading(true);
       clearMessages();
 
-      const { error: verifyError } = await supabase.auth.verifyOtp({
+      console.log("Start verify OTP:", cleanEmail, cleanOtp);
+
+      const { data, error: verifyError } = await supabase.auth.verifyOtp({
         email: cleanEmail,
         token: cleanOtp,
         type: "recovery",
@@ -163,17 +166,15 @@ export default function ResetPasswordScreen() {
         return;
       }
 
-      const { data: sessionData } = await supabase.auth.getSession();
+      console.log(
+        "verifyOtp success:",
+        data?.session ? "session exists" : "no session"
+      );
 
-      if (!sessionData.session) {
-        setErrorMessage("ما قدرنا نكمل التحقق، اطلبي رمز جديد");
-        return;
-      }
+      await setPasswordRecoveryMode(true);
+      await AsyncStorage.setItem("password_recovery_flow", "true");
 
-      router.replace({
-        pathname: "/auth/new-password" as any,
-        params: { email: cleanEmail },
-      });
+      router.replace("/auth/new-password" as any);
     } catch (error) {
       console.log("verify otp error:", error);
       setErrorMessage("حدث خطأ غير متوقع، حاولي مرة ثانية");

@@ -67,7 +67,8 @@ export default function StartScreen() {
 
     useEffect(() => {
         if (!loading && session && !showAnimation) {
-            router.replace('/home');
+            
+            
         }
     }, [loading, session, showAnimation, router]);
 
@@ -104,10 +105,7 @@ export default function StartScreen() {
         outputRange: [0, 1],
     });
 
-    if (session && !showAnimation) {
-        return null;
-    }
-
+    
     return (
         <View style={styles.container}>
             <Animated.View

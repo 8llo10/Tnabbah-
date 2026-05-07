@@ -27,12 +27,18 @@ export default function RootLayout() {
             },
           }}
         >
-          <Stack.Screen name="auth/reset-password" />
           <Stack.Screen name="index" />
           <Stack.Screen name="start" />
           <Stack.Screen name="login" />
           <Stack.Screen name="register" />
           <Stack.Screen name="forgot-password" />
+
+          <Stack.Screen name="bluetooth-setup" />
+          <Stack.Screen name="connection-success" />
+
+          <Stack.Screen name="auth/reset-password" />
+          <Stack.Screen name="auth/new-password" />
+
           <Stack.Screen name="(tabs)" />
         </Stack>
 

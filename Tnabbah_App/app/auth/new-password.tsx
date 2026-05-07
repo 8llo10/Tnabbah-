@@ -71,12 +71,24 @@ export default function NewPasswordScreen() {
       setLoading(true);
       clearMessages();
 
-      const { data: sessionData } = await supabase.auth.getSession();
+      console.log("Checking recovery session...");
+
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+
+      if (sessionError) {
+        console.log("getSession error:", sessionError.message);
+        setErrorMessage("صار خطأ في جلسة تغيير كلمة المرور، اطلبي رمز جديد");
+        return;
+      }
 
       if (!sessionData.session) {
+        console.log("No recovery session found");
         setErrorMessage("انتهت جلسة تغيير كلمة المرور، اطلبي رمز جديد");
         return;
       }
+
+      console.log("Recovery session exists, updating password...");
 
       const { error: updateError } = await supabase.auth.updateUser({
         password: cleanPassword,
@@ -84,26 +96,22 @@ export default function NewPasswordScreen() {
 
       if (updateError) {
         console.log("update password error:", updateError.message);
-        setErrorMessage("ما قدرنا نحفظ كلمة المرور الجديدة");
+        setErrorMessage("ما قدرنا نحفظ كلمة المرور الجديدة، حاولي مرة ثانية");
         return;
       }
 
+      console.log("Password updated successfully");
+
       setPassword("");
-setConfirmPassword("");
-setSuccessMessage("تم حفظ كلمة المرور بنجاح");
+      setConfirmPassword("");
+      setSuccessMessage("تم حفظ كلمة المرور بنجاح");
 
-await AsyncStorage.removeItem("password_recovery_flow");
+      await AsyncStorage.removeItem("password_recovery_flow");
+      await setPasswordRecoveryMode(false);
 
-const { error: signOutError } = await supabase.auth.signOut();
-
-if (signOutError) {
-  console.log("signOut error:", signOutError.message);
-}
-
-setTimeout(() => {
-  router.replace("/login" as any);
-}, 900);
-   
+      setTimeout(() => {
+        router.replace("/login" as any);
+      }, 800);
     } catch (error) {
       console.log("new password error:", error);
       setErrorMessage("حدث خطأ غير متوقع، حاولي مرة ثانية");

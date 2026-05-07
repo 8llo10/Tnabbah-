@@ -13,11 +13,20 @@
       "bundleIdentifier": "com.rawanamoodi.tnabbahapp",
       "icon": "./assets/images/logo.png",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSBluetoothAlwaysUsageDescription": "Tnabbah needs Bluetooth access to connect to the OBD device and read car data.",
+        "NSBluetoothPeripheralUsageDescription": "Tnabbah needs Bluetooth access to connect to the OBD device."
       }
     },
     "android": {
       "package": "com.rawanamoodi.tnabbahapp",
+      "permissions": [
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_SCAN",
+        "BLUETOOTH_CONNECT",
+        "ACCESS_FINE_LOCATION"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/logo.png"
@@ -43,7 +52,15 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "modes": ["central"],
+          "bluetoothAlwaysPermission": "Tnabbah needs Bluetooth access to connect to the OBD device and read car data."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
