@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تَنَبَّه — تشخيص السيارات</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap"
+    rel="stylesheet"
+  />
+  <!--
+    Precompiled Tailwind v2 CSS (production-safe, no JIT warning, no build step).
+    Color utilities are limited to Tailwind v2 names: gray/green/yellow/purple
+    (slate/emerald/amber/violet do not exist in v2). Brand colors use blue-*.
+  -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+  />
+  <style>
+    html, body { font-family: 'Tajawal', system-ui, sans-serif; }
+    .num-input::-webkit-outer-spin-button,
+    .num-input::-webkit-inner-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
+    .num-input { -moz-appearance: textfield; appearance: textfield; }
+    /* Force LTR for numeric values inside RTL flow */
+    .ltr-num { direction: ltr; unicode-bidi: bidi-override; display: inline-block; }
+    .fade-in { animation: fade .35s ease-out; }
+    @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    /* Tailwind v2 doesn't include backdrop-filter utilities by default. */
+    .backdrop-blur { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100 min-h-screen text-gray-800">
+  <!-- ───────── HEADER ───────── -->
+  <header class="bg-white backdrop-blur border-b border-gray-200 sticky top-0 z-30">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center text-2xl shadow-lg">🚗</div>
+        <div>
+          <h1 class="text-xl md:text-2xl font-black text-gray-900">تَنَبَّه</h1>
+          <p class="text-xs text-gray-500">تشخيص السيارات الذكي — OBD-II</p>
+        </div>
+      </div>
+      <a id="apiDocsLink" href="/api/docs" target="_blank"
+         class="text-sm text-blue-700 hover:text-blue-900 hover:underline">توثيق الـ API ↗</a>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8 space-y-6">
+    <!-- ───────── HERO ───────── -->
+    <section class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8">
+      <h2 class="text-2xl md:text-3xl font-black text-gray-900 mb-2">تقرير الفحص الذكي</h2>
+      <p class="text-gray-600 leading-relaxed">
+        أدخِل قراءات المستشعرات (PIDs) وأكواد الأعطال (DTCs)، واحصل على تقرير عربي مبسّط
+        مع تفسير ذكي لكل قراءة عند تفعيل DeepSeek في <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">config/.env</code>.
+      </p>
+    </section>
+
+    <!-- ───────── QUICK SCENARIOS ───────── -->
+    <section class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-gray-900">سيناريوهات جاهزة</h3>
+        <button id="resetBtn" type="button"
+                class="text-sm text-gray-500 hover:text-gray-800">↻ إعادة الضبط</button>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2" id="scenarios"></div>
+    </section>
+
+    <!-- ───────── INPUT FORM ───────── -->
+    <form id="scanForm" class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8 space-y-6">
+      <div>
+        <h3 class="font-bold text-lg text-gray-900 mb-1">قراءات المستشعرات</h3>
+        <p class="text-sm text-gray-500 mb-4">القيم بالـ PID code القياسي. اترك الحقل فارغاً لتجاهل المستشعر.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="pidGrid"></div>
+      </div>
+
+      <div class="border-t border-gray-200 pt-6">
+        <h3 class="font-bold text-lg text-gray-900 mb-1">أكواد الأعطال (DTCs)</h3>
+        <p class="text-sm text-gray-500 mb-3">اكتب كل كود في سطر، أو افصل بفواصل (مثال: P0171, P0420).</p>
+        <textarea id="dtcsInput" rows="2" placeholder="P0171, P0420"
+          class="w-full rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-2 text-sm ltr-num"></textarea>
+      </div>
+
+      <div class="border-t border-gray-200 pt-6 flex items-center justify-between flex-wrap gap-4">
+        <label class="flex items-center gap-2 text-sm text-gray-600">
+          <span>عدد الكيلومترات (اختياري):</span>
+          <input id="mileageInput" type="number" min="0" step="1000" placeholder="0"
+                 class="num-input w-32 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-1.5 text-sm ltr-num" />
+        </label>
+        <button type="submit" id="scanBtn"
+          class="bg-blue-600 hover:bg-blue-700 active:bg-blue-900 text-white font-bold px-6 py-3 rounded-xl shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+          <span id="scanBtnText">🔍 تحليل القراءات</span>
+          <svg id="scanSpinner" class="hidden animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" opacity=".25"/>
+            <path fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z"/>
+          </svg>
+        </button>
+      </div>
+    </form>
+
+    <!-- ───────── RESULTS ───────── -->
+    <section id="results" class="hidden space-y-6"></section>
+
+    <!-- ───────── ERROR ───────── -->
+    <div id="errorBox" class="hidden bg-red-50 border border-red-200 text-red-800 rounded-2xl p-5"></div>
+
+    <!-- ───────── FOOTER ───────── -->
+    <footer class="text-center text-xs text-gray-500 pt-8 pb-4">
+      هذا تحليل عام بناءً على بيانات OBD-II — استشر ميكانيكياً متخصصاً.
+    </footer>
+  </main>
+
+  <script>
+    // ════════════════════════════════════════════════════════════
+    // PID input definitions
+    // ════════════════════════════════════════════════════════════
+    const PID_FIELDS = [
+      { code: '0x04', name: 'حمل المحرك (Engine Load)',          unit: '%',     min: 0, max: 100, step: 0.1, def: 30.98 },
+      { code: '0x05', name: 'حرارة المحرك (Coolant Temp)',       unit: '°C',    min: -40, max: 200, step: 0.5, def: 96.0 },
+      { code: '0x06', name: 'تعديل الوقود قصير المدى (STFT)',     unit: '%',     min: -50, max: 50, step: 0.1, def: 1.56 },
+      { code: '0x07', name: 'تعديل الوقود طويل المدى (LTFT)',     unit: '%',     min: -50, max: 50, step: 0.1, def: 1.56 },
+      { code: '0x0C', name: 'دورات المحرك (RPM)',                 unit: 'rpm',   min: 0, max: 9000, step: 1, def: 714 },
+      { code: '0x0D', name: 'سرعة السيارة (Speed)',               unit: 'km/h',  min: 0, max: 300, step: 1, def: 0 },
+      { code: '0x10', name: 'تدفق الهواء (MAF)',                  unit: 'g/s',   min: 0, max: 700, step: 0.01, def: 2.09 },
+      { code: '0x42', name: 'جهد البطارية (Voltage)',              unit: 'V',     min: 0, max: 18, step: 0.01, def: 13.125 },
+      { code: '0x11', name: 'موضع المخنق (Throttle)',              unit: '%',     min: 0, max: 100, step: 0.1, def: '' },
+      { code: '0x0F', name: 'حرارة الهواء الداخل (Intake Temp)',   unit: '°C',    min: -40, max: 120, step: 0.5, def: '' },
+    ];
+
+    // ════════════════════════════════════════════════════════════
+    // Quick-scenario presets
+    // ════════════════════════════════════════════════════════════
+    const SCENARIOS = [
+      {
+        label: '✅ سيارة سليمة',
+        sub: 'كل القراءات طبيعية',
+        pids: { '0x04': 30.98, '0x05': 96, '0x06': 1.56, '0x07': 1.56, '0x0C': 714, '0x0D': 0, '0x10': 2.09, '0x42': 13.125 },
+        dtcs: '',
+      },
+      {
+        label: '🥵 ارتفاع حرارة',
+        sub: 'COOLANT_TEMP في النطاق الحرج',
+        pids: { '0x04': 65, '0x05': 118, '0x06': 4.2, '0x07': 3.8, '0x0C': 850, '0x0D': 0, '0x10': 4.5, '0x42': 13.4 },
+        dtcs: 'P0217',
+      },
+      {
+        label: '⚠️ خليط فقير',
+        sub: 'STFT/LTFT مرتفعة + P0171',
+        pids: { '0x04': 35, '0x05': 92, '0x06': 22, '0x07': 18, '0x0C': 800, '0x0D': 0, '0x10': 3.2, '0x42': 13.6 },
+        dtcs: 'P0171',
+      },
+      {
+        label: '🛑 محوّل عادم',
+        sub: 'P0420 — كفاءة المحوّل',
+        pids: { '0x04': 30, '0x05': 90, '0x06': 1.5, '0x07': 2, '0x0C': 720, '0x0D': 0, '0x10': 2.2, '0x42': 13.2 },
+        dtcs: 'P0420',
+      },
+    ];
+
+    // ════════════════════════════════════════════════════════════
+    // Build PID input grid
+    // ════════════════════════════════════════════════════════════
+    const pidGrid = document.getElementById('pidGrid');
+    PID_FIELDS.forEach((f) => {
+      const wrap = document.createElement('label');
+      wrap.className = 'block bg-gray-50 hover:bg-white transition border border-gray-200 rounded-xl p-3';
+      wrap.innerHTML = `
+        <div class="flex items-baseline justify-between mb-1">
+          <span class="text-sm font-bold text-gray-700">${f.name}</span>
+          <span class="text-xs text-gray-400 ltr-num">${f.code}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="number" data-pid="${f.code}" class="num-input flex-1 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-1.5 text-sm ltr-num"
+                 min="${f.min}" max="${f.max}" step="${f.step}" placeholder="—" value="${f.def === '' ? '' : f.def}">
+          <span class="text-xs text-gray-500 w-10 ltr-num">${f.unit}</span>
+        </div>`;
+      pidGrid.appendChild(wrap);
+    });
+
+    // ════════════════════════════════════════════════════════════
+    // Render scenario buttons
+    // ════════════════════════════════════════════════════════════
+    const scenariosEl = document.getElementById('scenarios');
+    SCENARIOS.forEach((s, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'text-right bg-gray-50 hover:bg-blue-50 hover:border-blue-300 border border-gray-200 rounded-xl p-3 transition';
+      btn.innerHTML = `<div class="font-bold text-sm text-gray-800">${s.label}</div>
+                       <div class="text-xs text-gray-500 mt-0.5">${s.sub}</div>`;
+      btn.onclick = () => applyScenario(s);
+      scenariosEl.appendChild(btn);
+    });
+
+    function applyScenario(s) {
+      // Clear all then fill
+      document.querySelectorAll('input[data-pid]').forEach((el) => (el.value = ''));
+      Object.entries(s.pids).forEach(([code, val]) => {
+        const el = document.querySelector(`input[data-pid="${code}"]`);
+        if (el) el.value = val;
+      });
+      document.getElementById('dtcsInput').value = s.dtcs;
+    }
+
+    document.getElementById('resetBtn').onclick = () => {
+      document.querySelectorAll('input[data-pid]').forEach((el) => (el.value = ''));
+      document.getElementById('dtcsInput').value = '';
+      document.getElementById('mileageInput').value = '';
+      document.getElementById('results').classList.add('hidden');
+      document.getElementById('errorBox').classList.add('hidden');
+    };
+
+    // ════════════════════════════════════════════════════════════
+    // Submit handler — calls /api/scan
+    // ════════════════════════════════════════════════════════════
+    const form = document.getElementById('scanForm');
+    const scanBtn = document.getElementById('scanBtn');
+    const scanBtnText = document.getElementById('scanBtnText');
+    const scanSpinner = document.getElementById('scanSpinner');
+    const errorBox = document.getElementById('errorBox');
+    const resultsEl = document.getElementById('results');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorBox.classList.add('hidden');
+      resultsEl.classList.add('hidden');
+
+      // Gather PIDs
+      const pids = {};
+      document.querySelectorAll('input[data-pid]').forEach((el) => {
+        const v = el.value.trim();
+        if (v !== '') pids[el.dataset.pid] = parseFloat(v);
+      });
+      if (Object.keys(pids).length === 0) {
+        showError('أدخل قيمة واحدة على الأقل من قراءات المستشعرات.');
+        return;
+      }
+
+      // Gather DTCs
+      const dtcs = (document.getElementById('dtcsInput').value || '')
+        .split(/[\s,،\n]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
+
+      // Vehicle info
+      const mileage = parseInt(document.getElementById('mileageInput').value || '0', 10);
+      const vehicle_info = mileage > 0 ? { mileage_km: mileage } : null;
+
+      // Loading state
+      scanBtn.disabled = true;
+      scanBtnText.textContent = 'جارٍ التحليل…';
+      scanSpinner.classList.remove('hidden');
+
+      try {
+        const res = await fetch('/api/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pids, dtcs, vehicle_info }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || err.error || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        renderReport(data);
+      } catch (err) {
+        const msg = (err && err.message) || '';
+        if (location.protocol === 'file:') {
+          showError(
+            'يجب فتح الواجهة عبر خادم FastAPI وليس من ملف مباشرة. '
+            + 'شغّل: uvicorn src.diagnostics.main:app --port 8001 ثم افتح http://localhost:8001'
+          );
+        } else if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+          showError(
+            'تعذّر الاتصال بالخادم. تأكد أن خادم FastAPI يعمل على ' + location.host
+            + ' (شغّل: uvicorn src.diagnostics.main:app --port 8001).'
+          );
+        } else {
+          showError('فشل التحليل: ' + (msg || 'خطأ غير معروف.'));
+        }
+      } finally {
+        scanBtn.disabled = false;
+        scanBtnText.textContent = '🔍 تحليل القراءات';
+        scanSpinner.classList.add('hidden');
+      }
+    });
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.classList.remove('hidden');
+      errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // Render the diagnostic report
+    // ════════════════════════════════════════════════════════════
+    const SEVERITY_STYLE = {
+      LOW:      { color: 'bg-green-100 text-green-800 border-green-300', label: '🟢 تنبيه بسيط', bar: 'bg-green-500' },
+      MEDIUM:   { color: 'bg-yellow-100 text-yellow-800 border-yellow-300',       label: '🟡 تحذير',     bar: 'bg-yellow-500' },
+      HIGH:     { color: 'bg-orange-100 text-orange-800 border-orange-300',    label: '🟠 خطر',       bar: 'bg-orange-500' },
+      CRITICAL: { color: 'bg-red-100 text-red-800 border-red-300',             label: '🔴 خطر شديد',  bar: 'bg-red-500' },
+    };
+    const STATUS_STYLE = {
+      NORMAL:   { dot: 'bg-green-500', text: 'text-green-700', label: 'طبيعي' },
+      WARNING:  { dot: 'bg-yellow-500',   text: 'text-yellow-700',   label: 'تحذير' },
+      MEDIUM:   { dot: 'bg-yellow-500',   text: 'text-yellow-700',   label: 'تحذير' },
+      HIGH:     { dot: 'bg-orange-500',  text: 'text-orange-700',  label: 'خطر' },
+      CRITICAL: { dot: 'bg-red-500',     text: 'text-red-700',     label: 'خطر' },
+      LOW:      { dot: 'bg-gray-400',   text: 'text-gray-600',   label: 'تنبيه' },
+    };
+
+    function renderReport(report) {
+      resultsEl.innerHTML = '';
+      resultsEl.classList.remove('hidden');
+
+      const sev = (report.severity || 'LOW').toUpperCase();
+      const sevStyle = SEVERITY_STYLE[sev] || SEVERITY_STYLE.LOW;
+      const meta = report.analysis_metadata || {};
+      const health = Math.round(meta.overall_health ?? 100);
+      const isHealthy = meta.is_vehicle_healthy === true;
+
+      // Index AI interpretations by pid_code (PIDs) and code (DTCs).
+      const userFriendly = report.user_friendly_report_ar || {};
+      const aiByPid = {};
+      ((userFriendly.pid_mechanical_interpretation || {}).interpretations || [])
+        .forEach((it) => { if (it.pid_code) aiByPid[it.pid_code] = it; });
+      const aiByDtc = {};
+      ((userFriendly.dtc_mechanical_interpretation || {}).interpretations || [])
+        .forEach((it) => { if (it.code) aiByDtc[String(it.code).toUpperCase()] = it; });
+
+      // ───── Card 1: Overall status ─────
+      const ufr = userFriendly;
+      const healthPct = ufr.overall_health_percent ?? health;
+      const healthLine = ufr.overall_health || '';
+      const summaryLine = ufr.summary || (isHealthy ? 'سيارتك بحالة ممتازة' : 'تم اكتشاف ملاحظات');
+
+      // Build human-readable summary: "تم تحليل N مؤشر. يوجد …"
+      const nPids = ufr.pid_count || Object.keys(report.analysis_metadata || {}).length || 0;
+      const nDtcs = (report.detected_dtcs || []).length;
+      const nAnom = (report.detected_anomalies || []).length;
+      let introLine = '';
+      if (nPids > 0) {
+        introLine = `تم تحليل ${nPids} مؤشرات حيوية لسيارتك. `;
+      }
+      if (isHealthy) {
+        introLine += 'جميع القراءات ضمن النطاق الطبيعي.';
+      } else if (nDtcs > 0 && nAnom > 0) {
+        introLine += `يوجد ${nDtcs} كود عطل و${nAnom} تنبيه يتطلب المتابعة.`;
+      } else if (nDtcs > 0) {
+        introLine += `يوجد ${nDtcs === 1 ? 'كود عطل واحد' : nDtcs + ' أكواد أعطال'} يتطلب المتابعة.`;
+      } else if (nAnom > 0) {
+        introLine += `يوجد ${nAnom === 1 ? 'تنبيه واحد' : nAnom + ' تنبيهات'} يتطلب الملاحظة.`;
+      }
+
+      // Pull AI narrative from pid_mechanical_interpretation overview;
+      // fall back to deterministic summary when AI is disabled.
+      const mechInterp = ufr.pid_mechanical_interpretation || {};
+      const pidOverview = (mechInterp.overview_ar || mechInterp.summary_ar || '').trim();
+
+      // Collect DTC AI insights for the overview block
+      const dtcInterpList = (ufr.dtc_mechanical_interpretation || {}).interpretations || [];
+      const dtcOverviewParts = dtcInterpList
+        .map((it) => (it.smart_insight_ar || '').trim())
+        .filter(Boolean);
+      const dtcOverview = dtcOverviewParts.join(' — ');
+
+      // Build final narrative: PID overview + DTC insights, or fall back to deterministic summary
+      let aiNarrative = '';
+      if (pidOverview && dtcOverview) {
+        aiNarrative = pidOverview + '\n\n' + dtcOverview;
+      } else {
+        aiNarrative = (pidOverview || dtcOverview || summaryLine || '').trim();
+      }
+      const aiActive = Object.keys(aiByPid).length > 0 || dtcInterpList.length > 0;
+
+
+
+      const card1 = document.createElement('div');
+      card1.className = 'fade-in bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8';
+      card1.innerHTML = `
+        <div class="flex items-start justify-between flex-wrap gap-4 mb-2">
+          <div class="text-xs text-gray-400">رقم التقرير: <span class="ltr-num font-mono">${esc(report.report_id || '')}</span></div>
+          <span class="text-sm font-bold px-3 py-1.5 rounded-full border ${sevStyle.color}">${sevStyle.label}</span>
+        </div>
+        <h2 class="text-2xl md:text-3xl font-black text-gray-900 mb-1">${isHealthy ? 'سيارتك بحالة ممتازة 🎉' : 'تم اكتشاف ملاحظات'}</h2>
+        <p class="text-gray-500 text-sm mb-1">${esc(report.drive_advice || '')}</p>
+        ${introLine ? `<p class="text-gray-700 text-base font-medium mt-3 mb-4">${esc(introLine)}</p>` : ''}
+        ${aiNarrative ? `
+          <div class="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div class="text-sm font-bold text-blue-800 mb-2">${aiActive ? '✨ تحليل تنبّه الذكي' : '📋 ملخص التحليل'}</div>
+            ${aiNarrative.split('\n\n').filter(Boolean).map((part) =>
+              `<p class="text-sm text-blue-900 leading-relaxed mb-1">${esc(part.trim())}</p>`
+            ).join('')}
+          </div>` : ''}
+        <div class="mt-5">
+          <div class="flex justify-between text-xs text-gray-500 mb-1">
+            <span>${esc(healthLine || 'الحالة العامة')}</span>
+            <span class="ltr-num">${healthPct}%</span>
+          </div>
+          <div class="w-full h-3 rounded-full bg-gray-100 overflow-hidden">
+            <div class="h-full ${sevStyle.bar} transition-all" style="width: ${healthPct}%"></div>
+          </div>
+        </div>`;
+      resultsEl.appendChild(card1);
+
+      // ───── Card 2: DTCs ─────
+      if ((report.detected_dtcs || []).length > 0) {
+        const dtcCard = document.createElement('div');
+        dtcCard.className = 'fade-in bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8';
+        dtcCard.innerHTML = `<h3 class="font-bold text-lg text-gray-900 mb-4">🛑 الأعطال المسجَّلة</h3>`;
+        const list = document.createElement('div');
+        list.className = 'space-y-3';
+        report.detected_dtcs.forEach((d) => {
+          const ds = (d.severity || 'MEDIUM').toUpperCase();
+          const dStyle = SEVERITY_STYLE[ds] || SEVERITY_STYLE.MEDIUM;
+          const codeKey = String(d.code || '').toUpperCase();
+          const dtcAi = aiByDtc[codeKey];
+          const aiSentence = dtcAi && (dtcAi.smart_insight_ar || '').trim();
+          const item = document.createElement('div');
+          item.className = `border rounded-xl p-4 ${dStyle.color}`;
+          item.innerHTML = `
+            <div class="flex items-baseline justify-between flex-wrap gap-2 mb-1">
+              <div class="font-black text-base ltr-num">${esc(d.code || '')}</div>
+              <div class="text-xs font-bold">${dStyle.label}</div>
+            </div>
+            <div class="font-bold text-sm">${esc(d.name || '')}</div>
+            ${d.description ? `<div class="text-sm mt-1 opacity-90">${esc(d.description)}</div>` : ''}
+            ${aiSentence ? `
+              <div class="mt-3 pt-3 border-t border-current border-opacity-20">
+                <div class="text-xs font-bold mb-1 opacity-80">✨ تفسير ذكي</div>
+                <div class="text-sm leading-relaxed">${esc(aiSentence)}</div>
+                ${dtcAi.urgency_ar ? `<div class="text-xs mt-1 opacity-80">العاجلية: ${esc(dtcAi.urgency_ar)}</div>` : ''}
+              </div>` : ''}
+            ${d.category ? `<div class="text-xs mt-2 opacity-70">التصنيف: ${esc(d.category)}</div>` : ''}`;
+          list.appendChild(item);
+        });
+        dtcCard.appendChild(list);
+        resultsEl.appendChild(dtcCard);
+      }
+
+      // ───── Card 3: PID readings with AI insights ─────
+      const readings = report.all_pid_readings || [];
+      if (readings.length > 0) {
+        const pidCard = document.createElement('div');
+        pidCard.className = 'fade-in bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8';
+        pidCard.innerHTML = `
+          <div class="flex items-center justify-between flex-wrap gap-2 mb-4">
+            <h3 class="font-bold text-lg text-gray-900">📊 قراءات المستشعرات</h3>
+            ${aiActive
+              ? '<span class="text-xs bg-purple-100 text-purple-700 border border-purple-300 px-2 py-1 rounded-full">✨ تحليل ذكي مُفعَّل</span>'
+              : '<span class="text-xs bg-gray-100 text-gray-600 border border-gray-300 px-2 py-1 rounded-full">التحليل الذكي معطَّل (DEEPSEEK_API_KEY)</span>'}
+          </div>`;
+        const grid = document.createElement('div');
+        grid.className = 'grid grid-cols-1 md:grid-cols-2 gap-3';
+        readings.forEach((r) => {
+          const status = (r.status || 'NORMAL').toUpperCase();
+          const ss = STATUS_STYLE[status] || STATUS_STYLE.NORMAL;
+          const ai = aiByPid[r.pid_code];
+          const insight = ai && (ai.smart_insight_ar || ai.mechanical_explanation_ar);
+          const fallback = (status === 'NORMAL')
+            ? `${esc(r.pid_name || r.pid_code)} يعمل ضمن النطاق المثالي.`
+            : `${esc(r.pid_name || r.pid_code)} خارج النطاق المثالي — يُنصح بالفحص.`;
+          const block = document.createElement('div');
+          block.className = `border rounded-xl p-4 ${r.is_anomaly ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 bg-gray-50'}`;
+          block.innerHTML = `
+            <div class="flex items-baseline justify-between gap-2 mb-2">
+              <div class="font-bold text-sm text-gray-800">${esc(r.pid_name || r.pid_code)}</div>
+              <div class="text-xs text-gray-400 ltr-num">${esc(r.pid_code || '')}</div>
+            </div>
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-2xl font-black ${ss.text} ltr-num">${fmt(r.value)}<span class="text-sm font-normal mr-1">${esc(r.unit || '')}</span></div>
+              <div class="flex items-center gap-1.5 text-xs ${ss.text}">
+                <span class="w-2 h-2 rounded-full ${ss.dot}"></span>
+                <span>${ss.label}</span>
+              </div>
+            </div>
+            <div class="text-sm text-gray-700 leading-relaxed">${esc(insight || fallback)}</div>
+            ${ai && ai.urgency_ar ? `<div class="text-xs mt-2 text-purple-700 font-bold">✨ ${esc(ai.urgency_ar)}</div>` : ''}
+            ${ai && ai.safety_tip_ar ? `<div class="text-xs mt-2 text-yellow-700 font-bold">⚠️ ${esc(ai.safety_tip_ar)}</div>` : ''}`;
+          grid.appendChild(block);
+        });
+        pidCard.appendChild(grid);
+        resultsEl.appendChild(pidCard);
+      }
+
+      // ───── Card 4: Likely causes ─────
+      if ((report.likely_causes || []).length > 0) {
+        const causesCard = document.createElement('div');
+        causesCard.className = 'fade-in bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8';
+        causesCard.innerHTML = `<h3 class="font-bold text-lg text-gray-900 mb-4">🧩 أرجح الأسباب</h3>`;
+        const list = document.createElement('div');
+        list.className = 'space-y-2';
+        report.likely_causes.slice(0, 5).forEach((c) => {
+          const lk = Math.round(c.likelihood || 0);
+          const item = document.createElement('div');
+          item.className = 'border border-gray-200 rounded-xl p-3 flex items-center gap-3';
+          item.innerHTML = `
+            <div class="flex-1">
+              <div class="font-bold text-gray-800 text-sm">${esc(c.cause || '')}</div>
+              ${c.evidence ? `<div class="text-xs text-gray-500 mt-1">${esc(c.evidence)}</div>` : ''}
+            </div>
+            <div class="text-sm font-bold text-blue-700 ltr-num">${lk}%</div>`;
+          list.appendChild(item);
+        });
+        causesCard.appendChild(list);
+        resultsEl.appendChild(causesCard);
+      }
+
+      // ───── Card 6: Maintenance recommendation ─────
+      const rec = report.maintenance_recommendation;
+      if (rec) {
+        const recCard = document.createElement('div');
+        recCard.className = 'fade-in bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8';
+        recCard.innerHTML = `
+          <h3 class="font-bold text-lg text-gray-900 mb-3">🧰 توصية الصيانة</h3>
+          <p class="text-gray-800 mb-3">${esc(rec.action || '')}</p>
+          <div class="text-sm text-gray-500 mb-4">العاجلية: <span class="font-bold text-gray-700">${esc(rec.urgency || '')}</span> • تقدير: <span class="ltr-num">${rec.estimated_time_weeks ?? '?'}</span> أسبوع</div>
+          ${(rec.preventive_measures || []).length ? `
+            <div class="text-sm font-bold text-gray-700 mb-2">إجراءات وقائية:</div>
+            <ul class="text-sm text-gray-600 space-y-1 list-disc pr-5">
+              ${rec.preventive_measures.map((p) => `<li>${esc(p)}</li>`).join('')}
+            </ul>` : ''}`;
+        resultsEl.appendChild(recCard);
+      }
+
+      // Scroll into view
+      resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function fmt(v) {
+      if (v == null) return '—';
+      const n = Number(v);
+      if (Number.isNaN(n)) return String(v);
+      return Number.isInteger(n) ? n : n.toFixed(2).replace(/\.?0+$/, '');
+    }
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+      );
+    }
+  </script>
+</body>
+</html>
