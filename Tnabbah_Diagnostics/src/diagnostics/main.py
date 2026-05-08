@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field
 
 from pathlib import Path
 from .models import (
@@ -32,6 +33,7 @@ from .report_formatter import (
     pid_readings_for_mechanical_llm,
 )
 from .model_service import interpret_pid_mechanical_snapshot, interpret_dtc_snapshot
+from .ai_service import recommend_action as ai_recommend_action
 
 # Load environment variables from config folder
 config_path = Path(__file__).parent.parent.parent / "config" / ".env"
@@ -138,8 +140,8 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if ALLOW_ALL_ORIGINS else ALLOWED_ORIGINS,
-    allow_credentials=False if ALLOW_ALL_ORIGINS else True,
+    allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -331,6 +333,36 @@ async def scan_vehicle(request: ScanRequest) -> AIReport:
                         user_friendly_report_ar["dtc_mechanical_interpretation"] = dtc_mech
         except Exception:
             logger.debug("تخطّي تفسير الأكواد بالذكاء الاصطناعي", exc_info=True)
+
+        # ── Holistic AI recommendation (PIDs + DTCs together) ──
+        # Generates a single Arabic "التوصية: ..." sentence and a
+        # `needs_mechanic` flag for the UI to surface a "see a mechanic" hint.
+        try:
+            rec_dtc_payload: list = []
+            for code in (request.dtcs or []):
+                code_s = str(code or "").strip().upper()
+                if not code_s:
+                    continue
+                entry = (data_loader.dtc_kb or {}).get(code_s) or {}
+                i18n_ar = (entry.get("i18n") or {}).get("ar") or {}
+                rec_dtc_payload.append({
+                    "code": code_s,
+                    "name_ar": (
+                        i18n_ar.get("title")
+                        or entry.get("name_ar")
+                        or entry.get("name")
+                        or code_s
+                    ),
+                })
+            ai_rec = ai_recommend_action(
+                llm_readings,
+                rec_dtc_payload,
+                request.vehicle_info,
+            )
+            if ai_rec:
+                user_friendly_report_ar["final_recommendation"] = ai_rec
+        except Exception:
+            logger.debug("تخطّي التوصية النهائية بالذكاء الاصطناعي", exc_info=True)
 
         # Create report
         report = AIReport(
@@ -657,6 +689,216 @@ else:
     @app.get("/", include_in_schema=False)
     async def root():
         return await api_info()
+
+
+# ========================
+# REPORT MANAGEMENT (Supabase)
+# ========================
+
+from .supabase_client import get_supabase_manager
+
+class SaveReportRequest(BaseModel):
+    report_id: str = Field(..., description="Report ID from scan")
+    user_id: str = Field(..., description="User UUID")
+    is_permanent: bool = Field(default=False, description="Mark as permanently saved")
+    expires_in_hours: int = Field(default=24, ge=1, le=720)
+
+
+class RejectReportRequest(BaseModel):
+    report_id: str = Field(..., description="Report ID")
+    user_id: str = Field(..., description="User UUID")
+
+
+class DeleteReportRequest(BaseModel):
+    report_id: str = Field(..., description="Report ID")
+    user_id: str = Field(..., description="User UUID")
+
+
+@app.post("/api/save-report")
+async def save_report_to_db(request: SaveReportRequest):
+    """
+    Save diagnostic report to Supabase database
+    
+    Called after user reviews report and clicks 'Save'
+    """
+    try:
+        # Get report from in-memory storage
+        if request.report_id not in reports_storage:
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        report = reports_storage[request.report_id]
+        
+        # Get Supabase manager
+        supabase = get_supabase_manager()
+        if not supabase or not supabase.is_ready():
+            raise HTTPException(status_code=503, detail="Database not available")
+        
+        # Convert report to JSON-serializable format
+        report_dict = report.model_dump(mode='json')
+        
+        # Save to database
+        saved_id = await supabase.save_report(
+            user_id=request.user_id,
+            report_content=report_dict,
+            is_permanently_saved=request.is_permanent,
+            expires_in_hours=request.expires_in_hours
+        )
+        
+        if not saved_id:
+            raise HTTPException(status_code=500, detail="Failed to save report")
+        
+        logger.info(f"📊 Report saved to DB: {saved_id}")
+        
+        return {
+            "success": True,
+            "database_id": saved_id,
+            "report_id": request.report_id,
+            "status": "saved" if request.is_permanent else "pending"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error saving report: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/api/reject-report")
+async def reject_report(request: RejectReportRequest):
+    """Temporarily reject report (status: temp_rejected)"""
+    try:
+        supabase = get_supabase_manager()
+        if not supabase or not supabase.is_ready():
+            raise HTTPException(status_code=503, detail="Database not available")
+        
+        success = await supabase.reject_report(request.report_id, request.user_id)
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to reject report")
+        
+        logger.info(f"❌ Report rejected: {request.report_id}")
+        
+        return {
+            "success": True,
+            "report_id": request.report_id,
+            "status": "temp_rejected"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error rejecting report: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/api/delete-report")
+async def delete_report_permanently(request: DeleteReportRequest):
+    """Permanently delete report (status: deleted)"""
+    try:
+        supabase = get_supabase_manager()
+        if not supabase or not supabase.is_ready():
+            raise HTTPException(status_code=503, detail="Database not available")
+        
+        success = await supabase.permanently_delete(request.report_id, request.user_id)
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to delete report")
+        
+        logger.info(f"🗑️ Report permanently deleted: {request.report_id}")
+        
+        return {
+            "success": True,
+            "report_id": request.report_id,
+            "status": "deleted"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error deleting report: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.get("/api/reports/saved/{user_id}")
+async def get_saved_reports(user_id: str, limit: int = 50):
+    """Get permanently saved reports for user"""
+    try:
+        supabase = get_supabase_manager()
+        if not supabase or not supabase.is_ready():
+            return {"reports": [], "message": "Database not available"}
+        
+        reports = await supabase.get_saved_reports(user_id, limit=limit)
+        return {
+            "reports": reports,
+            "count": len(reports),
+            "status": "saved"
+        }
+    except Exception as e:
+        logger.error(f"❌ Error fetching saved reports: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.get("/api/reports/pending/{user_id}")
+async def get_pending_reports(user_id: str):
+    """Get pending reports (temp storage, expires in 24h)"""
+    try:
+        supabase = get_supabase_manager()
+        if not supabase or not supabase.is_ready():
+            return {"reports": [], "message": "Database not available"}
+        
+        reports = await supabase.get_pending_reports(user_id)
+        
+        # Calculate expiry time for each
+        now = datetime.now()
+        for report in reports:
+            created_at = datetime.fromisoformat(report.get("created_at"))
+            expiry_at = datetime.fromisoformat(report.get("expiry_at"))
+            time_left = (expiry_at - now).total_seconds() / 3600
+            report["hours_until_expiry"] = max(0, time_left)
+        
+        return {
+            "reports": reports,
+            "count": len(reports),
+            "status": "pending"
+        }
+    except Exception as e:
+        logger.error(f"❌ Error fetching pending reports: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.get("/api/reports/all/{user_id}")
+async def get_all_user_reports(user_id: str):
+    """Get all reports (saved, pending, rejected)"""
+    try:
+        supabase = get_supabase_manager()
+        if not supabase or not supabase.is_ready():
+            return {"reports": [], "message": "Database not available"}
+        
+        all_reports = await supabase.get_user_reports(user_id, limit=200)
+        
+        # Group by status
+        saved = [r for r in all_reports if r.get("status") == "saved"]
+        pending = [r for r in all_reports if r.get("status") == "pending"]
+        rejected = [r for r in all_reports if r.get("status") == "temp_rejected"]
+        
+        return {
+            "total": len(all_reports),
+            "saved": {
+                "count": len(saved),
+                "reports": saved
+            },
+            "pending": {
+                "count": len(pending),
+                "reports": pending
+            },
+            "rejected": {
+                "count": len(rejected),
+                "reports": rejected
+            }
+        }
+    except Exception as e:
+        logger.error(f"❌ Error fetching all reports: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ========================

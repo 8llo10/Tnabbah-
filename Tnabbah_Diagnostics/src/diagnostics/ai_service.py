@@ -370,6 +370,140 @@ class AIService:
             logger.warning("AI DTC request failed: %s", e)
             return None
 
+    # ────────────────────────────────────────────────────────────
+    # Final recommendation — one short Arabic action sentence based
+    # on the WHOLE snapshot (PIDs + DTCs together) plus a flag that
+    # tells the UI whether the driver should visit a mechanic.
+    # ────────────────────────────────────────────────────────────
+    def recommend_action(
+        self,
+        readings: List[Dict[str, Any]],
+        dtcs: List[Dict[str, Any]],
+        vehicle_info: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Generate a single, holistic Arabic recommendation sentence.
+
+        Returns:
+            {
+              "recommendation_ar": "التوصية: ...",
+              "needs_mechanic": true|false,
+              "mechanic_note_ar": "..."   # short reason if needs_mechanic
+            } or None.
+        """
+        client = self._get_client()
+        if not client:
+            return None
+
+        if not readings and not dtcs:
+            return None
+
+        prompt_lines: List[str] = []
+
+        if vehicle_info:
+            veh = " ".join(
+                str(vehicle_info.get(k, "")).strip()
+                for k in ("Make", "Model", "Year", "make", "model", "year")
+                if vehicle_info.get(k)
+            ).strip()
+            if veh:
+                prompt_lines.append(f"السيارة: {veh}")
+
+        if readings:
+            snapshot = _build_snapshot_context(readings)
+            if snapshot:
+                prompt_lines.append(f"السياق الحالي: {snapshot}")
+            anomalies = [r for r in readings if r.get("is_anomaly")]
+            if anomalies:
+                anom_summary = "، ".join(
+                    f"{r.get('name_ar') or r.get('pid_code')}={r.get('value')}{r.get('unit') or ''}"
+                    for r in anomalies[:8]
+                )
+                if anom_summary:
+                    prompt_lines.append(f"قراءات شاذة: {anom_summary}")
+
+        if dtcs:
+            dtc_summary = "، ".join(
+                f"{(d.get('code') or '').strip()} ({(d.get('name_ar') or d.get('name') or '').strip()})"
+                for d in dtcs if d.get("code")
+            )
+            if dtc_summary:
+                prompt_lines.append(f"أكواد الأعطال: {dtc_summary}")
+
+        prompt_lines.append(
+            "\nاكتب توصية نهائية واحدة بالعربية الفصحى المبسّطة (≤ 45 كلمة) "
+            "تجمع كل المؤشرات أعلاه في نصيحة عملية للسائق. "
+            "ابدأ النص بكلمة \"التوصية:\" حرفياً، "
+            "وصِف ما يجب فعله الآن خطوة بخطوة (توقّف، افحص، لا تفتح، ...) "
+            "بدون أرقام فنية أو لغة تخويف."
+        )
+        prompt_lines.append(
+            'أمثلة على الأسلوب المطلوب:\n'
+            '"التوصية: حرارة المحرك مرتفعة جداً! توقف في مكان آمن فوراً. '
+            'افحص مستوى سائل التبريد وتأكد من عمل مراوح التبريد. '
+            'لا تفتح غطاء الرديتر والسيارة ساخنة."\n'
+            '"التوصية: تم رصد عطل في الجير. قد تلاحظ ثقل في التبديلات أو تأخر. '
+            'افحص مستوى وزيت الجير أولاً."'
+        )
+        prompt_lines.append(
+            "\nثم قرّر هل يحتاج السائق لزيارة فنّي/ميكانيكي مختص لفحص السيارة بنفسه "
+            "(needs_mechanic=true عند وجود عطل خطير، حرارة مرتفعة، خلل في الجير/المكابح/المحرك، "
+            "أو كود DTC حرج؛ false إذا كانت كل القراءات طبيعية أو الملاحظات بسيطة جداً). "
+            "إن كان needs_mechanic=true أعطِ سبباً قصيراً في mechanic_note_ar (≤ 15 كلمة)، "
+            "وإلا اجعل mechanic_note_ar فارغة."
+        )
+        prompt_lines.append(
+            '\nأعد النتيجة كـ JSON بالشكل بالضبط: '
+            '{"recommendation_ar":"التوصية: ...", '
+            '"needs_mechanic": true|false, '
+            '"mechanic_note_ar":"..."}'
+        )
+
+        prompt = "\n".join(prompt_lines)
+
+        try:
+            response = client.chat.completions.create(
+                model=_DEEPSEEK_MODEL,
+                messages=[
+                    {"role": "system", "content": _SYSTEM_MECHANICAL},
+                    {"role": "system", "content": _SYSTEM_JSON},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=600,
+                response_format={"type": "json_object"},
+            )
+
+            text = (response.choices[0].message.content or "").strip()
+            if text.startswith("```json"):
+                text = text[7:]
+            if text.startswith("```"):
+                text = text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+
+            try:
+                data = json.loads(text)
+                rec = str(data.get("recommendation_ar") or "").strip()
+                if not rec:
+                    return None
+                # Ensure prefix "التوصية:" exists once.
+                if not rec.startswith("التوصية:"):
+                    rec = f"التوصية: {rec}"
+                return {
+                    "recommendation_ar": rec,
+                    "needs_mechanic": bool(data.get("needs_mechanic", False)),
+                    "mechanic_note_ar": str(data.get("mechanic_note_ar") or "").strip(),
+                }
+            except json.JSONDecodeError:
+                logger.warning("Invalid JSON from AI (recommendation): %s...", text[:120])
+                return None
+
+        except Exception as e:
+            logger.warning("AI recommendation request failed: %s", e)
+            return None
+
     # Stub methods for backwards compatibility
     def simplify_explanation_and_action_batch(self, pairs, **kwargs):
         """Stub for backwards compatibility - returns input unchanged."""
@@ -402,6 +536,15 @@ def explain_dtcs(
 ) -> Optional[Dict[str, Any]]:
     """Convenience function to explain DTCs with AI."""
     return get_ai_service().explain_dtcs(dtcs, vehicle_info, readings)
+
+
+def recommend_action(
+    readings: List[Dict[str, Any]],
+    dtcs: List[Dict[str, Any]],
+    vehicle_info: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Convenience function for the holistic Arabic recommendation."""
+    return get_ai_service().recommend_action(readings, dtcs, vehicle_info)
 
 
 # Backwards compatibility aliases
