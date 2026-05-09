@@ -504,6 +504,144 @@ class AIService:
             logger.warning("AI recommendation request failed: %s", e)
             return None
 
+    # ────────────────────────────────────────────────────────────
+    # Translate a flat dict of Arabic strings to English (for the
+    # report screen's AR/EN toggle). Keys are preserved verbatim;
+    # only values are translated. Returns None on failure.
+    # ────────────────────────────────────────────────────────────
+    def translate_ar_to_en(
+        self,
+        items: Dict[str, str],
+    ) -> Optional[Dict[str, str]]:
+        """
+        Translate an arbitrary {key: arabic_text} mapping to English.
+
+        Used by the report screen to flip the entire UI to English on demand,
+        including AI-generated narrative content that only exists in Arabic.
+        """
+        if not items:
+            return {}
+
+        client = self._get_client()
+        if not client:
+            logger.warning(
+                "translate_ar_to_en: DeepSeek client unavailable "
+                "(ENABLE_AI=%s, key_set=%s)",
+                _ENABLE_AI, bool(_DEEPSEEK_KEY),
+            )
+            return None
+
+        # Strip empty values; preserve keys for round-trip.
+        cleaned = {k: str(v) for k, v in items.items() if str(v or "").strip()}
+        if not cleaned:
+            return {k: "" for k in items}
+
+        # Batch large inputs so a single huge prompt doesn't time out / hit
+        # max_tokens. Run batches IN PARALLEL using a thread pool so total
+        # latency stays close to a single DeepSeek round-trip even with many
+        # strings.
+        BATCH = 20
+        if len(cleaned) > BATCH:
+            from concurrent.futures import ThreadPoolExecutor
+
+            keys = list(cleaned.keys())
+            sub_batches = [
+                {k: cleaned[k] for k in keys[i : i + BATCH]}
+                for i in range(0, len(keys), BATCH)
+            ]
+
+            merged: Dict[str, str] = {}
+            with ThreadPoolExecutor(max_workers=min(len(sub_batches), 6)) as ex:
+                results = list(ex.map(self._translate_single_batch, sub_batches))
+
+            for sub, part in zip(sub_batches, results):
+                if part is None:
+                    logger.warning(
+                        "translate_ar_to_en: a batch failed, keeping Arabic for %d items",
+                        len(sub),
+                    )
+                    merged.update(sub)
+                else:
+                    merged.update(part)
+            return {k: merged.get(k, items.get(k, "")) for k in items}
+
+        # Single-batch path
+        result = self._translate_single_batch(cleaned)
+        if result is None:
+            return None
+        # Backfill any keys that were filtered out as empty.
+        return {k: result.get(k, items.get(k, "")) for k in items}
+
+    def _translate_single_batch(
+        self,
+        cleaned: Dict[str, str],
+    ) -> Optional[Dict[str, str]]:
+        """One DeepSeek round-trip translating a small dict of Arabic strings."""
+        client = self._get_client()
+        if not client or not cleaned:
+            return None
+
+        system_prompt = (
+            "You are a precise Arabic→English translator for an automotive "
+            "diagnostics app. Translate every Arabic value into clear, natural "
+            "English suitable for a driver. Keep automotive terms accurate "
+            "(e.g., RPM, MAF sensor, oxygen sensor, fuel trim). Preserve "
+            "punctuation and numeric values. Do NOT add commentary."
+        )
+        user_prompt = (
+            "Translate the values of this JSON object from Arabic to English. "
+            "Return a JSON object with the EXACT same keys and English values "
+            "only (no extra keys, no notes).\n\nINPUT:\n"
+            + json.dumps(cleaned, ensure_ascii=False)
+        )
+
+        try:
+            response = client.chat.completions.create(
+                model=_DEEPSEEK_MODEL,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "system", "content": _SYSTEM_JSON},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.1,
+                max_tokens=4000,
+                response_format={"type": "json_object"},
+            )
+
+            text = (response.choices[0].message.content or "").strip()
+            if text.startswith("```json"):
+                text = text[7:]
+            if text.startswith("```"):
+                text = text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+
+            try:
+                data = json.loads(text)
+                if not isinstance(data, dict):
+                    logger.warning(
+                        "translate_ar_to_en: model returned non-dict JSON: %s...",
+                        text[:120],
+                    )
+                    return None
+                # Backfill any missing keys with original Arabic text.
+                out = {k: str(data.get(k, cleaned.get(k, ""))).strip() for k in cleaned}
+                return out
+            except json.JSONDecodeError:
+                logger.warning(
+                    "translate_ar_to_en: invalid JSON from AI: %s...",
+                    text[:120],
+                )
+                return None
+
+        except Exception as e:
+            logger.warning(
+                "translate_ar_to_en: AI request failed (%s): %s",
+                type(e).__name__, e,
+            )
+            return None
+
     # Stub methods for backwards compatibility
     def simplify_explanation_and_action_batch(self, pairs, **kwargs):
         """Stub for backwards compatibility - returns input unchanged."""
@@ -545,6 +683,11 @@ def recommend_action(
 ) -> Optional[Dict[str, Any]]:
     """Convenience function for the holistic Arabic recommendation."""
     return get_ai_service().recommend_action(readings, dtcs, vehicle_info)
+
+
+def translate_ar_to_en(items: Dict[str, str]) -> Optional[Dict[str, str]]:
+    """Convenience function to translate Arabic strings to English."""
+    return get_ai_service().translate_ar_to_en(items)
 
 
 # Backwards compatibility aliases
