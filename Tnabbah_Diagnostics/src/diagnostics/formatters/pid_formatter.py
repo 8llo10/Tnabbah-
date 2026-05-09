@@ -35,6 +35,8 @@ def build_all_pid_readings_payload(
         if not pid_def:
             pid_def = {}
         pid_name = pid_def.get("name", pid_code)
+        i18n_ar = (pid_def.get("i18n") or {}).get("ar") or {}
+        pid_name_ar = i18n_ar.get("title") or pid_name
         pid_unit = pid_def.get("unit", "")
         is_anomaly = pid_code in anomaly_codes
         status = "NORMAL"
@@ -59,6 +61,8 @@ def build_all_pid_readings_payload(
             {
                 "pid_code": pid_code,
                 "pid_name": pid_name,
+                "pid_name_ar": pid_name_ar,
+                "name_ar": pid_name_ar,
                 "value": pid_value,
                 "unit": pid_unit,
                 "status": status,

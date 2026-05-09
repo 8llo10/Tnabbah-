@@ -48,11 +48,11 @@ const ReportScreen = () => {
         
         // Transform all_pid_readings to sensor data
         const transformed = (parsed.all_pid_readings || []).map((reading: any) => ({
-          label: reading.name || reading.pid_name,
+          label: reading.name_ar || reading.pid_name_ar || reading.name || reading.pid_name,
           value: String(reading.value),
           unit: reading.unit,
           status: reading.status === 'NORMAL' ? 'SUCCESS' : 'WARNING',
-          explanation: reading.explanation || reading.professional_explanation || `قراءة ${reading.pid_name || reading.name}`,
+          explanation: reading.explanation || reading.professional_explanation || `قراءة ${reading.name_ar || reading.pid_name_ar || reading.pid_name || reading.name}`,
           pidCode: reading.pid_code,
         }));
 

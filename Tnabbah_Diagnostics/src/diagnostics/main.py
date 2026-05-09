@@ -375,8 +375,16 @@ async def scan_vehicle(request: ScanRequest) -> AIReport:
             detected_dtcs=[
                 DTCCode(
                     code=dtc,
-                    name=data_loader.dtc_kb.get(dtc, {}).get("name", dtc),
-                    description=data_loader.dtc_kb.get(dtc, {}).get("description", ""),
+                    name=(
+                        ((data_loader.dtc_kb.get(dtc, {}).get("i18n") or {}).get("ar") or {}).get("title")
+                        or data_loader.dtc_kb.get(dtc, {}).get("name_ar")
+                        or data_loader.dtc_kb.get(dtc, {}).get("name", dtc)
+                    ),
+                    description=(
+                        ((data_loader.dtc_kb.get(dtc, {}).get("i18n") or {}).get("ar") or {}).get("description")
+                        or data_loader.dtc_kb.get(dtc, {}).get("description_ar")
+                        or data_loader.dtc_kb.get(dtc, {}).get("description", "")
+                    ),
                     severity=SeverityLevel[data_loader.dtc_kb.get(dtc, {}).get("severity", "MEDIUM")],
                     category=_category_display(dtc),
                 )
