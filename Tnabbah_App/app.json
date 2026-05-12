@@ -43,10 +43,21 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-logo.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#EFE7DE"
+          "backgroundColor": "#EFE7DE",
+          "image": "./assets/images/start-background.png",
+          "imageWidth": 430,
+          "resizeMode": "cover",
+          "ios": {
+            "backgroundColor": "#EFE7DE",
+            "image": "./assets/images/start-background.png",
+            "resizeMode": "cover",
+            "enableFullScreenImage_legacy": true
+          },
+          "android": {
+            "backgroundColor": "#EFE7DE",
+            "image": "./assets/images/start-background.png",
+            "resizeMode": "cover"
+          }
         }
       ],
       "expo-secure-store",

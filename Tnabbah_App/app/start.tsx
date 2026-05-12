@@ -2,25 +2,38 @@ import {
   View,
   Text,
   TouchableOpacity,
-  ImageBackground,
+  Image,
   StyleSheet,
   Animated,
   Easing,
   useWindowDimensions,
   StatusBar,
+  Platform,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "../providers/AuthProvider";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
+import * as SplashScreen from "expo-splash-screen";
 
-// الصور
 const BACKGROUND_IMAGE = require("../assets/images/start-background.png");
 const LOGO_ARABIC = require("../assets/images/logo-arabic.png");
 const LOGO_ENGLISH = require("../assets/images/logo-english.png");
+
+const COLORS = {
+  appBackground: "#EFE7DE",
+  nextScreenBackground: "#FFFFFF",
+  primary: "#9A211C",
+  primaryDark: "#761713",
+  primaryText: "#871B17",
+  title: "#7B1714",
+  darkText: "#2C2C2C",
+  logoLine: "#B86B69",
+  white: "#FFFFFF",
+};
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -33,17 +46,18 @@ export default function StartScreen() {
   const insets = useSafeAreaInsets();
 
   const [language, setLanguage] = useState<"ar" | "en">("ar");
+  const [isNavigating, setIsNavigating] = useState(false);
 
   const isArabic = language === "ar";
   const isSmallScreen = height < 720;
   const isVerySmallScreen = height < 650;
 
-  const horizontalPadding = clamp(width * 0.055, 20, 24);
+  const horizontalPadding = clamp(width * 0.055, 20, 26);
 
-  const splashLogoWidth = clamp(width * 0.72, 220, 270);
+  const splashLogoWidth = clamp(width * 0.72, 220, 280);
   const splashLogoHeight = splashLogoWidth * (210 / 270);
 
-  const finalLogoWidth = clamp(width * 0.23, 80, 90);
+  const finalLogoWidth = clamp(width * 0.23, 78, 92);
   const finalLogoHeight = finalLogoWidth * (64 / 88);
 
   const headerTop = clamp(height * 0.025, 10, 18);
@@ -59,6 +73,8 @@ export default function StartScreen() {
         headerTop,
         isSmallScreen,
         isVerySmallScreen,
+        width,
+        height,
       }),
     [
       horizontalPadding,
@@ -69,8 +85,12 @@ export default function StartScreen() {
       headerTop,
       isSmallScreen,
       isVerySmallScreen,
+      width,
+      height,
     ]
   );
+
+  const transitionAnim = useRef(new Animated.Value(0)).current;
 
   const contentAnim = useRef(new Animated.Value(0)).current;
   const glassLayerAnim = useRef(new Animated.Value(0)).current;
@@ -80,98 +100,127 @@ export default function StartScreen() {
   const englishAnim = useRef(new Animated.Value(0)).current;
 
   const animationStarted = useRef(false);
+  const splashHidden = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsNavigating(false);
+      transitionAnim.setValue(0);
+
+      return () => {};
+    }, [transitionAnim])
+  );
+
+  const startIntroAnimation = () => {
+    if (animationStarted.current) return;
+    animationStarted.current = true;
+
+    const animation = Animated.sequence([
+      Animated.timing(lineAnim, {
+        toValue: 1,
+        duration: 1050,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+
+      Animated.delay(120),
+
+      Animated.parallel([
+        Animated.timing(arabicAnim, {
+          toValue: 1,
+          duration: 650,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(englishAnim, {
+          toValue: 1,
+          duration: 650,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+
+      Animated.delay(850),
+
+      Animated.parallel([
+        Animated.timing(logoMoveAnim, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+
+        Animated.timing(glassLayerAnim, {
+          toValue: 1,
+          duration: 760,
+          delay: 330,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+
+        Animated.timing(contentAnim, {
+          toValue: 1,
+          duration: 700,
+          delay: 430,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+    ]);
+
+    animation.start();
+  };
+
+  const hideSplashAfterBackground = async () => {
+    if (splashHidden.current) return;
+    splashHidden.current = true;
+
+    try {
+      await SplashScreen.hideAsync();
+    } catch {
+      // عادي لو كانت شاشة البداية مخفية قبل
+    } finally {
+      requestAnimationFrame(() => {
+        startIntroAnimation();
+      });
+    }
+  };
 
   const toggleLanguage = () => {
+    if (isNavigating) return;
     setLanguage((prev) => (prev === "ar" ? "en" : "ar"));
   };
 
   useEffect(() => {
-    if (animationStarted.current) return;
-    animationStarted.current = true;
-
-    const timer = setTimeout(() => {
-      const animation = Animated.sequence([
-        // الخط يمشي بهدوء
-        Animated.timing(lineAnim, {
-          toValue: 1,
-          duration: 1100,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: false,
-        }),
-
-        Animated.delay(120),
-
-        // ظهور اللوقو العربي والإنجليزي
-        Animated.parallel([
-          Animated.timing(arabicAnim, {
-            toValue: 1,
-            duration: 650,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }),
-          Animated.timing(englishAnim, {
-            toValue: 1,
-            duration: 650,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }),
-        ]),
-
-        // اللوقو يثبت شوي قبل ما يطلع فوق
-        Animated.delay(950),
-
-        // اللوقو يطلع فوق ويصغر، وبعدها تظهر الواجهة
-        Animated.parallel([
-          Animated.timing(logoMoveAnim, {
-            toValue: 1,
-            duration: 950,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }),
-
-          Animated.timing(glassLayerAnim, {
-            toValue: 1,
-            duration: 850,
-            delay: 420,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }),
-
-          Animated.timing(contentAnim, {
-            toValue: 1,
-            duration: 750,
-            delay: 520,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }),
-        ]),
-      ]);
-
-      animation.start();
-    }, 450);
-
-    return () => clearTimeout(timer);
-  }, [
-    lineAnim,
-    arabicAnim,
-    englishAnim,
-    logoMoveAnim,
-    glassLayerAnim,
-    contentAnim,
-  ]);
-
-  useEffect(() => {
     if (!loading && session) {
-      // لو تبغين بعدين المستخدم المسجل يدخل للهوم مباشرة:
+      // لو تبغين المستخدم المسجل يدخل للهوم مباشرة بعدين:
       // router.replace("/(tabs)/home");
     }
   }, [loading, session, router]);
 
-  // بداية اللوقو فوق النص شوي عشان يكون واضح مع الخلفية
-  const startX = width / 2 - splashLogoWidth / 2;
-  const startY = height / 2 - splashLogoHeight / 2 - 85;
+  const smoothNavigate = (path: "/login" | "/register") => {
+    if (isNavigating) return;
 
-  // مكان اللوقو النهائي فوق اليمين
+    setIsNavigating(true);
+
+    Animated.timing(transitionAnim, {
+      toValue: 1,
+      duration: 160,
+      easing: Easing.inOut(Easing.quad),
+      useNativeDriver: true,
+    }).start(() => {
+      requestAnimationFrame(() => {
+        router.push(path);
+      });
+    });
+  };
+
+  const startX = width / 2 - splashLogoWidth / 2;
+  const startY =
+    height / 2 -
+    splashLogoHeight / 2 -
+    clamp(height * 0.105, 62, 88);
+
   const finalLogoLeft = width - horizontalPadding - finalLogoWidth;
   const finalLogoTop = insets.top + headerTop;
 
@@ -234,41 +283,43 @@ export default function StartScreen() {
   });
 
   return (
-    <ImageBackground
-      source={BACKGROUND_IMAGE}
-      style={styles.container}
-      imageStyle={styles.backgroundImage}
-      resizeMode="cover"
-    >
-      <StatusBar barStyle="dark-content" />
+    <View style={styles.container}>
+      <StatusBar
+        translucent
+        backgroundColor="transparent"
+        barStyle="dark-content"
+      />
 
-      {/* تغبيش زجاجي خفيف يظهر بعد اللوقو */}
+      <Image
+        source={BACKGROUND_IMAGE}
+        style={styles.realBackground}
+        resizeMode="cover"
+        fadeDuration={0}
+        onLoadEnd={hideSplashAfterBackground}
+      />
+
       <Animated.View
         pointerEvents="none"
-        style={[
-          styles.backgroundGlassLayer,
-          {
-            opacity: glassLayerOpacity,
-          },
-        ]}
+        style={[styles.backgroundGlassLayer, { opacity: glassLayerOpacity }]}
       >
         <BlurView
-          intensity={12}
+          intensity={Platform.OS === "android" ? 14 : 12}
           tint="light"
+          experimentalBlurMethod="dimezisBlurView"
           style={StyleSheet.absoluteFillObject}
-        >
-          <LinearGradient
-            colors={[
-              "rgba(255,255,255,0.13)",
-              "rgba(255,255,255,0.05)",
-              "rgba(255,255,255,0.11)",
-            ]}
-            locations={[0, 0.5, 1]}
-            start={{ x: 0.1, y: 0 }}
-            end={{ x: 0.9, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
-          />
-        </BlurView>
+        />
+
+        <LinearGradient
+          colors={[
+            "rgba(255,255,255,0.10)",
+            "rgba(255,255,255,0.03)",
+            "rgba(255,255,255,0.09)",
+          ]}
+          locations={[0, 0.5, 1]}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+        />
       </Animated.View>
 
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
@@ -281,37 +332,35 @@ export default function StartScreen() {
             },
           ]}
         >
-          {/* الهيدر */}
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.langButtonWrapper}
-              activeOpacity={0.85}
+              activeOpacity={0.75}
               onPress={toggleLanguage}
+              disabled={isNavigating}
             >
-              <BlurView intensity={10} tint="light" style={styles.langBlur}>
-                <LinearGradient
-                  colors={[
-                    "rgba(255,255,255,0.48)",
-                    "rgba(255,255,255,0.24)",
-                  ]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.langButtonGradient}
-                >
-                  <Feather name="globe" size={18} color="#871B17" />
-                  <View style={styles.langDivider} />
+              <LinearGradient
+                colors={[
+                  "rgba(255,255,255,0.62)",
+                  "rgba(255,255,255,0.34)",
+                ]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.langButtonGradient}
+              >
+                <Feather name="globe" size={18} color={COLORS.primaryText} />
 
-                  <Text style={styles.langText}>
-                    {isArabic ? "En" : "عربي"}
-                  </Text>
-                </LinearGradient>
-              </BlurView>
+                <View style={styles.langDivider} />
+
+                <Text style={styles.langText}>
+                  {isArabic ? "En" : "عربي"}
+                </Text>
+              </LinearGradient>
             </TouchableOpacity>
 
             <View style={styles.logoPlaceholder} />
           </View>
 
-          {/* النص بدون مربع */}
           <View style={styles.centerContent}>
             <View style={styles.textGroup}>
               {isArabic ? (
@@ -334,15 +383,15 @@ export default function StartScreen() {
             </View>
           </View>
 
-          {/* الأزرار */}
           <View style={styles.buttonsArea}>
             <TouchableOpacity
               style={styles.loginButtonWrapper}
-              onPress={() => router.push("/login")}
-              activeOpacity={0.9}
+              onPress={() => smoothNavigate("/login")}
+              activeOpacity={0.78}
+              disabled={isNavigating}
             >
               <LinearGradient
-                colors={["rgba(154,33,28,0.98)", "rgba(118,23,19,0.98)"]}
+                colors={[COLORS.primary, COLORS.primaryDark]}
                 start={{ x: 0.15, y: 0 }}
                 end={{ x: 0.9, y: 1 }}
                 style={styles.loginGradient}
@@ -357,30 +406,28 @@ export default function StartScreen() {
 
             <TouchableOpacity
               style={styles.registerButtonWrapper}
-              onPress={() => router.push("/register")}
-              activeOpacity={0.9}
+              onPress={() => smoothNavigate("/register")}
+              activeOpacity={0.78}
+              disabled={isNavigating}
             >
-              <BlurView intensity={10} tint="light" style={styles.registerBlur}>
-                <LinearGradient
-                  colors={[
-                    "rgba(255,255,255,0.50)",
-                    "rgba(255,255,255,0.28)",
-                  ]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.registerGradient}
-                >
-                  <Text style={styles.registerText}>
-                    {isArabic ? "إنشاء حساب جديد" : "Create Account"}
-                  </Text>
-                </LinearGradient>
-              </BlurView>
+              <LinearGradient
+                colors={[
+                  "rgba(255,255,255,0.64)",
+                  "rgba(255,255,255,0.36)",
+                ]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.registerGradient}
+              >
+                <Text style={styles.registerText}>
+                  {isArabic ? "إنشاء حساب جديد" : "Create Account"}
+                </Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </Animated.View>
       </SafeAreaView>
 
-      {/* اللوقو */}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -409,12 +456,7 @@ export default function StartScreen() {
 
         <View style={styles.logoLineContainer}>
           <Animated.View
-            style={[
-              styles.logoLine,
-              {
-                width: animatedLineWidth,
-              },
-            ]}
+            style={[styles.logoLine, { width: animatedLineWidth }]}
           />
         </View>
 
@@ -431,7 +473,17 @@ export default function StartScreen() {
           fadeDuration={0}
         />
       </Animated.View>
-    </ImageBackground>
+
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.transitionOverlay,
+          {
+            opacity: transitionAnim,
+          },
+        ]}
+      />
+    </View>
   );
 }
 
@@ -444,6 +496,8 @@ function createStyles({
   headerTop,
   isSmallScreen,
   isVerySmallScreen,
+  width,
+  height,
 }: {
   horizontalPadding: number;
   splashLogoWidth: number;
@@ -453,16 +507,25 @@ function createStyles({
   headerTop: number;
   isSmallScreen: boolean;
   isVerySmallScreen: boolean;
+  width: number;
+  height: number;
 }) {
+  const buttonHeight = clamp(height * 0.076, 56, 64);
+  const buttonRadius = buttonHeight / 2;
+
   return StyleSheet.create({
     container: {
       flex: 1,
       overflow: "hidden",
-      backgroundColor: "#EFE7DE",
+      backgroundColor: COLORS.appBackground,
     },
 
-    backgroundImage: {
+    realBackground: {
+      ...StyleSheet.absoluteFillObject,
+      width: "100%",
+      height: "100%",
       opacity: 1,
+      zIndex: 0,
     },
 
     backgroundGlassLayer: {
@@ -512,7 +575,7 @@ function createStyles({
     logoLine: {
       height: 6,
       borderRadius: 3,
-      backgroundColor: "#B86B69",
+      backgroundColor: COLORS.logoLine,
     },
 
     logoEnglish: {
@@ -541,17 +604,12 @@ function createStyles({
       overflow: "hidden",
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.1,
+      shadowOpacity: Platform.OS === "android" ? 0.08 : 0.1,
       shadowRadius: 14,
       elevation: 5,
       borderWidth: 1,
       borderColor: "rgba(255,255,255,0.58)",
-    },
-
-    langBlur: {
-      flex: 1,
-      borderRadius: 26,
-      overflow: "hidden",
+      backgroundColor: "rgba(255,255,255,0.35)",
     },
 
     langButtonGradient: {
@@ -572,7 +630,7 @@ function createStyles({
 
     langText: {
       fontSize: 16,
-      color: "#871B17",
+      color: COLORS.primaryText,
       fontWeight: "800",
     },
 
@@ -580,34 +638,30 @@ function createStyles({
       flex: 1,
       justifyContent: "center",
       alignItems: "center",
-
-      // زيدي الأرقام لو تبغين الكلام يطلع فوق أكثر
-      paddingBottom: isVerySmallScreen ? 145 : isSmallScreen ? 180 : 210,
+      paddingBottom: isVerySmallScreen ? 140 : isSmallScreen ? 175 : 205,
     },
 
     textGroup: {
       width: "100%",
       alignItems: "center",
       justifyContent: "center",
-      paddingHorizontal: 12,
+      paddingHorizontal: clamp(width * 0.03, 10, 16),
     },
 
     title: {
       fontSize: isVerySmallScreen ? 25 : isSmallScreen ? 30 : 32,
       fontWeight: "900",
-      color: "#7B1714",
+      color: COLORS.title,
       textAlign: "center",
       letterSpacing: -0.7,
       lineHeight: isVerySmallScreen ? 36 : 43,
-
-      // يخلي العنوان واضح فوق الخلفية
       textShadowColor: "rgba(255,255,255,0.95)",
       textShadowOffset: { width: 0, height: 2 },
       textShadowRadius: 14,
     },
 
     titleBrand: {
-      color: "#9A211C",
+      color: COLORS.primary,
       fontWeight: "900",
       letterSpacing: -0.4,
     },
@@ -624,11 +678,10 @@ function createStyles({
     subtitle: {
       fontSize: isVerySmallScreen ? 15 : 17,
       lineHeight: isVerySmallScreen ? 24 : 29,
-      color: "#2C2C2C",
+      color: COLORS.darkText,
       fontWeight: "800",
       textAlign: "center",
-      maxWidth: 310,
-
+      maxWidth: clamp(width * 0.82, 280, 330),
       textShadowColor: "rgba(255,255,255,0.90)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 10,
@@ -642,19 +695,20 @@ function createStyles({
 
     loginButtonWrapper: {
       width: "100%",
-      height: isVerySmallScreen ? 58 : 64,
-      borderRadius: 30,
+      height: buttonHeight,
+      borderRadius: buttonRadius,
       overflow: "hidden",
       shadowColor: "#6E1411",
       shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.24,
+      shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
       shadowRadius: 14,
       elevation: 6,
+      backgroundColor: COLORS.primary,
     },
 
     loginGradient: {
       flex: 1,
-      borderRadius: 30,
+      borderRadius: buttonRadius,
       justifyContent: "center",
       alignItems: "center",
       overflow: "hidden",
@@ -667,49 +721,49 @@ function createStyles({
       right: 0,
       height: "48%",
       backgroundColor: "rgba(255,255,255,0.10)",
-      borderTopLeftRadius: 30,
-      borderTopRightRadius: 30,
+      borderTopLeftRadius: buttonRadius,
+      borderTopRightRadius: buttonRadius,
     },
 
     loginText: {
-      color: "#FFFFFF",
+      color: COLORS.white,
       fontSize: isVerySmallScreen ? 19 : 21,
       fontWeight: "900",
     },
 
     registerButtonWrapper: {
       width: "100%",
-      height: isVerySmallScreen ? 58 : 64,
-      borderRadius: 30,
+      height: buttonHeight,
+      borderRadius: buttonRadius,
       overflow: "hidden",
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.1,
+      shadowOpacity: Platform.OS === "android" ? 0.08 : 0.1,
       shadowRadius: 15,
       elevation: 5,
       borderWidth: 1,
       borderColor: "rgba(255,255,255,0.58)",
-    },
-
-    registerBlur: {
-      flex: 1,
-      borderRadius: 30,
-      overflow: "hidden",
+      backgroundColor: "rgba(255,255,255,0.40)",
     },
 
     registerGradient: {
       flex: 1,
-      borderRadius: 30,
+      borderRadius: buttonRadius,
       justifyContent: "center",
       alignItems: "center",
       overflow: "hidden",
     },
 
     registerText: {
-      color: "#871B17",
+      color: COLORS.primaryText,
       fontSize: isVerySmallScreen ? 18 : 20,
       fontWeight: "900",
     },
-  });
 
+    transitionOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 100,
+      backgroundColor: COLORS.nextScreenBackground,
+    },
+  });
 }

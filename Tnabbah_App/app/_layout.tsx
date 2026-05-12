@@ -14,7 +14,7 @@ import { StatusBar } from "expo-status-bar";
 import { StyleSheet, View } from "react-native";
 import { useEffect, useState } from "react";
 
-const APP_BACKGROUND = "#FFFFFF";
+const APP_BACKGROUND = "#EFE7DE";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -25,16 +25,23 @@ const LightTheme = {
     background: APP_BACKGROUND,
     card: APP_BACKGROUND,
     border: "transparent",
+    text: "#111111",
+    primary: "#871B17",
+    notification: "#871B17",
   },
 };
 
 const AppDarkTheme = {
   ...DarkTheme,
+  dark: false,
   colors: {
     ...DarkTheme.colors,
     background: APP_BACKGROUND,
     card: APP_BACKGROUND,
     border: "transparent",
+    text: "#111111",
+    primary: "#871B17",
+    notification: "#871B17",
   },
 };
 
@@ -43,34 +50,31 @@ export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
+
     async function prepareApp() {
       try {
-        await Promise.all([
-          Asset.fromModule(
-            require("../assets/images/start-background.png")
-          ).downloadAsync(),
-
-          Asset.fromModule(
-            require("../assets/images/logo-arabic.png")
-          ).downloadAsync(),
-
-          Asset.fromModule(
-            require("../assets/images/logo-english.png")
-          ).downloadAsync(),
-
-          Asset.fromModule(
-            require("../assets/images/splash-logo.png")
-          ).downloadAsync(),
+        await Asset.loadAsync([
+          require("../assets/images/start-background.png"),
+          require("../assets/images/logo-arabic.png"),
+          require("../assets/images/logo-english.png"),
+          require("../assets/images/splash-logo.png"),
         ]);
       } catch (error) {
         console.warn("Asset loading error:", error);
       } finally {
-        setAppIsReady(true);
-        await SplashScreen.hideAsync();
+        if (mounted) {
+          setAppIsReady(true);
+          
+        }
       }
     }
 
     prepareApp();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   if (!appIsReady) {
@@ -84,15 +88,14 @@ export default function RootLayout() {
           value={colorScheme === "dark" ? AppDarkTheme : LightTheme}
         >
           <Stack
-            initialRouteName="start"
-            screenOptions={{
-              headerShown: false,
-              animation: "none",
-              contentStyle: {
-                backgroundColor: APP_BACKGROUND,
-              },
-            }}
-          >
+  screenOptions={{
+    headerShown: false,
+    animation: "none",
+    contentStyle: {
+      backgroundColor: "#FFFFFF",
+    },
+  }}
+>
             <Stack.Screen name="index" />
             <Stack.Screen name="start" />
             <Stack.Screen name="login" />
@@ -109,7 +112,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
           </Stack>
 
-          <StatusBar style="dark" backgroundColor={APP_BACKGROUND} />
+          <StatusBar style="dark" translucent backgroundColor="transparent" />
         </NavigationThemeProvider>
       </AuthProvider>
     </View>
