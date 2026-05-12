@@ -114,6 +114,13 @@ const UI = {
 
 const hasArabic = (s: any) => typeof s === 'string' && /[\u0600-\u06FF]/.test(s);
 
+// DTC categories as published over MQTT (stored/pending/permanent).
+const DTC_CATEGORY_LABEL_AR: Record<'stored' | 'pending' | 'permanent', string> = {
+  stored: 'أعطال موجودة فعلاً',
+  pending: 'مشكلة بدأت تظهر',
+  permanent: 'أعطال محفوظة بالنظام',
+};
+
 const ReportScreen = () => {
   const params = useLocalSearchParams();
   const { session } = useAuth();
@@ -190,6 +197,25 @@ const ReportScreen = () => {
           if (it.code) aiByDtc[String(it.code).toUpperCase()] = it;
         });
 
+        // Build a code -> MQTT-source category map (stored / pending / permanent).
+        const dtcCategoriesSrc = parsed.dtc_categories || {};
+        const codeToMqttCategory: Record<string, 'stored' | 'pending' | 'permanent'> = {};
+        ([
+          'stored',
+          'pending',
+          'permanent',
+        ] as const).forEach((cat) => {
+          (dtcCategoriesSrc[cat] || []).forEach((c: any) => {
+            const k = String(c || '').toUpperCase();
+            // 'permanent' wins, then 'stored', then 'pending' (most actionable first)
+            if (!k) return;
+            const prev = codeToMqttCategory[k];
+            if (!prev) codeToMqttCategory[k] = cat;
+            else if (prev === 'pending' && cat !== 'pending') codeToMqttCategory[k] = cat;
+            else if (prev === 'stored' && cat === 'permanent') codeToMqttCategory[k] = cat;
+          });
+        });
+
         // Extract DTCs (with AI interpretation attached)
         const dtcs = (parsed.detected_dtcs || []).map((dtc: any) => {
           const codeKey = String(dtc.code || dtc.name || '').toUpperCase();
@@ -199,6 +225,7 @@ const ReportScreen = () => {
             description: dtc.description,
             severity: dtc.severity || 'MEDIUM',
             category: dtc.category,
+            mqttCategory: codeToMqttCategory[codeKey] || null,
             aiInterpretation: aiByDtc[codeKey],
           };
         });
@@ -287,6 +314,8 @@ const ReportScreen = () => {
         add(ai.urgency_ar);
       }
     });
+    // Translate the Arabic DTC-category labels too.
+    Object.values(DTC_CATEGORY_LABEL_AR).forEach((s) => add(s));
     causesData.forEach((c: any) => {
       add(c.cause);
       add(c.evidence);
@@ -508,6 +537,13 @@ const ReportScreen = () => {
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.dtcCode, { color: dStyle.fg }]}>{dtc.code}</Text>
                           <Text style={styles.dtcName}>{tr(dtc.name)}</Text>
+                          {dtc.mqttCategory && (
+                            <View style={styles.dtcCategoryPill}>
+                              <Text style={styles.dtcCategoryPillText}>
+                                {tr(DTC_CATEGORY_LABEL_AR[dtc.mqttCategory as 'stored' | 'pending' | 'permanent'])}
+                              </Text>
+                            </View>
+                          )}
                         </View>
                         {urgency && (
                           <View style={[styles.severityBadge, { backgroundColor: '#fff', borderColor: dStyle.border, borderWidth: 1 }]}>
@@ -1229,6 +1265,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
     lineHeight: 14,
+  },
+  dtcCategoryPill: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+  },
+  dtcCategoryPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: COLORS.ink,
   },
   dtcCard: {
     backgroundColor: '#fff',

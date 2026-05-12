@@ -252,6 +252,10 @@ export default function HomeScreen() {
         router.push("/bluetooth-setup" as any);
     };
 
+    const goToDiagnostics = () => {
+        router.push("/diagnostics/input" as any);
+    };
+
     const runMainVehicleAction = async () => {
         try {
             setIsChecking(true);
@@ -441,6 +445,11 @@ export default function HomeScreen() {
                                 <Text style={styles.stopButtonText}>إيقاف الستريمنق</Text>
                             </Pressable>
                         )}
+
+                        <Pressable style={styles.diagnosticsButton} onPress={goToDiagnostics}>
+                            <Feather name="zap" size={16} color="#FFFFFF" />
+                            <Text style={styles.diagnosticsButtonText}>تحليل بالذكاء الاصطناعي</Text>
+                        </Pressable>
 
                         <Pressable style={styles.debugButton} onPress={goToBluetooth}>
                             <Feather name="bluetooth" size={16} color={COLORS.primary} />
@@ -660,6 +669,22 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     mainButtonText: { color: "#FFFFFF", fontSize: 17, fontWeight: "900" },
+    diagnosticsButton: {
+        marginTop: 10,
+        height: 46,
+        borderRadius: 23,
+        backgroundColor: COLORS.primary,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+    diagnosticsButtonText: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
     debugButton: {
         marginTop: 10,
         height: 42,
