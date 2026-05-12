@@ -27,6 +27,93 @@ const COLORS = {
   error: "#EF4444"
 };
 
+// Static UI labels for AR/EN. Dynamic content (PID names, AI text, DTC text)
+// is translated on demand through the backend /api/translate endpoint.
+const UI = {
+  AR: {
+    headerTitle: 'تقرير تنبّه الذكي',
+    reportId: 'رقم التقرير:',
+    sensorReadings: 'قراءات المستشعرات',
+    sensorsCount: (n: number) => `${n} حساس`,
+    dtcs: 'أكواد الأعطال المكتشفة',
+    causes: 'الأسباب المحتملة',
+    likelihood: 'احتمالية',
+    confidence: 'ثقة',
+    smartAnalysisOn: '✨ تحليل ذكي مُفعَّل',
+    smartAnalysis: 'تحليل ذكي',
+    smartInsight: '✨ تفسير ذكي',
+    explanation: 'التفسير',
+    smartRecommendation: '✨ التوصية الذكية',
+    needsMechanic: 'تحتاج لزيارة فنّي/ميكانيكي مختص',
+    healthyTitle: 'سيارتك بحالة ممتازة 🎉',
+    issuesTitle: 'تم اكتشاف ملاحظات',
+    aiSummary: '✨ تحليل تنبّه الذكي',
+    plainSummary: '📋 ملخص التحليل',
+    statusWarning: 'تحذير',
+    statusNormal: 'طبيعي',
+    saved: '✅ محفوظ',
+    save: '💾 حفظ دائم',
+    footer: 'ملاحظة: هذا التقرير مقدم من "تنبّه" كدليل استرشادي ذكي.',
+    notLoaded: 'لم يتم تحميل التقرير',
+    saveError: 'فشل حفظ التقرير',
+    saveSuccess: 'تم حفظ التقرير بنجاح',
+    saveErrorTitle: '❌ خطأ',
+    saveSuccessTitle: '✅ تم الحفظ',
+    loginRequired: 'يجب تسجيل الدخول أولاً',
+    error: 'خطأ',
+    translateFailedTitle: '❌ فشل الترجمة',
+    translateFailedMsg: 'تعذّر ترجمة التقرير، حاول لاحقاً',
+    severity: {
+      LOW: '🟢 تنبيه بسيط',
+      MEDIUM: '🟡 تحذير',
+      HIGH: '🟠 خطر',
+      CRITICAL: '🔴 خطر شديد',
+    } as Record<string, string>,
+  },
+  EN: {
+    headerTitle: 'Tnabbah Smart Report',
+    reportId: 'Report ID:',
+    sensorReadings: 'Sensor Readings',
+    sensorsCount: (n: number) => `${n} sensors`,
+    dtcs: 'Detected Trouble Codes',
+    causes: 'Likely Causes',
+    likelihood: 'Likelihood',
+    confidence: 'Confidence',
+    smartAnalysisOn: '✨ Smart Analysis Enabled',
+    smartAnalysis: 'Smart Analysis',
+    smartInsight: '✨ Smart Insight',
+    explanation: 'Explanation',
+    smartRecommendation: '✨ Smart Recommendation',
+    needsMechanic: 'Visit a qualified technician/mechanic',
+    healthyTitle: 'Your car is in excellent condition 🎉',
+    issuesTitle: 'Issues Detected',
+    aiSummary: '✨ Tnabbah Smart Analysis',
+    plainSummary: '📋 Analysis Summary',
+    statusWarning: 'Warning',
+    statusNormal: 'Normal',
+    saved: '✅ Saved',
+    save: '💾 Save Permanently',
+    footer: 'Note: This report is provided by "Tnabbah" as a smart guidance reference.',
+    notLoaded: 'Report not loaded',
+    saveError: 'Failed to save the report',
+    saveSuccess: 'Report saved successfully',
+    saveErrorTitle: '❌ Error',
+    saveSuccessTitle: '✅ Saved',
+    loginRequired: 'You must log in first',
+    error: 'Error',
+    translateFailedTitle: '❌ Translation Failed',
+    translateFailedMsg: 'Could not translate the report. Try again later.',
+    severity: {
+      LOW: '🟢 Minor Notice',
+      MEDIUM: '🟡 Warning',
+      HIGH: '🟠 Risk',
+      CRITICAL: '🔴 Severe Risk',
+    } as Record<string, string>,
+  },
+} as const;
+
+const hasArabic = (s: any) => typeof s === 'string' && /[\u0600-\u06FF]/.test(s);
+
 const ReportScreen = () => {
   const params = useLocalSearchParams();
   const { session } = useAuth();
@@ -39,6 +126,18 @@ const ReportScreen = () => {
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [lang, setLang] = useState<'AR' | 'EN'>('AR');
+  const [trMap, setTrMap] = useState<Record<string, string>>({});
+  const [translating, setTranslating] = useState(false);
+
+  const t = UI[lang];
+  const isAR = lang === 'AR';
+  // Translate any Arabic string to current language. Falls back to original.
+  const tr = (s?: string | null): string => {
+    if (!s) return '';
+    if (lang === 'AR') return s;
+    return trMap[s] || s;
+  };
 
   useEffect(() => {
     if (params.report) {
@@ -48,11 +147,11 @@ const ReportScreen = () => {
         
         // Transform all_pid_readings to sensor data
         const transformed = (parsed.all_pid_readings || []).map((reading: any) => ({
-          label: reading.name || reading.pid_name,
+          label: reading.name_ar || reading.pid_name_ar || reading.name || reading.pid_name,
           value: String(reading.value),
           unit: reading.unit,
           status: reading.status === 'NORMAL' ? 'SUCCESS' : 'WARNING',
-          explanation: reading.explanation || reading.professional_explanation || `قراءة ${reading.pid_name || reading.name}`,
+          explanation: reading.explanation || reading.professional_explanation || `قراءة ${reading.name_ar || reading.pid_name_ar || reading.pid_name || reading.name}`,
           pidCode: reading.pid_code,
         }));
 
@@ -124,7 +223,7 @@ const ReportScreen = () => {
 
   const handleSaveReport = async () => {
     if (!report || !session?.user?.id) {
-      Alert.alert("خطأ", "يجب تسجيل الدخول أولاً");
+      Alert.alert(t.error, t.loginRequired);
       return;
     }
 
@@ -143,15 +242,94 @@ const ReportScreen = () => {
 
       if (response.ok) {
         setSaved(true);
-        Alert.alert("✅ تم الحفظ", "تم حفظ التقرير بنجاح");
+        Alert.alert(t.saveSuccessTitle, t.saveSuccess);
       } else {
-        throw new Error("فشل الحفظ");
+        throw new Error("save failed");
       }
     } catch (err) {
       console.error("Failed to save report:", err);
-      Alert.alert("❌ خطأ", "فشل حفظ التقرير");
+      Alert.alert(t.saveErrorTitle, t.saveError);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleToggleLanguage = async () => {
+    if (translating) return;
+    if (lang === 'EN') {
+      setLang('AR');
+      return;
+    }
+
+    // Collect all dynamic Arabic strings to translate (deduped)
+    const items: Record<string, string> = {};
+    const add = (s: any) => {
+      if (hasArabic(s)) items[String(s)] = String(s);
+    };
+
+    sensorData.forEach((it: any) => {
+      add(it.label);
+      add(it.explanation);
+      const ai = it.aiInterpretation;
+      if (ai) {
+        add(ai.smart_insight_ar);
+        add(ai.mechanical_explanation_ar);
+        add(ai.safety_tip_ar);
+        add(ai.urgency_ar);
+      }
+    });
+    dtcItems.forEach((d: any) => {
+      add(d.name);
+      add(d.description);
+      const ai = d.aiInterpretation;
+      if (ai) {
+        add(ai.smart_insight_ar);
+        add(ai.urgency_ar);
+      }
+    });
+    causesData.forEach((c: any) => {
+      add(c.cause);
+      add(c.evidence);
+    });
+
+    const uf = report?.user_friendly_report_ar || {};
+    const pi = uf.pid_mechanical_interpretation || {};
+    const di = uf.dtc_mechanical_interpretation || {};
+    add(pi.overview_ar);
+    add(pi.summary_ar);
+    (di.interpretations || []).forEach((it: any) => add(it?.smart_insight_ar));
+    const fr = uf.final_recommendation || {};
+    add(fr.recommendation_ar);
+    add(fr.mechanic_note_ar);
+
+    // Drop already-translated keys to save tokens
+    const pending: Record<string, string> = {};
+    Object.entries(items).forEach(([k, v]) => {
+      if (!trMap[k]) pending[k] = v;
+    });
+
+    if (Object.keys(pending).length === 0) {
+      setLang('EN');
+      return;
+    }
+
+    setTranslating(true);
+    try {
+      const res = await fetch(`${API_URL}/api/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: pending, target: 'en' }),
+      });
+      if (!res.ok) throw new Error(`translate ${res.status}`);
+      const json = await res.json();
+      const translated = (json && json.items) || {};
+      setTrMap(prev => ({ ...prev, ...translated }));
+      setLang('EN');
+    } catch (e) {
+      console.error('Translate failed:', e);
+      Alert.alert(UI.EN.translateFailedTitle, UI.EN.translateFailedMsg);
+    } finally {
+      setTranslating(false);
     }
   };
 
@@ -169,13 +347,13 @@ const ReportScreen = () => {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.errorText}>لم يتم تحميل التقرير</Text>
+          <Text style={styles.errorText}>{t.notLoaded}</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  const reportDate = new Date(report.timestamp).toLocaleDateString('ar-SA');
+  const reportDate = new Date(report.timestamp).toLocaleDateString(isAR ? 'ar-SA' : 'en-US');
   const isHealthy = report.analysis_metadata?.is_vehicle_healthy === true;
   const overallHealth = report.analysis_metadata?.overall_health ?? 100;
   const userFriendly = report.user_friendly_report_ar || {};
@@ -184,13 +362,14 @@ const ReportScreen = () => {
 
   // Severity styles (mirror web report)
   const severity = String(report.severity || 'LOW').toUpperCase();
-  const SEVERITY_MAP: Record<string, { label: string; bg: string; fg: string; border: string }> = {
-    LOW:      { label: '🟢 تنبيه بسيط', bg: '#DCFCE7', fg: '#166534', border: '#86EFAC' },
-    MEDIUM:   { label: '🟡 تحذير',      bg: '#FEF9C3', fg: '#854D0E', border: '#FDE68A' },
-    HIGH:     { label: '🟠 خطر',        bg: '#FFEDD5', fg: '#9A3412', border: '#FDBA74' },
-    CRITICAL: { label: '🔴 خطر شديد',   bg: '#FEE2E2', fg: '#991B1B', border: '#FCA5A5' },
+  const SEVERITY_MAP: Record<string, { bg: string; fg: string; border: string }> = {
+    LOW:      { bg: '#DCFCE7', fg: '#166534', border: '#86EFAC' },
+    MEDIUM:   { bg: '#FEF9C3', fg: '#854D0E', border: '#FDE68A' },
+    HIGH:     { bg: '#FFEDD5', fg: '#9A3412', border: '#FDBA74' },
+    CRITICAL: { bg: '#FEE2E2', fg: '#991B1B', border: '#FCA5A5' },
   };
   const sevStyle = SEVERITY_MAP[severity] || SEVERITY_MAP.LOW;
+  const sevLabel = (t.severity[severity] || t.severity.LOW);
 
   // Get AI interpretations
   const pidInterp = userFriendly.pid_mechanical_interpretation || {};
@@ -201,11 +380,19 @@ const ReportScreen = () => {
   const nDtcs = (report.detected_dtcs || []).length;
   const nAnom = (report.detected_anomalies || []).length;
   let introLine = '';
-  if (nPids > 0) introLine = `تم تحليل ${nPids} مؤشرات حيوية لسيارتك. `;
-  if (isHealthy) introLine += 'جميع القراءات ضمن النطاق الطبيعي.';
-  else if (nDtcs > 0 && nAnom > 0) introLine += `يوجد ${nDtcs} كود عطل و${nAnom} تنبيه يتطلب المتابعة.`;
-  else if (nDtcs > 0) introLine += `يوجد ${nDtcs === 1 ? 'كود عطل واحد' : nDtcs + ' أكواد أعطال'} يتطلب المتابعة.`;
-  else if (nAnom > 0) introLine += `يوجد ${nAnom === 1 ? 'تنبيه واحد' : nAnom + ' تنبيهات'} يتطلب الملاحظة.`;
+  if (isAR) {
+    if (nPids > 0) introLine = `تم تحليل ${nPids} مؤشرات حيوية لسيارتك. `;
+    if (isHealthy) introLine += 'جميع القراءات ضمن النطاق الطبيعي.';
+    else if (nDtcs > 0 && nAnom > 0) introLine += `يوجد ${nDtcs} كود عطل و${nAnom} تنبيه يتطلب المتابعة.`;
+    else if (nDtcs > 0) introLine += `يوجد ${nDtcs === 1 ? 'كود عطل واحد' : nDtcs + ' أكواد أعطال'} يتطلب المتابعة.`;
+    else if (nAnom > 0) introLine += `يوجد ${nAnom === 1 ? 'تنبيه واحد' : nAnom + ' تنبيهات'} يتطلب الملاحظة.`;
+  } else {
+    if (nPids > 0) introLine = `Analyzed ${nPids} vital readings for your car. `;
+    if (isHealthy) introLine += 'All readings are within the normal range.';
+    else if (nDtcs > 0 && nAnom > 0) introLine += `Found ${nDtcs} trouble code(s) and ${nAnom} alert(s) requiring attention.`;
+    else if (nDtcs > 0) introLine += `Found ${nDtcs === 1 ? '1 trouble code' : nDtcs + ' trouble codes'} requiring attention.`;
+    else if (nAnom > 0) introLine += `Found ${nAnom === 1 ? '1 alert' : nAnom + ' alerts'} to monitor.`;
+  }
 
   // Final AI recommendation (holistic, generated by DeepSeek)
   const finalRec = userFriendly.final_recommendation || null;
@@ -237,15 +424,27 @@ const ReportScreen = () => {
               <Icon name="chevron-right" size={22} color={COLORS.ink} />
             </TouchableOpacity>
             <View style={styles.headerTitleContainer}>
-              <Text style={styles.headerTitle}>تقرير تنبّه الذكي</Text>
+              <Text style={styles.headerTitle}>{t.headerTitle}</Text>
               <View style={styles.dateContainer}>
                 <Icon name="calendar" size={10} color={COLORS.gray} />
                 <Text style={styles.dateText}>{reportDate}</Text>
               </View>
             </View>
-            <View style={styles.headerIcon}>
-              <Icon name="activity" size={20} color={COLORS.red} />
-            </View>
+            <TouchableOpacity
+              style={styles.langButton}
+              onPress={handleToggleLanguage}
+              disabled={translating}
+              activeOpacity={0.8}
+            >
+              {translating ? (
+                <ActivityIndicator size="small" color={COLORS.red} />
+              ) : (
+                <>
+                  <Icon name="globe" size={14} color={COLORS.red} />
+                  <Text style={styles.langButtonText}>{isAR ? 'EN' : 'AR'}</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
 
           <View style={styles.content}>
@@ -254,18 +453,18 @@ const ReportScreen = () => {
               <View style={styles.mainCardTopRow}>
                 {report.report_id ? (
                   <Text style={styles.reportIdText}>
-                    رقم التقرير: <Text style={styles.reportIdMono}>{report.report_id}</Text>
+                    {t.reportId} <Text style={styles.reportIdMono}>{report.report_id}</Text>
                   </Text>
                 ) : <View />}
                 <View style={[styles.severityBadgeMain, { backgroundColor: sevStyle.bg, borderColor: sevStyle.border }]}>
-                  <Text style={[styles.severityBadgeMainText, { color: sevStyle.fg }]}>{sevStyle.label}</Text>
+                  <Text style={[styles.severityBadgeMainText, { color: sevStyle.fg }]}>{sevLabel}</Text>
                 </View>
               </View>
               <View style={styles.mainCardIcon}>
                 <Icon name={isHealthy ? "check-circle" : "alert-circle"} size={32} color="#fff" />
               </View>
               <Text style={styles.mainCardTitle}>
-                {isHealthy ? "سيارتك بحالة ممتازة 🎉" : "تم اكتشاف ملاحظات"}
+                {isHealthy ? t.healthyTitle : t.issuesTitle}
               </Text>
               {!!introLine && (
                 <Text style={styles.introLine}>{introLine}</Text>
@@ -278,12 +477,12 @@ const ReportScreen = () => {
                 <View style={styles.insightHeader}>
                   <Icon name="zap" size={18} color="#fff" />
                   <Text style={styles.insightLabel}>
-                    {aiActive ? '✨ تحليل تنبّه الذكي' : '📋 ملخص التحليل'}
+                    {aiActive ? t.aiSummary : t.plainSummary}
                   </Text>
                 </View>
                 {aiNarrativeParts.map((part, i) => (
                   <Text key={i} style={[styles.insightText, i > 0 && { marginTop: 8 }]}>
-                    {part}
+                    {tr(part)}
                   </Text>
                 ))}
               </View>
@@ -293,7 +492,7 @@ const ReportScreen = () => {
             {dtcItems.length > 0 && (
               <View>
                 <View style={styles.listHeader}>
-                  <Text style={styles.listTitle}>أكواد الأعطال المكتشفة</Text>
+                  <Text style={styles.listTitle}>{t.dtcs}</Text>
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>{dtcItems.length}</Text>
                   </View>
@@ -308,21 +507,21 @@ const ReportScreen = () => {
                       <View style={styles.dtcHeader}>
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.dtcCode, { color: dStyle.fg }]}>{dtc.code}</Text>
-                          <Text style={styles.dtcName}>{dtc.name}</Text>
+                          <Text style={styles.dtcName}>{tr(dtc.name)}</Text>
                         </View>
                         {urgency && (
                           <View style={[styles.severityBadge, { backgroundColor: '#fff', borderColor: dStyle.border, borderWidth: 1 }]}>
-                            <Text style={[styles.severityText, { color: dStyle.fg }]}>{urgency}</Text>
+                            <Text style={[styles.severityText, { color: dStyle.fg }]}>{tr(urgency)}</Text>
                           </View>
                         )}
                       </View>
                       {dtc.description && (
-                        <Text style={styles.dtcDescription}>{dtc.description}</Text>
+                        <Text style={styles.dtcDescription}>{tr(dtc.description)}</Text>
                       )}
                       {aiSentence && (
                         <View style={styles.dtcAiBox}>
-                          <Text style={styles.dtcAiTitle}>✨ تفسير ذكي</Text>
-                          <Text style={styles.dtcAiText}>{aiSentence}</Text>
+                          <Text style={styles.dtcAiTitle}>{t.smartInsight}</Text>
+                          <Text style={styles.dtcAiText}>{tr(aiSentence)}</Text>
                         </View>
                       )}
                     </View>
@@ -335,14 +534,14 @@ const ReportScreen = () => {
             {sensorData.length > 0 && (
               <View>
                 <View style={styles.listHeader}>
-                  <Text style={styles.listTitle}>قراءات المستشعرات</Text>
+                  <Text style={styles.listTitle}>{t.sensorReadings}</Text>
                   <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{sensorData.length} حساس</Text>
+                    <Text style={styles.badgeText}>{t.sensorsCount(sensorData.length)}</Text>
                   </View>
                 </View>
                 {sensorData.some(s => s.aiInterpretation) && (
                   <View style={styles.aiEnabledBanner}>
-                    <Text style={styles.aiEnabledText}>✨ تحليل ذكي مُفعَّل</Text>
+                    <Text style={styles.aiEnabledText}>{t.smartAnalysisOn}</Text>
                   </View>
                 )}
 
@@ -351,8 +550,8 @@ const ReportScreen = () => {
               const statusColor = item.status === 'WARNING' ? COLORS.warning : COLORS.success;
               const aiUrgency = item.aiInterpretation?.urgency_ar;
               const statusText = aiUrgency
-                ? `✨ ${aiUrgency}`
-                : (item.status === 'WARNING' ? 'تحذير' : 'طبيعي');
+                ? `✨ ${tr(aiUrgency)}`
+                : (item.status === 'WARNING' ? t.statusWarning : t.statusNormal);
               const hasAI = !!item.aiInterpretation;
 
               return (
@@ -368,7 +567,7 @@ const ReportScreen = () => {
                       </View>
                       <View>
                         <View style={styles.labelRow}>
-                          <Text style={styles.sensorLabel}>{item.label}</Text>
+                          <Text style={styles.sensorLabel}>{tr(item.label)}</Text>
                           {hasAI && <Text style={styles.aiIndicator}>✨</Text>}
                         </View>
                         <View style={styles.statusRow}>
@@ -402,16 +601,16 @@ const ReportScreen = () => {
                             <View style={styles.explanationIcon}>
                               <Text style={styles.sparkle}>✨</Text>
                             </View>
-                            <Text style={styles.explanationTitle}>تحليل ذكي</Text>
+                            <Text style={styles.explanationTitle}>{t.smartAnalysis}</Text>
                           </View>
                           <Text style={styles.explanationText}>
-                            {item.aiInterpretation.smart_insight_ar || item.aiInterpretation.mechanical_explanation_ar}
+                            {tr(item.aiInterpretation.smart_insight_ar || item.aiInterpretation.mechanical_explanation_ar)}
                           </Text>
                           {item.aiInterpretation?.safety_tip_ar && (
                             <View style={styles.recommendationBox}>
                               <Icon name="alert-circle" size={14} color={COLORS.warning} />
                               <Text style={styles.recommendationText}>
-                                {item.aiInterpretation.safety_tip_ar}
+                                {tr(item.aiInterpretation.safety_tip_ar)}
                               </Text>
                             </View>
                           )}
@@ -422,9 +621,9 @@ const ReportScreen = () => {
                             <View style={styles.explanationIcon}>
                               <Icon name="info" size={10} color="#fff" />
                             </View>
-                            <Text style={styles.explanationTitle}>التفسير</Text>
+                            <Text style={styles.explanationTitle}>{t.explanation}</Text>
                           </View>
-                          <Text style={styles.explanationText}>{item.explanation}</Text>
+                          <Text style={styles.explanationText}>{tr(item.explanation)}</Text>
                         </>
                       )}
                     </View>
@@ -439,19 +638,19 @@ const ReportScreen = () => {
             {causesData.length > 0 && (
               <View>
                 <View style={styles.listHeader}>
-                  <Text style={styles.listTitle}>الأسباب المحتملة</Text>
+                  <Text style={styles.listTitle}>{t.causes}</Text>
                 </View>
                 {causesData.slice(0, 5).map((cause: any, idx: number) => (
                   <View key={idx} style={styles.causeCard}>
                     <Icon name="alert-circle" size={16} color={COLORS.warning} />
                     <View style={styles.causeContent}>
-                      <Text style={styles.causeText}>{cause.cause}</Text>
+                      <Text style={styles.causeText}>{tr(cause.cause)}</Text>
                       {!!cause.evidence && (
-                        <Text style={styles.causeEvidence}>{cause.evidence}</Text>
+                        <Text style={styles.causeEvidence}>{tr(cause.evidence)}</Text>
                       )}
                       {(cause.likelihood || cause.confidence) && (
                         <Text style={styles.causeMetrics}>
-                          احتمالية: {Math.round(cause.likelihood || 0)}% | ثقة: {Math.round(cause.confidence || 0)}%
+                          {t.likelihood}: {Math.round(cause.likelihood || 0)}% | {t.confidence}: {Math.round(cause.confidence || 0)}%
                         </Text>
                       )}
                     </View>
@@ -465,16 +664,16 @@ const ReportScreen = () => {
               <View style={styles.recCard}>
                 <View style={styles.recHeader}>
                   <Icon name="zap" size={18} color="#fff" />
-                  <Text style={styles.recHeaderText}>✨ التوصية الذكية</Text>
+                  <Text style={styles.recHeaderText}>{t.smartRecommendation}</Text>
                 </View>
-                <Text style={styles.recText}>{finalRecText}</Text>
+                <Text style={[styles.recText, !isAR && { textAlign: 'left' }]}>{tr(finalRecText)}</Text>
                 {needsMechanic && (
                   <View style={styles.mechanicBox}>
                     <Icon name="tool" size={16} color={COLORS.red} />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.mechanicTitle}>تحتاج لزيارة فنّي/ميكانيكي مختص</Text>
+                      <Text style={styles.mechanicTitle}>{t.needsMechanic}</Text>
                       {!!mechanicNote && (
-                        <Text style={styles.mechanicNote}>{mechanicNote}</Text>
+                        <Text style={styles.mechanicNote}>{tr(mechanicNote)}</Text>
                       )}
                     </View>
                   </View>
@@ -499,7 +698,7 @@ const ReportScreen = () => {
                       color="white" 
                     />
                     <Text style={styles.buttonText}>
-                      {saved ? "✅ محفوظ" : "💾 حفظ دائم"}
+                      {saved ? t.saved : t.save}
                     </Text>
                   </>
                 )}
@@ -510,7 +709,7 @@ const ReportScreen = () => {
             <View style={styles.footer}>
               <Icon name="shield-off" size={20} color="#E5E7EB" />
               <Text style={styles.footerText}>
-                ملاحظة: هذا التقرير مقدم من "تنبّه" كدليل استرشادي ذكي.
+                {t.footer}
               </Text>
             </View>
           </View>
@@ -579,6 +778,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#871B1710',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  langButton: {
+    minWidth: 56,
+    height: 40,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: '#871B1710',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  langButtonText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: COLORS.red,
+    letterSpacing: 0.5,
   },
   content: {
     paddingHorizontal: 20,

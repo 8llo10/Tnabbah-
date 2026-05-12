@@ -33,7 +33,10 @@ from .report_formatter import (
     pid_readings_for_mechanical_llm,
 )
 from .model_service import interpret_pid_mechanical_snapshot, interpret_dtc_snapshot
-from .ai_service import recommend_action as ai_recommend_action
+from .ai_service import (
+    recommend_action as ai_recommend_action,
+    translate_ar_to_en as ai_translate_ar_to_en,
+)
 
 # Load environment variables from config folder
 config_path = Path(__file__).parent.parent.parent / "config" / ".env"
@@ -375,8 +378,16 @@ async def scan_vehicle(request: ScanRequest) -> AIReport:
             detected_dtcs=[
                 DTCCode(
                     code=dtc,
-                    name=data_loader.dtc_kb.get(dtc, {}).get("name", dtc),
-                    description=data_loader.dtc_kb.get(dtc, {}).get("description", ""),
+                    name=(
+                        ((data_loader.dtc_kb.get(dtc, {}).get("i18n") or {}).get("ar") or {}).get("title")
+                        or data_loader.dtc_kb.get(dtc, {}).get("name_ar")
+                        or data_loader.dtc_kb.get(dtc, {}).get("name", dtc)
+                    ),
+                    description=(
+                        ((data_loader.dtc_kb.get(dtc, {}).get("i18n") or {}).get("ar") or {}).get("description")
+                        or data_loader.dtc_kb.get(dtc, {}).get("description_ar")
+                        or data_loader.dtc_kb.get(dtc, {}).get("description", "")
+                    ),
                     severity=SeverityLevel[data_loader.dtc_kb.get(dtc, {}).get("severity", "MEDIUM")],
                     category=_category_display(dtc),
                 )
@@ -559,6 +570,42 @@ async def get_pid_info(pid_code: str):
         "code": pid_code,
         "info": info
     }
+
+
+# ========================
+# TRANSLATION ENDPOINT
+# ========================
+
+@app.post("/api/translate")
+async def translate_strings(payload: Dict[str, Any]):
+    """
+    Translate Arabic strings to English for the report screen's AR/EN toggle.
+
+    Request body:
+        {
+            "items": { "key1": "نص عربي", "key2": "...", ... },
+            "target": "en"   # optional, defaults to en (only en supported now)
+        }
+
+    Response:
+        { "items": { "key1": "english text", ... } }
+    """
+    items = payload.get("items") or {}
+    target = str(payload.get("target") or "en").lower()
+
+    if not isinstance(items, dict):
+        raise HTTPException(status_code=400, detail="`items` must be an object")
+    if target != "en":
+        raise HTTPException(status_code=400, detail="Only target='en' is supported")
+    if not items:
+        return {"items": {}}
+
+    # Coerce all values to str.
+    str_items = {str(k): str(v) for k, v in items.items()}
+    translated = ai_translate_ar_to_en(str_items)
+    if translated is None:
+        raise HTTPException(status_code=503, detail="Translation service unavailable")
+    return {"items": translated}
 
 
 # ========================
