@@ -1,491 +1,715 @@
 import {
-    View,
-    Text,
-    TouchableOpacity,
-    Image,
-    StyleSheet,
-    Dimensions,
-    Animated,
-    Easing,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuth } from '../providers/AuthProvider';
-import { useEffect, useRef, useState } from 'react';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+  View,
+  Text,
+  TouchableOpacity,
+  ImageBackground,
+  StyleSheet,
+  Animated,
+  Easing,
+  useWindowDimensions,
+  StatusBar,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { useAuth } from "../providers/AuthProvider";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { Feather } from "@expo/vector-icons";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
 
-const { width, height } = Dimensions.get('window');
+// الصور
+const BACKGROUND_IMAGE = require("../assets/images/start-background.png");
+const LOGO_ARABIC = require("../assets/images/logo-arabic.png");
+const LOGO_ENGLISH = require("../assets/images/logo-english.png");
 
-function TnabbahBackground() {
-    return (
-        <View style={styles.background}>
-            <View style={styles.dashedCircle} />
-            <View style={styles.innerCircle} />
-        </View>
-    );
-}
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(Math.max(value, min), max);
 
 export default function StartScreen() {
-    const router = useRouter();
-    const { session, loading } = useAuth();
+  const router = useRouter();
+  const { session, loading } = useAuth();
 
-    const [showAnimation, setShowAnimation] = useState(true);
-    const [language, setLanguage] = useState<'ar' | 'en'>('ar');
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
-    const logoAnim = useRef(new Animated.Value(0)).current;
-    const contentAnim = useRef(new Animated.Value(0)).current;
+  const [language, setLanguage] = useState<"ar" | "en">("ar");
 
-    const isArabic = language === 'ar';
+  const isArabic = language === "ar";
+  const isSmallScreen = height < 720;
+  const isVerySmallScreen = height < 650;
 
-    const toggleLanguage = () => {
-        setLanguage(prev => (prev === 'ar' ? 'en' : 'ar'));
-    };
+  const horizontalPadding = clamp(width * 0.055, 20, 24);
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            Animated.parallel([
-                Animated.timing(logoAnim, {
-                    toValue: 1,
-                    duration: 950,
-                    easing: Easing.out(Easing.cubic),
-                    useNativeDriver: true,
-                }),
-                Animated.timing(contentAnim, {
-                    toValue: 1,
-                    duration: 750,
-                    delay: 250,
-                    easing: Easing.out(Easing.cubic),
-                    useNativeDriver: true,
-                }),
-            ]).start(() => {
-                setShowAnimation(false);
-            });
-        }, 2000);
+  const splashLogoWidth = clamp(width * 0.72, 220, 270);
+  const splashLogoHeight = splashLogoWidth * (210 / 270);
 
-        return () => clearTimeout(timer);
-    }, [logoAnim, contentAnim]);
+  const finalLogoWidth = clamp(width * 0.23, 80, 90);
+  const finalLogoHeight = finalLogoWidth * (64 / 88);
 
-    useEffect(() => {
-        if (!loading && session && !showAnimation) {
-            
-            
-        }
-    }, [loading, session, showAnimation, router]);
+  const headerTop = clamp(height * 0.025, 10, 18);
 
-    const logoStartSize = 180;
-    const logoEndWidth = 88;
-    const logoEndHeight = 64;
+  const styles = useMemo(
+    () =>
+      createStyles({
+        horizontalPadding,
+        splashLogoWidth,
+        splashLogoHeight,
+        finalLogoWidth,
+        finalLogoHeight,
+        headerTop,
+        isSmallScreen,
+        isVerySmallScreen,
+      }),
+    [
+      horizontalPadding,
+      splashLogoWidth,
+      splashLogoHeight,
+      finalLogoWidth,
+      finalLogoHeight,
+      headerTop,
+      isSmallScreen,
+      isVerySmallScreen,
+    ]
+  );
 
-    const startX = width / 2 - logoStartSize / 2;
-    const startY = height / 2 - logoStartSize / 2;
+  const contentAnim = useRef(new Animated.Value(0)).current;
+  const glassLayerAnim = useRef(new Animated.Value(0)).current;
+  const logoMoveAnim = useRef(new Animated.Value(0)).current;
+  const lineAnim = useRef(new Animated.Value(0)).current;
+  const arabicAnim = useRef(new Animated.Value(0)).current;
+  const englishAnim = useRef(new Animated.Value(0)).current;
 
-    const finalLogoLeft = width - 24 - logoEndWidth ;
-    const finalLogoTop = height * 0.105 - 6;
+  const animationStarted = useRef(false);
 
-    const endX = finalLogoLeft - (logoStartSize - logoEndWidth) / 2;
-    const endY = finalLogoTop - (logoStartSize - logoEndHeight) / 2;
+  const toggleLanguage = () => {
+    setLanguage((prev) => (prev === "ar" ? "en" : "ar"));
+  };
 
-    const logoTranslateX = logoAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [startX, endX],
-    });
+  useEffect(() => {
+    if (animationStarted.current) return;
+    animationStarted.current = true;
 
-    const logoTranslateY = logoAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [startY, endY],
-    });
+    const timer = setTimeout(() => {
+      const animation = Animated.sequence([
+        // الخط يمشي بهدوء
+        Animated.timing(lineAnim, {
+          toValue: 1,
+          duration: 1100,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }),
 
-    const logoScale = logoAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [1, logoEndWidth / logoStartSize],
-    });
+        Animated.delay(120),
 
-    const contentOpacity = contentAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0, 1],
-    });
+        // ظهور اللوقو العربي والإنجليزي
+        Animated.parallel([
+          Animated.timing(arabicAnim, {
+            toValue: 1,
+            duration: 650,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(englishAnim, {
+            toValue: 1,
+            duration: 650,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]),
 
-    
-    return (
-        <View style={styles.container}>
-            <Animated.View
-                style={[
-                    styles.fullContent,
-                    {
-                        opacity: contentOpacity,
-                    },
-                ]}
+        // اللوقو يثبت شوي قبل ما يطلع فوق
+        Animated.delay(950),
+
+        // اللوقو يطلع فوق ويصغر، وبعدها تظهر الواجهة
+        Animated.parallel([
+          Animated.timing(logoMoveAnim, {
+            toValue: 1,
+            duration: 950,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+
+          Animated.timing(glassLayerAnim, {
+            toValue: 1,
+            duration: 850,
+            delay: 420,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+
+          Animated.timing(contentAnim, {
+            toValue: 1,
+            duration: 750,
+            delay: 520,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]),
+      ]);
+
+      animation.start();
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [
+    lineAnim,
+    arabicAnim,
+    englishAnim,
+    logoMoveAnim,
+    glassLayerAnim,
+    contentAnim,
+  ]);
+
+  useEffect(() => {
+    if (!loading && session) {
+      // لو تبغين بعدين المستخدم المسجل يدخل للهوم مباشرة:
+      // router.replace("/(tabs)/home");
+    }
+  }, [loading, session, router]);
+
+  // بداية اللوقو فوق النص شوي عشان يكون واضح مع الخلفية
+  const startX = width / 2 - splashLogoWidth / 2;
+  const startY = height / 2 - splashLogoHeight / 2 - 85;
+
+  // مكان اللوقو النهائي فوق اليمين
+  const finalLogoLeft = width - horizontalPadding - finalLogoWidth;
+  const finalLogoTop = insets.top + headerTop;
+
+  const endX = finalLogoLeft - (splashLogoWidth - finalLogoWidth) / 2;
+  const endY = finalLogoTop - (splashLogoHeight - finalLogoHeight) / 2;
+
+  const logoTranslateX = logoMoveAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [startX, endX],
+  });
+
+  const logoTranslateY = logoMoveAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [startY, endY],
+  });
+
+  const logoScale = logoMoveAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, finalLogoWidth / splashLogoWidth],
+  });
+
+  const contentOpacity = contentAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  const contentTranslateY = contentAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [18, 0],
+  });
+
+  const glassLayerOpacity = glassLayerAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  const animatedLineWidth = lineAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, splashLogoWidth * 0.73],
+  });
+
+  const arabicTranslateY = arabicAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [18, 0],
+  });
+
+  const arabicOpacity = arabicAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  const englishTranslateY = englishAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-18, 0],
+  });
+
+  const englishOpacity = englishAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  return (
+    <ImageBackground
+      source={BACKGROUND_IMAGE}
+      style={styles.container}
+      imageStyle={styles.backgroundImage}
+      resizeMode="cover"
+    >
+      <StatusBar barStyle="dark-content" />
+
+      {/* تغبيش زجاجي خفيف يظهر بعد اللوقو */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.backgroundGlassLayer,
+          {
+            opacity: glassLayerOpacity,
+          },
+        ]}
+      >
+        <BlurView
+          intensity={12}
+          tint="light"
+          style={StyleSheet.absoluteFillObject}
+        >
+          <LinearGradient
+            colors={[
+              "rgba(255,255,255,0.13)",
+              "rgba(255,255,255,0.05)",
+              "rgba(255,255,255,0.11)",
+            ]}
+            locations={[0, 0.5, 1]}
+            start={{ x: 0.1, y: 0 }}
+            end={{ x: 0.9, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+        </BlurView>
+      </Animated.View>
+
+      <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+        <Animated.View
+          style={[
+            styles.fullContent,
+            {
+              opacity: contentOpacity,
+              transform: [{ translateY: contentTranslateY }],
+            },
+          ]}
+        >
+          {/* الهيدر */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.langButtonWrapper}
+              activeOpacity={0.85}
+              onPress={toggleLanguage}
             >
-                <TnabbahBackground />
+              <BlurView intensity={10} tint="light" style={styles.langBlur}>
+                <LinearGradient
+                  colors={[
+                    "rgba(255,255,255,0.48)",
+                    "rgba(255,255,255,0.24)",
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.langButtonGradient}
+                >
+                  <Feather name="globe" size={18} color="#871B17" />
+                  <View style={styles.langDivider} />
 
-                <View style={styles.header}>
-                    <TouchableOpacity
-                        style={styles.langButton}
-                        activeOpacity={0.8}
-                        onPress={toggleLanguage}
-                    >
-                        <Feather name="globe" size={17} color="#2E1D1D" />
-                        <Text style={styles.langText}>
-                            {isArabic ? 'EN' : 'AR'}
-                        </Text>
-                    </TouchableOpacity>
+                  <Text style={styles.langText}>
+                    {isArabic ? "En" : "عربي"}
+                  </Text>
+                </LinearGradient>
+              </BlurView>
+            </TouchableOpacity>
 
-                    <View style={styles.logoPlaceholder} />
-                </View>
+            <View style={styles.logoPlaceholder} />
+          </View>
 
-                <View style={styles.welcomeArea}>
-                    <Text style={styles.title}>
-                        {isArabic ? 'مرحباً بك في تنبه' : 'Welcome to Tnabbah'}
-                    </Text>
+          {/* النص بدون مربع */}
+          <View style={styles.centerContent}>
+            <View style={styles.textGroup}>
+              {isArabic ? (
+                <Text style={styles.title}>
+                  مرحباً بك في <Text style={styles.titleBrand}>تنبه</Text>
+                </Text>
+              ) : (
+                <Text style={styles.title}>
+                  Welcome to <Text style={styles.titleBrand}>Tnabbah</Text>
+                </Text>
+              )}
 
-                    <Text style={styles.subtitle}>
-                        {isArabic
-                            ? 'لأن سيارتك تحتاج من ينتبه لها'
-                            : 'Because your car needs someone to watch over it'}
-                    </Text>
-                </View>
+              <View style={styles.titleUnderline} />
 
-                <View style={styles.carSection}>
-                    {/* فوق: AI */}
-                    <View style={styles.aiBubble}>
-                        <Text style={styles.aiText}>AI</Text>
-                    </View>
+              <Text style={styles.subtitle}>
+                {isArabic
+                  ? "لأن سيارتك تحتاج من ينتبه لها"
+                  : "Because your car needs someone to watch over it"}
+              </Text>
+            </View>
+          </View>
 
-                    {/* يسار: تحذير */}
-                    <View style={styles.warningBubble}>
-                        <Ionicons
-                            name="warning-outline"
-                            size={24}
-                            color="#871B17"
-                        />
-                    </View>
+          {/* الأزرار */}
+          <View style={styles.buttonsArea}>
+            <TouchableOpacity
+              style={styles.loginButtonWrapper}
+              onPress={() => router.push("/login")}
+              activeOpacity={0.9}
+            >
+              <LinearGradient
+                colors={["rgba(154,33,28,0.98)", "rgba(118,23,19,0.98)"]}
+                start={{ x: 0.15, y: 0 }}
+                end={{ x: 0.9, y: 1 }}
+                style={styles.loginGradient}
+              >
+                <View style={styles.loginShine} />
 
-                    {/* يمين: تنبيه بدل الدرع */}
-                    <View style={styles.alertBubble}>
-                        <Ionicons
-                            name="notifications-outline"
-                            size={26}
-                            color="#871B17"
-                        />
-                    </View>
+                <Text style={styles.loginText}>
+                  {isArabic ? "تسجيل الدخول" : "Login"}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
 
-                    {/* تحت: صيانة بدل المحرك */}
-                    <View style={styles.maintenanceBubble}>
-                        <MaterialCommunityIcons
-    name="tools"
-    size={34}
-    color="#871B17"
-/>
-                    </View>
+            <TouchableOpacity
+              style={styles.registerButtonWrapper}
+              onPress={() => router.push("/register")}
+              activeOpacity={0.9}
+            >
+              <BlurView intensity={10} tint="light" style={styles.registerBlur}>
+                <LinearGradient
+                  colors={[
+                    "rgba(255,255,255,0.50)",
+                    "rgba(255,255,255,0.28)",
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.registerGradient}
+                >
+                  <Text style={styles.registerText}>
+                    {isArabic ? "إنشاء حساب جديد" : "Create Account"}
+                  </Text>
+                </LinearGradient>
+              </BlurView>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      </SafeAreaView>
 
-                    <Image
-                        source={require('../assets/images/car-front.png')}
-                        style={styles.carImage}
-                        resizeMode="contain"
-                    />
-                </View>
+      {/* اللوقو */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.splashLogoWrapper,
+          {
+            transform: [
+              { translateX: logoTranslateX },
+              { translateY: logoTranslateY },
+              { scale: logoScale },
+            ],
+          },
+        ]}
+      >
+        <Animated.Image
+          source={LOGO_ARABIC}
+          style={[
+            styles.logoArabic,
+            {
+              opacity: arabicOpacity,
+              transform: [{ translateY: arabicTranslateY }],
+            },
+          ]}
+          resizeMode="contain"
+          fadeDuration={0}
+        />
 
-                <View style={styles.buttonsArea}>
-                    <TouchableOpacity
-                        style={styles.loginButton}
-                        onPress={() => router.push('/login')}
-                        activeOpacity={0.9}
-                    >
-                        <LinearGradient
-                            colors={['#9A3A33', '#5F130F']}
-                            start={{ x: 0.5, y: 0 }}
-                            end={{ x: 0.5, y: 1 }}
-                            style={styles.loginGradient}
-                        >
-                            <View style={styles.loginHighlight} />
-                            <Text style={styles.loginText}>
-                                {isArabic ? 'تسجيل الدخول' : 'Login'}
-                            </Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.registerButton}
-                        onPress={() => router.push('/register')}
-                        activeOpacity={0.9}
-                    >
-                        <Text style={styles.registerText}>
-                            {isArabic ? 'إنشاء حساب جديد' : 'Create Account'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            </Animated.View>
-
-            <Animated.Image
-                source={require('../assets/images/logo.png')}
-                style={[
-                    styles.animatedLogo,
-                    {
-                        transform: [
-                            { translateX: logoTranslateX },
-                            { translateY: logoTranslateY },
-                            { scale: logoScale },
-                        ],
-                    },
-                ]}
-                resizeMode="contain"
-            />
+        <View style={styles.logoLineContainer}>
+          <Animated.View
+            style={[
+              styles.logoLine,
+              {
+                width: animatedLineWidth,
+              },
+            ]}
+          />
         </View>
-    );
+
+        <Animated.Image
+          source={LOGO_ENGLISH}
+          style={[
+            styles.logoEnglish,
+            {
+              opacity: englishOpacity,
+              transform: [{ translateY: englishTranslateY }],
+            },
+          ]}
+          resizeMode="contain"
+          fadeDuration={0}
+        />
+      </Animated.View>
+    </ImageBackground>
+  );
 }
 
-const styles = StyleSheet.create({
+function createStyles({
+  horizontalPadding,
+  splashLogoWidth,
+  splashLogoHeight,
+  finalLogoWidth,
+  finalLogoHeight,
+  headerTop,
+  isSmallScreen,
+  isVerySmallScreen,
+}: {
+  horizontalPadding: number;
+  splashLogoWidth: number;
+  splashLogoHeight: number;
+  finalLogoWidth: number;
+  finalLogoHeight: number;
+  headerTop: number;
+  isSmallScreen: boolean;
+  isVerySmallScreen: boolean;
+}) {
+  return StyleSheet.create({
     container: {
-        flex: 1,
-        paddingHorizontal: 24,
-        backgroundColor: '#FFFFFF',
-        overflow: 'hidden',
+      flex: 1,
+      overflow: "hidden",
+      backgroundColor: "#EFE7DE",
+    },
+
+    backgroundImage: {
+      opacity: 1,
+    },
+
+    backgroundGlassLayer: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 1,
+      backgroundColor: "transparent",
+    },
+
+    safeArea: {
+      flex: 1,
+      zIndex: 5,
     },
 
     fullContent: {
-        flex: 1,
-        zIndex: 5,
+      flex: 1,
+      paddingHorizontal: horizontalPadding,
+      paddingTop: headerTop,
+      paddingBottom: isVerySmallScreen ? 22 : 30,
+      zIndex: 5,
     },
 
-    background: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: '#FFFFFF',
-        overflow: 'hidden',
+    splashLogoWrapper: {
+      position: "absolute",
+      width: splashLogoWidth,
+      height: splashLogoHeight,
+      top: 0,
+      left: 0,
+      zIndex: 30,
+      alignItems: "center",
+      justifyContent: "center",
     },
 
-    animatedLogo: {
-        position: 'absolute',
-        width: 180,
-        height: 180,
-        top: 0,
-        left: 0,
-        zIndex: 30,
+    logoArabic: {
+      width: splashLogoWidth * 0.815,
+      height: splashLogoHeight * 0.457,
+      marginBottom: splashLogoHeight * 0.048,
     },
 
-    logoPlaceholder: {
-        width: 88,
-        height: 64,
-        marginTop: -6,
+    logoLineContainer: {
+      width: splashLogoWidth * 0.73,
+      height: 6,
+      alignItems: "flex-end",
+      justifyContent: "center",
+      overflow: "hidden",
     },
 
-    dashedCircle: {
-        position: 'absolute',
-        width: width * 0.66,
-        height: width * 0.66,
-        borderRadius: width * 0.33,
-        borderWidth: 1.4,
-        borderColor: 'rgba(135, 27, 23, 0.32)',
-        borderStyle: 'dashed',
-        backgroundColor: 'transparent',
-        top: height * 0.385,
-        left: width / 2 - (width * 0.66) / 2 - 24,
+    logoLine: {
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: "#B86B69",
     },
 
-    innerCircle: {
-        position: 'absolute',
-        width: width * 0.50,
-        height: width * 0.50,
-        borderRadius: width * 0.25,
-        borderWidth: 1.2,
-        borderColor: 'rgba(135, 27, 23, 0.18)',
-        backgroundColor: 'transparent',
-        top: height * 0.385 + width * 0.08,
-        left: width / 2 - (width * 0.50) / 2 - 24,
+    logoEnglish: {
+      width: splashLogoWidth * 0.815,
+      height: splashLogoHeight * 0.162,
+      marginTop: splashLogoHeight * 0.076,
     },
 
     header: {
-        width: '100%',
-        marginTop: height * 0.105,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        zIndex: 5,
+      width: "100%",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      zIndex: 5,
     },
 
-    langButton: {
-        height: 47,
-        minWidth: 83,
-        paddingHorizontal: 16,
-        borderRadius: 24,
-        backgroundColor: 'rgba(248, 238, 238, 0.85)',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.04,
-        shadowRadius: 12,
-        elevation: 2,
+    logoPlaceholder: {
+      width: finalLogoWidth,
+      height: finalLogoHeight,
+    },
+
+    langButtonWrapper: {
+      height: isVerySmallScreen ? 44 : 48,
+      minWidth: isVerySmallScreen ? 86 : 94,
+      borderRadius: 26,
+      overflow: "hidden",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.1,
+      shadowRadius: 14,
+      elevation: 5,
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.58)",
+    },
+
+    langBlur: {
+      flex: 1,
+      borderRadius: 26,
+      overflow: "hidden",
+    },
+
+    langButtonGradient: {
+      flex: 1,
+      paddingHorizontal: 14,
+      borderRadius: 26,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 9,
+    },
+
+    langDivider: {
+      width: 1,
+      height: 20,
+      backgroundColor: "rgba(135,27,23,0.16)",
     },
 
     langText: {
-        fontSize: 14,
-        color: '#2E1D1D',
-        fontWeight: '500',
+      fontSize: 16,
+      color: "#871B17",
+      fontWeight: "800",
     },
 
-    welcomeArea: {
-        marginTop: height * 0.06,
-        alignItems: 'center',
-        zIndex: 5,
+    centerContent: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+
+      // زيدي الأرقام لو تبغين الكلام يطلع فوق أكثر
+      paddingBottom: isVerySmallScreen ? 145 : isSmallScreen ? 180 : 210,
+    },
+
+    textGroup: {
+      width: "100%",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 12,
     },
 
     title: {
-        fontSize: 31,
-        fontWeight: '900',
-        color: '#871B17',
-        textAlign: 'center',
-        letterSpacing: -0.5,
+      fontSize: isVerySmallScreen ? 25 : isSmallScreen ? 30 : 32,
+      fontWeight: "900",
+      color: "#7B1714",
+      textAlign: "center",
+      letterSpacing: -0.7,
+      lineHeight: isVerySmallScreen ? 36 : 43,
+
+      // يخلي العنوان واضح فوق الخلفية
+      textShadowColor: "rgba(255,255,255,0.95)",
+      textShadowOffset: { width: 0, height: 2 },
+      textShadowRadius: 14,
+    },
+
+    titleBrand: {
+      color: "#9A211C",
+      fontWeight: "900",
+      letterSpacing: -0.4,
+    },
+
+    titleUnderline: {
+      marginTop: 9,
+      marginBottom: 11,
+      width: isVerySmallScreen ? 68 : 84,
+      height: 4,
+      borderRadius: 99,
+      backgroundColor: "rgba(135,27,23,0.28)",
     },
 
     subtitle: {
-        marginTop: 15,
-        fontSize: 18,
-        color: '#4D3A3A',
-        fontWeight: '500',
-        textAlign: 'center',
-    },
+      fontSize: isVerySmallScreen ? 15 : 17,
+      lineHeight: isVerySmallScreen ? 24 : 29,
+      color: "#2C2C2C",
+      fontWeight: "800",
+      textAlign: "center",
+      maxWidth: 310,
 
-    carSection: {
-        position: 'absolute',
-        width: width * 0.66,
-        height: width * 0.66,
-        top: height * 0.385,
-        left: width / 2 - (width * 0.66) / 2 - 24,
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 6,
-    },
-
-    aiBubble: {
-        position: 'absolute',
-        width: 62,
-        height: 62,
-        borderRadius: 31,
-        top: -31,
-        left: '50%',
-        marginLeft: -31,
-        backgroundColor: 'rgba(248,238,238,0.92)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 8,
-    },
-
-    aiText: {
-        color: '#871B17',
-        fontSize: 17,
-        fontWeight: '900',
-    },
-
-    warningBubble: {
-        position: 'absolute',
-        width: 62,
-        height: 62,
-        borderRadius: 31,
-        left: -31,
-        top: '50%',
-        marginTop: -31,
-        backgroundColor: 'rgba(248,238,238,0.92)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 8,
-    },
-
-    alertBubble: {
-        position: 'absolute',
-        width: 62,
-        height: 62,
-        borderRadius: 31,
-        right: -31,
-        top: '50%',
-        marginTop: -31,
-        backgroundColor: 'rgba(248,238,238,0.92)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 8,
-    },
-
-    maintenanceBubble: {
-        position: 'absolute',
-        width: 62,
-        height: 62,
-        borderRadius: 31,
-        bottom: -31,
-        left: '50%',
-        marginLeft: -31,
-        backgroundColor: 'rgba(248,238,238,0.92)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 8,
-    },
-
-    carImage: {
-        width: width * 0.30,
-        height: width * 0.21,
-        zIndex: 7,
+      textShadowColor: "rgba(255,255,255,0.90)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 10,
     },
 
     buttonsArea: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: height * 0.065,
-        zIndex: 8,
+      width: "100%",
+      gap: isVerySmallScreen ? 12 : 14,
+      marginBottom: isVerySmallScreen ? 6 : 10,
     },
 
-    loginButton: {
-        width: '100%',
-        height: 66,
-        borderRadius: 33,
-        overflow: 'hidden',
-        marginBottom: 16,
-        shadowColor: '#5F130F',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.13,
-        shadowRadius: 16,
-        elevation: 4,
+    loginButtonWrapper: {
+      width: "100%",
+      height: isVerySmallScreen ? 58 : 64,
+      borderRadius: 30,
+      overflow: "hidden",
+      shadowColor: "#6E1411",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.24,
+      shadowRadius: 14,
+      elevation: 6,
     },
 
     loginGradient: {
-        flex: 1,
-        borderRadius: 33,
-        justifyContent: 'center',
-        alignItems: 'center',
-        overflow: 'hidden',
+      flex: 1,
+      borderRadius: 30,
+      justifyContent: "center",
+      alignItems: "center",
+      overflow: "hidden",
     },
 
-    loginHighlight: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: '50%',
-        backgroundColor: 'rgba(255,255,255,0.08)',
+    loginShine: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      height: "48%",
+      backgroundColor: "rgba(255,255,255,0.10)",
+      borderTopLeftRadius: 30,
+      borderTopRightRadius: 30,
     },
 
     loginText: {
-        color: '#fff',
-        textAlign: 'center',
-        fontSize: 20,
-        fontWeight: '900',
+      color: "#FFFFFF",
+      fontSize: isVerySmallScreen ? 19 : 21,
+      fontWeight: "900",
     },
 
-    registerButton: {
-        width: '100%',
-        height: 66,
-        borderRadius: 33,
-        borderWidth: 1.5,
-        borderColor: '#DABDBD',
-        backgroundColor: 'rgba(248,238,238,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
+    registerButtonWrapper: {
+      width: "100%",
+      height: isVerySmallScreen ? 58 : 64,
+      borderRadius: 30,
+      overflow: "hidden",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.1,
+      shadowRadius: 15,
+      elevation: 5,
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.58)",
+    },
+
+    registerBlur: {
+      flex: 1,
+      borderRadius: 30,
+      overflow: "hidden",
+    },
+
+    registerGradient: {
+      flex: 1,
+      borderRadius: 30,
+      justifyContent: "center",
+      alignItems: "center",
+      overflow: "hidden",
     },
 
     registerText: {
-        color: '#871B17',
-        textAlign: 'center',
-        fontSize: 19,
-        fontWeight: '900',
+      color: "#871B17",
+      fontSize: isVerySmallScreen ? 18 : 20,
+      fontWeight: "900",
     },
-});
+  });
+
+}
