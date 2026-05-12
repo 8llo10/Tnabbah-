@@ -3,10 +3,11 @@ FastAPI app for tnabbah (تَنَبَّه) — vehicle diagnostics (OBD-II, know
 """
 
 import os
+import time
 import logging
 import traceback
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import uuid
 from collections import OrderedDict
 
@@ -37,6 +38,13 @@ from .ai_service import (
     recommend_action as ai_recommend_action,
     translate_ar_to_en as ai_translate_ar_to_en,
 )
+from .mqtt_listener import (
+    start_listener as start_mqtt_listener,
+    stop_listener as stop_mqtt_listener,
+    get_listener as get_mqtt_listener,
+    mqtt_pid_to_api_code,
+)
+import asyncio
 
 # Load environment variables from config folder
 config_path = Path(__file__).parent.parent.parent / "config" / ".env"
@@ -109,10 +117,18 @@ async def lifespan(app: FastAPI):
             dtc_kb=kb.dtc_kb,
         )
         
+        # Start MQTT live-snapshot listener (non-fatal if broker is down).
+        try:
+            start_mqtt_listener()
+        except Exception as mqtt_err:
+            logger.warning("⚠️ MQTT listener failed to start: %s", mqtt_err)
+
         logger.info("✅ All systems initialized successfully")
         logger.info("   - DataLoader: ✅")
         logger.info("   - RulesEngine: ✅")
         logger.info("   - LearningState: ✅")
+        listener = get_mqtt_listener()
+        logger.info("   - MQTT listener: %s", "✅" if listener else "⚠️ disabled")
         logger.info("="*60)
         
     except Exception as e:
@@ -123,6 +139,10 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("تَنَبَّه diagnostics — Shutdown")
+    try:
+        stop_mqtt_listener()
+    except Exception:
+        logger.debug("MQTT listener shutdown error", exc_info=True)
 
 # ========================
 # INITIALIZATION
@@ -570,6 +590,118 @@ async def get_pid_info(pid_code: str):
         "code": pid_code,
         "info": info
     }
+
+
+# ========================
+# MQTT-DRIVEN SCAN ENDPOINT
+# ========================
+
+class ScanFromMqttRequest(BaseModel):
+    """Trigger a scan from the latest MQTT snapshot for a given car."""
+    user_id: str = Field(..., description="Supabase user id (the {userId} segment in MQTT topics)")
+    car_id: str = Field(..., description="Car id (the {carId} segment in MQTT topics)")
+    freshness_seconds: float = Field(
+        default=10.0,
+        ge=1.0,
+        le=120.0,
+        description="Drop PID readings older than this many seconds",
+    )
+    wait_ms: int = Field(
+        default=1500,
+        ge=0,
+        le=10000,
+        description="If the cache is empty, wait up to this many ms for the first readings",
+    )
+    vehicle_info: Optional[Dict[str, Any]] = None
+
+
+@app.post("/api/scan-from-mqtt", response_model=AIReport)
+async def scan_from_mqtt(request: ScanFromMqttRequest) -> AIReport:
+    """Snapshot the live MQTT cache for ``(user_id, car_id)`` and run the
+    same analysis pipeline as ``/api/scan``. The continuous OBD stream is
+    *not* paused; we just freeze one self-consistent moment.
+    """
+    listener = get_mqtt_listener()
+    if listener is None:
+        raise HTTPException(status_code=503, detail="MQTT listener not running")
+
+    # If the cache is empty we briefly wait for the first batch of readings
+    # so users don't have to retry the very first scan after app launch.
+    deadline = time.monotonic() + (request.wait_ms / 1000.0)
+    snapshot = listener.snapshot(
+        request.user_id, request.car_id, request.freshness_seconds
+    )
+    while snapshot.get("is_empty") and time.monotonic() < deadline:
+        await asyncio.sleep(0.1)
+        snapshot = listener.snapshot(
+            request.user_id, request.car_id, request.freshness_seconds
+        )
+
+    if snapshot.get("is_empty"):
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "لم تصل أي قراءات من السيارة عبر MQTT بعد. تأكد من تشغيل الفحص والاتصال بالقطعة."
+            ),
+        )
+
+    # Translate MQTT 4-hex PID codes (e.g. "0104") into the API's "0xNN"
+    # format and coerce values to floats where possible.
+    pid_floats: Dict[str, float] = {}
+    for pid4, sample in snapshot["pids"].items():
+        try:
+            num = float(sample["value"])
+        except (TypeError, ValueError):
+            continue
+        pid_floats[mqtt_pid_to_api_code(pid4)] = num
+
+    if not pid_floats:
+        raise HTTPException(
+            status_code=422,
+            detail="لا توجد قراءات رقمية صالحة في اللقطة الحالية",
+        )
+
+    # Merge unique DTCs across categories for the analysis input.
+    dtc_categories = snapshot["dtcs"]
+    unique_dtcs: List[str] = []
+    seen = set()
+    for cat in ("stored", "pending", "permanent"):
+        for code in dtc_categories.get(cat, []):
+            if code and code not in seen:
+                seen.add(code)
+                unique_dtcs.append(code)
+
+    scan_request = ScanRequest(
+        pids=pid_floats,
+        dtcs=unique_dtcs,
+        vehicle_info=request.vehicle_info,
+    )
+
+    report = await scan_vehicle(scan_request)
+
+    # Attach MQTT-only metadata so the report screen can group DTCs by source
+    # category and surface the snapshot timing.
+    try:
+        report_dict = report.model_dump()
+    except AttributeError:
+        report_dict = report.dict()  # type: ignore[attr-defined]
+    report_dict["dtc_categories"] = dtc_categories
+    report_dict["mqtt_snapshot"] = {
+        "user_id": snapshot["user_id"],
+        "car_id": snapshot["car_id"],
+        "last_update": snapshot["last_update"],
+        "pid_count": len(snapshot["pids"]),
+    }
+    return JSONResponse(content=report_dict)
+
+
+@app.get("/api/mqtt/snapshot")
+async def mqtt_snapshot_debug(user_id: str, car_id: str, freshness_seconds: float = 10.0):
+    """Inspect the current latest-value cache for a car (debug aid)."""
+    listener = get_mqtt_listener()
+    if listener is None:
+        raise HTTPException(status_code=503, detail="MQTT listener not running")
+    return listener.snapshot(user_id, car_id, freshness_seconds)
 
 
 # ========================
