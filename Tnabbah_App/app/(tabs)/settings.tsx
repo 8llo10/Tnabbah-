@@ -4,13 +4,16 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  Alert,
   ScrollView,
   StatusBar,
   Animated,
+  Modal,
+  ActivityIndicator,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../../providers/AuthProvider";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "expo-router";
@@ -20,62 +23,64 @@ import { mqttService } from "../../services/mqttService";
 
 const COLORS = {
   primary: "#871B17",
+  primary2: "#9A211C",
   primaryPressed: "#6F1512",
-  danger: "#C62828",
+  primaryDark: "#761713",
+
+  // خليته غامق بدل الأحمر الفاتح
+  danger: "#871B17",
+
   success: "#1F8A4C",
+  white: "#FFFFFF",
 };
 
 const lightTheme = {
   background: "#FFFFFF",
   surface: "#FFFFFF",
   border: "#EDEDED",
-  cardBorder: "#F1F1F1",
+  cardBorder: "#EFEFEF",
   textPrimary: "#1D1D1F",
-  textSecondary: "#6B6B6B",
-  iconBg: "#F2D7DA",
+  textSecondary: "#707070",
+  iconBg: "#F3F4F6",
   iconColor: "#871B17",
   subtle: "#F8F8F8",
   headerDivider: "#F2F2F2",
   cardPressed: "#FAFAFA",
   dangerBg: "#FFF1F1",
   successBg: "#EFFAF3",
+  modalOverlay: "rgba(0,0,0,0.32)",
 };
 
 const darkTheme = {
-  background: "#1A1A1A",
-  surface: "#2D2D2D",
-  border: "#3D3D3D",
-  cardBorder: "#3A3A3A",
+  background: "#151515",
+  surface: "#232323",
+  border: "#3A3A3A",
+  cardBorder: "#343434",
   textPrimary: "#FFFFFF",
-  textSecondary: "#B0B0B0",
-  iconBg: "#871B17",
-  iconColor: "#FFFFFF",
-  subtle: "#252525",
-  headerDivider: "#3D3D3D",
-  cardPressed: "#353535",
-  dangerBg: "#3A1E1E",
-  successBg: "#183827",
+  textSecondary: "#B8B8B8",
+
+  iconBg: "rgba(135,27,23,0.20)",
+  iconColor: "#D04740",
+
+  subtle: "#2C2C2C",
+  headerDivider: "#343434",
+  cardPressed: "#2B2B2B",
+  dangerBg: "rgba(135,27,23,0.18)",
+  successBg: "rgba(31,138,76,0.16)",
+  modalOverlay: "rgba(0,0,0,0.58)",
 };
 
 const translations = {
   AR: {
     settings: "الإعدادات",
+
     account: "الحساب",
     userId: "معرّف المستخدم",
+
     cars: "سياراتي",
     currentCar: "السيارة الحالية",
     noCar: "لا توجد سيارة متصلة الآن",
-    bluetoothObd: "بلوتوث و OBD",
-    bluetoothSettings: "إعدادات البلوتوث",
-    bluetoothSettingsDesc: "ربط أو تغيير قطعة OBD",
-    connected: "متصل",
-    disconnected: "غير متصل",
-    scannerOn: "الفحص التلقائي شغال",
-    scannerOff: "الفحص التلقائي متوقف",
-    stopScanner: "إيقاف الفحص والستريمنق",
-    stopScannerDesc: "يوقف إرسال بيانات السيارة مؤقتًا",
-    disconnectObd: "فصل قطعة OBD",
-    disconnectObdDesc: "يفصل البلوتوث ويوقف الستريمنق",
+
     appSettings: "إعدادات التطبيق",
     notifications: "السماح بالإشعارات",
     notificationsDesc: "استلام تنبيهات الفحص والتذكيرات",
@@ -83,34 +88,55 @@ const translations = {
     languageDesc: "تغيير لغة التطبيق في أي وقت",
     darkMode: "الوضع الداكن",
     darkModeDesc: "تفعيل المظهر الداكن للتطبيق",
+
     helpSupport: "المساعدة والدعم",
     help: "المساعدة",
-    helpDesc: "الأسئلة الشائعة والتواصل",
+    helpDesc: "الأسئلة الشائعة وطريقة التواصل مع الدعم",
+
+    vehicleConnection: "اتصال السيارة",
+    bluetoothSettings: "إعدادات البلوتوث",
+    bluetoothSettingsDesc: "ربط أو تغيير جهاز السيارة",
+    deviceStatus: "حالة الجهاز",
+    scanStatus: "حالة المتابعة",
+    connected: "متصل",
+    disconnected: "غير متصل",
+    scannerOn: "المتابعة تعمل",
+    scannerOff: "المتابعة متوقفة",
+
+    pauseMonitoring: "إيقاف المتابعة مؤقتًا",
+    pauseMonitoringDesc: "إيقاف قراءة بيانات السيارة مؤقتًا",
+    endVehicleConnection: "إنهاء اتصال السيارة",
+    endVehicleConnectionDesc: "فصل الجهاز وإيقاف قراءة البيانات",
+
     logout: "تسجيل الخروج",
     loggingOut: "جاري تسجيل الخروج...",
     logoutTitle: "تسجيل الخروج",
-    logoutMessage: "هل أنت متأكد أنك تريد تسجيل الخروج؟",
+    logoutMessage: "هل تريد تسجيل الخروج من حسابك؟",
     cancel: "إلغاء",
-    logoutError: "ما قدر يسجل خروج",
+    confirm: "تأكيد",
+    logoutError: "تعذر تسجيل الخروج",
+
+    helpTitle: "المساعدة",
+
+    done: "تم",
+    ok: "حسنًا",
+    monitoringPaused: "تم إيقاف المتابعة مؤقتًا.",
+    disconnectTitle: "إنهاء اتصال السيارة",
+    disconnectMessage: "هل تريد إنهاء اتصال السيارة الآن؟",
+    disconnectedDone: "تم إنهاء اتصال السيارة.",
+    errorTitle: "حدث خطأ",
   },
+
   EN: {
     settings: "Settings",
+
     account: "Account",
     userId: "User ID",
+
     cars: "My Cars",
     currentCar: "Current Car",
     noCar: "No connected car",
-    bluetoothObd: "Bluetooth & OBD",
-    bluetoothSettings: "Bluetooth Settings",
-    bluetoothSettingsDesc: "Pair or change OBD device",
-    connected: "Connected",
-    disconnected: "Disconnected",
-    scannerOn: "Auto scan running",
-    scannerOff: "Auto scan stopped",
-    stopScanner: "Stop scan and streaming",
-    stopScannerDesc: "Temporarily stops vehicle data streaming",
-    disconnectObd: "Disconnect OBD Device",
-    disconnectObdDesc: "Disconnects Bluetooth and stops streaming",
+
     appSettings: "App Settings",
     notifications: "Allow Notifications",
     notificationsDesc: "Receive check alerts and reminders",
@@ -118,15 +144,43 @@ const translations = {
     languageDesc: "Change app language anytime",
     darkMode: "Dark Mode",
     darkModeDesc: "Enable dark theme for the app",
+
     helpSupport: "Help & Support",
     help: "Help",
-    helpDesc: "FAQs and contact",
+    helpDesc: "FAQs and contact support",
+
+    vehicleConnection: "Vehicle Connection",
+    bluetoothSettings: "Bluetooth Settings",
+    bluetoothSettingsDesc: "Pair or change the vehicle device",
+    deviceStatus: "Device Status",
+    scanStatus: "Monitoring Status",
+    connected: "Connected",
+    disconnected: "Disconnected",
+    scannerOn: "Monitoring active",
+    scannerOff: "Monitoring stopped",
+
+    pauseMonitoring: "Pause monitoring",
+    pauseMonitoringDesc: "Temporarily stop reading vehicle data",
+    endVehicleConnection: "End vehicle connection",
+    endVehicleConnectionDesc: "Disconnect the device and stop reading data",
+
     logout: "Logout",
     loggingOut: "Logging out...",
     logoutTitle: "Logout",
-    logoutMessage: "Are you sure you want to logout?",
+    logoutMessage: "Do you want to logout from your account?",
     cancel: "Cancel",
+    confirm: "Confirm",
     logoutError: "Could not logout",
+
+    helpTitle: "Help",
+
+    done: "Done",
+    ok: "OK",
+    monitoringPaused: "Monitoring has been paused.",
+    disconnectTitle: "End vehicle connection",
+    disconnectMessage: "Do you want to end the vehicle connection now?",
+    disconnectedDone: "Vehicle connection has been ended.",
+    errorTitle: "Error",
   },
 };
 
@@ -195,6 +249,17 @@ export default function Settings() {
   const [scannerRunning, setScannerRunning] = useState(false);
   const [currentCarId, setCurrentCarId] = useState<string | null>(null);
 
+  const [helpVisible, setHelpVisible] = useState(false);
+  const [confirmLogoutVisible, setConfirmLogoutVisible] = useState(false);
+  const [confirmDisconnectVisible, setConfirmDisconnectVisible] =
+    useState(false);
+
+  const [messageVisible, setMessageVisible] = useState(false);
+  const [messageTitle, setMessageTitle] = useState("");
+  const [messageBody, setMessageBody] = useState("");
+  const [messageIcon, setMessageIcon] =
+    useState<keyof typeof Feather.glyphMap>("check-circle");
+
   const t = translations[selectedLanguage];
   const isRTL = selectedLanguage === "AR";
   const theme = darkModeEnabled ? darkTheme : lightTheme;
@@ -213,7 +278,9 @@ export default function Settings() {
   const userId = session?.user?.id || "—";
 
   const refreshObdState = async () => {
-    const connected = await elmBluetoothService.isActuallyConnected?.().catch(() => false);
+    const connected = await elmBluetoothService
+      .isActuallyConnected?.()
+      .catch(() => false);
 
     setObdConnected(!!connected);
     setScannerRunning(vehicleScannerService.isAutoScanRunning());
@@ -227,70 +294,118 @@ export default function Settings() {
     return () => clearInterval(interval);
   }, []);
 
+  const showMessage = ({
+    title,
+    body,
+    icon = "check-circle",
+  }: {
+    title: string;
+    body: string;
+    icon?: keyof typeof Feather.glyphMap;
+  }) => {
+    setMessageTitle(title);
+    setMessageBody(body);
+    setMessageIcon(icon);
+    setMessageVisible(true);
+  };
+
   const goToBluetoothSettings = () => {
-    router.push("/connection-intro" as any);
+    router.push({
+      pathname: "/connection-intro",
+      params: { from: "settings" },
+    } as any);
   };
 
   const handleStopScanner = async () => {
-    await vehicleScannerService.stopAutoScan();
-    await refreshObdState();
-    Alert.alert("تم", "تم إيقاف الفحص والستريمنق.");
+    try {
+      await vehicleScannerService.stopAutoScan();
+      await refreshObdState();
+
+      showMessage({
+        title: t.done,
+        body: t.monitoringPaused,
+        icon: "pause-circle",
+      });
+    } catch {
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "تعذر إيقاف المتابعة."
+            : "Could not pause monitoring.",
+        icon: "alert-circle",
+      });
+    }
   };
 
   const handleDisconnectObd = async () => {
-    Alert.alert("فصل قطعة OBD", "هل تريد فصل القطعة وإيقاف الستريمنق؟", [
-      { text: t.cancel, style: "cancel" },
-      {
-        text: "فصل",
-        style: "destructive",
-        onPress: async () => {
-          await vehicleScannerService.stopAutoScan();
-          await elmBluetoothService.disconnect();
-          await refreshObdState();
-        },
-      },
-    ]);
+    setConfirmDisconnectVisible(false);
+
+    try {
+      await vehicleScannerService.stopAutoScan();
+      await elmBluetoothService.disconnect();
+      await refreshObdState();
+
+      showMessage({
+        title: t.done,
+        body: t.disconnectedDone,
+        icon: "check-circle",
+      });
+    } catch {
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "تعذر إنهاء اتصال السيارة."
+            : "Could not end vehicle connection.",
+        icon: "alert-circle",
+      });
+    }
   };
 
-  const handleLogout = () => {
-    Alert.alert(t.logoutTitle, t.logoutMessage, [
-      { text: t.cancel, style: "cancel" },
-      {
-        text: t.logout,
-        style: "destructive",
-        onPress: async () => {
-          try {
-            setLoggingOut(true);
+  const handleLogout = async () => {
+    setConfirmLogoutVisible(false);
+    setLoggingOut(true);
 
-            await vehicleScannerService.stopAutoScan();
-            await elmBluetoothService.disconnect();
-            mqttService.disconnect();
-            vehicleScannerService.resetCache();
+    try {
+      await vehicleScannerService.stopAutoScan();
+      await elmBluetoothService.disconnect();
+      mqttService.disconnect();
+      vehicleScannerService.resetCache();
 
-            const { error } = await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut();
 
-            if (error) {
-              Alert.alert("خطأ", t.logoutError);
-              return;
-            }
+      if (error) {
+        setLoggingOut(false);
 
-            router.replace("/start");
-          } finally {
-            setLoggingOut(false);
-          }
-        },
-      },
-    ]);
+        showMessage({
+          title: t.errorTitle,
+          body: t.logoutError,
+          icon: "alert-circle",
+        });
+
+        return;
+      }
+
+      router.replace("/start" as any);
+    } catch {
+      setLoggingOut(false);
+
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "تعذر تسجيل الخروج. حاولي مرة ثانية."
+            : "Could not logout. Please try again.",
+        icon: "alert-circle",
+      });
+    }
   };
 
-  const handleHelp = () => {
-    Alert.alert(
-      selectedLanguage === "AR" ? "المساعدة" : "Help",
-      selectedLanguage === "AR"
-        ? "سيتم إضافة صفحة المساعدة لاحقًا."
-        : "Help page will be added later."
-    );
-  };
+  const rowDirection = isRTL ? "row-reverse" : "row";
+  const textAlign = isRTL ? "right" : "left";
+  const alignItems = isRTL ? "flex-end" : "flex-start";
+  const iconMargin = isRTL ? { marginLeft: 12 } : { marginRight: 12 };
 
   return (
     <SafeAreaView
@@ -306,18 +421,18 @@ export default function Settings() {
         style={[
           styles.header,
           {
-            flexDirection: isRTL ? "row-reverse" : "row",
+            flexDirection: rowDirection,
             backgroundColor: theme.background,
           },
         ]}
       >
-        <View style={{ width: 40, height: 40 }} />
+        <View style={styles.headerSide} />
 
         <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
           {t.settings}
         </Text>
 
-        <View style={{ width: 40, height: 40 }} />
+        <View style={styles.headerSide} />
       </View>
 
       <View
@@ -332,27 +447,46 @@ export default function Settings() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary, textAlign: isRTL ? "right" : "left" }]}>
+        <Text
+          style={[
+            styles.sectionTitle,
+            { color: theme.textSecondary, textAlign },
+          ]}
+        >
           {t.account}
         </Text>
 
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
-          <View style={[styles.settingRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-            <View style={[styles.settingLabelContainer, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-              <View style={[styles.avatar, isRTL ? { marginLeft: 12 } : { marginRight: 12 }, { backgroundColor: theme.iconBg }]}>
-                <Feather name="user" size={22} color={theme.iconColor} />
+        <View style={styles.accountCard}>
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View style={[styles.accountAvatar, iconMargin]}>
+                <Feather name="user" size={22} color="#FFFFFF" />
               </View>
 
-              <View style={[styles.userInfo, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
-                <Text numberOfLines={1} style={[styles.userName, { color: theme.textPrimary, textAlign: isRTL ? "right" : "left" }]}>
+              <View style={[styles.userInfo, { alignItems }]}>
+                <Text
+                  numberOfLines={1}
+                  style={[styles.userName, { color: "#FFFFFF", textAlign }]}
+                >
                   {userName}
                 </Text>
 
-                <Text numberOfLines={1} style={[styles.userEmail, { color: theme.textSecondary, textAlign: isRTL ? "right" : "left" }]}>
+                <Text
+                  numberOfLines={1}
+                  style={[styles.userEmail, { color: "#FFFFFF", textAlign }]}
+                >
                   {userEmail}
                 </Text>
 
-                <Text numberOfLines={1} style={[styles.userIdText, { color: theme.textSecondary, textAlign: isRTL ? "right" : "left" }]}>
+                <Text
+                  numberOfLines={1}
+                  style={[styles.userIdText, { color: "#FFFFFF", textAlign }]}
+                >
                   {t.userId}: {userId}
                 </Text>
               </View>
@@ -360,23 +494,58 @@ export default function Settings() {
           </View>
         </View>
 
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary, textAlign: isRTL ? "right" : "left" }]}>
+        <Text
+          style={[
+            styles.sectionTitle,
+            { color: theme.textSecondary, textAlign },
+          ]}
+        >
           {t.cars}
         </Text>
 
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
-          <View style={[styles.settingRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-            <View style={[styles.settingLabelContainer, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-              <View style={[styles.iconWrapper, isRTL ? { marginLeft: 12 } : { marginRight: 12 }, { backgroundColor: theme.iconBg }]}>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
                 <Feather name="truck" size={20} color={theme.iconColor} />
               </View>
 
-              <View style={[styles.labelBlock, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
-                <Text style={[styles.settingLabel, { color: theme.textPrimary, textAlign: isRTL ? "right" : "left" }]}>
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
                   {t.currentCar}
                 </Text>
 
-                <Text numberOfLines={2} style={[styles.settingHint, { color: theme.textSecondary, textAlign: isRTL ? "right" : "left" }]}>
+                <Text
+                  numberOfLines={2}
+                  style={[
+                    styles.settingHint,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
                   {currentCarId || t.noCar}
                 </Text>
               </View>
@@ -384,150 +553,114 @@ export default function Settings() {
           </View>
         </View>
 
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary, textAlign: isRTL ? "right" : "left" }]}>
-          {t.bluetoothObd}
-        </Text>
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.card,
-            { backgroundColor: theme.surface, borderColor: theme.cardBorder },
-            pressed && { backgroundColor: theme.cardPressed },
+        <Text
+          style={[
+            styles.sectionTitle,
+            { color: theme.textSecondary, textAlign },
           ]}
-          onPress={goToBluetoothSettings}
         >
-          <View style={[styles.settingRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-            <View style={[styles.settingLabelContainer, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-              <View style={[styles.iconWrapper, isRTL ? { marginLeft: 12 } : { marginRight: 12 }, { backgroundColor: theme.iconBg }]}>
-                <Feather name="bluetooth" size={20} color={theme.iconColor} />
-              </View>
-
-              <View style={[styles.labelBlock, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
-                <Text style={[styles.settingLabel, { color: theme.textPrimary, textAlign: isRTL ? "right" : "left" }]}>
-                  {t.bluetoothSettings}
-                </Text>
-                <Text style={[styles.settingHint, { color: theme.textSecondary, textAlign: isRTL ? "right" : "left" }]}>
-                  {t.bluetoothSettingsDesc}
-                </Text>
-              </View>
-            </View>
-
-            <Feather name={isRTL ? "chevron-left" : "chevron-right"} size={18} color={theme.textSecondary} />
-          </View>
-        </Pressable>
-
-        <View style={[styles.statusGrid, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-          <View style={[styles.miniStatusCard, { backgroundColor: obdConnected ? theme.successBg : theme.dangerBg, borderColor: theme.cardBorder }]}>
-            <Feather name="radio" size={17} color={obdConnected ? COLORS.success : COLORS.danger} />
-            <Text style={[styles.miniStatusText, { color: obdConnected ? COLORS.success : COLORS.danger }]}>
-              {obdConnected ? t.connected : t.disconnected}
-            </Text>
-          </View>
-
-          <View style={[styles.miniStatusCard, { backgroundColor: scannerRunning ? theme.successBg : theme.subtle, borderColor: theme.cardBorder }]}>
-            <Feather name="activity" size={17} color={scannerRunning ? COLORS.success : theme.textSecondary} />
-            <Text style={[styles.miniStatusText, { color: scannerRunning ? COLORS.success : theme.textSecondary }]}>
-              {scannerRunning ? t.scannerOn : t.scannerOff}
-            </Text>
-          </View>
-        </View>
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.card,
-            { backgroundColor: theme.surface, borderColor: theme.cardBorder },
-            pressed && { backgroundColor: theme.cardPressed },
-          ]}
-          onPress={handleStopScanner}
-        >
-          <View style={[styles.settingRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-            <View style={[styles.settingLabelContainer, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-              <View style={[styles.iconWrapper, isRTL ? { marginLeft: 12 } : { marginRight: 12 }, { backgroundColor: theme.iconBg }]}>
-                <Feather name="pause-circle" size={20} color={theme.iconColor} />
-              </View>
-
-              <View style={[styles.labelBlock, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
-                <Text style={[styles.settingLabel, { color: theme.textPrimary, textAlign: isRTL ? "right" : "left" }]}>
-                  {t.stopScanner}
-                </Text>
-                <Text style={[styles.settingHint, { color: theme.textSecondary, textAlign: isRTL ? "right" : "left" }]}>
-                  {t.stopScannerDesc}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </Pressable>
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.card,
-            { backgroundColor: theme.surface, borderColor: theme.cardBorder },
-            pressed && { backgroundColor: theme.cardPressed },
-          ]}
-          onPress={handleDisconnectObd}
-        >
-          <View style={[styles.settingRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-            <View style={[styles.settingLabelContainer, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-              <View style={[styles.iconWrapper, isRTL ? { marginLeft: 12 } : { marginRight: 12 }, { backgroundColor: theme.dangerBg }]}>
-                <Feather name="x-circle" size={20} color={COLORS.danger} />
-              </View>
-
-              <View style={[styles.labelBlock, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
-                <Text style={[styles.settingLabel, { color: theme.textPrimary, textAlign: isRTL ? "right" : "left" }]}>
-                  {t.disconnectObd}
-                </Text>
-                <Text style={[styles.settingHint, { color: theme.textSecondary, textAlign: isRTL ? "right" : "left" }]}>
-                  {t.disconnectObdDesc}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </Pressable>
-
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary, textAlign: isRTL ? "right" : "left" }]}>
           {t.appSettings}
         </Text>
 
         <Pressable
           style={({ pressed }) => [
             styles.card,
-            { backgroundColor: theme.surface, borderColor: theme.cardBorder },
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
             pressed && { backgroundColor: theme.cardPressed },
           ]}
           onPress={() => setNotificationsEnabled((v) => !v)}
         >
-          <View style={[styles.settingRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-            <View style={[styles.settingLabelContainer, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-              <View style={[styles.iconWrapper, isRTL ? { marginLeft: 12 } : { marginRight: 12 }, { backgroundColor: theme.iconBg }]}>
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
                 <Feather name="bell" size={20} color={theme.iconColor} />
               </View>
 
-              <View style={[styles.labelBlock, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
-                <Text style={[styles.settingLabel, { color: theme.textPrimary, textAlign: isRTL ? "right" : "left" }]}>
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
                   {t.notifications}
                 </Text>
-                <Text style={[styles.settingHint, { color: theme.textSecondary, textAlign: isRTL ? "right" : "left" }]}>
+
+                <Text
+                  style={[
+                    styles.settingHint,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
                   {t.notificationsDesc}
                 </Text>
               </View>
             </View>
 
-            <AppSwitch value={notificationsEnabled} onValueChange={setNotificationsEnabled} trackOffColor={theme.border} />
+            <AppSwitch
+              value={notificationsEnabled}
+              onValueChange={setNotificationsEnabled}
+              trackOffColor={theme.border}
+            />
           </View>
         </Pressable>
 
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
-          <View style={[styles.settingRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-            <View style={[styles.settingLabelContainer, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-              <View style={[styles.iconWrapper, isRTL ? { marginLeft: 12 } : { marginRight: 12 }, { backgroundColor: theme.iconBg }]}>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
                 <Feather name="globe" size={20} color={theme.iconColor} />
               </View>
 
-              <View style={[styles.labelBlock, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
-                <Text style={[styles.settingLabel, { color: theme.textPrimary, textAlign: isRTL ? "right" : "left" }]}>
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
                   {t.language}
                 </Text>
-                <Text style={[styles.settingHint, { color: theme.textSecondary, textAlign: isRTL ? "right" : "left" }]}>
+
+                <Text
+                  style={[
+                    styles.settingHint,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
                   {t.languageDesc}
                 </Text>
               </View>
@@ -535,19 +668,37 @@ export default function Settings() {
 
             <View style={[styles.segment, { backgroundColor: theme.subtle }]}>
               <Pressable
-                style={[styles.segmentItem, selectedLanguage === "AR" && styles.segmentItemActive]}
+                style={[
+                  styles.segmentItem,
+                  selectedLanguage === "AR" && styles.segmentItemActive,
+                ]}
                 onPress={() => setSelectedLanguage("AR")}
               >
-                <Text style={[styles.segmentText, { color: theme.textSecondary }, selectedLanguage === "AR" && styles.segmentTextActive]}>
+                <Text
+                  style={[
+                    styles.segmentText,
+                    { color: theme.textSecondary },
+                    selectedLanguage === "AR" && styles.segmentTextActive,
+                  ]}
+                >
                   AR
                 </Text>
               </Pressable>
 
               <Pressable
-                style={[styles.segmentItem, selectedLanguage === "EN" && styles.segmentItemActive]}
+                style={[
+                  styles.segmentItem,
+                  selectedLanguage === "EN" && styles.segmentItemActive,
+                ]}
                 onPress={() => setSelectedLanguage("EN")}
               >
-                <Text style={[styles.segmentText, { color: theme.textSecondary }, selectedLanguage === "EN" && styles.segmentTextActive]}>
+                <Text
+                  style={[
+                    styles.segmentText,
+                    { color: theme.textSecondary },
+                    selectedLanguage === "EN" && styles.segmentTextActive,
+                  ]}
+                >
                   EN
                 </Text>
               </Pressable>
@@ -558,90 +709,964 @@ export default function Settings() {
         <Pressable
           style={({ pressed }) => [
             styles.card,
-            { backgroundColor: theme.surface, borderColor: theme.cardBorder },
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
             pressed && { backgroundColor: theme.cardPressed },
           ]}
           onPress={() => setDarkModeEnabled((v) => !v)}
         >
-          <View style={[styles.settingRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-            <View style={[styles.settingLabelContainer, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-              <View style={[styles.iconWrapper, isRTL ? { marginLeft: 12 } : { marginRight: 12 }, { backgroundColor: theme.iconBg }]}>
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
                 <Feather name="moon" size={20} color={theme.iconColor} />
               </View>
 
-              <View style={[styles.labelBlock, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
-                <Text style={[styles.settingLabel, { color: theme.textPrimary, textAlign: isRTL ? "right" : "left" }]}>
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
                   {t.darkMode}
                 </Text>
-                <Text style={[styles.settingHint, { color: theme.textSecondary, textAlign: isRTL ? "right" : "left" }]}>
+
+                <Text
+                  style={[
+                    styles.settingHint,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
                   {t.darkModeDesc}
                 </Text>
               </View>
             </View>
 
-            <AppSwitch value={darkModeEnabled} onValueChange={setDarkModeEnabled} trackOffColor={theme.border} />
+            <AppSwitch
+              value={darkModeEnabled}
+              onValueChange={setDarkModeEnabled}
+              trackOffColor={theme.border}
+            />
           </View>
         </Pressable>
 
-        <Text style={[styles.sectionTitle, { color: theme.textSecondary, textAlign: isRTL ? "right" : "left" }]}>
+        <Text
+          style={[
+            styles.sectionTitle,
+            { color: theme.textSecondary, textAlign },
+          ]}
+        >
           {t.helpSupport}
         </Text>
 
         <Pressable
           style={({ pressed }) => [
             styles.card,
-            { backgroundColor: theme.surface, borderColor: theme.cardBorder },
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
             pressed && { backgroundColor: theme.cardPressed },
           ]}
-          onPress={handleHelp}
+          onPress={() => setHelpVisible(true)}
         >
-          <View style={[styles.settingRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-            <View style={[styles.settingLabelContainer, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-              <View style={[styles.iconWrapper, isRTL ? { marginLeft: 12 } : { marginRight: 12 }, { backgroundColor: theme.iconBg }]}>
-                <Feather name="help-circle" size={20} color={theme.iconColor} />
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
+                <Feather
+                  name="help-circle"
+                  size={20}
+                  color={theme.iconColor}
+                />
               </View>
 
-              <View style={[styles.labelBlock, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
-                <Text style={[styles.settingLabel, { color: theme.textPrimary, textAlign: isRTL ? "right" : "left" }]}>
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
                   {t.help}
                 </Text>
-                <Text style={[styles.settingHint, { color: theme.textSecondary, textAlign: isRTL ? "right" : "left" }]}>
+
+                <Text
+                  style={[
+                    styles.settingHint,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
                   {t.helpDesc}
                 </Text>
               </View>
             </View>
 
-            <Feather name={isRTL ? "chevron-left" : "chevron-right"} size={18} color={theme.textSecondary} />
+            <Feather
+              name={isRTL ? "chevron-left" : "chevron-right"}
+              size={18}
+              color={theme.textSecondary}
+            />
           </View>
         </Pressable>
+
+        <Text
+          style={[
+            styles.sectionTitle,
+            { color: theme.textSecondary, textAlign },
+          ]}
+        >
+          {t.vehicleConnection}
+        </Text>
+
+        <View
+          style={[
+            styles.connectionPanel,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          <View style={[styles.statusGrid, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.miniStatusCard,
+                {
+                  backgroundColor: obdConnected
+                    ? theme.successBg
+                    : theme.dangerBg,
+                  borderColor: theme.cardBorder,
+                },
+              ]}
+            >
+              <Feather
+                name="radio"
+                size={17}
+                color={obdConnected ? COLORS.success : COLORS.danger}
+              />
+
+              <Text
+                style={[
+                  styles.miniStatusTitle,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                {t.deviceStatus}
+              </Text>
+
+              <Text
+                style={[
+                  styles.miniStatusText,
+                  { color: obdConnected ? COLORS.success : COLORS.danger },
+                ]}
+              >
+                {obdConnected ? t.connected : t.disconnected}
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.miniStatusCard,
+                {
+                  backgroundColor: scannerRunning
+                    ? theme.successBg
+                    : theme.subtle,
+                  borderColor: theme.cardBorder,
+                },
+              ]}
+            >
+              <Feather
+                name="activity"
+                size={17}
+                color={scannerRunning ? COLORS.success : theme.textSecondary}
+              />
+
+              <Text
+                style={[
+                  styles.miniStatusTitle,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                {t.scanStatus}
+              </Text>
+
+              <Text
+                style={[
+                  styles.miniStatusText,
+                  {
+                    color: scannerRunning
+                      ? COLORS.success
+                      : theme.textSecondary,
+                  },
+                ]}
+              >
+                {scannerRunning ? t.scannerOn : t.scannerOff}
+              </Text>
+            </View>
+          </View>
+
+          <View
+            style={[
+              styles.panelDivider,
+              { backgroundColor: theme.headerDivider },
+            ]}
+          />
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.connectionRow,
+              pressed && { backgroundColor: theme.cardPressed },
+            ]}
+            onPress={goToBluetoothSettings}
+          >
+            <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+              <View
+                style={[
+                  styles.settingLabelContainer,
+                  { flexDirection: rowDirection },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.iconWrapper,
+                    iconMargin,
+                    { backgroundColor: theme.iconBg },
+                  ]}
+                >
+                  <Feather
+                    name="bluetooth"
+                    size={20}
+                    color={theme.iconColor}
+                  />
+                </View>
+
+                <View style={[styles.labelBlock, { alignItems }]}>
+                  <Text
+                    style={[
+                      styles.settingLabel,
+                      { color: theme.textPrimary, textAlign },
+                    ]}
+                  >
+                    {t.bluetoothSettings}
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.settingHint,
+                      { color: theme.textSecondary, textAlign },
+                    ]}
+                  >
+                    {t.bluetoothSettingsDesc}
+                  </Text>
+                </View>
+              </View>
+
+              <Feather
+                name={isRTL ? "chevron-left" : "chevron-right"}
+                size={18}
+                color={theme.textSecondary}
+              />
+            </View>
+          </Pressable>
+
+          <View
+            style={[
+              styles.panelDivider,
+              { backgroundColor: theme.headerDivider },
+            ]}
+          />
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.actionButton,
+              {
+                backgroundColor: theme.iconBg,
+                borderColor: theme.cardBorder,
+              },
+              pressed && { backgroundColor: theme.cardPressed },
+            ]}
+            onPress={handleStopScanner}
+          >
+            <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+              <View
+                style={[
+                  styles.settingLabelContainer,
+                  { flexDirection: rowDirection },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.smallIconWrapper,
+                    iconMargin,
+                    { backgroundColor: theme.surface },
+                  ]}
+                >
+                  <Feather
+                    name="pause-circle"
+                    size={18}
+                    color={theme.iconColor}
+                  />
+                </View>
+
+                <View style={[styles.labelBlock, { alignItems }]}>
+                  <Text
+                    style={[
+                      styles.actionLabel,
+                      { color: theme.textPrimary, textAlign },
+                    ]}
+                  >
+                    {t.pauseMonitoring}
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.settingHint,
+                      { color: theme.textSecondary, textAlign },
+                    ]}
+                  >
+                    {t.pauseMonitoringDesc}
+                  </Text>
+                </View>
+              </View>
+
+              <Feather
+                name={isRTL ? "chevron-left" : "chevron-right"}
+                size={17}
+                color={theme.textSecondary}
+              />
+            </View>
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.actionButton,
+              {
+                backgroundColor: theme.iconBg,
+                borderColor: theme.cardBorder,
+              },
+              pressed && { backgroundColor: theme.cardPressed },
+            ]}
+            onPress={() => setConfirmDisconnectVisible(true)}
+          >
+            <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+              <View
+                style={[
+                  styles.settingLabelContainer,
+                  { flexDirection: rowDirection },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.smallIconWrapper,
+                    iconMargin,
+                    { backgroundColor: theme.surface },
+                  ]}
+                >
+                  <Feather name="power" size={18} color={theme.iconColor} />
+                </View>
+
+                <View style={[styles.labelBlock, { alignItems }]}>
+                  <Text
+                    style={[
+                      styles.actionLabel,
+                      { color: theme.textPrimary, textAlign },
+                    ]}
+                  >
+                    {t.endVehicleConnection}
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.settingHint,
+                      { color: theme.textSecondary, textAlign },
+                    ]}
+                  >
+                    {t.endVehicleConnectionDesc}
+                  </Text>
+                </View>
+              </View>
+
+              <Feather
+                name={isRTL ? "chevron-left" : "chevron-right"}
+                size={17}
+                color={theme.textSecondary}
+              />
+            </View>
+          </Pressable>
+        </View>
 
         <View style={styles.logoutSection}>
           <Pressable
             style={({ pressed }) => [
-              styles.logoutBtn,
-              {
-                backgroundColor: theme.iconBg,
-                opacity: loggingOut ? 0.5 : pressed ? 0.9 : 1,
-              },
+              styles.logoutButtonWrapper,
+              loggingOut && styles.logoutButtonDisabled,
+              pressed && !loggingOut && { opacity: 0.92 },
             ]}
-            onPress={handleLogout}
+            onPress={() => setConfirmLogoutVisible(true)}
             disabled={loggingOut}
           >
-            <View style={[styles.logoutInner, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-              <Feather name="log-out" size={18} color={theme.iconColor} />
-              <Text style={[styles.logoutText, { color: theme.iconColor }]}>
-                {loggingOut ? t.loggingOut : t.logout}
-              </Text>
-            </View>
+            <LinearGradient
+              colors={["rgba(154,33,28,0.98)", "rgba(118,23,19,0.98)"]}
+              start={{ x: 0.15, y: 0 }}
+              end={{ x: 0.9, y: 1 }}
+              style={styles.logoutGradient}
+            >
+              <View style={styles.logoutShine} />
+
+              <View
+                style={[styles.logoutInner, { flexDirection: rowDirection }]}
+              >
+                {loggingOut ? (
+                  <ActivityIndicator
+                    size="small"
+                    color="#FFFFFF"
+                    style={styles.logoutSpinner}
+                  />
+                ) : (
+                  <Feather name="log-out" size={18} color="#FFFFFF" />
+                )}
+
+                <Text style={styles.logoutText}>
+                  {loggingOut ? t.loggingOut : t.logout}
+                </Text>
+              </View>
+            </LinearGradient>
           </Pressable>
         </View>
       </ScrollView>
+
+      <HelpModal
+        visible={helpVisible}
+        onClose={() => setHelpVisible(false)}
+        t={t}
+        theme={theme}
+        isRTL={isRTL}
+      />
+
+      <ConfirmModal
+        visible={confirmLogoutVisible}
+        title={t.logoutTitle}
+        message={t.logoutMessage}
+        confirmText={t.logout}
+        cancelText={t.cancel}
+        icon="log-out"
+        theme={theme}
+        isRTL={isRTL}
+        danger
+        onCancel={() => setConfirmLogoutVisible(false)}
+        onConfirm={handleLogout}
+      />
+
+      <ConfirmModal
+        visible={confirmDisconnectVisible}
+        title={t.disconnectTitle}
+        message={t.disconnectMessage}
+        confirmText={t.confirm}
+        cancelText={t.cancel}
+        icon="power"
+        theme={theme}
+        isRTL={isRTL}
+        onCancel={() => setConfirmDisconnectVisible(false)}
+        onConfirm={handleDisconnectObd}
+      />
+
+      <MessageModal
+        visible={messageVisible}
+        title={messageTitle}
+        message={messageBody}
+        icon={messageIcon}
+        buttonText={t.ok}
+        theme={theme}
+        isRTL={isRTL}
+        onClose={() => setMessageVisible(false)}
+      />
+
+      <LogoutLoadingModal
+        visible={loggingOut}
+        text={t.loggingOut}
+        theme={theme}
+      />
     </SafeAreaView>
   );
 }
 
+function HelpModal({
+  visible,
+  onClose,
+  t,
+  theme,
+  isRTL,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  t: any;
+  theme: any;
+  isRTL: boolean;
+}) {
+  const textAlign = isRTL ? "right" : "left";
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View
+        style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}
+      >
+        <View
+          style={[
+            styles.helpModal,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          <View style={styles.helpModalHeader}>
+            <Pressable
+              style={[
+                styles.modalCloseButton,
+                {
+                  backgroundColor: theme.iconBg,
+                  borderColor: theme.border,
+                },
+              ]}
+              onPress={onClose}
+            >
+              <Feather name="x" size={21} color={theme.iconColor} />
+            </Pressable>
+
+            <Text style={[styles.helpModalTitle, { color: theme.textPrimary }]}>
+              {t.helpTitle}
+            </Text>
+
+            <View style={styles.modalHeaderSpace} />
+          </View>
+
+          <View
+            style={[
+              styles.modalDivider,
+              { backgroundColor: theme.headerDivider },
+            ]}
+          />
+
+          <ScrollView
+            style={styles.helpModalScroll}
+            contentContainerStyle={styles.helpModalContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.helpModalBody}>
+  <Text
+    style={[
+      styles.helpSectionTitle,
+      { color: theme.textPrimary, textAlign },
+    ]}
+  >
+    مرحبًا بك في تنبّه
+  </Text>
+
+  <Text
+    style={[
+      styles.helpParagraph,
+      { color: theme.textSecondary, textAlign },
+    ]}
+  >
+    تطبيق تنبّه يساعدك على متابعة حالة سيارتك بطريقة سهلة وواضحة. يمكنك من خلاله ربط قطعة السيارة، تشغيل الفحص، معرفة حالة الاتصال، قراءة أهم التنبيهات، وحفظ تقارير الفحص للرجوع لها لاحقًا.
+  </Text>
+
+  <Text
+    style={[
+      styles.helpSectionTitle,
+      { color: theme.textPrimary, textAlign },
+    ]}
+  >
+    ربط قطعة السيارة
+  </Text>
+
+  <Text
+    style={[
+      styles.helpParagraph,
+      { color: theme.textSecondary, textAlign },
+    ]}
+  >
+    عند الدخول للتطبيق يمكنك ربط قطعة السيارة من خلال البلوتوث. اتبعي خطوات الربط، ثم اختاري الجهاز المناسب من قائمة الأجهزة المتاحة. بعد نجاح الاتصال، يستطيع التطبيق قراءة بيانات السيارة وعرض حالتها.
+  </Text>
+
+  <Text
+    style={[
+      styles.helpSectionTitle,
+      { color: theme.textPrimary, textAlign },
+    ]}
+  >
+    الصفحة الرئيسية
+  </Text>
+
+  <Text
+    style={[
+      styles.helpParagraph,
+      { color: theme.textSecondary, textAlign },
+    ]}
+  >
+    الصفحة الرئيسية تعرض أهم معلومات السيارة في مكان واحد، مثل حالة اتصال القطعة، ملخص حالة السيارة، والتنبيهات المهمة. كما يمكنك من خلالها تشغيل الفحص لمعرفة حالة السيارة بشكل أوضح.
+  </Text>
+
+  <Text
+    style={[
+      styles.helpSectionTitle,
+      { color: theme.textPrimary, textAlign },
+    ]}
+  >
+    الفحص
+  </Text>
+
+  <Text
+    style={[
+      styles.helpParagraph,
+      { color: theme.textSecondary, textAlign },
+    ]}
+  >
+    عند تشغيل الفحص، يقوم التطبيق بقراءة بيانات السيارة وتحليلها. بعد انتهاء الفحص يظهر تقرير يوضح الحالة والملاحظات المهمة، ويمكن حفظ التقرير في المحفظة.
+  </Text>
+
+  <Text
+    style={[
+      styles.helpSectionTitle,
+      { color: theme.textPrimary, textAlign },
+    ]}
+  >
+    المساعد الذكي
+  </Text>
+
+  <Text
+    style={[
+      styles.helpParagraph,
+      { color: theme.textSecondary, textAlign },
+    ]}
+  >
+    المساعد الذكي يسمح لك بطرح أسئلة عن السيارة أو الأعطال أو التنبيهات. اكتبي سؤالك، وسيحاول المساعد إعطاء إجابة واضحة تساعدك على فهم المشكلة أو الخطوة المناسبة.
+  </Text>
+
+  <Text
+    style={[
+      styles.helpSectionTitle,
+      { color: theme.textPrimary, textAlign },
+    ]}
+  >
+    المحفظة
+  </Text>
+
+  <Text
+    style={[
+      styles.helpParagraph,
+      { color: theme.textSecondary, textAlign },
+    ]}
+  >
+    المحفظة تحفظ تقارير الفحص الخاصة بسيارتك. كما تساعدك على متابعة الصيانة الدورية، مثل التذكير بالأشياء التي تحتاج متابعة أو صيانة خلال فترة محددة.
+  </Text>
+
+  <Text
+    style={[
+      styles.helpSectionTitle,
+      { color: theme.textPrimary, textAlign },
+    ]}
+  >
+    الإعدادات
+  </Text>
+
+  <Text
+    style={[
+      styles.helpParagraph,
+      { color: theme.textSecondary, textAlign },
+    ]}
+  >
+    من الإعدادات يمكنك التحكم في لغة التطبيق، تفعيل أو إيقاف الإشعارات، تغيير الوضع الداكن، متابعة حالة اتصال السيارة، الدخول إلى إعدادات البلوتوث، إيقاف المتابعة مؤقتًا، أو إنهاء اتصال السيارة.
+  </Text>
+
+  <Text
+    style={[
+      styles.helpSectionTitle,
+      { color: theme.textPrimary, textAlign },
+    ]}
+  >
+    ملاحظة مهمة
+  </Text>
+
+  <Text
+    style={[
+      styles.helpParagraph,
+      { color: theme.textSecondary, textAlign },
+    ]}
+  >
+    إذا كانت قطعة السيارة غير متصلة، قد لا تظهر بعض البيانات أو نتائج الفحص. تأكدي من تشغيل البلوتوث، وتركيب القطعة بشكل صحيح، ثم أعيدي المحاولة.
+  </Text>
+</View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function ConfirmModal({
+  visible,
+  title,
+  message,
+  confirmText,
+  cancelText,
+  icon,
+  theme,
+  isRTL,
+  danger = false,
+  onCancel,
+  onConfirm,
+}: {
+  visible: boolean;
+  title: string;
+  message: string;
+  confirmText: string;
+  cancelText: string;
+  icon: keyof typeof Feather.glyphMap;
+  theme: any;
+  isRTL: boolean;
+  danger?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const textAlign = isRTL ? "right" : "left";
+  const rowDirection = isRTL ? "row-reverse" : "row";
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onCancel}
+    >
+      <View
+        style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}
+      >
+        <View
+          style={[
+            styles.confirmModal,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.confirmIconCircle,
+              { backgroundColor: theme.iconBg },
+            ]}
+          >
+            <Feather name={icon} size={28} color={theme.iconColor} />
+          </View>
+
+          <Text style={[styles.confirmTitle, { color: theme.textPrimary }]}>
+            {title}
+          </Text>
+
+          <Text
+            style={[
+              styles.confirmMessage,
+              { color: theme.textSecondary, textAlign },
+            ]}
+          >
+            {message}
+          </Text>
+
+          <View style={[styles.confirmButtons, { flexDirection: rowDirection }]}>
+            <Pressable
+              style={[
+                styles.confirmSecondaryButton,
+                {
+                  backgroundColor: theme.iconBg,
+                  borderColor: theme.cardBorder,
+                },
+              ]}
+              onPress={onCancel}
+            >
+              <Text
+                style={[
+                  styles.confirmSecondaryText,
+                  { color: theme.textPrimary },
+                ]}
+              >
+                {cancelText}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.confirmPrimaryButton,
+                { backgroundColor: danger ? COLORS.primary : COLORS.primary },
+              ]}
+              onPress={onConfirm}
+            >
+              <Text style={styles.confirmPrimaryText}>{confirmText}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function MessageModal({
+  visible,
+  title,
+  message,
+  icon,
+  buttonText,
+  theme,
+  isRTL,
+  onClose,
+}: {
+  visible: boolean;
+  title: string;
+  message: string;
+  icon: keyof typeof Feather.glyphMap;
+  buttonText: string;
+  theme: any;
+  isRTL: boolean;
+  onClose: () => void;
+}) {
+  const textAlign = isRTL ? "right" : "left";
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View
+        style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}
+      >
+        <View
+          style={[
+            styles.confirmModal,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.confirmIconCircle,
+              { backgroundColor: theme.iconBg },
+            ]}
+          >
+            <Feather name={icon} size={28} color={theme.iconColor} />
+          </View>
+
+          <Text style={[styles.confirmTitle, { color: theme.textPrimary }]}>
+            {title}
+          </Text>
+
+          <Text
+            style={[
+              styles.confirmMessage,
+              { color: theme.textSecondary, textAlign },
+            ]}
+          >
+            {message}
+          </Text>
+
+          <Pressable
+            style={[
+              styles.singleModalButton,
+              { backgroundColor: COLORS.primary },
+            ]}
+            onPress={onClose}
+          >
+            <Text style={styles.confirmPrimaryText}>{buttonText}</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function LogoutLoadingModal({
+  visible,
+  text,
+  theme,
+}: {
+  visible: boolean;
+  text: string;
+  theme: any;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View
+        style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}
+      >
+        <View
+          style={[
+            styles.logoutLoadingBox,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.logoutLoadingIconCircle,
+              { backgroundColor: theme.iconBg },
+            ]}
+          >
+            <Feather name="log-out" size={28} color={theme.iconColor} />
+          </View>
+
+          <ActivityIndicator
+            size="small"
+            color={theme.iconColor}
+            style={styles.logoutLoadingSpinner}
+          />
+
+          <Text style={[styles.logoutLoadingText, { color: theme.textPrimary }]}>
+            {text}
+          </Text>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: {
+    flex: 1,
+  },
 
   header: {
     alignItems: "center",
@@ -651,7 +1676,14 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
 
-  headerDivider: { height: 1 },
+  headerSide: {
+    width: 40,
+    height: 40,
+  },
+
+  headerDivider: {
+    height: 1,
+  },
 
   headerTitle: {
     fontSize: 18,
@@ -659,7 +1691,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 
-  scrollView: { flex: 1 },
+  scrollView: {
+    flex: 1,
+  },
 
   scrollContent: {
     paddingHorizontal: 18,
@@ -671,7 +1705,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 18,
     marginBottom: 10,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: 0.2,
   },
 
   card: {
@@ -685,6 +1720,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 6,
     elevation: 1,
+  },
+
+  accountCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(135,27,23,0.20)",
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+    marginBottom: 10,
+    shadowColor: "#6E1411",
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: Platform.OS === "android" ? 0.14 : 0.2,
+    shadowRadius: 12,
+    elevation: 5,
   },
 
   settingRow: {
@@ -706,6 +1756,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
+  smallIconWrapper: {
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   avatar: {
     width: 48,
     height: 48,
@@ -714,16 +1772,36 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  labelBlock: { flex: 1 },
+  accountAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+
+  labelBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
 
   settingLabel: {
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "800",
+  },
+
+  actionLabel: {
+    fontSize: 13.5,
+    fontWeight: "900",
   },
 
   settingHint: {
     fontSize: 12,
     marginTop: 4,
+    lineHeight: 17,
   },
 
   userInfo: {
@@ -739,18 +1817,33 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 12,
     marginTop: 5,
-    opacity: 0.8,
+    opacity: 0.86,
   },
 
   userIdText: {
     fontSize: 10.5,
     marginTop: 5,
-    opacity: 0.7,
+    opacity: 0.72,
+  },
+
+  connectionPanel: {
+    borderRadius: 24,
+    borderWidth: 1,
+    marginBottom: 10,
+    overflow: "hidden",
+    paddingBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
 
   statusGrid: {
     gap: 10,
-    marginBottom: 10,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
   },
 
   miniStatusCard: {
@@ -758,16 +1851,41 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     paddingVertical: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 5,
+  },
+
+  miniStatusTitle: {
+    fontSize: 10.5,
+    fontWeight: "700",
+    textAlign: "center",
   },
 
   miniStatusText: {
     fontSize: 12,
     fontWeight: "900",
     textAlign: "center",
+  },
+
+  panelDivider: {
+    height: 1,
+    marginHorizontal: 16,
+  },
+
+  connectionRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+
+  actionButton: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
   },
 
   segment: {
@@ -799,21 +1917,58 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
 
-  logoutBtn: {
-    borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+  logoutButtonWrapper: {
+    width: "100%",
+    height: 64,
+    borderRadius: 30,
+    overflow: "hidden",
+    shadowColor: "#6E1411",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
+    shadowRadius: 14,
+    elevation: 6,
+    backgroundColor: COLORS.primary,
+  },
+
+  logoutButtonDisabled: {
+    opacity: 0.72,
+  },
+
+  logoutGradient: {
+    flex: 1,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+
+  logoutShine: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "48%",
+    backgroundColor: "rgba(255,255,255,0.10)",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
   },
 
   logoutInner: {
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
+    zIndex: 5,
+  },
+
+  logoutSpinner: {
+    marginHorizontal: 2,
   },
 
   logoutText: {
+    color: "#FFFFFF",
     fontWeight: "900",
-    fontSize: 14,
+    fontSize: 20,
+    textAlign: "center",
   },
 
   switchTrack: {
@@ -834,4 +1989,202 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
+
+  modalOverlay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+
+  helpModal: {
+    width: "100%",
+    height: "86%",
+    borderRadius: 30,
+    borderWidth: 1,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+
+  helpModalHeader: {
+    minHeight: 72,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
+  },
+
+  modalCloseButton: {
+    position: "absolute",
+    top: 15,
+    left: 16,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 5,
+  },
+
+  helpModalTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+
+  modalHeaderSpace: {
+    width: 42,
+    height: 42,
+  },
+
+  modalDivider: {
+    height: 1,
+  },
+
+  helpModalScroll: {
+    flex: 1,
+  },
+
+  helpModalContent: {
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 34,
+  },
+
+  helpModalBody: {
+    minHeight: 620,
+  },
+
+  helpParagraph: {
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 24,
+    marginBottom: 14,
+  },
+
+  confirmModal: {
+    width: "100%",
+    borderRadius: 28,
+    borderWidth: 1,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 20,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+
+  confirmIconCircle: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+
+  confirmTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+
+  confirmMessage: {
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+
+  confirmButtons: {
+    width: "100%",
+    gap: 10,
+  },
+
+  confirmSecondaryButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  confirmPrimaryButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  confirmSecondaryText: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  confirmPrimaryText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  singleModalButton: {
+    width: "100%",
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  logoutLoadingBox: {
+    width: "86%",
+    borderRadius: 28,
+    borderWidth: 1,
+    paddingHorizontal: 22,
+    paddingTop: 28,
+    paddingBottom: 26,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+
+  logoutLoadingIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+
+  logoutLoadingSpinner: {
+    marginBottom: 12,
+  },
+
+  logoutLoadingText: {
+    fontSize: 16,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  helpSectionTitle: {
+  fontSize: 15.5,
+  fontWeight: "900",
+  lineHeight: 24,
+  marginTop: 12,
+  marginBottom: 8,
+},
 });

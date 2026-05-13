@@ -101,7 +101,7 @@ function getLabel(routeName: string): string {
       return "المساعد";
 
     case "wallet":
-      return "التقرير";
+      return "المحفظة";
 
     case "settings":
       return "الإعدادات";
@@ -379,9 +379,9 @@ export default function TabsLayout() {
         },
       }}
     >
-      <Tabs.Screen name="home" options={{ title: "الصفحة الرئيسية" }} />
-      <Tabs.Screen name="chatbot" options={{ title: "المساعد الذكي" }} />
-      <Tabs.Screen name="wallet" options={{ title: "التقرير" }} />
+      <Tabs.Screen name="home" options={{ title: "الرئيسية" }} />
+      <Tabs.Screen name="chatbot" options={{ title: "المساعد " }} />
+      <Tabs.Screen name="wallet" options={{ title: "المحفظة" }} />
       <Tabs.Screen name="settings" options={{ title: "الإعدادات" }} />
     </Tabs>
   );

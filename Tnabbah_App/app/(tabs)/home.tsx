@@ -251,7 +251,10 @@ export default function HomeScreen() {
     }, []);
 
     const goToBluetooth = () => {
-        router.push("/connection-intro" as any);
+        router.push({
+  pathname: "/connection-intro",
+  params: { from: "home" },
+} as any);
     };
 
     const performDirectScan = async () => {

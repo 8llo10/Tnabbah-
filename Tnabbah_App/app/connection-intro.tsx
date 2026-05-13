@@ -1,10 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Ionicons,
-  MaterialCommunityIcons,
-} from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
 import LottieView from "lottie-react-native";
 import {
   ActivityIndicator,
@@ -35,12 +32,13 @@ const COLORS = {
   primaryDark: "#761713",
   title: "#7B1714",
 
-  textDark: "#2C2C2C",
-  textMuted: "#6C5B58",
+  textDark: "#1D1D1F",
+  textMuted: "#707070",
 
   grayText: "#8E8E8E",
-  borderGray: "rgba(210,210,210,0.95)",
-  softGray: "#EFEFEF",
+  borderGray: "#EFEFEF",
+  softGray: "#F3F4F6",
+  cardPressed: "#FAFAFA",
 
   white: "#FFFFFF",
 };
@@ -103,6 +101,9 @@ function isElmLikeDevice(name: string) {
 }
 
 export default function ConnectionIntroScreen() {
+  const appRouter = useRouter();
+  const { from } = useLocalSearchParams<{ from?: string }>();
+
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
@@ -136,7 +137,7 @@ export default function ConnectionIntroScreen() {
 
   const horizontalPadding = clamp(width * 0.055, 18, 24);
 
-  const backButtonSize = isVerySmallScreen ? 44 : 48;
+  const backButtonSize = isVerySmallScreen ? 42 : 44;
   const backButtonRadius = backButtonSize / 2;
 
   const stepSize = isVerySmallScreen ? 46 : 50;
@@ -268,9 +269,30 @@ export default function ConnectionIntroScreen() {
     }
   };
 
+  const goBackToPreviousScreen = () => {
+    stopScan();
+
+    if (from === "settings") {
+      appRouter.replace("/(tabs)/settings" as any);
+      return;
+    }
+
+    if (from === "home") {
+      appRouter.replace("/(tabs)/home" as any);
+      return;
+    }
+
+    if (appRouter.canGoBack()) {
+      appRouter.back();
+      return;
+    }
+
+    appRouter.replace("/(tabs)/home" as any);
+  };
+
   const handleSkip = () => {
     stopScan();
-    router.replace("/(tabs)/home" as any);
+    appRouter.replace("/(tabs)/home" as any);
   };
 
   const handleConnectDevice = async () => {
@@ -291,7 +313,7 @@ export default function ConnectionIntroScreen() {
         readyDevice.name || readyDevice.localName || readyDevice.id
       );
 
-      router.replace("/(tabs)/home" as any);
+      appRouter.replace("/(tabs)/home" as any);
 
       vehicleScannerService
         .startAutoScan({ forceFull: false })
@@ -324,12 +346,12 @@ export default function ConnectionIntroScreen() {
     Animated.parallel([
       Animated.timing(cardAnim, {
         toValue: 1,
-        duration: 520,
+        duration: 420,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
 
-      Animated.stagger(90, [
+      Animated.stagger(80, [
         Animated.spring(stepOneAnim, {
           toValue: 1,
           friction: 5,
@@ -354,7 +376,7 @@ export default function ConnectionIntroScreen() {
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.07,
+          toValue: 1.04,
           duration: 900,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
@@ -391,14 +413,14 @@ export default function ConnectionIntroScreen() {
 
     Animated.timing(firstLineAnim, {
       toValue: currentStep >= 2 ? 1 : 0,
-      duration: 520,
+      duration: 450,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
 
     Animated.timing(secondLineAnim, {
       toValue: currentStep >= 3 ? 1 : 0,
-      duration: 520,
+      duration: 450,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
@@ -411,21 +433,21 @@ export default function ConnectionIntroScreen() {
   }, [currentStep, contentAnim, firstLineAnim, secondLineAnim]);
 
   useEffect(() => {
-  const subscription = manager.onStateChange((state) => {
-    if (currentStep === 3 && state === State.PoweredOn) {
-      startScan();
-    }
+    const subscription = manager.onStateChange((state) => {
+      if (currentStep === 3 && state === State.PoweredOn) {
+        startScan();
+      }
 
-    if (currentStep === 3 && state !== State.PoweredOn) {
-      setErrorMessage(getBluetoothStateMessage(state));
-    }
-  }, true);
+      if (currentStep === 3 && state !== State.PoweredOn) {
+        setErrorMessage(getBluetoothStateMessage(state));
+      }
+    }, true);
 
-  return () => {
-    stopScan();
-    subscription.remove();
-  };
-}, [currentStep]);
+    return () => {
+      stopScan();
+      subscription.remove();
+    };
+  }, [currentStep]);
 
   const cardTranslateY = cardAnim.interpolate({
     inputRange: [0, 1],
@@ -467,7 +489,7 @@ export default function ConnectionIntroScreen() {
     if (isConnecting) return;
 
     if (currentStep === 1) {
-      router.replace("/login" as any);
+      goBackToPreviousScreen();
       return;
     }
 
@@ -515,7 +537,9 @@ export default function ConnectionIntroScreen() {
               >
                 <Text style={styles.skipText}>تخطي</Text>
               </TouchableOpacity>
-            ) : null}
+            ) : (
+              <View style={styles.skipPlaceholder} />
+            )}
           </View>
 
           <View style={styles.stepsContainer}>
@@ -529,7 +553,7 @@ export default function ConnectionIntroScreen() {
                         ? pulseAnim
                         : stepThreeAnim.interpolate({
                             inputRange: [0, 1],
-                            outputRange: [0.86, 1],
+                            outputRange: [0.9, 1],
                           }),
                   },
                 ],
@@ -560,7 +584,7 @@ export default function ConnectionIntroScreen() {
                         ? pulseAnim
                         : stepTwoAnim.interpolate({
                             inputRange: [0, 1],
-                            outputRange: [0.86, 1],
+                            outputRange: [0.9, 1],
                           }),
                   },
                 ],
@@ -591,7 +615,7 @@ export default function ConnectionIntroScreen() {
                         ? pulseAnim
                         : stepOneAnim.interpolate({
                             inputRange: [0, 1],
-                            outputRange: [0.86, 1],
+                            outputRange: [0.9, 1],
                           }),
                   },
                 ],
@@ -616,16 +640,7 @@ export default function ConnectionIntroScreen() {
               },
             ]}
           >
-            <LinearGradient
-              colors={[
-                "rgba(255,255,255,1)",
-                "rgba(247,247,247,1)",
-                "rgba(238,238,238,1)",
-              ]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.card}
-            >
+            <View style={styles.card}>
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 nestedScrollEnabled
@@ -639,21 +654,13 @@ export default function ConnectionIntroScreen() {
                   }}
                 >
                   <View style={styles.cardHeader}>
-                    <LinearGradient
-                      colors={[
-                        "rgba(255,255,255,1)",
-                        "rgba(232,232,232,1)",
-                      ]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.cardIconCircle}
-                    >
+                    <View style={styles.cardIconCircle}>
                       <MaterialCommunityIcons
                         name={stepData.icon}
-                        size={isVerySmallScreen ? 29 : 32}
+                        size={isVerySmallScreen ? 28 : 31}
                         color={COLORS.primary}
                       />
-                    </LinearGradient>
+                    </View>
 
                     <View style={styles.headerTextBox}>
                       <Text style={styles.title}>{stepData.title}</Text>
@@ -709,7 +716,9 @@ export default function ConnectionIntroScreen() {
                     {currentStep === 3 && isConnecting ? (
                       <View style={styles.connectingRow}>
                         <ActivityIndicator color="#FFFFFF" />
-                        <Text style={styles.startButtonText}>جاري الربط...</Text>
+                        <Text style={styles.startButtonText}>
+                          جاري الربط...
+                        </Text>
                       </View>
                     ) : (
                       <Text style={styles.startButtonText}>
@@ -719,7 +728,7 @@ export default function ConnectionIntroScreen() {
                   </LinearGradient>
                 </TouchableOpacity>
               </ScrollView>
-            </LinearGradient>
+            </View>
           </Animated.View>
         </View>
       </SafeAreaView>
@@ -749,7 +758,11 @@ function StepTwoContent({
     <>
       <View style={styles.instructionsBox}>
         <InstructionRow number="1" text="شغّل السيارة" styles={styles} />
-        <InstructionRow number="2" text="ركّب القطعة في مدخل OBD" styles={styles} />
+        <InstructionRow
+          number="2"
+          text="ركّب القطعة في مدخل OBD"
+          styles={styles}
+        />
       </View>
 
       <View style={styles.animationBox}>
@@ -812,7 +825,7 @@ function BluetoothContent({
         onPress={startScan}
         disabled={isConnecting}
       >
-        <Ionicons name="chevron-down" size={23} color={COLORS.grayText} />
+        <Ionicons name="chevron-down" size={22} color={COLORS.grayText} />
 
         <Text style={styles.deviceSelectText}>
           {isScanning
@@ -839,8 +852,8 @@ function BluetoothContent({
               activeOpacity={0.8}
             >
               <Text style={styles.emptyText}>
-                ما ظهرت أجهزة. لو قطعتك ELM قديمة Bluetooth Classic فهي قد لا تظهر
-                هنا بمكتبة BLE.
+                ما ظهرت أجهزة. لو قطعتك ELM قديمة Bluetooth Classic فهي قد لا
+                تظهر هنا بمكتبة BLE.
               </Text>
             </TouchableOpacity>
           ) : (
@@ -858,7 +871,9 @@ function BluetoothContent({
                   setErrorMessage("");
                 }}
               >
-                <Ionicons name="bluetooth" size={21} color={COLORS.primary} />
+                <View style={styles.deviceIconBox}>
+                  <Feather name="bluetooth" size={18} color={COLORS.primary} />
+                </View>
 
                 <View style={styles.deviceInfo}>
                   <Text style={styles.deviceName}>{item.name}</Text>
@@ -873,11 +888,7 @@ function BluetoothContent({
       <Text style={styles.inputLabel}>كلمة مرور القطعة</Text>
 
       <View style={styles.passwordBox}>
-        <Ionicons
-          name="lock-closed-outline"
-          size={22}
-          color={COLORS.grayText}
-        />
+        <Feather name="lock" size={20} color={COLORS.primary} />
 
         <TextInput
           style={styles.passwordInput}
@@ -899,7 +910,7 @@ function BluetoothContent({
 
       {!!errorMessage ? (
         <View style={styles.errorBox}>
-          <Ionicons name="alert-circle" size={18} color={COLORS.primary} />
+          <Feather name="alert-circle" size={18} color={COLORS.primary} />
           <Text style={styles.errorText}>{errorMessage}</Text>
         </View>
       ) : null}
@@ -924,16 +935,7 @@ function StepItem({
 
   return (
     <View style={styles.stepItem}>
-      <LinearGradient
-        colors={
-          active
-            ? ["rgba(154,33,28,0.98)", "rgba(118,23,19,0.98)"]
-            : completed
-            ? ["rgba(154,33,28,0.14)", "rgba(154,33,28,0.08)"]
-            : ["rgba(255,255,255,1)", "rgba(235,235,235,1)"]
-        }
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <View
         style={[
           styles.stepCircle,
           active && styles.stepCircleActive,
@@ -945,7 +947,7 @@ function StepItem({
           size={active ? 25 : 23}
           color={active ? COLORS.white : isRed ? COLORS.primary : COLORS.grayText}
         />
-      </LinearGradient>
+      </View>
 
       <Text
         style={[
@@ -971,14 +973,9 @@ function InstructionRow({
 }) {
   return (
     <View style={styles.instructionRow}>
-      <LinearGradient
-        colors={["rgba(255,255,255,1)", "rgba(235,235,235,1)"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.numberCircle}
-      >
+      <View style={styles.numberCircle}>
         <Text style={styles.numberText}>{number}</Text>
-      </LinearGradient>
+      </View>
 
       <Text style={styles.instructionText}>{text}</Text>
     </View>
@@ -1057,25 +1054,30 @@ function createStyles({
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: COLORS.white,
-      borderWidth: 1.7,
+      borderWidth: 1,
       borderColor: COLORS.borderGray,
-      shadowColor: COLORS.grayText,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: Platform.OS === "android" ? 0.16 : 0.22,
-      shadowRadius: 4,
-      elevation: 3,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 6,
+      elevation: 1,
     },
 
     skipButton: {
       minWidth: 64,
       height: 38,
       borderRadius: 19,
-      backgroundColor: "rgba(154,33,28,0.07)",
+      backgroundColor: COLORS.softGray,
       justifyContent: "center",
       alignItems: "center",
       paddingHorizontal: 14,
       borderWidth: 1,
-      borderColor: "rgba(154,33,28,0.10)",
+      borderColor: COLORS.borderGray,
+    },
+
+    skipPlaceholder: {
+      width: 64,
+      height: 38,
     },
 
     skipText: {
@@ -1104,29 +1106,32 @@ function createStyles({
       borderRadius: stepSize / 2,
       justifyContent: "center",
       alignItems: "center",
-      borderWidth: 1.4,
-      borderColor: "rgba(205,205,205,0.90)",
-      shadowColor: COLORS.grayText,
-      shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: Platform.OS === "android" ? 0.10 : 0.13,
+      backgroundColor: COLORS.softGray,
+      borderWidth: 1,
+      borderColor: COLORS.borderGray,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
       shadowRadius: 6,
-      elevation: 2,
+      elevation: 1,
     },
 
     stepCircleActive: {
       width: activeStepSize,
       height: activeStepSize,
       borderRadius: activeStepSize / 2,
-      borderWidth: 0,
+      backgroundColor: COLORS.primary,
+      borderColor: COLORS.primary,
       shadowColor: COLORS.primaryDark,
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
-      shadowRadius: 14,
-      elevation: 6,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: Platform.OS === "android" ? 0.14 : 0.2,
+      shadowRadius: 12,
+      elevation: 5,
     },
 
     stepCircleCompleted: {
-      borderColor: "rgba(154,33,28,0.20)",
+      backgroundColor: "rgba(154,33,28,0.08)",
+      borderColor: "rgba(154,33,28,0.16)",
     },
 
     stepLabel: {
@@ -1149,16 +1154,16 @@ function createStyles({
 
     activeLineTrack: {
       width: lineWidth,
-      height: 2.6,
+      height: 2.4,
       marginTop: stepSize / 2,
       borderRadius: 3,
-      backgroundColor: "rgba(205,205,205,0.88)",
+      backgroundColor: "#E6E6E6",
       overflow: "hidden",
       alignItems: "flex-end",
     },
 
     activeLineFill: {
-      height: 2.6,
+      height: 2.4,
       borderRadius: 3,
       backgroundColor: COLORS.primary,
     },
@@ -1172,17 +1177,16 @@ function createStyles({
     card: {
       width: "100%",
       maxHeight: isLongStep ? longCardMaxHeight : undefined,
-      borderRadius: 30,
-
-      borderWidth: 1.4,
+      borderRadius: 24,
+      borderWidth: 1,
       borderColor: COLORS.borderGray,
-
+      backgroundColor: COLORS.white,
       overflow: "hidden",
-      shadowColor: COLORS.grayText,
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: Platform.OS === "android" ? 0.12 : 0.16,
-      shadowRadius: 18,
-      elevation: 4,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 6,
+      elevation: 1,
     },
 
     cardScrollContent: {
@@ -1205,19 +1209,20 @@ function createStyles({
     },
 
     cardIconCircle: {
-      width: isVerySmallScreen ? 56 : 60,
-      height: isVerySmallScreen ? 56 : 60,
-      borderRadius: isVerySmallScreen ? 28 : 30,
+      width: isVerySmallScreen ? 52 : 56,
+      height: isVerySmallScreen ? 52 : 56,
+      borderRadius: isVerySmallScreen ? 26 : 28,
       justifyContent: "center",
       alignItems: "center",
       marginLeft: 12,
-      borderWidth: 1.2,
-      borderColor: "rgba(205,205,205,0.95)",
-      shadowColor: COLORS.grayText,
-      shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: Platform.OS === "android" ? 0.08 : 0.12,
+      backgroundColor: COLORS.softGray,
+      borderWidth: 1,
+      borderColor: COLORS.borderGray,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
       shadowRadius: 6,
-      elevation: 2,
+      elevation: 1,
     },
 
     headerTextBox: {
@@ -1266,13 +1271,14 @@ function createStyles({
       justifyContent: "center",
       alignItems: "center",
       marginLeft: 10,
-      borderWidth: 1.2,
-      borderColor: "rgba(205,205,205,0.95)",
-      shadowColor: COLORS.grayText,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: Platform.OS === "android" ? 0.08 : 0.12,
-      shadowRadius: 5,
-      elevation: 2,
+      backgroundColor: COLORS.softGray,
+      borderWidth: 1,
+      borderColor: COLORS.borderGray,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 6,
+      elevation: 1,
     },
 
     numberText: {
@@ -1329,14 +1335,19 @@ function createStyles({
       width: "100%",
       height: isVerySmallScreen ? 54 : 58,
       borderRadius: 18,
-      backgroundColor: "rgba(255,255,255,1)",
-      borderWidth: 1.3,
+      backgroundColor: COLORS.white,
+      borderWidth: 1,
       borderColor: COLORS.borderGray,
       paddingHorizontal: 16,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       marginBottom: 14,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 6,
+      elevation: 1,
     },
 
     deviceSelectText: {
@@ -1351,12 +1362,17 @@ function createStyles({
       width: "100%",
       maxHeight: isVerySmallScreen ? 145 : 165,
       borderRadius: 18,
-      borderWidth: 1.3,
+      borderWidth: 1,
       borderColor: COLORS.borderGray,
       backgroundColor: "#FFFFFF",
       marginTop: -5,
       marginBottom: 16,
       overflow: "hidden",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 6,
+      elevation: 1,
     },
 
     loadingRow: {
@@ -1403,6 +1419,17 @@ function createStyles({
       backgroundColor: "rgba(154,33,28,0.06)",
     },
 
+    deviceIconBox: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: COLORS.softGray,
+      borderWidth: 1,
+      borderColor: COLORS.borderGray,
+    },
+
     deviceInfo: {
       flex: 1,
     },
@@ -1425,13 +1452,18 @@ function createStyles({
       width: "100%",
       height: isVerySmallScreen ? 50 : 54,
       borderRadius: 18,
-      borderWidth: 1.3,
+      borderWidth: 1,
       borderColor: COLORS.borderGray,
       backgroundColor: "#FFFFFF",
       paddingHorizontal: 16,
       flexDirection: "row-reverse",
       alignItems: "center",
       marginBottom: 12,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 6,
+      elevation: 1,
     },
 
     passwordInput: {
