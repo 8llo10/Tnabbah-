@@ -88,7 +88,10 @@ async function getIdentity(forceRefresh = false) {
   }
 
   const userId = await getUserId();
-  const identity = await carIdentityService.getCarIdentity();
+
+  const identity = await carIdentityService.getCarIdentity({
+    forceRefresh,
+  });
 
   cachedCarId = identity.carId;
   cachedIdentity = identity;
@@ -99,6 +102,8 @@ async function getIdentity(forceRefresh = false) {
     identity,
   };
 }
+4
+
 
 async function publish(
   userId: string,
