@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -10,10 +10,12 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  BackHandler,
 } from 'react-native';
 import { Feather as Icon } from '@expo/vector-icons';
 import { useAuth } from '../providers/AuthProvider';
 import { router, useLocalSearchParams } from 'expo-router';
+import { supabase } from '../lib/supabase';
 
 const API_URL = process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://127.0.0.1:8001";
 
@@ -63,6 +65,11 @@ const UI = {
     error: 'خطأ',
     translateFailedTitle: '❌ فشل الترجمة',
     translateFailedMsg: 'تعذّر ترجمة التقرير، حاول لاحقاً',
+    unsavedTitle: 'لم يتم حفظ التقرير',
+    unsavedMessage: 'سيتم الاحتفاظ بهذا التقرير لمدة 24 ساعة فقط ثم سيُحذف تلقائياً إذا لم تقم بحفظه بشكل دائم.',
+    unsavedSave: '💾 حفظ دائم',
+    unsavedLeave: 'خروج بدون حفظ',
+    unsavedCancel: 'إلغاء',
     severity: {
       LOW: '🟢 تنبيه بسيط',
       MEDIUM: '🟡 تحذير',
@@ -103,6 +110,11 @@ const UI = {
     error: 'Error',
     translateFailedTitle: '❌ Translation Failed',
     translateFailedMsg: 'Could not translate the report. Try again later.',
+    unsavedTitle: 'Report not saved',
+    unsavedMessage: 'This report will be kept for only 24 hours and then automatically deleted if you do not save it permanently.',
+    unsavedSave: '💾 Save Permanently',
+    unsavedLeave: 'Leave without saving',
+    unsavedCancel: 'Cancel',
     severity: {
       LOW: '🟢 Minor Notice',
       MEDIUM: '🟡 Warning',
@@ -133,6 +145,8 @@ const ReportScreen = () => {
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [supabaseRowId, setSupabaseRowId] = useState<string | null>(null);
+  const autoSaveTriedRef = useRef<string | null>(null);
   const [lang, setLang] = useState<'AR' | 'EN'>('AR');
   const [trMap, setTrMap] = useState<Record<string, string>>({});
   const [translating, setTranslating] = useState(false);
@@ -146,140 +160,272 @@ const ReportScreen = () => {
     return trMap[s] || s;
   };
 
-  useEffect(() => {
-    if (params.report) {
-      try {
-        const parsed = JSON.parse(String(params.report));
-        setReport(parsed);
-        
-        // Transform all_pid_readings to sensor data
-        const transformed = (parsed.all_pid_readings || []).map((reading: any) => ({
+  const parseReport = useCallback((parsed: any) => {
+    try {
+      setReport(parsed);
+
+      // Transform all_pid_readings to sensor data
+      const transformed = (parsed.all_pid_readings || []).map((reading: any) => ({
           label: reading.name_ar || reading.pid_name_ar || reading.name || reading.pid_name,
           value: String(reading.value),
-          unit: reading.unit,
-          status: reading.status === 'NORMAL' ? 'SUCCESS' : 'WARNING',
-          explanation: reading.explanation || reading.professional_explanation || `قراءة ${reading.name_ar || reading.pid_name_ar || reading.pid_name || reading.name}`,
-          pidCode: reading.pid_code,
-        }));
+        unit: reading.unit,
+        status: reading.status === 'NORMAL' ? 'SUCCESS' : 'WARNING',
+        explanation: reading.explanation || reading.professional_explanation || `قراءة ${reading.name_ar || reading.pid_name_ar || reading.pid_name || reading.name}`,
+        pidCode: reading.pid_code,
+      }));
 
-        // Add AI interpretations if available
-        const pidInterp = parsed.user_friendly_report_ar?.pid_mechanical_interpretation?.interpretations || [];
-        console.log("🔍 PID Interpretations:", pidInterp);
-        console.log("🔍 All PID Readings:", parsed.all_pid_readings);
-        
-        const aiByPid: Record<string, any> = {};
-        pidInterp.forEach((it: any) => {
-          console.log(`📌 Processing interpretation for ${it.pid_code}:`, it);
-          if (it.pid_code) {
-            // Normalize the PID code to uppercase with 0x prefix
-            const normalizedCode = String(it.pid_code).toUpperCase();
-            aiByPid[normalizedCode] = it;
-          }
+      // Add AI interpretations if available
+      const pidInterp = parsed.user_friendly_report_ar?.pid_mechanical_interpretation?.interpretations || [];
+
+      const aiByPid: Record<string, any> = {};
+      pidInterp.forEach((it: any) => {
+        if (it.pid_code) {
+          const normalizedCode = String(it.pid_code).toUpperCase();
+          aiByPid[normalizedCode] = it;
+        }
+      });
+
+      const transformedWithAI = transformed.map((item: any) => {
+        const normalizedPidCode = String(item.pidCode).toUpperCase();
+        const aiData = aiByPid[normalizedPidCode];
+        return {
+          ...item,
+          aiInterpretation: aiData,
+        };
+      });
+
+      setSensorData(transformedWithAI);
+
+      // Index DTC AI interpretations by code
+      const dtcInterpList = parsed.user_friendly_report_ar?.dtc_mechanical_interpretation?.interpretations || [];
+      const aiByDtc: Record<string, any> = {};
+      dtcInterpList.forEach((it: any) => {
+        if (it.code) aiByDtc[String(it.code).toUpperCase()] = it;
+      });
+
+      // Build a code -> MQTT-source category map (stored / pending / permanent).
+      const dtcCategoriesSrc = parsed.dtc_categories || {};
+      const codeToMqttCategory: Record<string, 'stored' | 'pending' | 'permanent'> = {};
+      ([
+        'stored',
+        'pending',
+        'permanent',
+      ] as const).forEach((cat) => {
+        (dtcCategoriesSrc[cat] || []).forEach((c: any) => {
+          const k = String(c || '').toUpperCase();
+          if (!k) return;
+          const prev = codeToMqttCategory[k];
+          if (!prev) codeToMqttCategory[k] = cat;
+          else if (prev === 'pending' && cat !== 'pending') codeToMqttCategory[k] = cat;
+          else if (prev === 'stored' && cat === 'permanent') codeToMqttCategory[k] = cat;
         });
+      });
 
-        const transformedWithAI = transformed.map((item: any) => {
-          const normalizedPidCode = String(item.pidCode).toUpperCase();
-          const aiData = aiByPid[normalizedPidCode];
-          console.log(`🔎 Searching for ${normalizedPidCode}: ${aiData ? '✅ Found' : '❌ Not found'}`);
-          return {
-            ...item,
-            aiInterpretation: aiData,
-          };
-        });
+      // Extract DTCs (with AI interpretation attached)
+      const dtcs = (parsed.detected_dtcs || []).map((dtc: any) => {
+        const codeKey = String(dtc.code || dtc.name || '').toUpperCase();
+        return {
+          code: dtc.code || dtc.name,
+          name: dtc.name || dtc.description,
+          description: dtc.description,
+          severity: dtc.severity || 'MEDIUM',
+          category: dtc.category,
+          mqttCategory: codeToMqttCategory[codeKey] || null,
+          aiInterpretation: aiByDtc[codeKey],
+        };
+      });
+      setDtcItems(dtcs);
 
-        console.log("📊 Final transformed data:", transformedWithAI);
-        setSensorData(transformedWithAI);
+      // Extract causes
+      const causes = (parsed.likely_causes || []).map((cause: any) => ({
+        cause: cause.cause || cause.description,
+        evidence: cause.evidence,
+        likelihood: cause.likelihood || 0,
+        confidence: cause.confidence || 0,
+      }));
+      setCausesData(causes);
 
-        // Index DTC AI interpretations by code
-        const dtcInterpList = parsed.user_friendly_report_ar?.dtc_mechanical_interpretation?.interpretations || [];
-        const aiByDtc: Record<string, any> = {};
-        dtcInterpList.forEach((it: any) => {
-          if (it.code) aiByDtc[String(it.code).toUpperCase()] = it;
-        });
+      setLoading(false);
+    } catch (e) {
+      console.error("Failed to parse report:", e);
+      setLoading(false);
+    }
+  }, []);
 
-        // Build a code -> MQTT-source category map (stored / pending / permanent).
-        const dtcCategoriesSrc = parsed.dtc_categories || {};
-        const codeToMqttCategory: Record<string, 'stored' | 'pending' | 'permanent'> = {};
-        ([
-          'stored',
-          'pending',
-          'permanent',
-        ] as const).forEach((cat) => {
-          (dtcCategoriesSrc[cat] || []).forEach((c: any) => {
-            const k = String(c || '').toUpperCase();
-            // 'permanent' wins, then 'stored', then 'pending' (most actionable first)
-            if (!k) return;
-            const prev = codeToMqttCategory[k];
-            if (!prev) codeToMqttCategory[k] = cat;
-            else if (prev === 'pending' && cat !== 'pending') codeToMqttCategory[k] = cat;
-            else if (prev === 'stored' && cat === 'permanent') codeToMqttCategory[k] = cat;
-          });
-        });
+  // Path 1: Report passed via params (freshly generated flow)
+  useEffect(() => {
+    if (!params.report) return;
+    try {
+      const parsed = JSON.parse(String(params.report));
+      parseReport(parsed);
+    } catch (e) {
+      console.error("Failed to parse params.report:", e);
+      setLoading(false);
+    }
+  }, [params.report, parseReport]);
 
-        // Extract DTCs (with AI interpretation attached)
-        const dtcs = (parsed.detected_dtcs || []).map((dtc: any) => {
-          const codeKey = String(dtc.code || dtc.name || '').toUpperCase();
-          return {
-            code: dtc.code || dtc.name,
-            name: dtc.name || dtc.description,
-            description: dtc.description,
-            severity: dtc.severity || 'MEDIUM',
-            category: dtc.category,
-            mqttCategory: codeToMqttCategory[codeKey] || null,
-            aiInterpretation: aiByDtc[codeKey],
-          };
-        });
-        setDtcItems(dtcs);
+  // Path 2: Report opened by id (from history/list) — load from Supabase
+  useEffect(() => {
+    const id = params.id ? String(params.id) : null;
+    if (!id || !session?.user?.id) return;
 
-        // Extract causes
-        const causes = (parsed.likely_causes || []).map((cause: any) => ({
-          cause: cause.cause || cause.description,
-          evidence: cause.evidence,
-          likelihood: cause.likelihood || 0,
-          confidence: cause.confidence || 0,
-        }));
-        setCausesData(causes);
+    (async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('reports')
+          .select('id, content, status, is_permanently_saved')
+          .eq('id', id)
+          .eq('user_id', session.user.id)
+          .single();
+        if (error) throw error;
 
-        setLoading(false);
-      } catch (e) {
-        console.error("Failed to parse report:", e);
+        setSupabaseRowId(data.id);
+        if (data.is_permanently_saved || data.status === 'saved') {
+          setSaved(true);
+        }
+        // Mark dedup key so the auto-insert effect won't fire for this report.
+        const content = data.content || {};
+        const dedupKey =
+          String(content.report_id || '') ||
+          `${session.user.id}:${content.timestamp || ''}:${data.id}`;
+        autoSaveTriedRef.current = dedupKey;
+
+        parseReport(content);
+      } catch (err: any) {
+        console.error('Load report failed:', err?.message || err);
         setLoading(false);
       }
-    }
-  }, [params.report]);
+    })();
+  }, [params.id, session?.user?.id, parseReport]);
+
+  // Auto-insert as 'pending' once the report is parsed (only for freshly generated reports)
+  useEffect(() => {
+    if (!report || !session?.user?.id) return;
+    if (supabaseRowId) return; // already exists in DB (loaded by id)
+
+    const dedupKey =
+      String(report.report_id || '') ||
+      `${session.user.id}:${report.timestamp || ''}`;
+    if (autoSaveTriedRef.current === dedupKey) return;
+    autoSaveTriedRef.current = dedupKey;
+
+    (async () => {
+      try {
+        const now = new Date();
+        // Pending reports live for 24h, then auto-delete (per UX).
+        const expiry = new Date(now.getTime() + 1000 * 60 * 60 * 24);
+        const { data, error } = await supabase
+          .from('reports')
+          .insert({
+            user_id: session.user.id,
+            content: report,
+            created_at: now.toISOString(),
+            expiry_at: expiry.toISOString(),
+            status: 'pending',
+            is_permanently_saved: false,
+          })
+          .select('id')
+          .single();
+        if (error) throw error;
+        setSupabaseRowId(data.id);
+      } catch (err: any) {
+        console.error('Auto-save (pending) failed:', err?.message || err);
+      }
+    })();
+  }, [report, session?.user?.id, supabaseRowId]);
 
   const handleSaveReport = async () => {
     if (!report || !session?.user?.id) {
       Alert.alert(t.error, t.loginRequired);
-      return;
+      return false;
     }
 
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/save-report`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          report_id: report.report_id,
-          user_id: session.user.id,
-          is_permanent: true,
-          expires_in_hours: 720,
-        }),
-      });
+      const now = new Date();
+      // Permanent save -> push expiry far out (10 years).
+      const expiry = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 365 * 10);
 
-      if (response.ok) {
-        setSaved(true);
-        Alert.alert(t.saveSuccessTitle, t.saveSuccess);
+      if (supabaseRowId) {
+        // Promote the existing pending row to 'saved'.
+        const { error } = await supabase
+          .from('reports')
+          .update({
+            status: 'saved',
+            is_permanently_saved: true,
+            saved_at: now.toISOString(),
+            expiry_at: expiry.toISOString(),
+          })
+          .eq('id', supabaseRowId)
+          .eq('user_id', session.user.id);
+        if (error) throw error;
       } else {
-        throw new Error("save failed");
+        // Fallback: auto-insert hadn't finished yet -> insert directly as 'saved'.
+        const { data, error } = await supabase
+          .from('reports')
+          .insert({
+            user_id: session.user.id,
+            content: report,
+            created_at: now.toISOString(),
+            saved_at: now.toISOString(),
+            expiry_at: expiry.toISOString(),
+            status: 'saved',
+            is_permanently_saved: true,
+          })
+          .select('id')
+          .single();
+        if (error) throw error;
+        setSupabaseRowId(data.id);
       }
-    } catch (err) {
-      console.error("Failed to save report:", err);
+
+      setSaved(true);
+      Alert.alert(t.saveSuccessTitle, t.saveSuccess);
+      return true;
+    } catch (err: any) {
+      console.error("Failed to save report:", err?.message || err);
       Alert.alert(t.saveErrorTitle, t.saveError);
+      return false;
     } finally {
       setSaving(false);
     }
   };
+
+  const handleBackPress = useCallback(() => {
+    if (saved) {
+      router.back();
+      return;
+    }
+    Alert.alert(
+      t.unsavedTitle,
+      t.unsavedMessage,
+      [
+        { text: t.unsavedCancel, style: 'cancel' },
+        {
+          text: t.unsavedLeave,
+          style: 'destructive',
+          onPress: () => router.back(),
+        },
+        {
+          text: t.unsavedSave,
+          onPress: async () => {
+            const ok = await handleSaveReport();
+            if (ok) router.back();
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  }, [saved, t]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (saved) return false;
+      handleBackPress();
+      return true;
+    });
+    return () => sub.remove();
+  }, [saved, handleBackPress]);
 
   const handleToggleLanguage = async () => {
     if (translating) return;
@@ -448,7 +594,7 @@ const ReportScreen = () => {
           <View style={styles.header}>
             <TouchableOpacity 
               style={styles.headerButton}
-              onPress={() => router.back()}
+              onPress={handleBackPress}
             >
               <Icon name="chevron-right" size={22} color={COLORS.ink} />
             </TouchableOpacity>
