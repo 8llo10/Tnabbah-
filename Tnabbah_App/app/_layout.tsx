@@ -102,8 +102,8 @@ export default function RootLayout() {
             <Stack.Screen name="register" />
             <Stack.Screen name="forgot-password" />
 
+           
             <Stack.Screen name="connection-intro" />
-            <Stack.Screen name="bluetooth-setup" />
             <Stack.Screen name="connection-success" />
 
             <Stack.Screen name="auth/reset-password" />

@@ -251,7 +251,7 @@ export default function HomeScreen() {
     }, []);
 
     const goToBluetooth = () => {
-        router.push("/bluetooth-setup" as any);
+        router.push("/connection-intro" as any);
     };
 
     const performDirectScan = async () => {
@@ -323,7 +323,7 @@ export default function HomeScreen() {
 
             if (!connected) {
                 setStatusText("غير متصل بالقطعة");
-                router.push("/bluetooth-setup" as any);
+                router.push("/connection-intro" as any);
                 return;
             }
 

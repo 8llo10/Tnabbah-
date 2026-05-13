@@ -228,7 +228,7 @@ export default function Settings() {
   }, []);
 
   const goToBluetoothSettings = () => {
-    router.push("/bluetooth-setup" as any);
+    router.push("/connection-intro" as any);
   };
 
   const handleStopScanner = async () => {
