@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,9 +10,14 @@ import {
   Modal,
   StatusBar,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { useFonts } from "expo-font";
+import { router, useFocusEffect } from "expo-router";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../providers/AuthProvider";
 
 interface MaintenanceItem {
   id: number;
@@ -21,6 +26,17 @@ interface MaintenanceItem {
   nextDate: string;
   intervalDays: number;
   remainingDays: number;
+}
+
+type ReportStatus = "pending" | "saved" | "temp_rejected" | "deleted";
+
+interface ReportItem {
+  id: string;
+  title: string;
+  date: string;
+  type: "PDF" | "DTC";
+  status: ReportStatus;
+  createdAt: string;
 }
 
 export default function Wallet() {
@@ -36,6 +52,132 @@ export default function Wallet() {
     { id: 4, title: "فلتر الهواء", lastDate: "2025-12-01", nextDate: "2026-03-01", intervalDays: 90, remainingDays: 15 },
     { id: 5, title: "البطارية", lastDate: "2025-12-01", nextDate: "2027-12-01", intervalDays: 730, remainingDays: 500 },
   ]);
+
+  const { session } = useAuth();
+  const userId = session?.user?.id;
+
+  const [reports, setReports] = useState<ReportItem[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(true);
+  const [reportFilter, setReportFilter] = useState<"all" | "saved" | "pending">("all");
+
+  const mapRowToReport = (row: any): ReportItem => {
+    const content = row?.content || {};
+    const hasDtc = Array.isArray(content.detected_dtcs) && content.detected_dtcs.length > 0;
+    const ts = content.timestamp || row.created_at;
+    let dateLabel = "";
+    try {
+      dateLabel = new Date(ts).toLocaleDateString("ar-SA", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    } catch {
+      dateLabel = String(ts || "");
+    }
+    return {
+      id: row.id,
+      title: hasDtc ? "تقرير أعطال DTC" : "تقرير فحص شامل",
+      date: dateLabel,
+      type: hasDtc ? "DTC" : "PDF",
+      status: (row.status || "pending") as ReportStatus,
+      createdAt: row.created_at,
+    };
+  };
+
+  const fetchReports = useCallback(async () => {
+    if (!userId) {
+      setReports([]);
+      setReportsLoading(false);
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from("reports")
+        .select("id, content, status, created_at, is_permanently_saved")
+        .eq("user_id", userId)
+        .in("status", ["pending", "saved"])
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setReports((data || []).map(mapRowToReport));
+    } catch (err: any) {
+      console.error("Failed to load reports:", err?.message || err);
+    } finally {
+      setReportsLoading(false);
+    }
+  }, [userId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchReports();
+    }, [fetchReports])
+  );
+
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`wallet-reports-${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "reports", filter: `user_id=eq.${userId}` },
+        () => fetchReports()
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, fetchReports]);
+
+  const handleSaveReport = async (id: string) => {
+    if (!userId) return;
+    const prev = reports;
+    setReports((rs) => rs.map((r) => (r.id === id ? { ...r, status: "saved" } : r)));
+    try {
+      const now = new Date();
+      const expiry = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 365 * 10);
+      const { error } = await supabase
+        .from("reports")
+        .update({
+          status: "saved",
+          is_permanently_saved: true,
+          saved_at: now.toISOString(),
+          expiry_at: expiry.toISOString(),
+        })
+        .eq("id", id)
+        .eq("user_id", userId);
+      if (error) throw error;
+    } catch (err: any) {
+      console.error("Save report failed:", err?.message || err);
+      setReports(prev);
+      Alert.alert("خطأ", "فشل حفظ التقرير");
+    }
+  };
+
+  const handleRejectReport = async (id: string) => {
+    if (!userId) return;
+    const prev = reports;
+    setReports((rs) => rs.filter((r) => r.id !== id));
+    try {
+      const { error } = await supabase
+        .from("reports")
+        .update({ status: "temp_rejected" })
+        .eq("id", id)
+        .eq("user_id", userId);
+      if (error) throw error;
+    } catch (err: any) {
+      console.error("Reject report failed:", err?.message || err);
+      setReports(prev);
+      Alert.alert("خطأ", "تعذر تجاهل التقرير");
+    }
+  };
+
+  const openReport = (id: string) => {
+    router.push({ pathname: "/report", params: { id } });
+  };
+
+  const visibleReports = reports.filter((r) => {
+    if (reportFilter === "all") return true;
+    return r.status === reportFilter;
+  });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editData, setEditData] = useState<MaintenanceItem[]>([]);
@@ -84,41 +226,133 @@ export default function Wallet() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* التقارير المحفوظة */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>التقارير المحفوظة</Text>
+          <Text style={styles.sectionTitle}>التقارير</Text>
         </View>
 
-        <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false} 
-        contentContainerStyle={[
-            {
-            paddingRight: 20,
-            paddingLeft: 420,          
-            },
-            styles.horizontalScroll
+        {/* فلتر الحالة */}
+        <View style={styles.filterRow}>
+          {([
+            { key: "all", label: "الكل" },
+            { key: "saved", label: "المحفوظة" },
+            { key: "pending", label: "غير المحفوظة" },
+          ] as const).map((f) => {
+            const active = reportFilter === f.key;
+            const count =
+              f.key === "all"
+                ? reports.filter((r) => r.status === "saved" || r.status === "pending").length
+                : reports.filter((r) => r.status === f.key).length;
+            return (
+              <TouchableOpacity
+                key={f.key}
+                onPress={() => setReportFilter(f.key)}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+              >
+                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                  {f.label} ({count})
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[
+            { paddingRight: 20, paddingLeft: 20 },
+            styles.horizontalScroll,
           ]}
         >
-          <View style={styles.card}>
-            <View style={styles.reportBadge}>
-              <Text style={styles.reportBadgeText}>PDF</Text>
+          {reportsLoading && reports.length === 0 && (
+            <View style={styles.emptyCard}>
+              <ActivityIndicator color="#7a0f1f" />
             </View>
-            <Text style={styles.cardTitle}>تقرير فحص شامل</Text>
-            <Text style={styles.cardDate}>12 مارس 2026</Text>
-            <TouchableOpacity style={styles.detailsBtn}>
-              <Text style={styles.detailsText}>فتح التقرير</Text>
-            </TouchableOpacity>
-          </View>
+          )}
 
-          <View style={styles.card}>
-            <View style={[styles.reportBadge, { backgroundColor: "#E9ECEF" }]}>
-              <Text style={[styles.reportBadgeText, { color: "#495057" }]}>DTC</Text>
+          {!reportsLoading && visibleReports.length === 0 && (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>
+                {!userId ? "يجب تسجيل الدخول" : "لا توجد تقارير"}
+              </Text>
             </View>
-            <Text style={styles.cardTitle}>تقرير أعطال DTC</Text>
-            <Text style={styles.cardDate}>5 فبراير 2026</Text>
-            <TouchableOpacity style={styles.detailsBtn}>
-              <Text style={styles.detailsText}>فتح التقرير</Text>
-            </TouchableOpacity>
-          </View>
+          )}
+
+          {visibleReports.map((report) => {
+            const isPending = report.status === "pending";
+            const isDtc = report.type === "DTC";
+            return (
+              <View key={report.id} style={styles.card}>
+                <View style={styles.cardTopRow}>
+                  <View
+                    style={[
+                      styles.statusDot,
+                      { backgroundColor: isPending ? "#E0A800" : "#28A745" },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.reportBadge,
+                      isDtc && { backgroundColor: "#E9ECEF" },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.reportBadgeText,
+                        isDtc && { color: "#495057" },
+                      ]}
+                    >
+                      {report.type}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.cardTitle}>{report.title}</Text>
+                <Text style={styles.cardDate}>{report.date}</Text>
+
+                <View
+                  style={[
+                    styles.statusPill,
+                    isPending ? styles.statusPillPending : styles.statusPillSaved,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.statusPillText,
+                      isPending
+                        ? styles.statusPillTextPending
+                        : styles.statusPillTextSaved,
+                    ]}
+                  >
+                    {isPending ? "غير محفوظ" : "محفوظ"}
+                  </Text>
+                </View>
+
+                {isPending ? (
+                  <View style={styles.actionsRow}>
+                    <TouchableOpacity
+                      style={[styles.detailsBtn, { flex: 1 }]}
+                      onPress={() => handleSaveReport(report.id)}
+                    >
+                      <Text style={styles.detailsText}>حفظ التقرير</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.rejectBtn}
+                      onPress={() => handleRejectReport(report.id)}
+                    >
+                      <Text style={styles.rejectBtnText}>تجاهل</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.detailsBtn}
+                    onPress={() => openReport(report.id)}
+                  >
+                    <Text style={styles.detailsText}>فتح التقرير</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          })}
         </ScrollView>
 
         {/* الصيانات الدورية */}
@@ -229,6 +463,24 @@ const styles = StyleSheet.create({
      shadowRadius: 10, 
      elevation: 2 },
 
+  filterRow: { flexDirection: "row-reverse", paddingHorizontal: 20, marginBottom: 12, gap: 8 },
+  filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E9ECEF", marginLeft: 8 },
+  filterChipActive: { backgroundColor: "#7a0f1f", borderColor: "#7a0f1f" },
+  filterChipText: { fontSize: 12, color: "#495057", fontFamily: "Tajawal-Bold" },
+  filterChipTextActive: { color: "#fff" },
+  emptyCard: { width: 200, height: 160, borderRadius: 16, borderWidth: 1, borderColor: "#E9ECEF", borderStyle: "dashed", justifyContent: "center", alignItems: "center", backgroundColor: "#fff" },
+  emptyText: { color: "#ADB5BD", fontFamily: "Tajawal-Bold", fontSize: 13 },
+  cardTopRow: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  statusDot: { width: 10, height: 10, borderRadius: 5 },
+  statusPill: { alignSelf: "flex-end", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12, marginTop: 8 },
+  statusPillPending: { backgroundColor: "#FFF8E1" },
+  statusPillSaved: { backgroundColor: "#E8F5E9" },
+  statusPillText: { fontSize: 10, fontFamily: "Tajawal-Bold" },
+  statusPillTextPending: { color: "#B8860B" },
+  statusPillTextSaved: { color: "#1E7E34" },
+  actionsRow: { flexDirection: "row-reverse", alignItems: "center", marginTop: 10, gap: 8 },
+  rejectBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: "#E9ECEF", marginRight: 8 },
+  rejectBtnText: { color: "#7a0f1f", fontSize: 12, fontFamily: "Tajawal-Bold" },
   reportBadge: { backgroundColor: "#FFF0F0", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignSelf: "flex-end", marginBottom: 10 },
   reportBadgeText: { color: "#7a0f1f", fontSize: 10, fontWeight: "800", fontFamily: "Tajawal-Bold" },
   cardTitle: { fontSize: 15, fontWeight: "700", textAlign: "right", fontFamily: "Tajawal-Bold" },

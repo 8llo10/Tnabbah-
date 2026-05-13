@@ -391,9 +391,19 @@ const ReportScreen = () => {
     }
   };
 
+  const goBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      // Fallback when there's no previous screen in the stack
+      // (e.g. opened via deep link or after a stack reset).
+      router.replace('/(tabs)/wallet');
+    }
+  }, []);
+
   const handleBackPress = useCallback(() => {
     if (saved) {
-      router.back();
+      goBack();
       return;
     }
     Alert.alert(
@@ -404,19 +414,19 @@ const ReportScreen = () => {
         {
           text: t.unsavedLeave,
           style: 'destructive',
-          onPress: () => router.back(),
+          onPress: () => goBack(),
         },
         {
           text: t.unsavedSave,
           onPress: async () => {
             const ok = await handleSaveReport();
-            if (ok) router.back();
+            if (ok) goBack();
           },
         },
       ],
       { cancelable: true }
     );
-  }, [saved, t]);
+  }, [saved, t, goBack]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
