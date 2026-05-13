@@ -252,8 +252,64 @@ export default function HomeScreen() {
         router.push("/bluetooth-setup" as any);
     };
 
-    const goToDiagnostics = () => {
-        router.push("/diagnostics/input" as any);
+    const performDirectScan = async () => {
+        try {
+            setIsChecking(true);
+            setDebugText("");
+
+            const { data: authData } = await supabase.auth.getUser();
+            const userId = authData.user?.id;
+            if (!userId) {
+                Alert.alert("خطأ", "يجب تسجيل الدخول قبل التحليل.");
+                setIsChecking(false);
+                return;
+            }
+
+            const scannedCarId = vehicleScannerService.getCachedCarId();
+            if (!scannedCarId) {
+                Alert.alert("خطأ", "ما قدرنا نعرف معرف السيارة. ابدأ الفحص أولاً.");
+                setIsChecking(false);
+                return;
+            }
+
+            setStatusText("جاري التقاط لقطة من بيانات السيارة وتشغيل التحليل...");
+
+            const response = await fetch(`${API_URL}/api/scan-from-mqtt`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    user_id: userId,
+                    car_id: scannedCarId,
+                    freshness_seconds: 10,
+                    wait_ms: 1500,
+                    vehicle_info: null,
+                }),
+            });
+
+            if (!response.ok) {
+                let detail = "فشل تشغيل التحليل";
+                try {
+                    const errBody = await response.json();
+                    if (errBody?.detail) detail = String(errBody.detail);
+                } catch {}
+                throw new Error(detail);
+            }
+
+            const report = await response.json();
+            setStatusText("تم إنشاء التقرير بنجاح");
+
+            router.push({
+                pathname: "/report",
+                params: { report: JSON.stringify(report) },
+            });
+        } catch (e: any) {
+            const errorMsg = e?.message || String(e) || "خطأ غير متوقع";
+            setStatusText("فشل تشغيل التحليل");
+            setDebugText(errorMsg);
+            Alert.alert("خطأ", errorMsg);
+        } finally {
+            setIsChecking(false);
+        }
     };
 
     const runMainVehicleAction = async () => {
@@ -446,7 +502,7 @@ export default function HomeScreen() {
                             </Pressable>
                         )}
 
-                        <Pressable style={styles.diagnosticsButton} onPress={goToDiagnostics}>
+                        <Pressable style={styles.diagnosticsButton} onPress={performDirectScan} disabled={isChecking}>
                             <Feather name="zap" size={16} color="#FFFFFF" />
                             <Text style={styles.diagnosticsButtonText}>تحليل بالذكاء الاصطناعي</Text>
                         </Pressable>
