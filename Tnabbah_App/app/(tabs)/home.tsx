@@ -19,6 +19,8 @@ import { vehicleScannerService } from "../../services/vehicleScannerService";
 import { mqttService } from "../../services/mqttService";
 import { supabase } from "../../lib/supabase";
 
+const API_URL = process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://127.0.0.1:8001";
+
 const COLORS = {
     primary: "#871B17",
     primaryLight: "#9A3A33",
