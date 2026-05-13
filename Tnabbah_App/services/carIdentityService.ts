@@ -30,6 +30,25 @@ function cleanRawFingerprint(value: unknown) {
     .replace(/[^A-Z0-9]/g, "");
 }
 
+function buildStableFingerprint(parts: {
+  vin: string;
+  calibrationId: string;
+  ecuName: string;
+  mode09Supported: string;
+}) {
+  if (parts.vin) return parts.vin;
+  if (parts.calibrationId) return parts.calibrationId;
+  if (parts.ecuName) return parts.ecuName;
+  if (parts.mode09Supported) return parts.mode09Supported;
+
+  return [
+    "UNKNOWN_VEHICLE",
+    parts.calibrationId || "NO_CALIBRATION",
+    parts.ecuName || "NO_ECU",
+    parts.mode09Supported || "NO_MODE09",
+  ].join("|");
+}
+
 export const carIdentityService = {
   async getCarIdentity(options?: { forceRefresh?: boolean }) {
     if (cachedIdentity && !options?.forceRefresh) {
@@ -52,14 +71,12 @@ export const carIdentityService = {
       mode09.raw?.["0900"] || mode09.raw?.["09 00"] || ""
     );
 
-    const fallbackBase = JSON.stringify({
+    const identityBase = buildStableFingerprint({
+      vin,
       calibrationId,
       ecuName,
       mode09Supported,
     });
-
-    const identityBase =
-      vin || calibrationId || ecuName || mode09Supported || fallbackBase || "unknown_vehicle";
 
     const carId = `car_${simpleHash(identityBase)}`;
 
@@ -78,6 +95,7 @@ export const carIdentityService = {
         : "mode09_fallback",
 
       fingerprints: {
+        identityBase,
         vin: vin || null,
         calibrationId: calibrationId || null,
         ecuName: ecuName || null,

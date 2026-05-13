@@ -411,17 +411,21 @@ export default function ConnectionIntroScreen() {
   }, [currentStep, contentAnim, firstLineAnim, secondLineAnim]);
 
   useEffect(() => {
-    const subscription = manager.onStateChange((state) => {
-      if (currentStep === 3 && state === State.PoweredOn && showDeviceList) {
-        startScan();
-      }
-    }, true);
+  const subscription = manager.onStateChange((state) => {
+    if (currentStep === 3 && state === State.PoweredOn) {
+      startScan();
+    }
 
-    return () => {
-      stopScan();
-      subscription.remove();
-    };
-  }, [currentStep, showDeviceList]);
+    if (currentStep === 3 && state !== State.PoweredOn) {
+      setErrorMessage(getBluetoothStateMessage(state));
+    }
+  }, true);
+
+  return () => {
+    stopScan();
+    subscription.remove();
+  };
+}, [currentStep]);
 
   const cardTranslateY = cardAnim.interpolate({
     inputRange: [0, 1],
