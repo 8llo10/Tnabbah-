@@ -6,29 +6,34 @@ import {
   StyleSheet,
   Platform,
   Animated,
-  Dimensions,
+  useWindowDimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useEffect, useRef } from "react";
-
-const { width } = Dimensions.get("window");
+import { useEffect, useMemo, useRef } from "react";
+import Svg, { Path } from "react-native-svg";
 
 const ACTIVE = "#871B17";
-const INACTIVE = "#6F6F6F";
+const ACTIVE_DARK = "#5F130F";
+const INACTIVE = "#555555";
 
-const BAR_BG = "rgba(238, 238, 238, 0.98)";
-const BAR_BORDER = "rgba(170, 170, 170, 0.24)";
-const INACTIVE_CIRCLE_BG = "rgba(130, 130, 130, 0.12)";
+const BAR_BG = "#EDEDED";
+const BAR_BORDER = "rgba(120, 120, 120, 0.18)";
 
-const BAR_SIDE_MARGIN = 20;
-const BAR_INNER_PADDING = 8;
+const BAR_SIDE_MARGIN = 24;
 
-const BAR_WIDTH = width - BAR_SIDE_MARGIN * 2;
-const AVAILABLE_WIDTH = BAR_WIDTH - BAR_INNER_PADDING * 2;
-const TAB_SLOT_WIDTH = AVAILABLE_WIDTH / 4;
+const TAB_COUNT = 4;
 
-const ACTIVE_TAB_WIDTH = Math.min(92, TAB_SLOT_WIDTH - 2);
-const INACTIVE_TAB_WIDTH = 44;
+const BAR_HEIGHT = 70;
+const BAR_RADIUS = 20;
+
+const BUBBLE_SIZE = 60;
+const BUBBLE_TOP = 9;
+
+const WRAPPER_HEIGHT = 108;
+
+const NOTCH_WIDTH = 82;
+const NOTCH_DEPTH = 32;
+const EDGE_SAFE_SPACE = 48;
 
 type IconPack = "ion" | "material";
 
@@ -50,229 +55,314 @@ function TabIcon({
   return <Ionicons name={name} size={size} color={color} />;
 }
 
-function AnimatedPillTab({
-  focused,
-  iconName,
-  iconPack,
-  label,
-  onPress,
+function getIconData(
+  routeName: string,
+  focused: boolean
+): { pack: IconPack; name: any } {
+  switch (routeName) {
+    case "home":
+      return {
+        pack: "ion",
+        name: focused ? "home" : "home-outline",
+      };
+
+    case "chatbot":
+      return {
+        pack: "ion",
+        name: focused ? "chatbubble-ellipses" : "chatbubble-ellipses-outline",
+      };
+
+    case "wallet":
+      return {
+        pack: "material",
+        name: focused ? "file-document-edit" : "file-document-edit-outline",
+      };
+
+    case "settings":
+      return {
+        pack: "ion",
+        name: focused ? "settings" : "settings-outline",
+      };
+
+    default:
+      return {
+        pack: "ion",
+        name: "ellipse-outline",
+      };
+  }
+}
+
+function getLabel(routeName: string): string {
+  switch (routeName) {
+    case "home":
+      return "الرئيسية";
+
+    case "chatbot":
+      return "المساعد";
+
+    case "wallet":
+      return "التقرير";
+
+    case "settings":
+      return "الإعدادات";
+
+    default:
+      return "";
+  }
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function getSafeCenterX({
+  activeIndex,
+  tabSlotWidth,
+  barWidth,
 }: {
-  focused: boolean;
-  iconName: any;
-  iconPack: IconPack;
-  label: string;
-  onPress: () => void;
+  activeIndex: number;
+  tabSlotWidth: number;
+  barWidth: number;
 }) {
-  const widthAnim = useRef(
-    new Animated.Value(focused ? ACTIVE_TAB_WIDTH : INACTIVE_TAB_WIDTH)
-  ).current;
+  const originalCenter = activeIndex * tabSlotWidth + tabSlotWidth / 2;
 
-  const opacityAnim = useRef(new Animated.Value(focused ? 1 : 0)).current;
-  const circleSizeAnim = useRef(new Animated.Value(focused ? 36 : 32)).current;
-  const iconScaleAnim = useRef(new Animated.Value(focused ? 1.1 : 1)).current;
-  const translateYAnim = useRef(new Animated.Value(focused ? -2 : 0)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.spring(widthAnim, {
-        toValue: focused ? ACTIVE_TAB_WIDTH : INACTIVE_TAB_WIDTH,
-        useNativeDriver: false,
-        friction: 9,
-        tension: 85,
-      }),
-
-      Animated.timing(opacityAnim, {
-        toValue: focused ? 1 : 0,
-        duration: 150,
-        useNativeDriver: false,
-      }),
-
-      Animated.spring(circleSizeAnim, {
-        toValue: focused ? 36 : 32,
-        useNativeDriver: false,
-        friction: 9,
-        tension: 85,
-      }),
-
-      Animated.spring(iconScaleAnim, {
-        toValue: focused ? 1.1 : 1,
-        useNativeDriver: false,
-        friction: 9,
-        tension: 85,
-      }),
-
-      Animated.spring(translateYAnim, {
-        toValue: focused ? -2 : 0,
-        useNativeDriver: false,
-        friction: 9,
-        tension: 85,
-      }),
-    ]).start();
-  }, [
-    focused,
-    widthAnim,
-    opacityAnim,
-    circleSizeAnim,
-    iconScaleAnim,
-    translateYAnim,
-  ]);
-
-  return (
-    <View style={styles.tabItem}>
-      <TouchableOpacity
-        onPress={onPress}
-        activeOpacity={0.85}
-        style={styles.touchArea}
-      >
-        <Animated.View
-          style={[
-            styles.pillTab,
-            {
-              width: widthAnim,
-              transform: [{ translateY: translateYAnim }],
-            },
-          ]}
-        >
-          {focused && (
-            <LinearGradient
-              colors={["#9A3A33", "#871B17", "#5F130F"]}
-              start={{ x: 0.15, y: 0 }}
-              end={{ x: 0.9, y: 1 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-          )}
-
-          <Animated.View
-            style={[
-              styles.iconCircle,
-              {
-                width: circleSizeAnim,
-                height: circleSizeAnim,
-                borderRadius: circleSizeAnim.interpolate({
-                  inputRange: [32, 36],
-                  outputRange: [16, 18],
-                }),
-                backgroundColor: focused
-                  ? "rgba(255,255,255,0.18)"
-                  : INACTIVE_CIRCLE_BG,
-                transform: [{ scale: iconScaleAnim }],
-              },
-            ]}
-          >
-            <TabIcon
-              pack={iconPack}
-              name={iconName}
-              size={focused ? 24 : 21}
-              color={focused ? "#FFFFFF" : INACTIVE}
-            />
-          </Animated.View>
-
-          {focused && (
-            <Animated.Text
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.8}
-              style={[styles.tabLabel, { opacity: opacityAnim }]}
-            >
-              {label}
-            </Animated.Text>
-          )}
-        </Animated.View>
-      </TouchableOpacity>
-    </View>
+  return clamp(
+    originalCenter,
+    EDGE_SAFE_SPACE,
+    barWidth - EDGE_SAFE_SPACE
   );
 }
 
+function buildNotchPath({
+  activeIndex,
+  tabSlotWidth,
+  barWidth,
+}: {
+  activeIndex: number;
+  tabSlotWidth: number;
+  barWidth: number;
+}): string {
+  const cx = getSafeCenterX({
+    activeIndex,
+    tabSlotWidth,
+    barWidth,
+  });
+
+  const w = barWidth;
+  const h = BAR_HEIGHT;
+  const cr = BAR_RADIUS;
+
+  const notchHalf = NOTCH_WIDTH / 2;
+
+  const start = cx - notchHalf;
+  const end = cx + notchHalf;
+
+  return [
+    `M ${cr} 0`,
+
+    `L ${start} 0`,
+
+    /*
+      القوس حول الدائرة
+      متوازن وما يقرب زيادة من الأطراف
+    */
+    `C ${start + 10} 0 ${cx - 36} 4 ${cx - 31} 17`,
+    `C ${cx - 26} ${NOTCH_DEPTH} ${cx - 17} ${
+      NOTCH_DEPTH + 7
+    } ${cx} ${NOTCH_DEPTH + 7}`,
+    `C ${cx + 17} ${NOTCH_DEPTH + 7} ${cx + 26} ${NOTCH_DEPTH} ${
+      cx + 31
+    } 17`,
+    `C ${cx + 36} 4 ${end - 10} 0 ${end} 0`,
+
+    `L ${w - cr} 0`,
+    `Q ${w} 0 ${w} ${cr}`,
+    `L ${w} ${h - cr}`,
+    `Q ${w} ${h} ${w - cr} ${h}`,
+    `L ${cr} ${h}`,
+    `Q 0 ${h} 0 ${h - cr}`,
+    `L 0 ${cr}`,
+    `Q 0 0 ${cr} 0`,
+    `Z`,
+  ].join(" ");
+}
+
 function CustomTabBar({ state, navigation }: any) {
-  const getIconData = (
-    routeName: string,
-    focused: boolean
-  ): { pack: IconPack; name: any } => {
-    switch (routeName) {
-      case "home":
-        return {
-          pack: "ion",
-          name: focused ? "home" : "home-outline",
-        };
+  const { width } = useWindowDimensions();
 
-      case "chatbot":
-        return {
-          pack: "ion",
-          name: focused ? "sparkles" : "sparkles-outline",
-        };
+  const barWidth = width - BAR_SIDE_MARGIN * 2;
+  const tabSlotWidth = barWidth / TAB_COUNT;
 
-      case "wallet":
-        return {
-          pack: "material",
-          name: focused ? "file-cog" : "file-cog-outline",
-        };
+  const activeIndex = state.index;
+  const activeRoute = state.routes[activeIndex];
 
-      case "settings":
-        return {
-          pack: "ion",
-          name: focused ? "settings" : "settings-outline",
-        };
+  const activeIcon = getIconData(activeRoute.name, true);
+  const activeLabel = getLabel(activeRoute.name);
 
-      default:
-        return {
-          pack: "ion",
-          name: "ellipse-outline",
-        };
-    }
-  };
+  const safeCenterX = useMemo(() => {
+    return getSafeCenterX({
+      activeIndex,
+      tabSlotWidth,
+      barWidth,
+    });
+  }, [activeIndex, tabSlotWidth, barWidth]);
 
-  const getLabel = (routeName: string): string => {
-    switch (routeName) {
-      case "home":
-        return "الرئيسية";
+  const activeBubbleLeft = safeCenterX - BUBBLE_SIZE / 2;
 
-      case "chatbot":
-        return "المساعد";
+  const notchPath = useMemo(() => {
+    return buildNotchPath({
+      activeIndex,
+      tabSlotWidth,
+      barWidth,
+    });
+  }, [activeIndex, tabSlotWidth, barWidth]);
 
-      case "wallet":
-        return "التقرير";
+  const bubbleScale = useRef(new Animated.Value(1)).current;
+  const labelOpacity = useRef(new Animated.Value(1)).current;
 
-      case "settings":
-        return "إعدادات";
+  useEffect(() => {
+    Animated.parallel([
+      Animated.sequence([
+        Animated.timing(bubbleScale, {
+          toValue: 0.93,
+          duration: 70,
+          useNativeDriver: true,
+        }),
+        Animated.spring(bubbleScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          friction: 5,
+          tension: 120,
+        }),
+      ]),
 
-      default:
-        return "";
-    }
-  };
+      Animated.sequence([
+        Animated.timing(labelOpacity, {
+          toValue: 0,
+          duration: 60,
+          useNativeDriver: true,
+        }),
+        Animated.timing(labelOpacity, {
+          toValue: 1,
+          duration: 140,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  }, [activeIndex, bubbleScale, labelOpacity]);
 
   return (
-    <View style={styles.wrapper}>
-      <View style={styles.tabBar}>
-        <View style={styles.tabsRow}>
-          {state.routes.map((route: any) => {
-            const isFocused = state.routes[state.index].key === route.key;
-            const iconData = getIconData(route.name, isFocused);
-
-            const onPress = () => {
-              const event = navigation.emit({
-                type: "tabPress",
-                target: route.key,
-                canPreventDefault: true,
-              });
-
-              if (!isFocused && !event.defaultPrevented) {
-                navigation.navigate(route.name);
-              }
-            };
-
-            return (
-              <AnimatedPillTab
-                key={route.key}
-                focused={isFocused}
-                iconPack={iconData.pack}
-                iconName={iconData.name}
-                label={getLabel(route.name)}
-                onPress={onPress}
-              />
-            );
-          })}
-        </View>
+    <View
+      style={[
+        styles.wrapper,
+        {
+          left: BAR_SIDE_MARGIN,
+          right: BAR_SIDE_MARGIN,
+          width: barWidth,
+        },
+      ]}
+      pointerEvents="box-none"
+    >
+      <View style={[styles.svgContainer, { width: barWidth }]}>
+        <Svg width={barWidth} height={BAR_HEIGHT}>
+          <Path
+            d={notchPath}
+            fill={BAR_BG}
+            stroke={BAR_BORDER}
+            strokeWidth={1}
+          />
+        </Svg>
       </View>
+
+      <View style={[styles.tabsRow, { width: barWidth }]}>
+        {state.routes.map((route: any) => {
+          const isFocused = state.routes[state.index].key === route.key;
+          const iconData = getIconData(route.name, false);
+
+          const onPress = () => {
+            const event = navigation.emit({
+              type: "tabPress",
+              target: route.key,
+              canPreventDefault: true,
+            });
+
+            if (!isFocused && !event.defaultPrevented) {
+              navigation.navigate(route.name);
+            }
+          };
+
+          return (
+            <TouchableOpacity
+              key={route.key}
+              onPress={onPress}
+              activeOpacity={0.82}
+              style={[
+                styles.tabButton,
+                {
+                  width: tabSlotWidth,
+                },
+              ]}
+            >
+              {!isFocused && (
+                <TabIcon
+                  pack={iconData.pack}
+                  name={iconData.name}
+                  size={27}
+                  color={INACTIVE}
+                />
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <Animated.View
+        pointerEvents="box-none"
+        style={[
+          styles.activeBubbleWrapper,
+          {
+            left: activeBubbleLeft,
+            transform: [{ scale: bubbleScale }],
+          },
+        ]}
+      >
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={styles.activeBubbleTouch}
+          onPress={() => navigation.navigate(activeRoute.name)}
+        >
+          <LinearGradient
+            colors={[ACTIVE, "#7A1814", ACTIVE_DARK]}
+            start={{ x: 0.15, y: 0 }}
+            end={{ x: 0.9, y: 1 }}
+            style={styles.activeBubble}
+          >
+            <TabIcon
+              pack={activeIcon.pack}
+              name={activeIcon.name}
+              size={29}
+              color="#FFFFFF"
+            />
+          </LinearGradient>
+        </TouchableOpacity>
+      </Animated.View>
+
+      <Animated.Text
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+        pointerEvents="none"
+        style={[
+          styles.activeLabel,
+          {
+            left: activeIndex * tabSlotWidth,
+            width: tabSlotWidth,
+            opacity: labelOpacity,
+          },
+        ]}
+      >
+        {activeLabel}
+      </Animated.Text>
     </View>
   );
 }
@@ -300,74 +390,84 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   wrapper: {
     position: "absolute",
-    left: BAR_SIDE_MARGIN,
-    right: BAR_SIDE_MARGIN,
     bottom: Platform.OS === "ios" ? 30 : 24,
-    height: 78,
-    justifyContent: "center",
+    height: WRAPPER_HEIGHT,
     alignItems: "center",
+    justifyContent: "flex-end",
+    zIndex: 999,
+    elevation: 999,
   },
 
-  tabBar: {
-    width: "100%",
-    height: 68,
-    borderRadius: 36,
-    backgroundColor: BAR_BG,
-    borderWidth: 1,
-    borderColor: BAR_BORDER,
-    overflow: "hidden",
+  svgContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
 
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 7 },
-    shadowOpacity: 0.08,
-    shadowRadius: 13,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 8,
   },
 
   tabsRow: {
-    flex: 1,
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: BAR_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: BAR_INNER_PADDING,
+    zIndex: 5,
   },
 
-  tabItem: {
-    width: TAB_SLOT_WIDTH,
-    height: 60,
+  tabButton: {
+    height: BAR_HEIGHT,
     justifyContent: "center",
     alignItems: "center",
+    paddingTop: 9,
   },
 
-  touchArea: {
-    width: TAB_SLOT_WIDTH,
-    height: 56,
-    justifyContent: "center",
-    alignItems: "center",
+  activeBubbleWrapper: {
+    position: "absolute",
+    top: BUBBLE_TOP,
+    width: BUBBLE_SIZE,
+    height: BUBBLE_SIZE,
+    borderRadius: BUBBLE_SIZE / 2,
+    zIndex: 30,
+
+    shadowColor: ACTIVE,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 9,
+    elevation: 12,
   },
 
-  pillTab: {
-    height: 50,
-    borderRadius: 25,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 4,
+  activeBubbleTouch: {
+    width: BUBBLE_SIZE,
+    height: BUBBLE_SIZE,
+    borderRadius: BUBBLE_SIZE / 2,
     overflow: "hidden",
   },
 
-  iconCircle: {
+  activeBubble: {
+    width: BUBBLE_SIZE,
+    height: BUBBLE_SIZE,
+    borderRadius: BUBBLE_SIZE / 2,
     justifyContent: "center",
     alignItems: "center",
   },
 
-  tabLabel: {
-    marginLeft: 3,
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "900",
-    includeFontPadding: false,
+  activeLabel: {
+    position: "absolute",
+    bottom: 13,
+    color: INACTIVE,
+    fontSize: 11,
+    fontWeight: "800",
     textAlign: "center",
-    maxWidth: 46,
+    includeFontPadding: false,
+    zIndex: 20,
   },
 });

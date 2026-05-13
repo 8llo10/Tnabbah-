@@ -58,31 +58,31 @@ type DeviceItem = {
 
 const STEPS = {
   1: {
-    title: "ابدئي ربط القطعة",
+    title: "ابدء ربط القطعة",
     subtitle:
-      "اتّبعي الخطوات التالية لتجهيز القطعة وربطها بالتطبيق بطريقة سهلة وآمنة.",
+      "اتّبع الخطوات التالية لتجهيز القطعة وربطها بالتطبيق بطريقة سهلة وآمنة.",
     icon: "cellphone-cog" as keyof typeof MaterialCommunityIcons.glyphMap,
-    instructions: ["جهّزي القطعة والسيارة", "اختاري اتصال البلوتوث"],
+    instructions: ["جهّز القطعة والسيارة", "اختار اتصال البلوتوث"],
     buttonText: "التالي",
   },
 
   2: {
-    title: "جهّزي القطعة",
+    title: "جهّز القطعة",
     subtitle:
-      "ابدئي بتجهيز السيارة والقطعة حتى يتمكن التطبيق من التعرف عليها قبل اختيار طريقة الاتصال.",
+      "ابدء بتجهيز السيارة والقطعة حتى يتمكن التطبيق من التعرف عليها قبل اختيار طريقة الاتصال.",
     icon: "car-outline" as keyof typeof MaterialCommunityIcons.glyphMap,
     instructions: [
-      "شغّلي السيارة",
-      "ركّبي القطعة في مدخل OBD",
-      "انتظري حتى تضيء لمبة القطعة",
+      "شغّل السيارة",
+      "ركّب القطعة في مدخل OBD",
+      "انتظر حتى تضيء لمبة القطعة",
     ],
     buttonText: "تم توصيل القطعة",
   },
 
   3: {
-    title: "اختاري اتصال البلوتوث",
+    title: "اختار اتصال البلوتوث",
     subtitle:
-      "اختاري جهاز OBD من الأجهزة المتاحة. بعد نجاح الربط، ينقلك تنبّه للصفحة الرئيسية ويبدأ سحب بيانات السيارة.",
+      "اختار جهاز OBD من الأجهزة المتاحة. بعد نجاح الربط، ينقلك تنبّه للصفحة الرئيسية ويبدأ سحب بيانات السيارة.",
     icon: "bluetooth" as keyof typeof MaterialCommunityIcons.glyphMap,
     buttonText: "ربط الجهاز",
   },
@@ -178,11 +178,11 @@ export default function ConnectionIntroScreen() {
 
   const getBluetoothStateMessage = (state: State) => {
     if (state === State.PoweredOff) {
-      return "البلوتوث مقفل. فعّليه من إعدادات الجوال ثم أعيدي المحاولة.";
+      return "البلوتوث مقفل. فعّله من إعدادات الجوال ثم أعيد المحاولة.";
     }
 
     if (state === State.Unauthorized) {
-      return "التطبيق لا يملك صلاحية البلوتوث. فعّلي صلاحية البلوتوث للتطبيق.";
+      return "التطبيق لا يملك صلاحية البلوتوث. فعّل صلاحية البلوتوث للتطبيق.";
     }
 
     if (state === State.Unsupported) {
@@ -190,10 +190,10 @@ export default function ConnectionIntroScreen() {
     }
 
     if (state === State.Resetting) {
-      return "البلوتوث يعيد التشغيل الآن. انتظري ثواني ثم أعيدي المحاولة.";
+      return "البلوتوث يعيد التشغيل الآن. انتظر ثواني ثم أعيد المحاولة.";
     }
 
-    return "البلوتوث غير جاهز الآن. انتظري ثواني ثم أعيدي المحاولة.";
+    return "البلوتوث غير جاهز الآن. انتظر ثواني ثم أعيد المحاولة.";
   };
 
   const stopScan = () => {
@@ -275,7 +275,7 @@ export default function ConnectionIntroScreen() {
 
   const handleConnectDevice = async () => {
     if (!selectedDevice) {
-      setErrorMessage("اختاري جهاز البلوتوث أولًا");
+      setErrorMessage("اختار جهاز البلوتوث أولًا");
       return;
     }
 
@@ -734,8 +734,8 @@ function StepOneContent({
 }) {
   return (
     <View style={styles.instructionsBox}>
-      <InstructionRow number="1" text="جهّزي القطعة والسيارة" styles={styles} />
-      <InstructionRow number="2" text="اختاري اتصال البلوتوث" styles={styles} />
+      <InstructionRow number="1" text="جهّز القطعة والسيارة" styles={styles} />
+      <InstructionRow number="2" text="اختار اتصال البلوتوث" styles={styles} />
     </View>
   );
 }
@@ -748,8 +748,8 @@ function StepTwoContent({
   return (
     <>
       <View style={styles.instructionsBox}>
-        <InstructionRow number="1" text="شغّلي السيارة" styles={styles} />
-        <InstructionRow number="2" text="ركّبي القطعة في مدخل OBD" styles={styles} />
+        <InstructionRow number="1" text="شغّل السيارة" styles={styles} />
+        <InstructionRow number="2" text="ركّب القطعة في مدخل OBD" styles={styles} />
       </View>
 
       <View style={styles.animationBox}>
@@ -765,7 +765,7 @@ function StepTwoContent({
       <View style={styles.lastInstructionBox}>
         <InstructionRow
           number="3"
-          text="انتظري حتى تضيء لمبة القطعة"
+          text="انتظر حتى تضيء لمبة القطعة"
           styles={styles}
         />
       </View>
@@ -819,7 +819,7 @@ function BluetoothContent({
             ? "جاري البحث..."
             : selectedDevice
             ? selectedDevice.name
-            : "اختاري الجهاز"}
+            : "اختار الجهاز"}
         </Text>
       </TouchableOpacity>
 
@@ -828,7 +828,7 @@ function BluetoothContent({
           {isScanning ? (
             <View style={styles.loadingRow}>
               <ActivityIndicator color={COLORS.primary} />
-              <Text style={styles.loadingText}>جاري البحث عن الأجهزة...</Text>
+              <Text style={styles.loadingText}>جار البحث عن الأجهزة...</Text>
             </View>
           ) : null}
 
@@ -881,7 +881,7 @@ function BluetoothContent({
 
         <TextInput
           style={styles.passwordInput}
-          placeholder="اختياري: 1234 أو 0000"
+          placeholder="اختيار: 1234 أو 0000"
           placeholderTextColor="#B0B0B0"
           value={password}
           onChangeText={setPassword}
@@ -893,7 +893,7 @@ function BluetoothContent({
       </View>
 
       <Text style={styles.noteText}>
-        تقدرين تتخطين الصفحة. وقتها الهوم يفتح عادي، وراح يبان إن قطعة OBD غير
+        تقدر تتخطى الصفحة. وقتها الهوم يفتح عادي، وراح يبان إن قطعة OBD غير
         متصلة.
       </Text>
 
