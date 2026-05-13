@@ -10,7 +10,8 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.rawanamoodi.tnabbahapp",
+  
+      "bundleIdentifier": "com.rawanamoodi.tnabbahfree",
       "icon": "./assets/images/splash-logo.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
