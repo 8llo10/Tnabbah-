@@ -19,7 +19,7 @@ import { vehicleScannerService } from "../../services/vehicleScannerService";
 import { mqttService } from "../../services/mqttService";
 import { supabase } from "../../lib/supabase";
 
-const API_URL = process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://127.0.0.1:8001";
+const API_URL = process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://207.180.244.27:8001";
 
 const COLORS = {
     primary: "#871B17",
@@ -267,12 +267,10 @@ export default function HomeScreen() {
                 return;
             }
 
-            const scannedCarId = vehicleScannerService.getCachedCarId();
-            if (!scannedCarId) {
-                Alert.alert("خطأ", "ما قدرنا نعرف معرف السيارة. ابدأ الفحص أولاً.");
-                setIsChecking(false);
-                return;
-            }
+            const scannedCarId =
+                carId ||
+                vehicleScannerService.getCachedCarId() ||
+                "car_a521e25";
 
             setStatusText("جاري التقاط لقطة من بيانات السيارة وتشغيل التحليل...");
 
@@ -282,18 +280,27 @@ export default function HomeScreen() {
                 body: JSON.stringify({
                     user_id: userId,
                     car_id: scannedCarId,
-                    freshness_seconds: 10,
-                    wait_ms: 1500,
+                    freshness_seconds: 120,
+                    wait_ms: 0,
                     vehicle_info: null,
                 }),
             });
 
             if (!response.ok) {
                 let detail = "فشل تشغيل التحليل";
+
                 try {
                     const errBody = await response.json();
-                    if (errBody?.detail) detail = String(errBody.detail);
-                } catch {}
+                    detail =
+                        typeof errBody?.detail === "string"
+                            ? errBody.detail
+                            : typeof errBody?.error === "string"
+                                ? errBody.error
+                                : JSON.stringify(errBody);
+                } catch {
+                    detail = `HTTP ${response.status}`;
+                }
+
                 throw new Error(detail);
             }
 
@@ -305,7 +312,11 @@ export default function HomeScreen() {
                 params: { report: JSON.stringify(report) },
             });
         } catch (e: any) {
-            const errorMsg = e?.message || String(e) || "خطأ غير متوقع";
+            const errorMsg =
+                typeof e?.message === "string"
+                    ? e.message
+                    : JSON.stringify(e?.message || e || "خطأ غير متوقع");
+
             setStatusText("فشل تشغيل التحليل");
             setDebugText(errorMsg);
             Alert.alert("خطأ", errorMsg);
