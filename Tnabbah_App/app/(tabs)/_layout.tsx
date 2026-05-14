@@ -162,10 +162,6 @@ function buildNotchPath({
 
     `L ${start} 0`,
 
-    /*
-      القوس حول الدائرة
-      متوازن وما يقرب زيادة من الأطراف
-    */
     `C ${start + 10} 0 ${cx - 36} 4 ${cx - 31} 17`,
     `C ${cx - 26} ${NOTCH_DEPTH} ${cx - 17} ${
       NOTCH_DEPTH + 7
@@ -217,11 +213,19 @@ function CustomTabBar({ state, navigation }: any) {
     });
   }, [activeIndex, tabSlotWidth, barWidth]);
 
+  const bubbleTranslateX = useRef(new Animated.Value(activeBubbleLeft)).current;
   const bubbleScale = useRef(new Animated.Value(1)).current;
   const labelOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.parallel([
+      Animated.spring(bubbleTranslateX, {
+        toValue: activeBubbleLeft,
+        useNativeDriver: true,
+        friction: 8,
+        tension: 90,
+      }),
+
       Animated.sequence([
         Animated.timing(bubbleScale, {
           toValue: 0.93,
@@ -249,7 +253,13 @@ function CustomTabBar({ state, navigation }: any) {
         }),
       ]),
     ]).start();
-  }, [activeIndex, bubbleScale, labelOpacity]);
+  }, [
+    activeIndex,
+    activeBubbleLeft,
+    bubbleTranslateX,
+    bubbleScale,
+    labelOpacity,
+  ]);
 
   return (
     <View
@@ -321,8 +331,10 @@ function CustomTabBar({ state, navigation }: any) {
         style={[
           styles.activeBubbleWrapper,
           {
-            left: activeBubbleLeft,
-            transform: [{ scale: bubbleScale }],
+            transform: [
+              { translateX: bubbleTranslateX },
+              { scale: bubbleScale },
+            ],
           },
         ]}
       >
@@ -432,6 +444,7 @@ const styles = StyleSheet.create({
 
   activeBubbleWrapper: {
     position: "absolute",
+    left: 0,
     top: BUBBLE_TOP,
     width: BUBBLE_SIZE,
     height: BUBBLE_SIZE,
