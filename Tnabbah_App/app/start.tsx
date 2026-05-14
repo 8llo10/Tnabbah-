@@ -302,18 +302,21 @@ export default function StartScreen() {
         pointerEvents="none"
         style={[styles.backgroundGlassLayer, { opacity: glassLayerOpacity }]}
       >
-        <BlurView
-          intensity={Platform.OS === "android" ? 14 : 12}
-          tint="light"
-          experimentalBlurMethod="dimezisBlurView"
-          style={StyleSheet.absoluteFillObject}
-        />
+        {Platform.OS === "ios" ? (
+          <BlurView
+            intensity={10}
+            tint="light"
+            style={StyleSheet.absoluteFillObject}
+          />
+        ) : (
+          <View style={styles.androidSoftGlass} />
+        )}
 
         <LinearGradient
           colors={[
-            "rgba(255,255,255,0.10)",
-            "rgba(255,255,255,0.03)",
             "rgba(255,255,255,0.09)",
+            "rgba(255,255,255,0.025)",
+            "rgba(255,255,255,0.08)",
           ]}
           locations={[0, 0.5, 1]}
           start={{ x: 0.1, y: 0 }}
@@ -341,8 +344,8 @@ export default function StartScreen() {
             >
               <LinearGradient
                 colors={[
-                  "rgba(255,255,255,0.62)",
-                  "rgba(255,255,255,0.34)",
+                  "rgba(255,255,255,0.64)",
+                  "rgba(255,255,255,0.42)",
                 ]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
@@ -412,8 +415,8 @@ export default function StartScreen() {
             >
               <LinearGradient
                 colors={[
-                  "rgba(255,255,255,0.64)",
-                  "rgba(255,255,255,0.36)",
+                  "rgba(255,255,255,0.70)",
+                  "rgba(255,255,255,0.45)",
                 ]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
@@ -513,6 +516,24 @@ function createStyles({
   const buttonHeight = clamp(height * 0.076, 56, 64);
   const buttonRadius = buttonHeight / 2;
 
+  const titleShadow =
+    Platform.OS === "ios"
+      ? {
+          textShadowColor: "rgba(255,255,255,0.85)",
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 8,
+        }
+      : {};
+
+  const subtitleShadow =
+    Platform.OS === "ios"
+      ? {
+          textShadowColor: "rgba(255,255,255,0.75)",
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 6,
+        }
+      : {};
+
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -532,6 +553,11 @@ function createStyles({
       ...StyleSheet.absoluteFillObject,
       zIndex: 1,
       backgroundColor: "transparent",
+    },
+
+    androidSoftGlass: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(255,255,255,0.13)",
     },
 
     safeArea: {
@@ -603,13 +629,16 @@ function createStyles({
       borderRadius: 26,
       overflow: "hidden",
       shadowColor: "#000",
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: Platform.OS === "android" ? 0.08 : 0.1,
-      shadowRadius: 14,
-      elevation: 5,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: Platform.OS === "android" ? 0.07 : 0.1,
+      shadowRadius: 12,
+      elevation: 4,
       borderWidth: 1,
       borderColor: "rgba(255,255,255,0.58)",
-      backgroundColor: "rgba(255,255,255,0.35)",
+      backgroundColor:
+        Platform.OS === "android"
+          ? "rgba(255,255,255,0.58)"
+          : "rgba(255,255,255,0.35)",
     },
 
     langButtonGradient: {
@@ -632,6 +661,8 @@ function createStyles({
       fontSize: 16,
       color: COLORS.primaryText,
       fontWeight: "800",
+      includeFontPadding: false,
+      textAlignVertical: "center",
     },
 
     centerContent: {
@@ -653,22 +684,23 @@ function createStyles({
       fontWeight: "900",
       color: COLORS.title,
       textAlign: "center",
-      letterSpacing: -0.7,
-      lineHeight: isVerySmallScreen ? 36 : 43,
-      textShadowColor: "rgba(255,255,255,0.95)",
-      textShadowOffset: { width: 0, height: 2 },
-      textShadowRadius: 14,
+      letterSpacing: Platform.OS === "ios" ? -0.7 : -0.2,
+      lineHeight: isVerySmallScreen ? 38 : 44,
+      includeFontPadding: false,
+      textAlignVertical: "center",
+      ...titleShadow,
     },
 
     titleBrand: {
       color: COLORS.primary,
       fontWeight: "900",
-      letterSpacing: -0.4,
+      letterSpacing: Platform.OS === "ios" ? -0.4 : 0,
+      includeFontPadding: false,
     },
 
     titleUnderline: {
-      marginTop: 9,
-      marginBottom: 11,
+      marginTop: 10,
+      marginBottom: 12,
       width: isVerySmallScreen ? 68 : 84,
       height: 4,
       borderRadius: 99,
@@ -677,14 +709,14 @@ function createStyles({
 
     subtitle: {
       fontSize: isVerySmallScreen ? 15 : 17,
-      lineHeight: isVerySmallScreen ? 24 : 29,
+      lineHeight: isVerySmallScreen ? 25 : 30,
       color: COLORS.darkText,
       fontWeight: "800",
       textAlign: "center",
       maxWidth: clamp(width * 0.82, 280, 330),
-      textShadowColor: "rgba(255,255,255,0.90)",
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 10,
+      includeFontPadding: false,
+      textAlignVertical: "center",
+      ...subtitleShadow,
     },
 
     buttonsArea: {
@@ -700,7 +732,7 @@ function createStyles({
       overflow: "hidden",
       shadowColor: "#6E1411",
       shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
+      shadowOpacity: Platform.OS === "android" ? 0.16 : 0.24,
       shadowRadius: 14,
       elevation: 6,
       backgroundColor: COLORS.primary,
@@ -729,6 +761,8 @@ function createStyles({
       color: COLORS.white,
       fontSize: isVerySmallScreen ? 19 : 21,
       fontWeight: "900",
+      includeFontPadding: false,
+      textAlignVertical: "center",
     },
 
     registerButtonWrapper: {
@@ -737,13 +771,16 @@ function createStyles({
       borderRadius: buttonRadius,
       overflow: "hidden",
       shadowColor: "#000",
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: Platform.OS === "android" ? 0.08 : 0.1,
-      shadowRadius: 15,
-      elevation: 5,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: Platform.OS === "android" ? 0.07 : 0.1,
+      shadowRadius: 13,
+      elevation: 4,
       borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.58)",
-      backgroundColor: "rgba(255,255,255,0.40)",
+      borderColor: "rgba(255,255,255,0.62)",
+      backgroundColor:
+        Platform.OS === "android"
+          ? "rgba(255,255,255,0.62)"
+          : "rgba(255,255,255,0.40)",
     },
 
     registerGradient: {
@@ -758,6 +795,8 @@ function createStyles({
       color: COLORS.primaryText,
       fontSize: isVerySmallScreen ? 18 : 20,
       fontWeight: "900",
+      includeFontPadding: false,
+      textAlignVertical: "center",
     },
 
     transitionOverlay: {
