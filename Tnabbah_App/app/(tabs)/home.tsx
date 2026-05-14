@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Pressable,
   ScrollView,
   StatusBar,
@@ -11,7 +12,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { elmBluetoothService } from "../../services/elmBluetoothService";
@@ -67,12 +68,27 @@ function getPayloadData(message: Buffer) {
   }
 }
 
+function getUserDisplayName(user: any) {
+  const metadata = user?.user_metadata || {};
+
+  const name =
+    metadata.full_name ||
+    metadata.name ||
+    metadata.username ||
+    user?.email?.split("@")?.[0] ||
+    "";
+
+  return String(name).trim();
+}
+
 export default function HomeScreen() {
   const { width, height } = useWindowDimensions();
 
   const isLandscape = width > height;
   const isWide = width >= 760 || isLandscape;
   const columns = isWide ? 4 : 2;
+
+  const [userName, setUserName] = useState("");
 
   const [isChecking, setIsChecking] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -99,6 +115,16 @@ export default function HomeScreen() {
     const totalGap = 10 * (columns - 1);
     return (width - pagePadding - totalGap) / columns;
   }, [width, columns, isWide]);
+
+  useEffect(() => {
+    const loadUserName = async () => {
+      const { data } = await supabase.auth.getUser();
+      const displayName = getUserDisplayName(data.user);
+      setUserName(displayName);
+    };
+
+    loadUserName();
+  }, []);
 
   useEffect(() => {
     const update = async () => {
@@ -337,8 +363,15 @@ export default function HomeScreen() {
       >
         <View style={[styles.header, isWide && styles.headerWide]}>
           <View style={styles.headerTextBox}>
-            <Text style={styles.helloText}>أهلًا في تنبّهـ</Text>
-            <Text style={styles.headerTitle}>سيارتك تتكلم، ونحن نترجمها لك</Text>
+            <Text style={styles.helloText}>
+              {userName
+                ? `أهلًا بك في تنبّهـ ${userName}`
+                : "أهلًا بك في تنبّهـ"}
+            </Text>
+
+            <Text style={styles.headerTitle}>
+              سيارتك تتكلم، ونحن نترجمها لك
+            </Text>
           </View>
 
           <View
@@ -367,24 +400,21 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <LinearGradient
-          colors={["#FFFFFF", "#FFF7F7"]}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={[styles.heroCard, isWide && styles.heroCardWide]}
-        >
-          <View style={styles.heroIconCircle}>
-            <MaterialCommunityIcons
-              name="car-connected"
-              size={46}
-              color={COLORS.primary}
-            />
-          </View>
+        <View style={[styles.carImageArea, isWide && styles.carImageAreaWide]}>
+          <Image
+            source={require("../../assets/images/car-card.png")}
+            style={styles.carImage}
+            resizeMode="cover"
+          />
+        </View>
 
+        <View style={[styles.heroCard, isWide && styles.heroCardWide]}>
           <View style={styles.heroContent}>
             <Text style={styles.heroTitle}>فحص تنبّه</Text>
+
             <Text style={styles.heroSubtitle}>
-              نعرض حالة السيارة من MQTT، والزر ينشئ تقرير ذكي من آخر بيانات السيارة.
+              نعرض حالة السيارة من MQTT، والزر ينشئ تقرير ذكي من آخر بيانات
+              السيارة.
             </Text>
           </View>
 
@@ -415,7 +445,7 @@ export default function HomeScreen() {
               </LinearGradient>
             </Pressable>
           </View>
-        </LinearGradient>
+        </View>
 
         <Text style={styles.sectionTitle}>قراءات السيارة من MQTT</Text>
 
@@ -427,6 +457,7 @@ export default function HomeScreen() {
             value={safeValue(metrics.rpm)}
             unit="دورة/دقيقة"
           />
+
           <MetricCard
             width={metricWidth}
             icon="navigation"
@@ -434,6 +465,7 @@ export default function HomeScreen() {
             value={safeValue(metrics.speed)}
             unit="كم/س"
           />
+
           <MetricCard
             width={metricWidth}
             icon="battery"
@@ -441,6 +473,7 @@ export default function HomeScreen() {
             value={safeValue(metrics.voltage)}
             unit="V"
           />
+
           <MetricCard
             width={metricWidth}
             icon="thermometer"
@@ -460,6 +493,7 @@ export default function HomeScreen() {
             value={carId ? "موجود" : "--"}
             unit={carId || "بانتظار MQTT"}
           />
+
           <MetricCard
             width={metricWidth}
             icon="file-text"
@@ -467,6 +501,7 @@ export default function HomeScreen() {
             value={vin ? "موجود" : "--"}
             unit={vin || "Mode 09"}
           />
+
           <MetricCard
             width={metricWidth}
             icon="list"
@@ -474,6 +509,7 @@ export default function HomeScreen() {
             value={String(supportedCount)}
             unit="PID"
           />
+
           <MetricCard
             width={metricWidth}
             icon="alert-triangle"
@@ -514,7 +550,8 @@ export default function HomeScreen() {
           <View style={styles.tipTextBox}>
             <Text style={styles.tipTitle}>MQTT Live View</Text>
             <Text style={styles.tipText}>
-              القيم المعروضة هنا تنعكس من MQTT. آخر قيمة تبقى ظاهرة حتى لو انقطعت القطعة، والحالة فقط تتحول إلى غير متصل.
+              القيم المعروضة هنا تنعكس من MQTT. آخر قيمة تبقى ظاهرة حتى لو
+              انقطعت القطعة، والحالة فقط تتحول إلى غير متصل.
             </Text>
           </View>
         </View>
@@ -558,34 +595,62 @@ function MetricCard({
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.bg },
-  scrollView: { flex: 1, backgroundColor: COLORS.bg },
-  scrollContent: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 130 },
-  scrollContentWide: { paddingHorizontal: 26 },
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+  },
+
+  scrollView: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+  },
+
+  scrollContent: {
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 130,
+  },
+
+  scrollContentWide: {
+    paddingHorizontal: 26,
+  },
+
   header: {
     width: "100%",
     flexDirection: "row-reverse",
     justifyContent: "space-between",
     alignItems: "center",
     gap: 12,
-    marginBottom: 18,
+    marginBottom: 12,
   },
-  headerWide: { alignSelf: "center", maxWidth: 980 },
-  headerTextBox: { flex: 1, alignItems: "flex-end" },
+
+  headerWide: {
+    alignSelf: "center",
+    maxWidth: 980,
+  },
+
+  headerTextBox: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+
   helloText: {
-    fontSize: 13,
-    color: COLORS.muted,
-    fontWeight: "700",
-    textAlign: "right",
-  },
-  headerTitle: {
-    marginTop: 5,
-    fontSize: 22,
+    fontSize: 17,
     color: COLORS.text,
     fontWeight: "900",
     textAlign: "right",
-    lineHeight: 31,
+    lineHeight: 25,
   },
+
+  headerTitle: {
+    marginTop: 4,
+    fontSize: 15,
+    color: COLORS.muted,
+    fontWeight: "700",
+    textAlign: "right",
+    lineHeight: 22,
+  },
+
   connectionBadge: {
     height: 38,
     borderRadius: 19,
@@ -595,41 +660,82 @@ const styles = StyleSheet.create({
     gap: 7,
     borderWidth: 1,
   },
-  connectedBadge: { backgroundColor: "#EFFAF3", borderColor: "#D6F0DF" },
-  disconnectedBadge: { backgroundColor: "#FFF1F1", borderColor: "#FFD9D9" },
-  connectionDot: { width: 8, height: 8, borderRadius: 4 },
-  connectionText: { fontSize: 12, fontWeight: "900" },
+
+  connectedBadge: {
+    backgroundColor: "#EFFAF3",
+    borderColor: "#D6F0DF",
+  },
+
+  disconnectedBadge: {
+    backgroundColor: "#FFF1F1",
+    borderColor: "#FFD9D9",
+  },
+
+  connectionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+
+  connectionText: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
+
+  carImageArea: {
+    width: "100%",
+    height: 235,
+    marginBottom: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+
+  carImageAreaWide: {
+    maxWidth: 980,
+    alignSelf: "center",
+    height: 310,
+  },
+
+  carImage: {
+    width: "100%",
+    height: "100%",
+  },
+
   heroCard: {
     width: "100%",
     borderRadius: 28,
     borderWidth: 1,
     borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
     paddingHorizontal: 20,
     paddingVertical: 24,
     alignItems: "center",
-    shadowColor: "#5F130F",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 18,
-    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+    marginBottom: 4,
   },
-  heroCardWide: { maxWidth: 980, alignSelf: "center" },
-  heroIconCircle: {
-    width: 76,
-    height: 76,
-    borderRadius: 26,
-    backgroundColor: COLORS.softRed,
-    justifyContent: "center",
+
+  heroCardWide: {
+    maxWidth: 980,
+    alignSelf: "center",
+  },
+
+  heroContent: {
     alignItems: "center",
-    marginBottom: 14,
+    maxWidth: 460,
   },
-  heroContent: { alignItems: "center", maxWidth: 460 },
+
   heroTitle: {
     fontSize: 21,
     fontWeight: "900",
     color: COLORS.text,
     textAlign: "center",
   },
+
   heroSubtitle: {
     marginTop: 8,
     fontSize: 14,
@@ -638,10 +744,15 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 24,
   },
-  heroButtons: { width: "100%", alignItems: "center", marginTop: 18 },
+
+  heroButtons: {
+    width: "100%",
+    alignItems: "center",
+    marginTop: 18,
+  },
+
   mainButton: {
     width: "100%",
-    maxWidth: 260,
     height: 56,
     borderRadius: 28,
     overflow: "hidden",
@@ -651,6 +762,7 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 4,
   },
+
   mainButtonGradient: {
     flex: 1,
     borderRadius: 28,
@@ -659,7 +771,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
-  mainButtonText: { color: "#FFFFFF", fontSize: 17, fontWeight: "900" },
+
+  mainButtonText: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: "900",
+  },
+
   sectionTitle: {
     marginTop: 24,
     marginBottom: 12,
@@ -669,6 +787,7 @@ const styles = StyleSheet.create({
     textAlign: "right",
     alignSelf: "stretch",
   },
+
   metricsGrid: {
     width: "100%",
     flexDirection: "row-reverse",
@@ -676,6 +795,7 @@ const styles = StyleSheet.create({
     gap: 10,
     justifyContent: "center",
   },
+
   metricCard: {
     minHeight: 138,
     borderRadius: 24,
@@ -686,12 +806,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     justifyContent: "space-between",
   },
+
   metricHeader: {
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
   },
+
   metricIconCircle: {
     width: 36,
     height: 36,
@@ -700,6 +822,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
   metricLabel: {
     flex: 1,
     fontSize: 13,
@@ -707,6 +830,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     textAlign: "right",
   },
+
   metricValue: {
     marginTop: 10,
     fontSize: 30,
@@ -714,12 +838,14 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     textAlign: "right",
   },
+
   metricUnit: {
     fontSize: 12,
     color: COLORS.muted,
     fontWeight: "700",
     textAlign: "right",
   },
+
   statusCard: {
     marginTop: 12,
     borderRadius: 24,
@@ -728,7 +854,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     padding: 16,
   },
-  statusHeader: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
+
+  statusHeader: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 8,
+  },
+
   statusIconCircle: {
     width: 36,
     height: 36,
@@ -737,7 +869,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  statusTitle: { fontSize: 15, fontWeight: "900", color: COLORS.text },
+
+  statusTitle: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: COLORS.text,
+  },
+
   statusDescription: {
     marginTop: 10,
     fontSize: 13,
@@ -746,6 +884,7 @@ const styles = StyleSheet.create({
     textAlign: "right",
     lineHeight: 22,
   },
+
   debugText: {
     marginTop: 8,
     fontSize: 12,
@@ -754,12 +893,14 @@ const styles = StyleSheet.create({
     textAlign: "right",
     lineHeight: 20,
   },
+
   rawBox: {
     marginTop: 12,
     borderRadius: 16,
     backgroundColor: COLORS.soft,
     padding: 12,
   },
+
   rawTitle: {
     fontSize: 12,
     color: COLORS.primary,
@@ -767,6 +908,7 @@ const styles = StyleSheet.create({
     textAlign: "right",
     marginBottom: 6,
   },
+
   rawText: {
     fontSize: 11,
     color: "#555555",
@@ -774,6 +916,7 @@ const styles = StyleSheet.create({
     textAlign: "left",
     lineHeight: 18,
   },
+
   tipCard: {
     marginTop: 12,
     borderRadius: 22,
@@ -785,6 +928,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 10,
   },
+
   tipIcon: {
     width: 36,
     height: 36,
@@ -793,13 +937,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  tipTextBox: { flex: 1, alignItems: "flex-end" },
+
+  tipTextBox: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+
   tipTitle: {
     fontSize: 14,
     fontWeight: "900",
     color: COLORS.text,
     textAlign: "right",
   },
+
   tipText: {
     marginTop: 5,
     fontSize: 12,

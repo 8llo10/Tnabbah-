@@ -16,8 +16,34 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { useFonts } from "expo-font";
 import { router, useFocusEffect } from "expo-router";
+import { Feather } from "@expo/vector-icons";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../providers/AuthProvider";
+
+const COLORS = {
+  primary: "#871B17",
+  primaryLight: "#9A3A33",
+  primaryDark: "#5F130F",
+
+  bg: "#FFFFFF",
+  surface: "#FFFFFF",
+  soft: "#F8F8F8",
+  softGray: "#F3F4F6",
+  border: "#EFEFEF",
+
+  text: "#1D1D1F",
+  muted: "#707070",
+  mutedLight: "#A8A8A8",
+
+  danger: "#C62828",
+  dangerBg: "#FFF1F1",
+
+  warning: "#B7791F",
+  warningBg: "#FFF8E1",
+
+  success: "#1F8A4C",
+  successBg: "#EFFAF3",
+};
 
 interface MaintenanceItem {
   id: number;
@@ -96,6 +122,11 @@ export default function Wallet() {
   const [reportFilter, setReportFilter] = useState<
     "all" | "saved" | "pending"
   >("all");
+
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editData, setEditData] = useState<MaintenanceItem[]>([]);
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const [currentEditingId, setCurrentEditingId] = useState<number | null>(null);
 
   const mapRowToReport = (row: any): ReportItem => {
     const content = row?.content || {};
@@ -242,13 +273,6 @@ export default function Wallet() {
     return r.status === reportFilter;
   });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editData, setEditData] = useState<MaintenanceItem[]>([]);
-  const [datePickerVisible, setDatePickerVisible] = useState(false);
-  const [currentEditingId, setCurrentEditingId] = useState<number | null>(null);
-
-  if (!fontsLoaded) return null;
-
   const openModal = () => {
     setEditData([...maintenance]);
     setModalVisible(true);
@@ -280,9 +304,11 @@ export default function Wallet() {
     setDatePickerVisible(false);
   };
 
+  if (!fontsLoaded) return null;
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
 
       <View style={styles.header}>
         <View style={styles.headerSide} />
@@ -299,7 +325,16 @@ export default function Wallet() {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>التقارير</Text>
+          <View style={styles.sectionIconCircle}>
+            <Feather name="file-text" size={18} color={COLORS.primary} />
+          </View>
+
+          <View style={styles.sectionTextBox}>
+            <Text style={styles.sectionTitle}>التقارير</Text>
+            <Text style={styles.sectionSubtitle}>
+              تقارير الفحص المحفوظة وغير المحفوظة
+            </Text>
+          </View>
         </View>
 
         <View style={styles.filterRow}>
@@ -322,6 +357,7 @@ export default function Wallet() {
               <TouchableOpacity
                 key={key}
                 onPress={() => setReportFilter(key)}
+                activeOpacity={0.85}
                 style={[styles.filterChip, active && styles.filterChipActive]}
               >
                 <Text
@@ -340,19 +376,21 @@ export default function Wallet() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[
-            { paddingRight: 20, paddingLeft: 20 },
-            styles.horizontalScroll,
-          ]}
+          contentContainerStyle={styles.horizontalScroll}
         >
           {reportsLoading && reports.length === 0 && (
             <View style={styles.emptyCard}>
-              <ActivityIndicator color="#7a0f1f" />
+              <ActivityIndicator color={COLORS.primary} />
+              <Text style={styles.emptyText}>جاري تحميل التقارير...</Text>
             </View>
           )}
 
           {!reportsLoading && visibleReports.length === 0 && (
             <View style={styles.emptyCard}>
+              <View style={styles.emptyIconCircle}>
+                <Feather name="folder" size={22} color={COLORS.primary} />
+              </View>
+
               <Text style={styles.emptyText}>
                 {!userId ? "يجب تسجيل الدخول" : "لا توجد تقارير"}
               </Text>
@@ -364,30 +402,44 @@ export default function Wallet() {
             const isDtc = report.type === "DTC";
 
             return (
-              <View key={report.id} style={styles.card}>
+              <View key={report.id} style={styles.reportCard}>
                 <View style={styles.cardTopRow}>
                   <View
                     style={[
                       styles.statusDot,
-                      { backgroundColor: isPending ? "#E0A800" : "#28A745" },
+                      {
+                        backgroundColor: isPending
+                          ? COLORS.warning
+                          : COLORS.success,
+                      },
                     ]}
                   />
 
                   <View
                     style={[
                       styles.reportBadge,
-                      isDtc && { backgroundColor: "#E9ECEF" },
+                      isDtc ? styles.reportBadgeDtc : styles.reportBadgePdf,
                     ]}
                   >
                     <Text
                       style={[
                         styles.reportBadgeText,
-                        isDtc && { color: "#495057" },
+                        isDtc
+                          ? styles.reportBadgeTextDtc
+                          : styles.reportBadgeTextPdf,
                       ]}
                     >
                       {report.type}
                     </Text>
                   </View>
+                </View>
+
+                <View style={styles.reportIconCircle}>
+                  <Feather
+                    name={isDtc ? "alert-triangle" : "file-text"}
+                    size={22}
+                    color={COLORS.primary}
+                  />
                 </View>
 
                 <Text style={styles.cardTitle}>{report.title}</Text>
@@ -416,14 +468,16 @@ export default function Wallet() {
                 {isPending ? (
                   <View style={styles.actionsRow}>
                     <TouchableOpacity
-                      style={[styles.detailsBtn, { flex: 1 }]}
+                      style={styles.saveReportBtn}
+                      activeOpacity={0.85}
                       onPress={() => handleSaveReport(report.id)}
                     >
-                      <Text style={styles.detailsText}>حفظ التقرير</Text>
+                      <Text style={styles.saveReportText}>حفظ التقرير</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       style={styles.rejectBtn}
+                      activeOpacity={0.85}
                       onPress={() => handleRejectReport(report.id)}
                     >
                       <Text style={styles.rejectBtnText}>تجاهل</Text>
@@ -431,10 +485,11 @@ export default function Wallet() {
                   </View>
                 ) : (
                   <TouchableOpacity
-                    style={styles.detailsBtn}
+                    style={styles.openReportBtn}
+                    activeOpacity={0.85}
                     onPress={() => openReport(report.id)}
                   >
-                    <Text style={styles.detailsText}>فتح التقرير</Text>
+                    <Text style={styles.openReportText}>فتح التقرير</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -443,79 +498,118 @@ export default function Wallet() {
         </ScrollView>
 
         <View style={styles.sectionHeader}>
-          <TouchableOpacity onPress={openModal} style={styles.editActionBtn}>
+          <TouchableOpacity
+            onPress={openModal}
+            style={styles.editActionBtn}
+            activeOpacity={0.85}
+          >
+            <Feather name="edit-3" size={15} color="#FFFFFF" />
             <Text style={styles.editActionText}>تعديل البيانات</Text>
           </TouchableOpacity>
 
-          <Text style={styles.sectionTitle}>الصيانات الدورية</Text>
+          <View style={styles.sectionTextBox}>
+            <Text style={styles.sectionTitle}>الصيانات الدورية</Text>
+            <Text style={styles.sectionSubtitle}>
+              مواعيد الصيانة القادمة حسب آخر تحديث
+            </Text>
+          </View>
         </View>
 
-        {maintenance.map((item) => (
-          <View key={item.id} style={styles.maintenanceCard}>
-            <View style={styles.maintenanceHeader}>
-              <View style={styles.daysBadge}>
-                <Text style={styles.daysBadgeText}>
-                  متبقي {item.remainingDays} يوم
-                </Text>
+        {maintenance.map((item) => {
+          const progress = Math.min(
+            (item.remainingDays / item.intervalDays) * 100,
+            100
+          );
+
+          const isSoon = item.remainingDays <= 30;
+
+          return (
+            <View key={item.id} style={styles.maintenanceCard}>
+              <View style={styles.maintenanceHeader}>
+                <View
+                  style={[
+                    styles.daysBadge,
+                    isSoon ? styles.daysBadgeWarning : styles.daysBadgeNormal,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.daysBadgeText,
+                      isSoon
+                        ? styles.daysBadgeTextWarning
+                        : styles.daysBadgeTextNormal,
+                    ]}
+                  >
+                    متبقي {item.remainingDays} يوم
+                  </Text>
+                </View>
+
+                <View style={styles.maintenanceTitleBox}>
+                  <Text style={styles.maintenanceTitle}>{item.title}</Text>
+                  <Text style={styles.maintenanceHint}>
+                    كل {item.intervalDays} يوم
+                  </Text>
+                </View>
               </View>
 
-              <Text style={styles.maintenanceTitle}>{item.title}</Text>
-            </View>
+              <View style={styles.divider} />
 
-            <View style={styles.divider} />
+              <View style={styles.dateRow}>
+                <Text style={styles.dateLabel}>موعد الصيانة القادم:</Text>
+                <Text style={styles.nextDateText}>{item.nextDate}</Text>
+              </View>
 
-            <View style={styles.dateRow}>
-              <Text style={styles.dateLabel}>موعد الصيانة القادم:</Text>
-              <Text style={styles.nextDateText}>{item.nextDate}</Text>
-            </View>
+              <View style={[styles.dateRow, { marginTop: 5 }]}>
+                <Text style={styles.dateLabel}>آخر صيانة تمت:</Text>
+                <Text style={styles.lastDateText}>{item.lastDate}</Text>
+              </View>
 
-            <View style={[styles.dateRow, { marginTop: 5 }]}>
-              <Text style={styles.dateLabel}>آخر صيانة تمت:</Text>
-              <Text style={styles.lastDateText}>{item.lastDate}</Text>
+              <View style={styles.progressContainer}>
+                <View
+                  style={[
+                    styles.progressBar,
+                    {
+                      width: `${progress}%`,
+                      backgroundColor: isSoon ? COLORS.warning : COLORS.primary,
+                    },
+                  ]}
+                />
+              </View>
             </View>
-
-            <View style={styles.progressContainer}>
-              <View
-                style={[
-                  styles.progressBar,
-                  {
-                    width: `${Math.min(
-                      (item.remainingDays / item.intervalDays) * 100,
-                      100
-                    )}%`,
-                  },
-                ]}
-              />
-            </View>
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
 
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Text
-                  style={{
-                    color: "#7a0f1f",
-                    fontFamily: "Tajawal-Bold",
-                  }}
-                >
-                  إلغاء
-                </Text>
+              <TouchableOpacity
+                onPress={() => setModalVisible(false)}
+                style={styles.modalCloseBtn}
+                activeOpacity={0.85}
+              >
+                <Feather name="x" size={20} color={COLORS.primary} />
               </TouchableOpacity>
 
               <Text style={styles.modalTitle}>تعديل البيانات</Text>
+
+              <View style={styles.modalHeaderSide} />
             </View>
 
-            <ScrollView style={styles.modalList}>
+            <View style={styles.modalDivider} />
+
+            <ScrollView
+              style={styles.modalList}
+              showsVerticalScrollIndicator={false}
+            >
               {editData.map((item) => (
                 <View key={item.id} style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>{item.title}</Text>
 
                   <TouchableOpacity
                     style={{ flex: 1 }}
+                    activeOpacity={0.85}
                     onPress={() => {
                       setCurrentEditingId(item.id);
                       setDatePickerVisible(true);
@@ -525,13 +619,18 @@ export default function Wallet() {
                       value={item.lastDate}
                       style={styles.input}
                       editable={false}
+                      textAlign="center"
                     />
                   </TouchableOpacity>
                 </View>
               ))}
             </ScrollView>
 
-            <TouchableOpacity style={styles.saveBtn} onPress={saveAll}>
+            <TouchableOpacity
+              style={styles.saveBtn}
+              onPress={saveAll}
+              activeOpacity={0.85}
+            >
               <Text style={styles.saveBtnText}>حفظ التغييرات</Text>
             </TouchableOpacity>
 
@@ -551,7 +650,7 @@ export default function Wallet() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.bg,
   },
 
   header: {
@@ -561,7 +660,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 10,
     flexDirection: "row-reverse",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.bg,
   },
 
   headerSide: {
@@ -578,106 +677,148 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
     letterSpacing: 0.2,
-    color: "#1D1D1F",
+    color: COLORS.text,
     fontFamily: "Tajawal-Bold",
     textAlign: "center",
   },
 
   scrollContent: {
-    paddingBottom: 30,
-    backgroundColor: "#F8F9FA",
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 130,
+    backgroundColor: COLORS.bg,
   },
 
   sectionHeader: {
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    marginVertical: 15,
+    marginTop: 16,
+    marginBottom: 12,
+    gap: 12,
+  },
+
+  sectionIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: COLORS.softGray,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  sectionTextBox: {
+    flex: 1,
+    alignItems: "flex-end",
   },
 
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#333",
+    fontSize: 16,
+    fontWeight: "900",
+    color: COLORS.text,
     textAlign: "right",
     fontFamily: "Tajawal-Bold",
   },
 
-  horizontalScroll: {
-    paddingRight: 20,
-    flexDirection: "row",
-  },
-
-  card: {
-    backgroundColor: "#fff",
-    padding: 16,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    marginRight: 15,
-    width: 200,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
+  sectionSubtitle: {
+    marginTop: 3,
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.muted,
+    textAlign: "right",
+    fontFamily: "Tajawal-Regular",
   },
 
   filterRow: {
     flexDirection: "row-reverse",
-    paddingHorizontal: 20,
     marginBottom: 12,
     gap: 8,
   },
 
   filterChip: {
     paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: "#fff",
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
-    marginLeft: 8,
+    borderColor: COLORS.border,
   },
 
   filterChipActive: {
-    backgroundColor: "#7a0f1f",
-    borderColor: "#7a0f1f",
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
 
   filterChipText: {
     fontSize: 12,
-    color: "#495057",
+    color: COLORS.muted,
     fontFamily: "Tajawal-Bold",
   },
 
   filterChipTextActive: {
-    color: "#fff",
+    color: "#FFFFFF",
+  },
+
+  horizontalScroll: {
+    paddingRight: 2,
+    paddingLeft: 18,
+    flexDirection: "row",
   },
 
   emptyCard: {
-    width: 200,
-    height: 160,
-    borderRadius: 16,
+    width: 220,
+    height: 180,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
-    borderStyle: "dashed",
+    borderColor: COLORS.border,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.surface,
+    marginLeft: 12,
+    gap: 10,
+  },
+
+  emptyIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.softGray,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
 
   emptyText: {
-    color: "#ADB5BD",
+    color: COLORS.muted,
     fontFamily: "Tajawal-Bold",
     fontSize: 13,
+    textAlign: "center",
+  },
+
+  reportCard: {
+    backgroundColor: COLORS.surface,
+    padding: 16,
+    borderRadius: 24,
+    marginLeft: 12,
+    width: 222,
+    minHeight: 232,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
 
   cardTopRow: {
     flexDirection: "row-reverse",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 10,
   },
 
   statusDot: {
@@ -686,127 +827,184 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
 
+  reportBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 12,
+    alignSelf: "flex-end",
+  },
+
+  reportBadgePdf: {
+    backgroundColor: COLORS.dangerBg,
+  },
+
+  reportBadgeDtc: {
+    backgroundColor: COLORS.softGray,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  reportBadgeText: {
+    fontSize: 10,
+    fontWeight: "900",
+    fontFamily: "Tajawal-Bold",
+  },
+
+  reportBadgeTextPdf: {
+    color: COLORS.primary,
+  },
+
+  reportBadgeTextDtc: {
+    color: COLORS.muted,
+  },
+
+  reportIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.softGray,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignSelf: "flex-end",
+    marginBottom: 12,
+  },
+
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: COLORS.text,
+    textAlign: "right",
+    fontFamily: "Tajawal-Bold",
+    lineHeight: 22,
+  },
+
+  cardDate: {
+    fontSize: 12,
+    color: COLORS.muted,
+    marginTop: 5,
+    textAlign: "right",
+    fontFamily: "Tajawal-Regular",
+  },
+
   statusPill: {
     alignSelf: "flex-end",
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 12,
-    marginTop: 8,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 14,
+    marginTop: 10,
   },
 
   statusPillPending: {
-    backgroundColor: "#FFF8E1",
+    backgroundColor: COLORS.warningBg,
   },
 
   statusPillSaved: {
-    backgroundColor: "#E8F5E9",
+    backgroundColor: COLORS.successBg,
   },
 
   statusPillText: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontFamily: "Tajawal-Bold",
   },
 
   statusPillTextPending: {
-    color: "#B8860B",
+    color: COLORS.warning,
   },
 
   statusPillTextSaved: {
-    color: "#1E7E34",
+    color: COLORS.success,
   },
 
   actionsRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 14,
     gap: 8,
   },
 
+  saveReportBtn: {
+    flex: 1,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  saveReportText: {
+    color: "#FFFFFF",
+    textAlign: "center",
+    fontWeight: "900",
+    fontSize: 12,
+    fontFamily: "Tajawal-Bold",
+  },
+
   rejectBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    height: 42,
+    paddingHorizontal: 14,
+    borderRadius: 21,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
-    marginRight: 8,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.softGray,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   rejectBtnText: {
-    color: "#7a0f1f",
+    color: COLORS.primary,
     fontSize: 12,
     fontFamily: "Tajawal-Bold",
   },
 
-  reportBadge: {
-    backgroundColor: "#FFF0F0",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    alignSelf: "flex-end",
-    marginBottom: 10,
+  openReportBtn: {
+    marginTop: 14,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
-  reportBadgeText: {
-    color: "#7a0f1f",
-    fontSize: 10,
-    fontWeight: "800",
-    fontFamily: "Tajawal-Bold",
-  },
-
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    textAlign: "right",
-    fontFamily: "Tajawal-Bold",
-  },
-
-  cardDate: {
-    fontSize: 12,
-    color: "#ADB5BD",
-    marginTop: 4,
-    textAlign: "right",
-    fontFamily: "Tajawal-Regular",
-  },
-
-  detailsBtn: {
-    marginTop: 15,
-    margin: 10,
-    backgroundColor: "#7a0f1f",
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-
-  detailsText: {
-    color: "#fff",
+  openReportText: {
+    color: "#FFFFFF",
     textAlign: "center",
-    fontWeight: "600",
+    fontWeight: "900",
     fontSize: 12,
     fontFamily: "Tajawal-Bold",
   },
 
   editActionBtn: {
-    backgroundColor: "#7a0f1f",
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 8,
+    height: 40,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
   },
 
   editActionText: {
-    color: "#fff",
+    color: "#FFFFFF",
     textAlign: "center",
-    fontWeight: "600",
+    fontWeight: "900",
     fontSize: 12,
     fontFamily: "Tajawal-Bold",
   },
 
   maintenanceCard: {
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.surface,
     padding: 16,
-    borderRadius: 16,
-    marginHorizontal: 20,
+    borderRadius: 24,
     marginBottom: 12,
-    borderRightWidth: 5,
-    borderRightColor: "#7a0f1f",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
     elevation: 1,
   },
 
@@ -816,30 +1014,57 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
+  maintenanceTitleBox: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+
   maintenanceTitle: {
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "900",
+    color: COLORS.text,
     textAlign: "right",
     fontFamily: "Tajawal-Bold",
   },
 
+  maintenanceHint: {
+    marginTop: 3,
+    fontSize: 11.5,
+    color: COLORS.muted,
+    fontFamily: "Tajawal-Regular",
+    textAlign: "right",
+  },
+
   daysBadge: {
-    backgroundColor: "#FFF0F0",
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+
+  daysBadgeNormal: {
+    backgroundColor: COLORS.dangerBg,
+  },
+
+  daysBadgeWarning: {
+    backgroundColor: COLORS.warningBg,
   },
 
   daysBadgeText: {
     fontSize: 11,
-    color: "#7a0f1f",
-    fontWeight: "bold",
     fontFamily: "Tajawal-Bold",
+  },
+
+  daysBadgeTextNormal: {
+    color: COLORS.primary,
+  },
+
+  daysBadgeTextWarning: {
+    color: COLORS.warning,
   },
 
   divider: {
     height: 1,
-    backgroundColor: "#F1F3F5",
+    backgroundColor: "#F2F2F2",
     marginVertical: 12,
   },
 
@@ -851,28 +1076,28 @@ const styles = StyleSheet.create({
 
   dateLabel: {
     fontSize: 13,
-    color: "#6C757D",
+    color: COLORS.muted,
     marginLeft: 8,
     fontFamily: "Tajawal-Regular",
   },
 
   nextDateText: {
     fontSize: 14,
-    fontWeight: "700",
-    color: "#1A1A1A",
+    fontWeight: "900",
+    color: COLORS.text,
     fontFamily: "Tajawal-Bold",
   },
 
   lastDateText: {
     fontSize: 13,
-    fontWeight: "500",
-    color: "#495057",
+    fontWeight: "700",
+    color: COLORS.muted,
     fontFamily: "Tajawal-Regular",
   },
 
   progressContainer: {
     height: 8,
-    backgroundColor: "#F1F3F5",
+    backgroundColor: COLORS.softGray,
     borderRadius: 4,
     marginTop: 15,
     overflow: "hidden",
@@ -881,93 +1106,111 @@ const styles = StyleSheet.create({
 
   progressBar: {
     height: "100%",
-    backgroundColor: "#7a0f1f",
+    borderRadius: 4,
   },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.32)",
     justifyContent: "flex-end",
   },
 
   modalContent: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 25,
-    borderTopRightRadius: 25,
-    padding: 20,
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: Platform.OS === "ios" ? 30 : 22,
     maxHeight: "90%",
   },
 
   modalHeader: {
+    minHeight: 48,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15,
+  },
+
+  modalCloseBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.softGray,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  modalHeaderSide: {
+    width: 42,
+    height: 42,
   },
 
   modalTitle: {
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "900",
+    color: COLORS.text,
     fontFamily: "Tajawal-Bold",
   },
 
+  modalDivider: {
+    height: 1,
+    backgroundColor: "#F2F2F2",
+    marginBottom: 14,
+  },
+
   modalList: {
-    marginBottom: 20,
+    marginBottom: 18,
   },
 
   inputGroup: {
-    marginBottom: 20,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F3F5",
+    marginBottom: 14,
+    padding: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.soft,
   },
 
   inputLabel: {
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "900",
     marginBottom: 10,
     textAlign: "right",
-    color: "#7a0f1f",
+    color: COLORS.primary,
     fontFamily: "Tajawal-Bold",
-  },
-
-  dualInputRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-
-  subLabel: {
-    fontSize: 11,
-    color: "#777",
-    textAlign: "right",
-    marginBottom: 4,
-    fontFamily: "Tajawal-Regular",
   },
 
   input: {
     borderWidth: 1,
-    borderColor: "#E9ECEF",
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: "#F8F9FA",
-    textAlign: "center",
+    borderColor: COLORS.border,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
     fontSize: 14,
+    color: COLORS.text,
     fontFamily: "Tajawal-Regular",
   },
 
   saveBtn: {
-    backgroundColor: "#7a0f1f",
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 15,
-    alignSelf: "center",
-    marginBottom: 10,
+    backgroundColor: COLORS.primary,
+    height: 54,
+    borderRadius: 27,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: COLORS.primaryDark,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    elevation: 4,
   },
 
   saveBtnText: {
-    color: "#fff",
+    color: "#FFFFFF",
     textAlign: "center",
-    fontWeight: "700",
+    fontWeight: "900",
     fontSize: 16,
     fontFamily: "Tajawal-Bold",
   },
