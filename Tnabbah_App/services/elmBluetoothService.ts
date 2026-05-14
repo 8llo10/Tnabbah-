@@ -1,7 +1,34 @@
 import { Buffer } from "buffer";
+import { Platform } from "react-native";
 import { BleManager, Characteristic, Device, State } from "react-native-ble-plx";
 
-const manager = new BleManager();
+let bleManager: BleManager | null = null;
+let bleManagerInitError: Error | null = null;
+
+function getBleManager(): BleManager {
+  if (bleManagerInitError) {
+    throw bleManagerInitError;
+  }
+  if (bleManager) {
+    return bleManager;
+  }
+  if (Platform.OS === "web") {
+    bleManagerInitError = new Error(
+      "البلوتوث غير مدعوم على نسخة الويب. استخدم تطبيق أندرويد أو iOS."
+    );
+    throw bleManagerInitError;
+  }
+  try {
+    bleManager = new BleManager();
+    return bleManager;
+  } catch (error) {
+    console.error("BleManager initialization failed:", error);
+    bleManagerInitError = new Error(
+      "تعذّر تهيئة البلوتوث. تحتاج نسخة تطبيق مبنية محلياً (Development Build) تتضمن react-native-ble-plx؛ Expo Go لا يدعم هذه المكتبة."
+    );
+    throw bleManagerInitError;
+  }
+}
 
 let connectedDevice: Device | null = null;
 let writeChar: Characteristic | null = null;
@@ -136,14 +163,16 @@ async function notifyDisconnected(reason: string) {
 }
 
 export const elmBluetoothService = {
-  manager,
+  get manager(): BleManager {
+    return getBleManager();
+  },
 
   onDisconnected(callback: (reason?: string) => void | Promise<void>) {
     disconnectedCallback = callback;
   },
 
   async waitForBluetoothReady() {
-    const state = await manager.state();
+    const state = await getBleManager().state();
 
     if (state !== State.PoweredOn) {
       throw new Error("البلوتوث غير جاهز. فعّليه ثم أعيدي المحاولة.");
@@ -153,18 +182,18 @@ export const elmBluetoothService = {
   async connect(deviceId: string) {
     await this.waitForBluetoothReady();
 
-    manager.stopDeviceScan();
+    getBleManager().stopDeviceScan();
 
     await this.disconnect(false);
 
-    const device = await manager.connectToDevice(deviceId, {
+    const device = await getBleManager().connectToDevice(deviceId, {
       timeout: 20000,
       autoConnect: true,
     });
 
     connectedDevice = await device.discoverAllServicesAndCharacteristics();
 
-    disconnectSubscription = manager.onDeviceDisconnected(
+    disconnectSubscription = getBleManager().onDeviceDisconnected(
       connectedDevice.id,
       async (error) => {
         console.log(
@@ -458,7 +487,7 @@ export const elmBluetoothService = {
         const stillConnected = await connectedDevice.isConnected();
 
         if (stillConnected) {
-          await manager.cancelDeviceConnection(deviceId);
+          await getBleManager().cancelDeviceConnection(deviceId);
         }
       }
     } catch (error) {
