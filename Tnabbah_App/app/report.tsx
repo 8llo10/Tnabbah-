@@ -71,6 +71,7 @@ const UI = {
     unsavedLeave: 'خروج بدون حفظ',
     unsavedCancel: 'إلغاء',
     severity: {
+      NORMAL: '✅ طبيعي',
       LOW: '🟢 تنبيه بسيط',
       MEDIUM: '🟡 تحذير',
       HIGH: '🟠 خطر',
@@ -116,6 +117,7 @@ const UI = {
     unsavedLeave: 'Leave without saving',
     unsavedCancel: 'Cancel',
     severity: {
+      NORMAL: '✅ Normal',
       LOW: '🟢 Minor Notice',
       MEDIUM: '🟡 Warning',
       HIGH: '🟠 Risk',
@@ -165,14 +167,28 @@ const ReportScreen = () => {
       setReport(parsed);
 
       // Transform all_pid_readings to sensor data
-      const transformed = (parsed.all_pid_readings || []).map((reading: any) => ({
+      const transformed = (parsed.all_pid_readings || []).map((reading: any) => {
+        const rawStatus = String(reading.status || 'NORMAL').toUpperCase();
+        // Map engine output to the 5-level severity used by the badge/colors:
+        // NORMAL / LOW / MEDIUM / HIGH / CRITICAL.
+        // Engine emits some legacy values (WARNING, ABNORMAL) -> MEDIUM.
+        const severityLevel =
+          rawStatus === 'NORMAL' ? 'NORMAL' :
+          rawStatus === 'LOW' ? 'LOW' :
+          rawStatus === 'HIGH' ? 'HIGH' :
+          rawStatus === 'CRITICAL' ? 'CRITICAL' :
+          'MEDIUM';
+        return {
           label: reading.name_ar || reading.pid_name_ar || reading.name || reading.pid_name,
           value: String(reading.value),
-        unit: reading.unit,
-        status: reading.status === 'NORMAL' ? 'SUCCESS' : 'WARNING',
-        explanation: reading.explanation || reading.professional_explanation || `قراءة ${reading.name_ar || reading.pid_name_ar || reading.pid_name || reading.name}`,
-        pidCode: reading.pid_code,
-      }));
+          unit: reading.unit,
+          // Legacy binary status (kept for existing visual checks like 'valueError').
+          status: severityLevel === 'NORMAL' ? 'SUCCESS' : 'WARNING',
+          severityLevel,
+          explanation: reading.explanation || reading.professional_explanation || `قراءة ${reading.name_ar || reading.pid_name_ar || reading.pid_name || reading.name}`,
+          pidCode: reading.pid_code,
+        };
+      });
 
       // Add AI interpretations if available
       const pidInterp = parsed.user_friendly_report_ar?.pid_mechanical_interpretation?.interpretations || [];
@@ -546,15 +562,16 @@ const ReportScreen = () => {
   const healthLine = userFriendly.overall_health || '';
 
   // Severity styles (mirror web report)
-  const severity = String(report.severity || 'LOW').toUpperCase();
+  const severity = String(report.severity || 'NORMAL').toUpperCase();
   const SEVERITY_MAP: Record<string, { bg: string; fg: string; border: string }> = {
+    NORMAL:   { bg: '#F0FDF4', fg: '#15803D', border: '#BBF7D0' },
     LOW:      { bg: '#DCFCE7', fg: '#166534', border: '#86EFAC' },
     MEDIUM:   { bg: '#FEF9C3', fg: '#854D0E', border: '#FDE68A' },
     HIGH:     { bg: '#FFEDD5', fg: '#9A3412', border: '#FDBA74' },
     CRITICAL: { bg: '#FEE2E2', fg: '#991B1B', border: '#FCA5A5' },
   };
-  const sevStyle = SEVERITY_MAP[severity] || SEVERITY_MAP.LOW;
-  const sevLabel = (t.severity[severity] || t.severity.LOW);
+  const sevStyle = SEVERITY_MAP[severity] || SEVERITY_MAP.NORMAL;
+  const sevLabel = (t.severity[severity] || t.severity.NORMAL);
 
   // Get AI interpretations
   const pidInterp = userFriendly.pid_mechanical_interpretation || {};
@@ -586,12 +603,20 @@ const ReportScreen = () => {
   const mechanicNote = String(finalRec?.mechanic_note_ar || '').trim();
 
   // Combined AI narrative (PID overview + DTC smart insights)
-  const pidOverview = String(pidInterp.overview_ar || pidInterp.summary_ar || '').trim();
+  // The engine output is the source of truth. The AI overview is free text and
+  // can hallucinate issues that don't exist (or vice versa), so we gate each
+  // AI part by the corresponding engine signal:
+  //   - pidOverview is shown only when the engine actually flagged anomalies
+  //   - dtcOverview is shown only when the engine reported DTCs
+  // This eliminates "summary says there's an issue but PIDs say otherwise".
+  const rawPidOverview = String(pidInterp.overview_ar || pidInterp.summary_ar || '').trim();
   const dtcInterpList: any[] = (dtcInterp.interpretations || []);
-  const dtcOverview = dtcInterpList
+  const rawDtcOverview = dtcInterpList
     .map((it: any) => String(it.smart_insight_ar || '').trim())
     .filter(Boolean)
     .join(' — ');
+  const pidOverview = nAnom > 0 ? rawPidOverview : '';
+  const dtcOverview = nDtcs > 0 ? rawDtcOverview : '';
   const aiActive = sensorData.some((s: any) => s.aiInterpretation) || dtcInterpList.length > 0;
   const aiNarrativeParts = [pidOverview, dtcOverview].filter(Boolean);
 
@@ -683,8 +708,8 @@ const ReportScreen = () => {
                   </View>
                 </View>
                 {dtcItems.map((dtc: any, idx: number) => {
-                  const ds = String(dtc.severity || 'MEDIUM').toUpperCase();
-                  const dStyle = SEVERITY_MAP[ds] || SEVERITY_MAP.MEDIUM;
+                  const ds = String(dtc.severity || 'NORMAL').toUpperCase();
+                  const dStyle = SEVERITY_MAP[ds] || SEVERITY_MAP.NORMAL;
                   const aiSentence = dtc.aiInterpretation?.smart_insight_ar?.trim();
                   const urgency = dtc.aiInterpretation?.urgency_ar;
                   return (
@@ -739,11 +764,25 @@ const ReportScreen = () => {
 
             {sensorData.map((item, idx) => {
               const isOpen = openIndex === idx;
-              const statusColor = item.status === 'WARNING' ? COLORS.warning : COLORS.success;
-              const aiUrgency = item.aiInterpretation?.urgency_ar;
+              const sevLevel: string = item.severityLevel || (item.status === 'WARNING' ? 'MEDIUM' : 'NORMAL');
+              const sevColors = SEVERITY_MAP[sevLevel] || SEVERITY_MAP.NORMAL;
+              const statusColor = sevColors.fg;
+              // Default per-level label (without emoji) derived from t.severity.
+              const defaultLevelLabel = (t.severity[sevLevel] || t.severity.NORMAL).replace(/^\S+\s+/, '');
+              const rawAiUrgency = item.aiInterpretation?.urgency_ar;
+              // Trust the diagnostics engine status over the AI label.
+              // - If engine says non-NORMAL, never show "طبيعي/آمن" from the AI.
+              // - If engine says NORMAL, normalize legacy "آمن" to "طبيعي".
+              const SAFE_LABELS = ['آمن', 'طبيعي'];
+              let aiUrgency: string | undefined = rawAiUrgency;
+              if (sevLevel !== 'NORMAL' && rawAiUrgency && SAFE_LABELS.includes(rawAiUrgency)) {
+                aiUrgency = undefined;
+              } else if (rawAiUrgency === 'آمن') {
+                aiUrgency = 'طبيعي';
+              }
               const statusText = aiUrgency
                 ? `✨ ${tr(aiUrgency)}`
-                : (item.status === 'WARNING' ? t.statusWarning : t.statusNormal);
+                : defaultLevelLabel;
               const hasAI = !!item.aiInterpretation;
 
               return (
