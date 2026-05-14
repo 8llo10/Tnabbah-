@@ -125,6 +125,10 @@ const translations = {
     disconnectMessage: "هل تريد إنهاء اتصال السيارة الآن؟",
     disconnectedDone: "تم إنهاء اتصال السيارة.",
     errorTitle: "حدث خطأ",
+
+
+    totalCars: "عدد السيارات",
+carConnection: "اتصال السيارة الحالية",
   },
 
   EN: {
@@ -181,6 +185,10 @@ const translations = {
     disconnectMessage: "Do you want to end the vehicle connection now?",
     disconnectedDone: "Vehicle connection has been ended.",
     errorTitle: "Error",
+
+
+    totalCars: "Total Cars",
+carConnection: "Current Car Connection",
   },
 };
 
@@ -248,6 +256,7 @@ export default function Settings() {
   const [obdConnected, setObdConnected] = useState(false);
   const [scannerRunning, setScannerRunning] = useState(false);
   const [currentCarId, setCurrentCarId] = useState<string | null>(null);
+  const [knownCarIds, setKnownCarIds] = useState<string[]>([]);
 
   const [helpVisible, setHelpVisible] = useState(false);
   const [confirmLogoutVisible, setConfirmLogoutVisible] = useState(false);
@@ -293,6 +302,74 @@ export default function Settings() {
     const interval = setInterval(refreshObdState, 1500);
     return () => clearInterval(interval);
   }, []);
+
+
+  useEffect(() => {
+  let mounted = true;
+  let client: any = null;
+
+  const setupCarsListener = async () => {
+    try {
+      const { data } = await supabase.auth.getUser();
+      const userId = data.user?.id;
+
+      if (!userId) return;
+
+      client = await mqttService.connectAsync();
+
+      const topics = [
+        `Tnabbah/${userId}/+/identity`,
+        `Tnabbah/${userId}/+/status`,
+      ];
+
+      client.subscribe(topics);
+
+      const onMessage = (topic: string, message: Buffer) => {
+        if (!mounted) return;
+
+        const parts = topic.split("/");
+        const incomingCarId = parts[2];
+
+        if (incomingCarId) {
+          setKnownCarIds((prev) =>
+            prev.includes(incomingCarId) ? prev : [...prev, incomingCarId]
+          );
+        }
+
+        try {
+          const parsed = JSON.parse(message.toString());
+          const data = parsed?.data ?? parsed;
+
+          if (data?.obdConnected && incomingCarId) {
+            setCurrentCarId(incomingCarId);
+          }
+        } catch {}
+      };
+
+      client.on("message", onMessage);
+
+      return () => {
+        try {
+          client.off?.("message", onMessage);
+          client.unsubscribe?.(topics);
+        } catch {}
+      };
+    } catch (error) {
+      console.log("Settings cars listener error:", error);
+    }
+  };
+
+  let cleanup: any;
+
+  setupCarsListener().then((fn) => {
+    cleanup = fn;
+  });
+
+  return () => {
+    mounted = false;
+    if (cleanup) cleanup();
+  };
+}, []);
 
   const showMessage = ({
     title,
@@ -504,54 +581,97 @@ export default function Settings() {
         </Text>
 
         <View
+  style={[
+    styles.card,
+    {
+      backgroundColor: theme.surface,
+      borderColor: theme.cardBorder,
+    },
+  ]}
+>
+  <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+    <View
+      style={[
+        styles.settingLabelContainer,
+        { flexDirection: rowDirection },
+      ]}
+    >
+      <View
+        style={[
+          styles.iconWrapper,
+          iconMargin,
+          { backgroundColor: theme.iconBg },
+        ]}
+      >
+        <Feather name="truck" size={20} color={theme.iconColor} />
+      </View>
+
+      <View style={[styles.labelBlock, { alignItems }]}>
+        <Text
           style={[
-            styles.card,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.cardBorder,
-            },
+            styles.settingLabel,
+            { color: theme.textPrimary, textAlign },
           ]}
         >
-          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
-            <View
-              style={[
-                styles.settingLabelContainer,
-                { flexDirection: rowDirection },
-              ]}
-            >
-              <View
-                style={[
-                  styles.iconWrapper,
-                  iconMargin,
-                  { backgroundColor: theme.iconBg },
-                ]}
-              >
-                <Feather name="truck" size={20} color={theme.iconColor} />
-              </View>
+          {t.currentCar}
+        </Text>
 
-              <View style={[styles.labelBlock, { alignItems }]}>
-                <Text
-                  style={[
-                    styles.settingLabel,
-                    { color: theme.textPrimary, textAlign },
-                  ]}
-                >
-                  {t.currentCar}
-                </Text>
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.settingHint,
+            { color: theme.textSecondary, textAlign },
+          ]}
+        >
+          {currentCarId || t.noCar}
+        </Text>
+      </View>
+    </View>
+  </View>
 
-                <Text
-                  numberOfLines={2}
-                  style={[
-                    styles.settingHint,
-                    { color: theme.textSecondary, textAlign },
-                  ]}
-                >
-                  {currentCarId || t.noCar}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
+  <View style={[styles.carInfoGrid, { flexDirection: rowDirection }]}>
+    <View
+      style={[
+        styles.carInfoPill,
+        {
+          backgroundColor: theme.subtle,
+          borderColor: theme.cardBorder,
+        },
+      ]}
+    >
+      <Text style={[styles.carInfoLabel, { color: theme.textSecondary }]}>
+        {t.totalCars}
+      </Text>
+
+      <Text style={[styles.carInfoValue, { color: theme.textPrimary }]}>
+        {knownCarIds.length || (currentCarId ? 1 : 0)}
+      </Text>
+    </View>
+
+    <View
+      style={[
+        styles.carInfoPill,
+        {
+          backgroundColor: obdConnected ? theme.successBg : theme.dangerBg,
+          borderColor: theme.cardBorder,
+        },
+      ]}
+    >
+      <Text style={[styles.carInfoLabel, { color: theme.textSecondary }]}>
+        {t.carConnection}
+      </Text>
+
+      <Text
+        style={[
+          styles.carInfoValue,
+          { color: obdConnected ? COLORS.success : COLORS.danger },
+        ]}
+      >
+        {obdConnected ? t.connected : t.disconnected}
+      </Text>
+    </View>
+  </View>
+</View>
 
         <Text
           style={[
@@ -2187,4 +2307,32 @@ const styles = StyleSheet.create({
   marginTop: 12,
   marginBottom: 8,
 },
+carInfoGrid: {
+  gap: 10,
+  marginTop: 14,
+},
+
+carInfoPill: {
+  flex: 1,
+  borderRadius: 16,
+  borderWidth: 1,
+  paddingVertical: 10,
+  paddingHorizontal: 10,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+carInfoLabel: {
+  fontSize: 10.5,
+  fontWeight: "800",
+  textAlign: "center",
+},
+
+carInfoValue: {
+  marginTop: 4,
+  fontSize: 13,
+  fontWeight: "900",
+  textAlign: "center",
+},
+
 });

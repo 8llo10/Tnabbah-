@@ -1,18 +1,25 @@
+import { Feather } from "@expo/vector-icons";
 import { useRef, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  StatusBar,
-  Keyboard,
+    Keyboard,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
+
+// 🔗 Production URL (تأكدي إن الـ Workflow عندك Active في n8n)
+const N8N_WEBHOOK_URL = "https://raghad6789.app.n8n.cloud/webhook-test/904796a0-040c-4ce2-8521-417a1d1be905";
+
+
+// معرّف جلسة ثابت لكل تشغيل التطبيق (يفيد الذاكرة في AI Agent)
+const SESSION_ID = `session-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
 const COLORS = {
   primary: "#871B17",
@@ -57,10 +64,87 @@ export default function Chatbot() {
   ]);
 
   const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const sendMessage = () => {
+  const fetchBotReply = async (userText: string): Promise<string> => {
+    try {
+      // Timeout بعد 30 ثانية
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      let res: Response;
+      try {
+        res = await fetch(N8N_WEBHOOK_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            message: userText,
+            chatInput: userText,
+            sessionId: SESSION_ID,
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      // نقرأ كنص أولاً لتجنّب JSON parse error على body فاضي
+      const raw = (await res.text()).trim();
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}${raw ? `: ${raw.slice(0, 120)}` : ""}`);
+      }
+
+      if (!raw) {
+        return "ما وصلني رد من المساعد. تأكدي إن الـ workflow في n8n يرجّع رد عبر \"Respond to Webhook\".";
+      }
+
+      // نحاول نفسّر JSON يدويًا
+      let data: any = null;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        // مو JSON — نرجع النص كما هو
+        return raw;
+      }
+
+      // n8n AI Agent عادةً يرجّع output؛ ندعم أيضًا أسماء أخرى شائعة
+      const pickReply = (obj: any): string | null => {
+        if (!obj) return null;
+        if (typeof obj === "string") return obj;
+        return (
+          obj?.output ??
+          obj?.response ??
+          obj?.reply ??
+          obj?.text ??
+          obj?.message ??
+          obj?.answer ??
+          obj?.data?.output ??
+          obj?.data?.text ??
+          null
+        );
+      };
+
+      const reply = Array.isArray(data) ? pickReply(data[0]) : pickReply(data);
+      if (typeof reply === "string" && reply.trim()) return reply;
+      return JSON.stringify(data);
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        return "انتهت مدة الانتظار. تأكدي إن الـ workflow في n8n شغّال (Active).";
+      }
+      if (err?.message?.includes("Network request failed")) {
+        return "فشل الاتصال بالشبكة. تأكدي من:\n• إن الـ Workflow في n8n مفعّل (Active)\n• إن الرابط صحيح (webhook لا webhook-test)";
+      }
+      return `تعذّر الاتصال بالمساعد. ${err?.message ?? ""}`.trim();
+    }
+  };
+
+  const sendMessage = async () => {
     const userText = input.trim();
-    if (!userText) return;
+    if (!userText || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now(),
@@ -71,25 +155,22 @@ export default function Chatbot() {
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    setIsLoading(true);
 
     inputRef.current?.blur();
     Keyboard.dismiss();
 
-    /*
-      هنا لاحقًا تربطين موديل الذكاء الاصطناعي.
-      بدل الرد التجريبي تحت، تحطين استدعاء الـ AI.
-    */
+    const replyText = await fetchBotReply(userText);
 
-    setTimeout(() => {
-      const botReply: Message = {
-        id: Date.now() + 1,
-        from: "bot",
-        text: "تم استلام رسالتك.",
-        time: getCurrentTime(),
-      };
+    const botReply: Message = {
+      id: Date.now() + 1,
+      from: "bot",
+      text: replyText,
+      time: getCurrentTime(),
+    };
 
-      setMessages((prev) => [...prev, botReply]);
-    }, 500);
+    setMessages((prev) => [...prev, botReply]);
+    setIsLoading(false);
   };
 
   return (
@@ -176,6 +257,25 @@ export default function Chatbot() {
               </View>
             );
           })}
+
+          {isLoading ? (
+            <View style={[styles.messageRow, styles.botMessageRow]}>
+              <View style={styles.smallBotIcon}>
+                <Feather
+                  name="message-circle"
+                  size={16}
+                  color={COLORS.primary}
+                />
+              </View>
+              <View style={[styles.messageGroup, styles.botMessageGroup]}>
+                <View style={[styles.messageBubble, styles.botBubble]}>
+                  <Text style={[styles.messageText, styles.botMessageText]}>
+                    ...
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ) : null}
         </ScrollView>
 
         <View style={styles.inputContainer}>
@@ -195,10 +295,13 @@ export default function Chatbot() {
             />
 
             <TouchableOpacity
-              style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
+              style={[
+                styles.sendBtn,
+                (!input.trim() || isLoading) && styles.sendBtnDisabled,
+              ]}
               onPress={sendMessage}
               activeOpacity={0.85}
-              disabled={!input.trim()}
+              disabled={!input.trim() || isLoading}
             >
               <Feather name="arrow-up" size={22} color={COLORS.white} />
             </TouchableOpacity>
