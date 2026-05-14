@@ -65,6 +65,38 @@ interface ReportItem {
   createdAt: string;
 }
 
+function formatDate(date: Date) {
+  return date.toISOString().split("T")[0];
+}
+
+function addDays(dateString: string, days: number) {
+  const date = new Date(dateString);
+  date.setDate(date.getDate() + days);
+  return formatDate(date);
+}
+
+function getRemainingDays(nextDateString: string) {
+  const today = new Date();
+  const nextDate = new Date(nextDateString);
+
+  today.setHours(0, 0, 0, 0);
+  nextDate.setHours(0, 0, 0, 0);
+
+  const diff = nextDate.getTime() - today.getTime();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+function recalculateMaintenance(item: MaintenanceItem): MaintenanceItem {
+  const nextDate = addDays(item.lastDate, item.intervalDays);
+  const remainingDays = getRemainingDays(nextDate);
+
+  return {
+    ...item,
+    nextDate,
+    remainingDays,
+  };
+}
+
 export default function Wallet() {
   const [fontsLoaded] = useFonts({
     "Tajawal-Regular": require("../../assets/fonts/Tajawal-Regular.ttf"),
@@ -274,7 +306,7 @@ export default function Wallet() {
   });
 
   const openModal = () => {
-    setEditData([...maintenance]);
+    setEditData(maintenance.map((item) => ({ ...item })));
     setModalVisible(true);
   };
 
@@ -283,21 +315,34 @@ export default function Wallet() {
     field: keyof MaintenanceItem,
     value: string
   ) => {
-    const updated = editData.map((item) =>
-      item.id === id ? { ...item, [field]: value } : item
-    );
+    const updated = editData.map((item) => {
+      if (item.id !== id) return item;
+
+      const updatedItem = {
+        ...item,
+        [field]: value,
+      };
+
+      if (field === "lastDate") {
+        return recalculateMaintenance(updatedItem);
+      }
+
+      return updatedItem;
+    });
 
     setEditData(updated);
   };
 
   const saveAll = () => {
-    setMaintenance(editData);
+    const recalculated = editData.map(recalculateMaintenance);
+    setMaintenance(recalculated);
     setModalVisible(false);
+    Alert.alert("تم الحفظ", "تم تحديث مواعيد الصيانة بنجاح.");
   };
 
   const handleConfirmDate = (date: Date) => {
     if (currentEditingId !== null) {
-      const formatted = date.toISOString().split("T")[0];
+      const formatted = formatDate(date);
       updateField(currentEditingId, "lastDate", formatted);
     }
 
@@ -312,9 +357,7 @@ export default function Wallet() {
 
       <View style={styles.header}>
         <View style={styles.headerSide} />
-
         <Text style={styles.headerTitle}>المحفظة</Text>
-
         <View style={styles.headerSide} />
       </View>
 
@@ -325,8 +368,8 @@ export default function Wallet() {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.sectionHeader}>
-          <View style={styles.sectionIconCircle}>
-            <Feather name="file-text" size={18} color={COLORS.primary} />
+          <View style={styles.reportSectionIconCircle}>
+            <Feather name="file-text" size={24} color={COLORS.primary} />
           </View>
 
           <View style={styles.sectionTextBox}>
@@ -497,31 +540,38 @@ export default function Wallet() {
           })}
         </ScrollView>
 
-        <View style={styles.sectionHeader}>
+        <View style={styles.maintenanceSectionTop}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.maintenanceIconCircle}>
+              <Feather name="tool" size={24} color={COLORS.primary} />
+            </View>
+
+            <View style={styles.sectionTextBox}>
+              <Text style={styles.sectionTitle}>الصيانات الدورية</Text>
+              <Text style={styles.sectionSubtitle}>
+                مواعيد الصيانة القادمة حسب آخر تحديث
+              </Text>
+            </View>
+          </View>
+
           <TouchableOpacity
             onPress={openModal}
             style={styles.editActionBtn}
             activeOpacity={0.85}
           >
-            <Feather name="edit-3" size={15} color="#FFFFFF" />
-            <Text style={styles.editActionText}>تعديل البيانات</Text>
+            <Feather name="calendar" size={18} color={COLORS.primary} />
+            <Text style={styles.editActionText}>تعديل بيانات الصيانة</Text>
           </TouchableOpacity>
-
-          <View style={styles.sectionTextBox}>
-            <Text style={styles.sectionTitle}>الصيانات الدورية</Text>
-            <Text style={styles.sectionSubtitle}>
-              مواعيد الصيانة القادمة حسب آخر تحديث
-            </Text>
-          </View>
         </View>
 
         {maintenance.map((item) => {
           const progress = Math.min(
-            (item.remainingDays / item.intervalDays) * 100,
+            Math.max((item.remainingDays / item.intervalDays) * 100, 0),
             100
           );
 
-          const isSoon = item.remainingDays <= 30;
+          const isSoon = item.remainingDays <= 30 && item.remainingDays >= 0;
+          const isLate = item.remainingDays < 0;
 
           return (
             <View key={item.id} style={styles.maintenanceCard}>
@@ -529,18 +579,26 @@ export default function Wallet() {
                 <View
                   style={[
                     styles.daysBadge,
-                    isSoon ? styles.daysBadgeWarning : styles.daysBadgeNormal,
+                    isLate
+                      ? styles.daysBadgeLate
+                      : isSoon
+                      ? styles.daysBadgeWarning
+                      : styles.daysBadgeNormal,
                   ]}
                 >
                   <Text
                     style={[
                       styles.daysBadgeText,
-                      isSoon
+                      isLate
+                        ? styles.daysBadgeTextLate
+                        : isSoon
                         ? styles.daysBadgeTextWarning
                         : styles.daysBadgeTextNormal,
                     ]}
                   >
-                    متبقي {item.remainingDays} يوم
+                    {isLate
+                      ? `متأخر ${Math.abs(item.remainingDays)} يوم`
+                      : `متبقي ${item.remainingDays} يوم`}
                   </Text>
                 </View>
 
@@ -570,7 +628,11 @@ export default function Wallet() {
                     styles.progressBar,
                     {
                       width: `${progress}%`,
-                      backgroundColor: isSoon ? COLORS.warning : COLORS.primary,
+                      backgroundColor: isLate
+                        ? COLORS.danger
+                        : isSoon
+                        ? COLORS.warning
+                        : COLORS.primary,
                     },
                   ]}
                 />
@@ -592,7 +654,7 @@ export default function Wallet() {
                 <Feather name="x" size={20} color={COLORS.primary} />
               </TouchableOpacity>
 
-              <Text style={styles.modalTitle}>تعديل البيانات</Text>
+              <Text style={styles.modalTitle}>تعديل بيانات الصيانة</Text>
 
               <View style={styles.modalHeaderSide} />
             </View>
@@ -605,23 +667,46 @@ export default function Wallet() {
             >
               {editData.map((item) => (
                 <View key={item.id} style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>{item.title}</Text>
+                  <View style={styles.inputGroupHeader}>
+                    <View style={styles.inputIconCircle}>
+                      <Feather name="tool" size={15} color={COLORS.primary} />
+                    </View>
+
+                    <View style={styles.inputTextBox}>
+                      <Text style={styles.inputLabel}>{item.title}</Text>
+                      <Text style={styles.inputHint}>
+                        اختاري تاريخ آخر صيانة تمت
+                      </Text>
+                    </View>
+                  </View>
 
                   <TouchableOpacity
-                    style={{ flex: 1 }}
                     activeOpacity={0.85}
                     onPress={() => {
                       setCurrentEditingId(item.id);
                       setDatePickerVisible(true);
                     }}
                   >
-                    <TextInput
-                      value={item.lastDate}
-                      style={styles.input}
-                      editable={false}
-                      textAlign="center"
-                    />
+                    <View style={styles.dateInputBox}>
+                      <Feather name="calendar" size={16} color={COLORS.primary} />
+
+                      <TextInput
+                        value={item.lastDate}
+                        style={styles.input}
+                        editable={false}
+                        textAlign="center"
+                      />
+                    </View>
                   </TouchableOpacity>
+
+                  <View style={styles.editPreviewBox}>
+                    <Text style={styles.editPreviewText}>
+                      القادم: {item.nextDate}
+                    </Text>
+                    <Text style={styles.editPreviewText}>
+                      المتبقي: {item.remainingDays} يوم
+                    </Text>
+                  </View>
                 </View>
               ))}
             </ScrollView>
@@ -631,6 +716,7 @@ export default function Wallet() {
               onPress={saveAll}
               activeOpacity={0.85}
             >
+              <Feather name="check" size={18} color="#FFFFFF" />
               <Text style={styles.saveBtnText}>حفظ التغييرات</Text>
             </TouchableOpacity>
 
@@ -698,10 +784,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  sectionIconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
+  reportSectionIconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: COLORS.softGray,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  maintenanceIconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: COLORS.softGray,
     alignItems: "center",
     justifyContent: "center",
@@ -975,22 +1072,30 @@ const styles = StyleSheet.create({
     fontFamily: "Tajawal-Bold",
   },
 
+  maintenanceSectionTop: {
+    marginTop: 6,
+  },
+
   editActionBtn: {
     height: 40,
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.softGray,
     paddingHorizontal: 14,
     borderRadius: 20,
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 8,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignSelf: "stretch",
   },
 
   editActionText: {
-    color: "#FFFFFF",
+    color: COLORS.text,
     textAlign: "center",
     fontWeight: "900",
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: "Tajawal-Bold",
   },
 
@@ -1042,11 +1147,15 @@ const styles = StyleSheet.create({
   },
 
   daysBadgeNormal: {
-    backgroundColor: COLORS.dangerBg,
+    backgroundColor: COLORS.successBg,
   },
 
   daysBadgeWarning: {
     backgroundColor: COLORS.warningBg,
+  },
+
+  daysBadgeLate: {
+    backgroundColor: COLORS.dangerBg,
   },
 
   daysBadgeText: {
@@ -1055,11 +1164,15 @@ const styles = StyleSheet.create({
   },
 
   daysBadgeTextNormal: {
-    color: COLORS.primary,
+    color: COLORS.success,
   },
 
   daysBadgeTextWarning: {
     color: COLORS.warning,
+  },
+
+  daysBadgeTextLate: {
+    color: COLORS.danger,
   },
 
   divider: {
@@ -1168,30 +1281,86 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: 14,
     padding: 14,
-    borderRadius: 20,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.soft,
   },
 
+  inputGroupHeader: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
+  },
+
+  inputIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  inputTextBox: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+
   inputLabel: {
     fontSize: 15,
     fontWeight: "900",
-    marginBottom: 10,
     textAlign: "right",
-    color: COLORS.primary,
+    color: COLORS.text,
     fontFamily: "Tajawal-Bold",
   },
 
-  input: {
+  inputHint: {
+    marginTop: 2,
+    fontSize: 11.5,
+    color: COLORS.muted,
+    textAlign: "right",
+    fontFamily: "Tajawal-Regular",
+  },
+
+  dateInputBox: {
+    minHeight: 48,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 12,
-    borderRadius: 16,
+    borderRadius: 18,
     backgroundColor: COLORS.surface,
+    paddingHorizontal: 12,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  input: {
+    flex: 1,
+    paddingVertical: 12,
     fontSize: 14,
     color: COLORS.text,
     fontFamily: "Tajawal-Regular",
+  },
+
+  editPreviewBox: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 4,
+  },
+
+  editPreviewText: {
+    fontSize: 11.5,
+    color: COLORS.muted,
+    fontFamily: "Tajawal-Regular",
+    textAlign: "right",
   },
 
   saveBtn: {
@@ -1200,6 +1369,8 @@ const styles = StyleSheet.create({
     borderRadius: 27,
     alignItems: "center",
     justifyContent: "center",
+    flexDirection: "row-reverse",
+    gap: 8,
     shadowColor: COLORS.primaryDark,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.14,
