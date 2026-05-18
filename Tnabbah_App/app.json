@@ -6,11 +6,10 @@
     "orientation": "portrait",
     "icon": "./assets/images/splash-logo.png",
     "scheme": "tnabbah",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-  
       "bundleIdentifier": "com.rawanamoodi.tnabbahfree",
       "icon": "./assets/images/splash-logo.png",
       "infoPlist": {
