@@ -143,7 +143,7 @@ export default function RegisterScreen() {
         }),
       ]).start();
 
-      return () => {};
+      return () => { };
     }, [screenOpacity, screenTranslateY, transitionAnim])
   );
 
@@ -255,49 +255,53 @@ export default function RegisterScreen() {
           data: {
             full_name: cleanName,
           },
-          emailRedirectTo:
-            "https://qzhnghwmgujgthbkivdi.supabase.co/auth/v1/callback",
         },
       });
 
       if (error) {
-        setErrorMessage(error.message);
-        return;
-      }
+        console.log("REGISTER ERROR:", error);
 
-      if (data.user) {
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .upsert({
-            id: data.user.id,
-            username: cleanEmail,
-            full_name: cleanName,
-            avatar_url: null,
-            website: null,
+        const message = error.message?.toLowerCase() || "";
+
+        // إذا الحساب موجود لكنه غير متحقق
+        if (
+          message.includes("already registered") ||
+          message.includes("already exists") ||
+          message.includes("user already registered")
+        ) {
+          await supabase.auth.resend({
+            type: "signup",
+            email: cleanEmail,
           });
 
-        if (profileError) {
-          console.log("Profile Upsert Error:", profileError);
-          setErrorMessage(
-            "تم إنشاء الحساب، لكن الاسم لم يُحفظ في جدول profiles"
-          );
+          router.push({
+            pathname: "/verify-email",
+            params: {
+              email: cleanEmail,
+              fullName: cleanName,
+              source: "register",
+            },
+          } as any);
+
           return;
         }
+
+        setErrorMessage(error.message);
+        return;
       }
 
       setPassword("");
       setErrorMessage("");
 
-      if (data.session) {
-        smoothReplace("/connection-intro");
-      } else {
-        Alert.alert("تم التسجيل", "تم إرسال رابط التفعيل إلى بريدك 📩", [
-          {
-            text: "حسنًا",
-            onPress: () => smoothReplace("/login"),
-          },
-        ]);
-      }
+      router.push({
+        pathname: "/verify-email",
+        params: {
+          email: cleanEmail,
+          fullName: cleanName,
+          source: "register",
+        },
+      } as any);
+
     } catch (err) {
       console.log(err);
       setErrorMessage("صار خطأ غير متوقع، حاول مرة أخرى");
@@ -368,7 +372,7 @@ export default function RegisterScreen() {
                       style={[
                         styles.inputWrapper,
                         errorMessage.includes("الاسم") &&
-                          styles.inputWrapperError,
+                        styles.inputWrapperError,
                       ]}
                     >
                       <Feather
@@ -402,7 +406,7 @@ export default function RegisterScreen() {
                       style={[
                         styles.inputWrapper,
                         errorMessage.includes("البريد") &&
-                          styles.inputWrapperError,
+                        styles.inputWrapperError,
                       ]}
                     >
                       <Feather
@@ -439,7 +443,7 @@ export default function RegisterScreen() {
                       style={[
                         styles.inputWrapper,
                         errorMessage.includes("كلمة المرور") &&
-                          styles.inputWrapperError,
+                        styles.inputWrapperError,
                       ]}
                     >
                       <Feather

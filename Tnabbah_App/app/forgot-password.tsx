@@ -139,7 +139,7 @@ export default function ForgotPasswordScreen() {
         }),
       ]).start();
 
-      return () => {};
+      return () => { };
     }, [screenOpacity, screenTranslateY, transitionAnim])
   );
 
@@ -195,6 +195,29 @@ export default function ForgotPasswordScreen() {
     try {
       setLoading(true);
 
+      // نحاول نرسل كود تحقق أولًا
+      const { error: resendError } = await supabase.auth.resend({
+        type: "signup",
+        email: cleanEmail,
+      });
+
+      // إذا ما فيه خطأ = الحساب غالبًا غير متحقق
+      if (!resendError) {
+        Alert.alert(
+          "الحساب غير مُفعّل",
+          "أرسلنا لك رمز تحقق على البريد. فعّلي حسابك أولًا ثم ارجعي لتغيير كلمة المرور."
+        );
+
+        smoothReplace("/verify-email", {
+          email: cleanEmail,
+          fullName: "",
+          source: "forgot-password",
+        });
+
+        return;
+      }
+
+      // إذا الحساب متحقق، نرسل كود الريسيت عادي
       const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
 
       if (error) {
