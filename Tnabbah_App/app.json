@@ -8,17 +8,21 @@
     "scheme": "tnabbah",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+
     "ios": {
       "supportsTablet": true,
-  
       "bundleIdentifier": "com.rawanamoodi.tnabbahfree",
       "icon": "./assets/images/splash-logo.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+
         "NSBluetoothAlwaysUsageDescription": "Tnabbah needs Bluetooth access to connect to the OBD device and read car data.",
-        "NSBluetoothPeripheralUsageDescription": "Tnabbah needs Bluetooth access to connect to the OBD device."
+        "NSBluetoothPeripheralUsageDescription": "Tnabbah needs Bluetooth access to connect to the OBD device.",
+
+        "UIBackgroundModes": ["bluetooth-central"]
       }
     },
+
     "android": {
       "package": "com.rawanamoodi.tnabbahapp",
       "permissions": [
@@ -35,10 +39,12 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
+
     "web": {
       "output": "static",
       "favicon": "./assets/images/splash-logo.png"
     },
+
     "plugins": [
       "expo-router",
       [
@@ -66,19 +72,19 @@
         "react-native-ble-plx",
         {
           "isBackgroundEnabled": true,
-          "modes": [
-            "central"
-          ],
+          "modes": ["central"],
           "bluetoothAlwaysPermission": "Tnabbah needs Bluetooth access to connect to the OBD device and read car data."
         }
       ],
       "@react-native-community/datetimepicker",
       "expo-asset"
     ],
+
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
+
     "extra": {
       "router": {},
       "eas": {

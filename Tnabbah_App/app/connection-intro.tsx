@@ -207,67 +207,77 @@ export default function ConnectionIntroScreen() {
     }
   };
 
-  const startScan = async () => {
-    try {
-      setErrorMessage("");
-      setDevices([]);
-      setSelectedDevice(null);
-      setShowDeviceList(true);
+  const wait = (ms: number) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
-      const state = await manager.state();
+const startScan = async () => {
+  try {
+    setErrorMessage("");
+    setDevices([]);
+    setSelectedDevice(null);
+    setShowDeviceList(true);
 
-      if (state !== State.PoweredOn) {
-        setErrorMessage(getBluetoothStateMessage(state));
-        return;
-      }
+    let state = await manager.state();
+    console.log("Bluetooth state before wait:", state);
 
-      stopScan();
-      setIsScanning(true);
-
-      manager.startDeviceScan(
-        null,
-        { allowDuplicates: false },
-        (error, device) => {
-          if (error) {
-            setErrorMessage(
-              error.message || "صار خطأ أثناء البحث عن أجهزة البلوتوث."
-            );
-            stopScan();
-            return;
-          }
-
-          if (!device) return;
-
-          const deviceName =
-            device.name ||
-            device.localName ||
-            `جهاز بلوتوث ${device.id.slice(-5)}`;
-
-          setDevices((prev) => {
-            const exists = prev.some((item) => item.id === device.id);
-            if (exists) return prev;
-
-            const item: DeviceItem = {
-              id: device.id,
-              name: deviceName,
-              raw: device,
-            };
-
-            if (isElmLikeDevice(deviceName)) {
-              return [item, ...prev];
-            }
-
-            return [...prev, item];
-          });
-        }
-      );
-
-      scanTimeoutRef.current = setTimeout(stopScan, 12000);
-    } catch (error: any) {
-      setErrorMessage(error?.message || "تعذر تشغيل البحث عن البلوتوث.");
-      stopScan();
+    if (state !== State.PoweredOn) {
+      await wait(1200);
+      state = await manager.state();
+      console.log("Bluetooth state after wait:", state);
     }
-  };
+
+    if (state !== State.PoweredOn) {
+      setErrorMessage(getBluetoothStateMessage(state));
+      return;
+    }
+
+    stopScan();
+    setIsScanning(true);
+
+    manager.startDeviceScan(
+      null,
+      { allowDuplicates: false },
+      (error, device) => {
+        if (error) {
+          console.log("BLE scan error:", error);
+          setErrorMessage(
+            error.message || "صار خطأ أثناء البحث عن أجهزة البلوتوث."
+          );
+          stopScan();
+          return;
+        }
+
+        if (!device) return;
+
+        const deviceName =
+          device.name ||
+          device.localName ||
+          `جهاز بلوتوث ${device.id.slice(-5)}`;
+
+        console.log("Found BLE device:", deviceName, device.id);
+
+        setDevices((prev) => {
+          const exists = prev.some((item) => item.id === device.id);
+          if (exists) return prev;
+
+          const item: DeviceItem = {
+            id: device.id,
+            name: deviceName,
+            raw: device,
+          };
+
+          return [...prev, item];
+        });
+      }
+    );
+
+    scanTimeoutRef.current = setTimeout(stopScan, 12000);
+  } catch (error: any) {
+    console.log("BLE start scan catch:", error);
+    setErrorMessage(error?.message || "تعذر تشغيل البحث عن البلوتوث.");
+    stopScan();
+  }
+};
 
   const goBackToPreviousScreen = () => {
     stopScan();
