@@ -347,25 +347,14 @@ export default function Wallet() {
     try {
       await Promise.all(
         changed.map((item) =>
-          fetch(
-            `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/update-maintenance-reminder`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY}`,
-              },
-              body: JSON.stringify({
-                user_id: userId,
-                maintenance_type_id: item.maintenanceTypeId,
-                last_date: item.lastDate,
-              }),
-            }
-          ).then(async (res) => {
-            if (!res.ok) {
-              const err = await res.json();
-              throw new Error(err?.error || "Edge Function error");
-            }
+          supabase.functions.invoke("update-maintenance-reminder", {
+            body: {
+              user_id: userId,
+              maintenance_type_id: item.maintenanceTypeId,
+              last_date: item.lastDate,
+            },
+          }).then(({ error }) => {
+            if (error) throw error;
           })
         )
       );
