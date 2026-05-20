@@ -142,7 +142,7 @@ export default function LoginScreen() {
         }),
       ]).start();
 
-      return () => {};
+      return () => { };
     }, [screenOpacity, screenTranslateY, transitionAnim])
   );
 
@@ -215,13 +215,94 @@ export default function LoginScreen() {
 
       setLoading(true);
 
+      const cleanEmail = email.trim().toLowerCase();
+
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+        email: cleanEmail,
         password,
       });
 
       if (error) {
-        setErrorMessage(error.message);
+        console.log("LOGIN ERROR:", error);
+
+        const message = error.message?.toLowerCase() || "";
+        const code = error.code?.toLowerCase() || "";
+        const status = error.status;
+
+        const isNotConfirmed =
+          message.includes("email not confirmed") ||
+          message.includes("email_not_confirmed") ||
+          message.includes("not confirmed") ||
+          code.includes("email_not_confirmed") ||
+          status === 400;
+
+        if (isNotConfirmed) {
+          const { error: resendError } = await supabase.auth.resend({
+            type: "signup",
+            email: cleanEmail,
+          });
+
+          if (resendError) {
+            console.log("RESEND VERIFY ERROR:", resendError);
+
+            // حتى لو ما قدر يرسل كود جديد
+            // دخليه صفحة التحقق عشان يستخدم الكود القديم
+            router.push({
+              pathname: "/verify-email",
+              params: {
+                email: cleanEmail,
+                fullName: "",
+                source: "login",
+              },
+            } as any);
+
+            return;
+          }
+
+          router.push({
+            pathname: "/verify-email",
+            params: {
+              email: cleanEmail,
+              fullName: "",
+              source: "login",
+            },
+          } as any);
+
+          return;
+        }
+
+        setErrorMessage("البريد أو كلمة المرور غير صحيحة");
+        return;
+      }
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        await supabase.auth.signOut();
+        setErrorMessage("تعذر التحقق من الحساب، حاولي مرة أخرى");
+        return;
+      }
+
+      if (!user.email_confirmed_at) {
+        await supabase.auth.signOut();
+
+        await supabase.auth.resend({
+          type: "signup",
+          email: cleanEmail,
+        });
+
+        router.push({
+          pathname: "/verify-email",
+          params: {
+            email: cleanEmail,
+            fullName: user.user_metadata?.full_name || "",
+            source: "login",
+          },
+        } as any);
+
         return;
       }
 
@@ -300,7 +381,7 @@ export default function LoginScreen() {
                       style={[
                         styles.inputWrapper,
                         errorMessage.includes("البريد") &&
-                          styles.inputWrapperError,
+                        styles.inputWrapperError,
                       ]}
                     >
                       <Feather
@@ -338,7 +419,7 @@ export default function LoginScreen() {
                       style={[
                         styles.inputWrapper,
                         errorMessage.includes("كلمة المرور") &&
-                          styles.inputWrapperError,
+                        styles.inputWrapperError,
                       ]}
                     >
                       <Feather
