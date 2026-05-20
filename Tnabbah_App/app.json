@@ -11,7 +11,7 @@
 
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.rawanamoodi.tnabbahfree",
+      "bundleIdentifier": "com.rawanamoodi.tnabbahfree2026",
       "icon": "./assets/images/splash-logo.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
