@@ -56,9 +56,7 @@ const COLORS = {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface MaintenanceItem {
-  // reminder_id from create_reminders
   reminderId: number | null;
-  // id from maintenance_types
   maintenanceTypeId: number;
   title: string;
   lastDate: string;
@@ -66,7 +64,6 @@ interface MaintenanceItem {
   intervalDays: number;
   remainingDays: number | null;
   status: "upcoming" | "due" | "overdue";
-  notificationId: string | null;
 }
 
 type ReportStatus = "pending" | "saved" | "temp_rejected" | "deleted";
@@ -261,12 +258,9 @@ export default function Wallet() {
       return;
     }
     try {
-      // نجيب فقط التواريخ من maintenance_reminders
       const { data: reminders, error } = await supabase
         .from("maintenance_reminders")
-        .select(
-          "reminder_id, maintenance_type_id, last_date, next_date, notification_id",
-        )
+        .select("reminder_id, maintenance_type_id, last_date, next_date")
         .eq("user_id", userId)
         .eq("is_active", true);
 
@@ -287,10 +281,9 @@ export default function Wallet() {
           ...type,
           reminderId: reminder?.reminder_id ?? null,
           lastDate: reminder?.last_date ?? "",
-          nextDate,
+          nextDate: reminder?.next_date ?? "",
           remainingDays,
           status: getMaintenanceStatus(remainingDays),
-          notificationId: reminder?.notification_id ?? null,
         };
       });
       setMaintenance(items);
@@ -318,12 +311,6 @@ export default function Wallet() {
 
       for (const item of list) {
         if (!item.nextDate || !item.maintenanceTypeId) continue;
-
-        if (item.notificationId) {
-          await Notifications.cancelScheduledNotificationAsync(
-            item.notificationId,
-          );
-        }
 
         await scheduleMaintenanceNotification(
           item.title,
@@ -482,6 +469,7 @@ export default function Wallet() {
 
       // رفرش الواجهة من قاعدة البيانات بعد الحفظ
       await fetchMaintenance();
+
       for (const item of changed) {
         const intervalItem = STATIC_MAINTENANCE_TYPES.find(
           (t) => t.maintenanceTypeId === item.maintenanceTypeId,
@@ -494,21 +482,12 @@ export default function Wallet() {
 
         const nextDate = date.toISOString().split("T")[0];
 
-        const notificationId = await scheduleMaintenanceNotification(
+        // فقط جدولة إشعار محلي (Expo)
+        await scheduleMaintenanceNotification(
           item.title,
           nextDate,
           item.maintenanceTypeId,
         );
-
-        if (notificationId) {
-          await supabase
-            .from("maintenance_reminders")
-            .update({
-              notification_id: notificationId,
-            })
-            .eq("user_id", userId)
-            .eq("maintenance_type_id", item.maintenanceTypeId);
-        }
       }
       setModalVisible(false);
     } catch (err: any) {
