@@ -452,19 +452,17 @@ export default function Wallet() {
     setSavingId(-1); // -1 = كل شيء يتحفظ
     try {
       await Promise.all(
-        changed.map((item) =>
-          supabase.functions
-            .invoke("create-reminder", {
-              body: {
-                user_id: userId,
-                maintenance_type_id: item.maintenanceTypeId,
-                last_date: item.lastDate,
-              },
-            })
-            .then(({ error }) => {
-              if (error) throw error;
-            }),
-        ),
+        changed.map((item) => {
+          if (!item.lastDate) return Promise.resolve();
+
+          return supabase.functions.invoke("create-reminder", {
+            body: {
+              user_id: userId,
+              maintenance_type_id: item.maintenanceTypeId,
+              last_date: item.lastDate,
+            },
+          });
+        }),
       );
 
       // رفرش الواجهة من قاعدة البيانات بعد الحفظ
