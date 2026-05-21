@@ -21,6 +21,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../providers/AuthProvider";
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const COLORS = {
@@ -46,7 +56,7 @@ const COLORS = {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface MaintenanceItem {
-  // reminder_id from vehicle_reminders
+  // reminder_id from create_reminders
   reminderId: number | null;
   // id from maintenance_types
   maintenanceTypeId: number;
@@ -54,8 +64,9 @@ interface MaintenanceItem {
   lastDate: string;
   nextDate: string;
   intervalDays: number;
-  remainingDays: number;
+  remainingDays: number | null;
   status: "upcoming" | "due" | "overdue";
+  notificationId: string | null;
 }
 
 type ReportStatus = "pending" | "saved" | "temp_rejected" | "deleted";
@@ -107,38 +118,20 @@ const calcRemainingDays = (nextDate: string): number => {
 };
 
 const getMaintenanceStatus = (
-  remainingDays: number,
+  remainingDays: number | null,
 ): "upcoming" | "due" | "overdue" => {
+  if (remainingDays === null) return "upcoming";
   if (remainingDays < 0) return "overdue";
   if (remainingDays <= 7) return "due";
   return "upcoming";
 };
 
-const registerForPushNotifications = async (userId: string) => {
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+const requestNotificationPermissions = async () => {
+  const { status } = await Notifications.requestPermissionsAsync();
 
-  let finalStatus = existingStatus;
-
-  if (existingStatus !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-
-    finalStatus = status;
+  if (status !== "granted") {
+    Alert.alert("تنبيه", "يرجى السماح بالإشعارات لتفعيل التذكيرات");
   }
-
-  if (finalStatus !== "granted") {
-    return;
-  }
-
-  const token = (await Notifications.getExpoPushTokenAsync()).data;
-
-  console.log("Expo Push Token:", token);
-
-  await supabase
-    .from("profiles")
-    .update({
-      expo_push_token: token,
-    })
-    .eq("id", userId);
 };
 
 // القائمة الثابتة لأنواع الصيانة — تعكس جدول maintenance_types في قاعدة البيانات
@@ -164,6 +157,49 @@ export default function Wallet() {
 
   const { session } = useAuth();
   const userId = session?.user?.id;
+
+  const scheduleMaintenanceNotification = async (
+    title: string,
+    nextDate: string,
+    maintenanceTypeId: number,
+  ) => {
+    const notificationId = `maintenance-${maintenanceTypeId}`;
+    const targetDate = new Date(nextDate);
+
+    const daysBefore = 7;
+    const diff = targetDate.getTime() - Date.now();
+
+    if (diff < 0) return;
+
+    const notifyDate = new Date(targetDate);
+    notifyDate.setDate(notifyDate.getDate() - daysBefore);
+
+    if (notifyDate.getTime() < Date.now()) {
+      notifyDate.setTime(Date.now() + 5000);
+    }
+
+    notifyDate.setHours(9);
+    notifyDate.setSeconds(0);
+    notifyDate.setMilliseconds(0);
+
+    if (notifyDate.getTime() < Date.now()) return;
+
+    await Notifications.cancelScheduledNotificationAsync(notificationId);
+
+    const id = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "تذكير صيانة",
+        body: `اقترب موعد صيانة ${title}`,
+        sound: true,
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: notifyDate,
+      },
+    });
+
+    return id;
+  };
 
   // ── State ──────────────────────────────────────────────────────────────────
 
@@ -218,6 +254,7 @@ export default function Wallet() {
           nextDate: "",
           remainingDays: 0,
           status: "upcoming",
+          notificationId: null,
         })),
       );
       setMaintenanceLoading(false);
@@ -227,7 +264,9 @@ export default function Wallet() {
       // نجيب فقط التواريخ من maintenance_reminders
       const { data: reminders, error } = await supabase
         .from("maintenance_reminders")
-        .select("reminder_id, maintenance_type_id, last_date, next_date")
+        .select(
+          "reminder_id, maintenance_type_id, last_date, next_date, notification_id",
+        )
         .eq("user_id", userId)
         .eq("is_active", true);
 
@@ -238,12 +277,11 @@ export default function Wallet() {
       );
 
       // ندمج القائمة الثابتة مع التواريخ الديناميكية
-      const items: MaintenanceItem[] = STATIC_MAINTENANCE_TYPES.map((type) => {
+      const items = STATIC_MAINTENANCE_TYPES.map((type) => {
         const reminder = remindersMap.get(type.maintenanceTypeId);
 
         const nextDate = reminder?.next_date ?? "";
-
-        const remainingDays = nextDate ? calcRemainingDays(nextDate) : Infinity; //  تعني "لم يُسجَّل بعد" أو "غير معروف"
+        const remainingDays = nextDate ? calcRemainingDays(nextDate) : null;
 
         return {
           ...type,
@@ -252,9 +290,9 @@ export default function Wallet() {
           nextDate,
           remainingDays,
           status: getMaintenanceStatus(remainingDays),
+          notificationId: reminder?.notification_id ?? null,
         };
       });
-
       setMaintenance(items);
     } catch (err: any) {
       console.error("Failed to load maintenance:", err?.message || err);
@@ -265,10 +303,46 @@ export default function Wallet() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchReports();
-      fetchMaintenance();
+      const load = async () => {
+        await fetchReports();
+        await fetchMaintenance();
+      };
+
+      load();
     }, [fetchReports, fetchMaintenance]),
   );
+
+  const rescheduleAllNotifications = useCallback(
+    async (list: MaintenanceItem[]) => {
+      if (!list.length) return;
+
+      for (const item of list) {
+        if (!item.nextDate || !item.maintenanceTypeId) continue;
+
+        if (item.notificationId) {
+          await Notifications.cancelScheduledNotificationAsync(
+            item.notificationId,
+          );
+        }
+
+        await scheduleMaintenanceNotification(
+          item.title,
+          item.nextDate,
+          item.maintenanceTypeId,
+        );
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!maintenance.length) return;
+    rescheduleAllNotifications(maintenance);
+  }, [maintenance, rescheduleAllNotifications]);
+
+  useEffect(() => {
+    requestNotificationPermissions();
+  }, []);
 
   useEffect(() => {
     if (!userId) return;
@@ -291,12 +365,6 @@ export default function Wallet() {
       supabase.removeChannel(channel);
     };
   }, [userId, fetchReports]);
-
-  useEffect(() => {
-    if (!userId) return;
-
-    registerForPushNotifications(userId);
-  }, [userId]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -414,6 +482,34 @@ export default function Wallet() {
 
       // رفرش الواجهة من قاعدة البيانات بعد الحفظ
       await fetchMaintenance();
+      for (const item of changed) {
+        const intervalItem = STATIC_MAINTENANCE_TYPES.find(
+          (t) => t.maintenanceTypeId === item.maintenanceTypeId,
+        );
+
+        if (!intervalItem) continue;
+
+        const date = new Date(item.lastDate);
+        date.setDate(date.getDate() + intervalItem.intervalDays);
+
+        const nextDate = date.toISOString().split("T")[0];
+
+        const notificationId = await scheduleMaintenanceNotification(
+          item.title,
+          nextDate,
+          item.maintenanceTypeId,
+        );
+
+        if (notificationId) {
+          await supabase
+            .from("maintenance_reminders")
+            .update({
+              notification_id: notificationId,
+            })
+            .eq("user_id", userId)
+            .eq("maintenance_type_id", item.maintenanceTypeId);
+        }
+      }
       setModalVisible(false);
     } catch (err: any) {
       console.error("Save maintenance failed:", err?.message || err);
@@ -653,7 +749,12 @@ export default function Wallet() {
           maintenance.map((item) => {
             const hasData = !!item.lastDate;
             const progress = hasData
-              ? Math.min((item.remainingDays / item.intervalDays) * 100, 100)
+              ? Math.min(
+                  ((item.intervalDays - (item.remainingDays ?? 0)) /
+                    item.intervalDays) *
+                    100,
+                  100,
+                )
               : 0;
             const isSoon = item.status === "due";
             const isOverdue = item.status === "overdue";
