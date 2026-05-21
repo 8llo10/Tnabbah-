@@ -325,7 +325,7 @@ export default function Settings() {
 
       client.subscribe(topics);
 
-      const onMessage = (topic: string, message: Buffer) => {
+      const onMessage = (topic: string, message: any) => {
         if (!mounted) return;
 
         const parts = topic.split("/");

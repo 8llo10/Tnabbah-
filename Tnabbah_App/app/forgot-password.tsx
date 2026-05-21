@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { useFocusEffect, useRouter } from "expo-router";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
 
 import {
@@ -55,6 +55,7 @@ export default function ForgotPasswordScreen() {
   const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -188,9 +189,11 @@ export default function ForgotPasswordScreen() {
     const cleanEmail = email.trim().toLowerCase();
 
     if (!cleanEmail) {
-      Alert.alert("تنبيه", "الرجاء إدخال البريد الإلكتروني");
+      setErrorMessage("الرجاء إدخال البريد الإلكتروني");
       return;
     }
+
+    setErrorMessage("");
 
     try {
       setLoading(true);
@@ -247,6 +250,8 @@ export default function ForgotPasswordScreen() {
 
   return (
     <View style={styles.container}>
+      <Stack.Screen options={{ gestureEnabled: false }} />
+
       <StatusBar
         translucent
         backgroundColor="transparent"
@@ -265,7 +270,8 @@ export default function ForgotPasswordScreen() {
         <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
           <KeyboardAvoidingView
             style={styles.keyboardAvoidingView}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            behavior="padding"
+            keyboardVerticalOffset={0}
           >
             <ScrollView
               contentContainerStyle={styles.scrollContent}
@@ -283,9 +289,9 @@ export default function ForgotPasswordScreen() {
                     disabled={isNavigating || loading}
                   >
                     <Ionicons
-                      name="chevron-back"
-                      size={isVerySmallScreen ? 21 : 23}
-                      color={COLORS.shadowGray}
+                      name="arrow-back-outline"
+                      size={isVerySmallScreen ? 23 : 25}
+                      color={COLORS.textDark}
                     />
                   </TouchableOpacity>
                 </View>
@@ -304,7 +310,12 @@ export default function ForgotPasswordScreen() {
                   <View style={styles.fieldGroup}>
                     <Text style={styles.inputLabel}>البريد الإلكتروني</Text>
 
-                    <View style={styles.inputWrapper}>
+                    <View
+                      style={[
+                        styles.inputWrapper,
+                        errorMessage.includes("البريد") && styles.inputWrapperError,
+                      ]}
+                    >
                       <Feather
                         name="mail"
                         size={isVerySmallScreen ? 20 : 21}
@@ -320,13 +331,20 @@ export default function ForgotPasswordScreen() {
                         autoCapitalize="none"
                         autoCorrect={false}
                         value={email}
-                        onChangeText={setEmail}
+                        onChangeText={(text) => {
+                          setEmail(text);
+                          setErrorMessage("");
+                        }}
                         textAlign="right"
                         returnKeyType="done"
                         editable={!loading && !isNavigating}
                         selectionColor={COLORS.primary}
                       />
                     </View>
+
+                    {errorMessage.includes("البريد") ? (
+                      <Text style={styles.emailErrorText}>{errorMessage}</Text>
+                    ) : null}
                   </View>
                 </View>
 
@@ -510,20 +528,12 @@ function createStyles({
     backButtonWrapper: {
       width: backButtonSize,
       height: backButtonSize,
-      borderRadius: backButtonRadius,
       alignItems: "center",
       justifyContent: "center",
-
-      backgroundColor: COLORS.white,
-
-      borderWidth: 1.7,
-      borderColor: COLORS.border,
-
-      shadowColor: COLORS.shadowGray,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: Platform.OS === "android" ? 0.16 : 0.22,
-      shadowRadius: 4,
-      elevation: 3,
+      backgroundColor: "transparent",
+      borderWidth: 0,
+      shadowOpacity: 0,
+      elevation: 0,
     },
 
     titleArea: {
@@ -545,6 +555,7 @@ function createStyles({
       textShadowColor: "rgba(255,255,255,0.95)",
       textShadowOffset: { width: 0, height: 2 },
       textShadowRadius: 12,
+      includeFontPadding: false,
     },
 
     subtitle: {
@@ -559,6 +570,7 @@ function createStyles({
       textShadowColor: "rgba(255,255,255,0.90)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 10,
+      includeFontPadding: false,
     },
 
     formArea: {
@@ -577,6 +589,7 @@ function createStyles({
       fontWeight: "800",
       textAlign: "right",
       marginBottom: 10,
+      includeFontPadding: false,
     },
 
     inputWrapper: {
@@ -595,9 +608,14 @@ function createStyles({
 
       shadowColor: COLORS.shadowGray,
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: Platform.OS === "android" ? 0.16 : 0.22,
+      shadowOpacity: 0.18,
       shadowRadius: 4,
       elevation: 3,
+    },
+
+    inputWrapperError: {
+      borderColor: "rgba(154,33,28,0.35)",
+      backgroundColor: "rgba(154,33,28,0.015)",
     },
 
     inputIcon: {
@@ -611,6 +629,19 @@ function createStyles({
       fontWeight: "700",
       paddingVertical: 0,
       minHeight: inputHeight - 8,
+      textAlignVertical: "center",
+      includeFontPadding: false,
+    },
+
+    emailErrorText: {
+      marginTop: 9,
+      marginRight: 12,
+      color: COLORS.primary,
+      fontSize: isVerySmallScreen ? 13.2 : 14,
+      fontWeight: "800",
+      textAlign: "right",
+      lineHeight: isVerySmallScreen ? 19 : 21,
+      includeFontPadding: false,
     },
 
     buttonsArea: {
@@ -626,7 +657,7 @@ function createStyles({
       overflow: "hidden",
       shadowColor: "#6E1411",
       shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
+      shadowOpacity: 0.20,
       shadowRadius: 14,
       elevation: 6,
       backgroundColor: COLORS.primary,
@@ -674,6 +705,7 @@ function createStyles({
       fontSize: isVerySmallScreen ? 19 : 21,
       fontWeight: "900",
       zIndex: 5,
+      includeFontPadding: false,
     },
 
     modalOverlay: {
@@ -695,7 +727,7 @@ function createStyles({
       borderColor: "rgba(135, 27, 23, 0.14)",
       shadowColor: "#6E1411",
       shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: Platform.OS === "android" ? 0.14 : 0.18,
+      shadowOpacity: 0.16,
       shadowRadius: 24,
       elevation: 8,
     },
@@ -734,7 +766,7 @@ function createStyles({
       overflow: "hidden",
       shadowColor: "#6E1411",
       shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: Platform.OS === "android" ? 0.14 : 0.18,
+      shadowOpacity: 0.16,
       shadowRadius: 16,
       elevation: 5,
       backgroundColor: COLORS.primary,

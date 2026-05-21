@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { useFocusEffect, useRouter } from "expo-router";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
 import {
   View,
   Text,
@@ -39,6 +39,7 @@ const COLORS = {
   border: "rgba(205,205,205,0.95)",
 
   shadowGray: "#8E8E8E",
+  success: "#2E7D32",
   white: "#FFFFFF",
 };
 
@@ -66,6 +67,7 @@ export default function RegisterScreen() {
   const screenOpacity = useRef(new Animated.Value(0)).current;
   const screenTranslateY = useRef(new Animated.Value(10)).current;
   const transitionAnim = useRef(new Animated.Value(0)).current;
+  const passwordInputRef = useRef<TextInput>(null);
 
   const isSmallScreen = height < 720;
   const isVerySmallScreen = height < 650;
@@ -78,10 +80,10 @@ export default function RegisterScreen() {
   const topSpacing = clamp(height * 0.012, 6, 12);
   const bottomSpacing = clamp(height * 0.025, 16, 24);
 
-  const inputHeight = isVerySmallScreen ? 61 : 66;
+  const inputHeight = isVerySmallScreen ? 56 : 60;
   const inputRadius = inputHeight / 2;
 
-  const buttonHeight = isVerySmallScreen ? 58 : 64;
+  const buttonHeight = isVerySmallScreen ? 54 : 58;
   const buttonRadius = 30;
 
   const styles = useMemo(
@@ -119,6 +121,48 @@ export default function RegisterScreen() {
       height,
     ]
   );
+
+  const passwordChecks = useMemo(() => {
+    const digitCount = (password.match(/[0-9]/g) || []).length;
+
+    return {
+      hasUpperCase: /[A-Z]/.test(password),
+      hasLowerCase: /[a-z]/.test(password),
+      hasSixDigits: digitCount >= 6,
+      hasSpecialCharacter: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password),
+    };
+  }, [password]);
+
+  const isPasswordValid =
+    passwordChecks.hasUpperCase &&
+    passwordChecks.hasLowerCase &&
+    passwordChecks.hasSixDigits &&
+    passwordChecks.hasSpecialCharacter;
+
+  const showPasswordRules = password.length > 0 && !isPasswordValid;
+
+  const passwordRules = [
+    {
+      key: "uppercase",
+      label: "حرف كبير واحد على الأقل A-Z",
+      valid: passwordChecks.hasUpperCase,
+    },
+    {
+      key: "lowercase",
+      label: "حرف صغير واحد على الأقل a-z",
+      valid: passwordChecks.hasLowerCase,
+    },
+    {
+      key: "sixDigits",
+      label: "6 أرقام على الأقل من 0-9",
+      valid: passwordChecks.hasSixDigits,
+    },
+    {
+      key: "special",
+      label: "رمز خاص واحد على الأقل مثل @ # ! %",
+      valid: passwordChecks.hasSpecialCharacter,
+    },
+  ];
 
   useFocusEffect(
     useCallback(() => {
@@ -203,23 +247,13 @@ export default function RegisterScreen() {
   };
 
   const validatePassword = () => {
-    const hasMinLength = password.length >= 6;
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-
     if (!password.trim()) {
       setErrorMessage("اكتب كلمة المرور");
       return false;
     }
 
-    if (!hasMinLength) {
-      setErrorMessage("كلمة المرور لازم تكون 6 خانات على الأقل");
-      return false;
-    }
-
-    if (!hasUpperCase || !hasLowerCase || !hasNumber) {
-      setErrorMessage("كلمة المرور لازم تحتوي على حرف كبير، حرف صغير، ورقم");
+    if (!isPasswordValid) {
+      setErrorMessage("كلمة المرور لا تحقق المتطلبات");
       return false;
     }
 
@@ -312,6 +346,8 @@ export default function RegisterScreen() {
 
   return (
     <View style={styles.container}>
+      <Stack.Screen options={{ gestureEnabled: false }} />
+
       <StatusBar
         translucent
         backgroundColor="transparent"
@@ -331,6 +367,7 @@ export default function RegisterScreen() {
           <KeyboardAvoidingView
             style={styles.keyboardAvoidingView}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
           >
             <ScrollView
               contentContainerStyle={styles.scrollContent}
@@ -348,9 +385,9 @@ export default function RegisterScreen() {
                     disabled={isNavigating || loading}
                   >
                     <Ionicons
-                      name="chevron-back"
-                      size={isVerySmallScreen ? 21 : 23}
-                      color={COLORS.shadowGray}
+                      name="arrow-back-outline"
+                      size={isVerySmallScreen ? 23 : 25}
+                      color={COLORS.textDark}
                     />
                   </TouchableOpacity>
                 </View>
@@ -430,6 +467,8 @@ export default function RegisterScreen() {
                         }}
                         textAlign="right"
                         returnKeyType="next"
+                        blurOnSubmit={false}
+                        onSubmitEditing={() => passwordInputRef.current?.focus()}
                         editable={!loading && !isNavigating}
                         selectionColor={COLORS.primary}
                       />
@@ -454,6 +493,7 @@ export default function RegisterScreen() {
                       />
 
                       <TextInput
+                        ref={passwordInputRef}
                         style={styles.input}
                         placeholder="••••••••"
                         placeholderTextColor={COLORS.placeholder}
@@ -486,6 +526,42 @@ export default function RegisterScreen() {
                         />
                       </TouchableOpacity>
                     </View>
+
+                    {showPasswordRules ? (
+                      <View style={styles.passwordRulesBox}>
+                        <Text style={styles.passwordRulesTitle}>
+                          كلمة المرور يجب أن تحتوي على:
+                        </Text>
+
+                        {passwordRules.map((rule) => (
+                          <View key={rule.key} style={styles.passwordRuleRow}>
+                            <Ionicons
+                              name={
+                                rule.valid
+                                  ? "checkmark-circle"
+                                  : "close-circle-outline"
+                              }
+                              size={isVerySmallScreen ? 17 : 18}
+                              color={
+                                rule.valid
+                                  ? COLORS.success
+                                  : COLORS.primary
+                              }
+                              style={styles.passwordRuleIcon}
+                            />
+
+                            <Text
+                              style={[
+                                styles.passwordRuleText,
+                                rule.valid && styles.passwordRuleTextValid,
+                              ]}
+                            >
+                              {rule.label}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
                   </View>
 
                   {errorMessage ? (
@@ -630,12 +706,17 @@ function createStyles({
       backgroundColor: COLORS.screenBackground,
     },
 
+    fixedContent: {
+      flex: 1,
+      backgroundColor: COLORS.screenBackground,
+    },
+
     screenContent: {
       flex: 1,
       paddingHorizontal: horizontalPadding,
       paddingTop: topSpacing,
       paddingBottom: bottomSpacing,
-      minHeight: height,
+      minHeight: 0,
       backgroundColor: COLORS.screenBackground,
     },
 
@@ -644,30 +725,25 @@ function createStyles({
       paddingTop: safeTop + 2,
       alignItems: "flex-start",
       justifyContent: "center",
-      marginBottom: isVerySmallScreen ? 26 : 32,
+      marginBottom: isVerySmallScreen ? 12 : 16,
     },
 
     backButtonWrapper: {
       width: backButtonSize,
       height: backButtonSize,
-      borderRadius: backButtonRadius,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: COLORS.white,
-      borderWidth: 1.7,
-      borderColor: COLORS.border,
-      shadowColor: COLORS.shadowGray,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: Platform.OS === "android" ? 0.16 : 0.22,
-      shadowRadius: 4,
-      elevation: 3,
+      backgroundColor: "transparent",
+      borderWidth: 0,
+      shadowOpacity: 0,
+      elevation: 0,
     },
 
     titleArea: {
       width: "100%",
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: isVerySmallScreen ? 34 : isSmallScreen ? 42 : 48,
+      marginBottom: isVerySmallScreen ? 18 : isSmallScreen ? 22 : 26,
       paddingHorizontal: clamp(width * 0.02, 8, 14),
     },
 
@@ -684,7 +760,7 @@ function createStyles({
     },
 
     subtitle: {
-      marginTop: isVerySmallScreen ? 12 : 15,
+      marginTop: isVerySmallScreen ? 8 : 10,
       fontSize: isVerySmallScreen ? 16 : 17.5,
       lineHeight: isVerySmallScreen ? 25 : 28,
       color: COLORS.textDark,
@@ -702,7 +778,7 @@ function createStyles({
 
     fieldGroup: {
       width: "100%",
-      marginBottom: isVerySmallScreen ? 16 : 18,
+      marginBottom: isVerySmallScreen ? 12 : 14,
     },
 
     inputLabel: {
@@ -725,7 +801,7 @@ function createStyles({
       alignItems: "center",
       shadowColor: COLORS.shadowGray,
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: Platform.OS === "android" ? 0.16 : 0.22,
+      shadowOpacity: 0.18,
       shadowRadius: 4,
       elevation: 3,
     },
@@ -757,6 +833,50 @@ function createStyles({
       marginRight: 8,
     },
 
+    passwordRulesBox: {
+      width: "100%",
+      marginTop: 8,
+      paddingHorizontal: isVerySmallScreen ? 14 : 16,
+      paddingVertical: isVerySmallScreen ? 9 : 10,
+      borderRadius: 20,
+      backgroundColor: "rgba(154,33,28,0.045)",
+      borderWidth: 1.2,
+      borderColor: "rgba(154,33,28,0.14)",
+    },
+
+    passwordRulesTitle: {
+      color: COLORS.primary,
+      fontSize: isVerySmallScreen ? 13.5 : 14.3,
+      fontWeight: "900",
+      textAlign: "right",
+      marginBottom: 8,
+      lineHeight: isVerySmallScreen ? 20 : 22,
+    },
+
+    passwordRuleRow: {
+      flexDirection: "row-reverse",
+      alignItems: "center",
+      justifyContent: "flex-start",
+      marginTop: 6,
+    },
+
+    passwordRuleIcon: {
+      marginLeft: 8,
+    },
+
+    passwordRuleText: {
+      flex: 1,
+      color: COLORS.primary,
+      fontSize: isVerySmallScreen ? 12.8 : 13.5,
+      fontWeight: "800",
+      textAlign: "right",
+      lineHeight: isVerySmallScreen ? 19 : 21,
+    },
+
+    passwordRuleTextValid: {
+      color: COLORS.success,
+    },
+
     errorBox: {
       width: "100%",
       flexDirection: "row-reverse",
@@ -772,7 +892,7 @@ function createStyles({
       borderColor: "rgba(154,33,28,0.16)",
       shadowColor: COLORS.shadowGray,
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: Platform.OS === "android" ? 0.08 : 0.1,
+      shadowOpacity: 0.09,
       shadowRadius: 4,
       elevation: 2,
       gap: 8,
@@ -794,7 +914,7 @@ function createStyles({
       overflow: "hidden",
       shadowColor: "#6E1411",
       shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
+      shadowOpacity: 0.21,
       shadowRadius: 14,
       elevation: 6,
       backgroundColor: COLORS.primary,
@@ -843,7 +963,7 @@ function createStyles({
     },
 
     orArea: {
-      marginTop: isVerySmallScreen ? 34 : 40,
+      marginTop: isVerySmallScreen ? 18 : 22,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
@@ -864,7 +984,7 @@ function createStyles({
     },
 
     loginTextArea: {
-      marginTop: isVerySmallScreen ? 16 : 18,
+      marginTop: isVerySmallScreen ? 10 : 12,
       flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "center",
