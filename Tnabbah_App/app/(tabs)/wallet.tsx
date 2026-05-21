@@ -1,22 +1,23 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { Feather } from "@expo/vector-icons";
+import { useFonts } from "expo-font";
+import * as Notifications from "expo-notifications";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  StatusBar,
-  Platform,
   ActivityIndicator,
   Alert,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
-import { useFonts } from "expo-font";
-import { router, useFocusEffect } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../providers/AuthProvider";
 
@@ -54,6 +55,7 @@ interface MaintenanceItem {
   nextDate: string;
   intervalDays: number;
   remainingDays: number;
+  status: "upcoming" | "due" | "overdue";
 }
 
 type ReportStatus = "pending" | "saved" | "temp_rejected" | "deleted";
@@ -104,17 +106,52 @@ const calcRemainingDays = (nextDate: string): number => {
   return Math.ceil((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 };
 
+const getMaintenanceStatus = (
+  remainingDays: number,
+): "upcoming" | "due" | "overdue" => {
+  if (remainingDays < 0) return "overdue";
+  if (remainingDays <= 7) return "due";
+  return "upcoming";
+};
+
+const registerForPushNotifications = async (userId: string) => {
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+
+  let finalStatus = existingStatus;
+
+  if (existingStatus !== "granted") {
+    const { status } = await Notifications.requestPermissionsAsync();
+
+    finalStatus = status;
+  }
+
+  if (finalStatus !== "granted") {
+    return;
+  }
+
+  const token = (await Notifications.getExpoPushTokenAsync()).data;
+
+  console.log("Expo Push Token:", token);
+
+  await supabase
+    .from("profiles")
+    .update({
+      expo_push_token: token,
+    })
+    .eq("id", userId);
+};
+
 // القائمة الثابتة لأنواع الصيانة — تعكس جدول maintenance_types في قاعدة البيانات
 // id يجب أن يطابق الـ id الموجود في جدول maintenance_types
 const STATIC_MAINTENANCE_TYPES: Pick<
   MaintenanceItem,
   "maintenanceTypeId" | "title" | "intervalDays"
 >[] = [
-  { maintenanceTypeId: 1, title: "زيت المحرك",  intervalDays: 90  },
-  { maintenanceTypeId: 2, title: "الكفرات",      intervalDays: 365 },
-  { maintenanceTypeId: 3, title: "الفرامل",      intervalDays: 180 },
-  { maintenanceTypeId: 4, title: "فلتر الهواء",  intervalDays: 90  },
-  { maintenanceTypeId: 5, title: "البطارية",     intervalDays: 730 },
+  { maintenanceTypeId: 1, title: "زيت المحرك", intervalDays: 90 },
+  { maintenanceTypeId: 2, title: "الكفرات", intervalDays: 365 },
+  { maintenanceTypeId: 3, title: "الفرامل", intervalDays: 180 },
+  { maintenanceTypeId: 4, title: "فلتر الهواء", intervalDays: 90 },
+  { maintenanceTypeId: 5, title: "البطارية", intervalDays: 730 },
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -136,7 +173,9 @@ export default function Wallet() {
 
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [reportsLoading, setReportsLoading] = useState(true);
-  const [reportFilter, setReportFilter] = useState<"all" | "saved" | "pending">("all");
+  const [reportFilter, setReportFilter] = useState<"all" | "saved" | "pending">(
+    "all",
+  );
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editData, setEditData] = useState<MaintenanceItem[]>([]);
@@ -178,15 +217,16 @@ export default function Wallet() {
           lastDate: "",
           nextDate: "",
           remainingDays: 0,
-        }))
+          status: "upcoming",
+        })),
       );
       setMaintenanceLoading(false);
       return;
     }
     try {
-      // نجيب فقط التواريخ من vehicle_reminders
+      // نجيب فقط التواريخ من maintenance_reminders
       const { data: reminders, error } = await supabase
-        .from("vehicle_reminders")
+        .from("maintenance_reminders")
         .select("reminder_id, maintenance_type_id, last_date, next_date")
         .eq("user_id", userId)
         .eq("is_active", true);
@@ -194,19 +234,24 @@ export default function Wallet() {
       if (error) throw error;
 
       const remindersMap = new Map(
-        (reminders || []).map((r: any) => [r.maintenance_type_id, r])
+        (reminders || []).map((r: any) => [r.maintenance_type_id, r]),
       );
 
       // ندمج القائمة الثابتة مع التواريخ الديناميكية
       const items: MaintenanceItem[] = STATIC_MAINTENANCE_TYPES.map((type) => {
         const reminder = remindersMap.get(type.maintenanceTypeId);
+
         const nextDate = reminder?.next_date ?? "";
+
+        const remainingDays = nextDate ? calcRemainingDays(nextDate) : Infinity; //  تعني "لم يُسجَّل بعد" أو "غير معروف"
+
         return {
           ...type,
           reminderId: reminder?.reminder_id ?? null,
           lastDate: reminder?.last_date ?? "",
           nextDate,
-          remainingDays: nextDate ? calcRemainingDays(nextDate) : 0,
+          remainingDays,
+          status: getMaintenanceStatus(remainingDays),
         };
       });
 
@@ -222,7 +267,7 @@ export default function Wallet() {
     useCallback(() => {
       fetchReports();
       fetchMaintenance();
-    }, [fetchReports, fetchMaintenance])
+    }, [fetchReports, fetchMaintenance]),
   );
 
   useEffect(() => {
@@ -238,7 +283,7 @@ export default function Wallet() {
           table: "reports",
           filter: `user_id=eq.${userId}`,
         },
-        () => fetchReports()
+        () => fetchReports(),
       )
       .subscribe();
 
@@ -247,6 +292,12 @@ export default function Wallet() {
     };
   }, [userId, fetchReports]);
 
+  useEffect(() => {
+    if (!userId) return;
+
+    registerForPushNotifications(userId);
+  }, [userId]);
+
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handleSaveReport = async (id: string) => {
@@ -254,7 +305,7 @@ export default function Wallet() {
     const prev = reports;
 
     setReports((rs) =>
-      rs.map((r) => (r.id === id ? { ...r, status: "saved" } : r))
+      rs.map((r) => (r.id === id ? { ...r, status: "saved" } : r)),
     );
 
     try {
@@ -322,8 +373,8 @@ export default function Wallet() {
       prev.map((item) =>
         item.maintenanceTypeId === currentEditingId
           ? { ...item, lastDate: formatted }
-          : item
-      )
+          : item,
+      ),
     );
   };
 
@@ -333,7 +384,7 @@ export default function Wallet() {
     // نحدد فقط العناصر اللي تغير فيها lastDate مقارنةً بالبيانات الحالية
     const changed = editData.filter((item) => {
       const original = maintenance.find(
-        (m) => m.maintenanceTypeId === item.maintenanceTypeId
+        (m) => m.maintenanceTypeId === item.maintenanceTypeId,
       );
       return item.lastDate && item.lastDate !== original?.lastDate;
     });
@@ -347,16 +398,18 @@ export default function Wallet() {
     try {
       await Promise.all(
         changed.map((item) =>
-          supabase.functions.invoke("update-maintenance-reminder", {
-            body: {
-              user_id: userId,
-              maintenance_type_id: item.maintenanceTypeId,
-              last_date: item.lastDate,
-            },
-          }).then(({ error }) => {
-            if (error) throw error;
-          })
-        )
+          supabase.functions
+            .invoke("create-reminder", {
+              body: {
+                user_id: userId,
+                maintenance_type_id: item.maintenanceTypeId,
+                last_date: item.lastDate,
+              },
+            })
+            .then(({ error }) => {
+              if (error) throw error;
+            }),
+        ),
       );
 
       // رفرش الواجهة من قاعدة البيانات بعد الحفظ
@@ -380,7 +433,7 @@ export default function Wallet() {
   const getFilterCount = (key: "all" | "saved" | "pending") => {
     if (key === "all") {
       return reports.filter(
-        (r) => r.status === "saved" || r.status === "pending"
+        (r) => r.status === "saved" || r.status === "pending",
       ).length;
     }
     return reports.filter((r) => r.status === key).length;
@@ -525,7 +578,9 @@ export default function Wallet() {
                 <View
                   style={[
                     styles.statusPill,
-                    isPending ? styles.statusPillPending : styles.statusPillSaved,
+                    isPending
+                      ? styles.statusPillPending
+                      : styles.statusPillSaved,
                   ]}
                 >
                   <Text
@@ -600,7 +655,8 @@ export default function Wallet() {
             const progress = hasData
               ? Math.min((item.remainingDays / item.intervalDays) * 100, 100)
               : 0;
-            const isSoon = hasData && item.remainingDays <= 30;
+            const isSoon = item.status === "due";
+            const isOverdue = item.status === "overdue";
 
             return (
               <View key={item.maintenanceTypeId} style={styles.maintenanceCard}>
@@ -610,20 +666,30 @@ export default function Wallet() {
                       styles.daysBadge,
                       !hasData
                         ? styles.daysBadgeNormal
-                        : isSoon
-                        ? styles.daysBadgeWarning
-                        : styles.daysBadgeNormal,
+                        : isOverdue
+                          ? styles.daysBadgeDanger
+                          : isSoon
+                            ? styles.daysBadgeWarning
+                            : styles.daysBadgeNormal,
                     ]}
                   >
                     <Text
                       style={[
                         styles.daysBadgeText,
-                        isSoon
-                          ? styles.daysBadgeTextWarning
-                          : styles.daysBadgeTextNormal,
+                        isOverdue
+                          ? styles.daysBadgeTextDanger
+                          : isSoon
+                            ? styles.daysBadgeTextWarning
+                            : styles.daysBadgeTextNormal,
                       ]}
                     >
-                      {hasData ? `متبقي ${item.remainingDays} يوم` : "لم يُسجَّل بعد"}
+                      {!hasData
+                        ? "لم يُسجَّل بعد"
+                        : isOverdue
+                          ? "متأخر"
+                          : isSoon
+                            ? `مستحقة خلال ${item.remainingDays} يوم`
+                            : `متبقي ${item.remainingDays} يوم`}
                     </Text>
                   </View>
                   <View style={styles.maintenanceTitleBox}>
@@ -655,7 +721,9 @@ export default function Wallet() {
                       styles.progressBar,
                       {
                         width: `${progress}%`,
-                        backgroundColor: isSoon ? COLORS.warning : COLORS.primary,
+                        backgroundColor: isSoon
+                          ? COLORS.warning
+                          : COLORS.primary,
                       },
                     ]}
                   />
@@ -1108,7 +1176,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   daysBadgeNormal: {
-    backgroundColor: COLORS.dangerBg,
+    backgroundColor: COLORS.softGray,
   },
   daysBadgeWarning: {
     backgroundColor: COLORS.warningBg,
@@ -1118,11 +1186,19 @@ const styles = StyleSheet.create({
     fontFamily: "Tajawal-Bold",
   },
   daysBadgeTextNormal: {
-    color: COLORS.primary,
+    color: COLORS.text,
   },
   daysBadgeTextWarning: {
     color: COLORS.warning,
   },
+  daysBadgeDanger: {
+    backgroundColor: COLORS.dangerBg,
+  },
+
+  daysBadgeTextDanger: {
+    color: COLORS.danger,
+  },
+
   divider: {
     height: 1,
     backgroundColor: "#F2F2F2",
