@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import { AuthProvider } from "../providers/AuthProvider";
 import * as SplashScreen from "expo-splash-screen";
 import { Asset } from "expo-asset";
+import { WalletProvider } from "../providers/WalletProvider";
 
 import {
   ThemeProvider as NavigationThemeProvider,
@@ -65,7 +66,7 @@ export default function RootLayout() {
       } finally {
         if (mounted) {
           setAppIsReady(true);
-          
+
         }
       }
     }
@@ -84,36 +85,38 @@ export default function RootLayout() {
   return (
     <View style={styles.root}>
       <AuthProvider>
-        <NavigationThemeProvider
-          value={colorScheme === "dark" ? AppDarkTheme : LightTheme}
-        >
-          <Stack
-  screenOptions={{
-    headerShown: false,
-    animation: "none",
-    contentStyle: {
-      backgroundColor: "#FFFFFF",
-    },
-  }}
->
-            <Stack.Screen name="index" />
-            <Stack.Screen name="start" />
-            <Stack.Screen name="login" />
-            <Stack.Screen name="register" />
-            <Stack.Screen name="forgot-password" />
+        <WalletProvider>
+          <NavigationThemeProvider
+            value={colorScheme === "dark" ? AppDarkTheme : LightTheme}
+          >
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                animation: "none",
+                contentStyle: {
+                  backgroundColor: "#FFFFFF",
+                },
+              }}
+            >
+              <Stack.Screen name="index" />
+              <Stack.Screen name="start" />
+              <Stack.Screen name="login" />
+              <Stack.Screen name="register" />
+              <Stack.Screen name="forgot-password" />
 
-           
-            <Stack.Screen name="connection-intro" />
-            <Stack.Screen name="connection-success" />
 
-            <Stack.Screen name="auth/reset-password" />
-            <Stack.Screen name="auth/new-password" />
+              <Stack.Screen name="connection-intro" />
+              <Stack.Screen name="connection-success" />
 
-            <Stack.Screen name="(tabs)" />
-          </Stack>
+              <Stack.Screen name="auth/reset-password" />
+              <Stack.Screen name="auth/new-password" />
 
-          <StatusBar style="dark" translucent backgroundColor="transparent" />
-        </NavigationThemeProvider>
+              <Stack.Screen name="(tabs)" />
+            </Stack>
+
+            <StatusBar style="dark" translucent backgroundColor="transparent" />
+          </NavigationThemeProvider>
+        </WalletProvider>
       </AuthProvider>
     </View>
   );
