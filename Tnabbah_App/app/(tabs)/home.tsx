@@ -1,10 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-
-// تم التعليق مؤقتًا لأن Push Notifications على iPhone الحقيقي تحتاج Apple Developer مدفوع.
-// التنبيهات داخل التطبيق ما زالت شغالة بدون هذا الاستيراد.
-// import * as Notifications from "expo-notifications";
-
+import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -16,7 +12,7 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
+  Text, // إضافة الـ Modal الرسمي للـ Pop-up
   useWindowDimensions,
   View,
 } from "react-native";
@@ -284,7 +280,7 @@ export default function HomeScreen() {
           try {
             client.off?.("message", onMessage);
             client.unsubscribe?.(topics);
-          } catch {}
+          } catch { }
         };
       } catch (error) {
         console.log("MQTT Home subscribe error:", error);
@@ -354,13 +350,13 @@ export default function HomeScreen() {
         const { data, error } = await supabase
           .from("maintenance_reminders")
           .select(`
-            reminder_id,
-            next_date,
-            maintenance_type_id,
-            maintenance_types (
-              name
-            )
-          `)
+    reminder_id,
+    next_date,
+    maintenance_type_id,
+    maintenance_types (
+      name
+    )
+  `)
           .eq("user_id", userId)
           .eq("is_active", true);
 
@@ -377,8 +373,11 @@ export default function HomeScreen() {
           if (!item?.next_date) continue;
 
           const dueDate = new Date(item.next_date);
+
           const diffMs = dueDate.getTime() - today.getTime();
+
           const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
           const shouldNotify = diffDays <= 3 && diffDays >= 0;
 
           if (shouldNotify) {
@@ -389,7 +388,6 @@ export default function HomeScreen() {
                   ? `موعد "${item.maintenance_types?.[0]?.name || "صيانة"}" اليوم`
                   : `موعد "${item.maintenance_types?.[0]?.name || "صيانة"}" بعد ${diffDays} يوم`,
             });
-
             upcomingCount++;
 
             const notifyId = `${item.reminder_id}_${diffDays}`;
@@ -397,19 +395,14 @@ export default function HomeScreen() {
             if (!notifiedIdsRef.current.includes(notifyId)) {
               notifiedIdsRef.current.push(notifyId);
 
-              // تم التعليق مؤقتًا:
-              // هذا الجزء يرسل Push Notification خارج التطبيق.
-              // حساب Apple المجاني لا يدعم Push Notifications على iPhone الحقيقي.
-              // التنبيهات داخل التطبيق ما زالت تظهر في جرس الإشعارات والـ Modal.
-              //
-              // await Notifications.scheduleNotificationAsync({
-              //   content: {
-              //     title: "تذكير صيانة",
-              //     body: `موعد "${item.maintenance_types?.[0]?.name || "صيانة"}" بعد ${diffDays} يوم`,
-              //     sound: true,
-              //   },
-              //   trigger: null,
-              // });
+              await Notifications.scheduleNotificationAsync({
+                content: {
+                  title: "تذكير صيانة",
+                  body: `موعد "${item.maintenance_types?.[0]?.name || "صيانة"}" بعد ${diffDays} يوم`,
+                  sound: true,
+                },
+                trigger: null,
+              });
             }
           }
         }
@@ -541,6 +534,7 @@ export default function HomeScreen() {
                 )}
               </Pressable>
 
+              {/* تعديل: تصميم نافذة منبثقة احترافية (Pop-up Modal) بدلاً من القائمة الجانبية المنسدلة */}
               <Modal
                 visible={showNotifications}
                 transparent={true}
@@ -559,7 +553,6 @@ export default function HomeScreen() {
                       >
                         <Feather name="x" size={20} color={COLORS.text} />
                       </Pressable>
-
                       <Text style={styles.notificationsTitle}>الإشعارات</Text>
                     </View>
 
@@ -877,9 +870,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#D32F2F",
   },
 
+  /* ==========================================================================
+     تعديل: إضافة وتعديل تصميم الـ Pop-up Modal بالكامل ليكون مرتب ومتناسق
+     ========================================================================== */
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    backgroundColor: "rgba(0, 0, 0, 0.4)", // تعتيم خلفية الشاشة بنعومة فائقة
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
@@ -887,11 +883,11 @@ const styles = StyleSheet.create({
 
   modalContainer: {
     width: "100%",
-    maxWidth: 340,
+    maxWidth: 340, // حجم مثالي جداً ومتناسق مع شاشات الجوال والأجهزة اللوحية
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
     padding: 20,
-    maxHeight: "70%",
+    maxHeight: "70%", // لمنع تمدد الصندوق المنبثق خارج حدود الشاشة عند كثرة الإشعارات
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.15,
@@ -952,6 +948,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: "700",
   },
+  /* ========================================================================== */
 
   helloText: {
     fontSize: 17,
