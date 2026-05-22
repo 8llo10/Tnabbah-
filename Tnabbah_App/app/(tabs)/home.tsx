@@ -4,17 +4,17 @@ import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text, // إضافة الـ Modal الرسمي للـ Pop-up
-  useWindowDimensions,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Modal,
+    Pressable,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text, // إضافة الـ Modal الرسمي للـ Pop-up
+    useWindowDimensions,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
@@ -23,1457 +23,1457 @@ import { mqttService } from "../../services/mqttService";
 import { vehicleScannerService } from "../../services/vehicleScannerService";
 
 const API_URL =
-  process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://207.180.244.27:8001";
+    process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://207.180.244.27:8001";
 
 const CORTEX_URL =
-  process.env.EXPO_PUBLIC_CORTEX_API || "http://207.180.244.27:3101";
+    process.env.EXPO_PUBLIC_CORTEX_API || "http://207.180.244.27:3101";
 
 const COLORS = {
-  primary: "#871B17",
-  primaryLight: "#9A3A33",
-  primaryDark: "#5F130F",
-  bg: "#FFFFFF",
-  surface: "#FFFFFF",
-  soft: "#F8F8F8",
-  softRed: "#F2D7DA",
-  border: "#EDEDED",
-  text: "#1D1D1F",
-  muted: "#7A7A7A",
-  danger: "#C62828",
-  warning: "#B7791F",
-  success: "#1F8A4C",
+    primary: "#871B17",
+    primaryLight: "#9A3A33",
+    primaryDark: "#5F130F",
+    bg: "#FFFFFF",
+    surface: "#FFFFFF",
+    soft: "#F8F8F8",
+    softRed: "#F2D7DA",
+    border: "#EDEDED",
+    text: "#1D1D1F",
+    muted: "#7A7A7A",
+    danger: "#C62828",
+    warning: "#B7791F",
+    success: "#1F8A4C",
 };
 
 type MetricState = {
-  rpm: number | string | null;
-  speed: number | string | null;
-  voltage: number | string | null;
-  coolant: number | string | null;
+    rpm: number | string | null;
+    speed: number | string | null;
+    voltage: number | string | null;
+    coolant: number | string | null;
 };
 
 type HomeAiState = {
-  status: "safe" | "watch" | "urgent";
-  title: string;
-  message: string;
-  score: number;
-  action: string;
-  alertsCount: number;
+    status: "safe" | "watch" | "urgent";
+    title: string;
+    message: string;
+    score: number;
+    action: string;
+    alertsCount: number;
 } | null;
 
 function safeValue(value: any) {
-  if (value === null || value === undefined || value === "") return "--";
-  return String(value);
+    if (value === null || value === undefined || value === "") return "--";
+    return String(value);
 }
 
 function prettyJson(value: unknown) {
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
+    try {
+        return JSON.stringify(value, null, 2);
+    } catch {
+        return String(value);
+    }
 }
 
 function getPayloadData(message: Buffer) {
-  try {
-    const parsed = JSON.parse(message.toString());
-    return parsed?.data ?? parsed;
-  } catch {
-    return null;
-  }
+    try {
+        const parsed = JSON.parse(message.toString());
+        return parsed?.data ?? parsed;
+    } catch {
+        return null;
+    }
 }
 
 function getUserDisplayName(user: any) {
-  const metadata = user?.user_metadata || {};
+    const metadata = user?.user_metadata || {};
 
-  const name =
-    metadata.full_name ||
-    metadata.name ||
-    metadata.username ||
-    user?.email?.split("@")?.[0] ||
-    "";
+    const name =
+        metadata.full_name ||
+        metadata.name ||
+        metadata.username ||
+        user?.email?.split("@")?.[0] ||
+        "";
 
-  return String(name).trim();
+    return String(name).trim();
 }
 
 export default function HomeScreen() {
-  const { width, height } = useWindowDimensions();
+    const { width, height } = useWindowDimensions();
 
-  const isLandscape = width > height;
-  const isWide = width >= 760 || isLandscape;
-  const columns = isWide ? 4 : 2;
+    const isLandscape = width > height;
+    const isWide = width >= 760 || isLandscape;
+    const columns = isWide ? 4 : 2;
 
-  const [userName, setUserName] = useState("");
-  const [homeAi, setHomeAi] = useState<HomeAiState>(null);
-  const [isChecking, setIsChecking] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isAutoRunning, setIsAutoRunning] = useState(false);
+    const [userName, setUserName] = useState("");
+    const [homeAi, setHomeAi] = useState<HomeAiState>(null);
+    const [isChecking, setIsChecking] = useState(false);
+    const [isConnected, setIsConnected] = useState(false);
+    const [isAutoRunning, setIsAutoRunning] = useState(false);
 
-  const [metrics, setMetrics] = useState<MetricState>({
-    rpm: null,
-    speed: null,
-    voltage: null,
-    coolant: null,
-  });
-
-  const [vin, setVin] = useState<string | null>(null);
-  const [carId, setCarId] = useState<string | null>(null);
-  const [supportedCount, setSupportedCount] = useState<number>(0);
-  const [dtcCount, setDtcCount] = useState<number>(0);
-
-  const [lastRaw, setLastRaw] = useState("");
-  const [statusText, setStatusText] = useState("جاهز للفحص");
-  const [debugText, setDebugText] = useState("");
-  const [notificationsCount, setNotificationsCount] = useState(0);
-  const [notificationsList, setNotificationsList] = useState<
-    {
-      id: string;
-      title: string;
-      body: string;
-      is_read: boolean;
-      created_at: string;
-    }[]
-  >([]);
-  const [showNotifications, setShowNotifications] = useState(false);
-
-
-  const metricWidth = useMemo(() => {
-    const pagePadding = isWide ? 52 : 36;
-    const totalGap = 10 * (columns - 1);
-    return (width - pagePadding - totalGap) / columns;
-  }, [width, columns, isWide]);
-
-  useEffect(() => {
-    const loadUserName = async () => {
-      const { data } = await supabase.auth.getUser();
-      const displayName = getUserDisplayName(data.user);
-      setUserName(displayName);
-    };
-
-    loadUserName();
-  }, []);
-
-  useEffect(() => {
-    const update = async () => {
-      const connected = await elmBluetoothService
-        .isActuallyConnected?.()
-        .catch(() => false);
-
-      setIsConnected(!!connected);
-      setIsAutoRunning(vehicleScannerService.isAutoScanRunning());
-
-      const cachedCarId = vehicleScannerService.getCachedCarId();
-      if (cachedCarId) setCarId(cachedCarId);
-
-      if (!connected) {
-        setStatusText("غير متصل بالقطعة");
-      } else if (vehicleScannerService.isAutoScanRunning()) {
-        setStatusText("الفحص التلقائي والستريمنق شغالين");
-      } else {
-        setStatusText("متصل بقطعة OBD");
-      }
-    };
-
-    update();
-
-    const interval = setInterval(update, 1500);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-    let client: any = null;
-
-    const setupMqttListener = async () => {
-      try {
-        const { data } = await supabase.auth.getUser();
-        const userId = data.user?.id;
-
-        if (!userId) return;
-
-        client = await mqttService.connectAsync();
-
-        const root = `Tnabbah/${userId}/+/`;
-
-        const topics = [
-          `${root}status`,
-          `${root}identity`,
-          `${root}mode09/#`,
-          `${root}pids/#`,
-          `${root}dtc/#`,
-          `${root}srs/#`,
-          `${root}discovery/#`,
-        ];
-
-        client.subscribe(topics);
-
-        const onMessage = (topic: string, message: Buffer) => {
-          if (!mounted) return;
-
-          const data = getPayloadData(message);
-          if (!data) return;
-
-          const parts = topic.split("/");
-          const incomingCarId = parts[2];
-          const section = parts[3];
-          const sub = parts[4];
-
-          if (incomingCarId) setCarId(incomingCarId);
-
-          if (section === "status") {
-            setStatusText(
-              data.status === "disconnected"
-                ? "القطعة غير متصلة"
-                : data.status || "تم تحديث الحالة",
-            );
-
-            setIsAutoRunning(!!data.streaming);
-            setIsConnected(!!data.obdConnected);
-          }
-
-          if (section === "identity") {
-            setVin(data.vin || data.fingerprints?.vin || null);
-            setLastRaw(prettyJson(data));
-          }
-
-          if (section === "mode09") {
-            if (sub === "vin" && data.vin) setVin(data.vin);
-            if (sub === "full" && data.vin) setVin(data.vin);
-          }
-
-          if (section === "pids") {
-            if (sub === "supported") {
-              if (Array.isArray(data.supportedPids)) {
-                setSupportedCount(data.supportedPids.length);
-              }
-            }
-
-            if (sub === "010C") {
-              setMetrics((prev) => ({ ...prev, rpm: data.value ?? null }));
-            }
-
-            if (sub === "010D") {
-              setMetrics((prev) => ({ ...prev, speed: data.value ?? null }));
-            }
-
-            if (sub === "0142") {
-              setMetrics((prev) => ({ ...prev, voltage: data.value ?? null }));
-            }
-
-            if (sub === "0105") {
-              setMetrics((prev) => ({ ...prev, coolant: data.value ?? null }));
-            }
-          }
-
-          if (section === "dtc") {
-            if (sub === "full") {
-              const stored = data.stored?.dtcs?.length || 0;
-              const pending = data.pending?.dtcs?.length || 0;
-              const permanent = data.permanent?.dtcs?.length || 0;
-              setDtcCount(stored + pending + permanent);
-            } else if (Array.isArray(data.dtcs)) {
-              setDtcCount((prev) => Math.max(prev, data.dtcs.length));
-            }
-          }
-
-          if (section === "discovery") {
-            setLastRaw(prettyJson(data));
-          }
-        };
-
-        client.on("message", onMessage);
-
-        return () => {
-          try {
-            client.off?.("message", onMessage);
-            client.unsubscribe?.(topics);
-          } catch { }
-        };
-      } catch (error) {
-        console.log("MQTT Home subscribe error:", error);
-      }
-    };
-
-    let cleanup: any;
-
-    setupMqttListener().then((fn) => {
-      cleanup = fn;
+    const [metrics, setMetrics] = useState<MetricState>({
+        rpm: null,
+        speed: null,
+        voltage: null,
+        coolant: null,
     });
 
-    return () => {
-      mounted = false;
-      if (cleanup) cleanup();
-    };
-  }, []);
+    const [vin, setVin] = useState<string | null>(null);
+    const [carId, setCarId] = useState<string | null>(null);
+    const [supportedCount, setSupportedCount] = useState<number>(0);
+    const [dtcCount, setDtcCount] = useState<number>(0);
 
-  useEffect(() => {
-    let mounted = true;
+    const [lastRaw, setLastRaw] = useState("");
+    const [statusText, setStatusText] = useState("جاهز للفحص");
+    const [debugText, setDebugText] = useState("");
+    const [notificationsCount, setNotificationsCount] = useState(0);
+    const [notificationsList, setNotificationsList] = useState<
+        {
+            id: string;
+            title: string;
+            body: string;
+            is_read: boolean;
+            created_at: string;
+        }[]
+    >([]);
+    const [showNotifications, setShowNotifications] = useState(false);
 
-    const loadHomeAi = async () => {
-      try {
-        const { data } = await supabase.auth.getUser();
-        const userId = data.user?.id;
 
-        if (!userId || !carId) return;
+    const metricWidth = useMemo(() => {
+        const pagePadding = isWide ? 52 : 36;
+        const totalGap = 10 * (columns - 1);
+        return (width - pagePadding - totalGap) / columns;
+    }, [width, columns, isWide]);
 
-        const res = await fetch(`${CORTEX_URL}/cortex/${userId}/${carId}/home`);
-        if (!res.ok) {
-          setDebugText(`Cortex HTTP ${res.status}`);
-          return;
-        }
+    useEffect(() => {
+        const loadUserName = async () => {
+            const { data } = await supabase.auth.getUser();
+            const displayName = getUserDisplayName(data.user);
+            setUserName(displayName);
+        };
 
-        const json = await res.json();
+        loadUserName();
+    }, []);
 
-        if (mounted) {
-          setHomeAi(json);
-        }
-      } catch (e: any) {
-        setDebugText(e?.message || "فشل الاتصال مع Cortex");
-      }
-    };
+    useEffect(() => {
+        const update = async () => {
+            const connected = await elmBluetoothService
+                .isActuallyConnected?.()
+                .catch(() => false);
 
-    loadHomeAi();
+            setIsConnected(!!connected);
+            setIsAutoRunning(vehicleScannerService.isAutoScanRunning());
 
-    const interval = setInterval(loadHomeAi, 5000);
+            const cachedCarId = vehicleScannerService.getCachedCarId();
+            if (cachedCarId) setCarId(cachedCarId);
 
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, [carId]);
+            if (!connected) {
+                setStatusText("غير متصل بالقطعة");
+            } else if (vehicleScannerService.isAutoScanRunning()) {
+                setStatusText("الفحص التلقائي والستريمنق شغالين");
+            } else {
+                setStatusText("متصل بقطعة OBD");
+            }
+        };
 
-  useEffect(() => {
-    let mounted = true;
+        update();
 
-    const loadNotifications = async () => {
-      try {
-        const { data: authData } = await supabase.auth.getUser();
-        const userId = authData.user?.id;
+        const interval = setInterval(update, 1500);
+        return () => clearInterval(interval);
+    }, []);
 
-        if (!userId) return;
+    useEffect(() => {
+        let mounted = true;
+        let client: any = null;
 
-        const { data, error } = await supabase
-          .from("notifications")
-          .select("id, title, body, is_read, created_at")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(20);
+        const setupMqttListener = async () => {
+            try {
+                const { data } = await supabase.auth.getUser();
+                const userId = data.user?.id;
 
-        if (error) throw error;
+                if (!userId) return;
 
-        if (!mounted) return;
+                client = await mqttService.connectAsync();
 
-        const mapped = (data || []).map((item) => ({
-          id: item.id,
-          title: item.title,
-          body: item.body,
-          is_read: item.is_read,
-          created_at: item.created_at,
-        }));
+                const root = `Tnabbah/${userId}/+/`;
 
-        setNotificationsList(mapped);
-        setNotificationsCount(mapped.filter((item) => !item.is_read).length);
-      } catch (error) {
-        console.log("Load notifications error:", error);
-      }
-    };
+                const topics = [
+                    `${root}status`,
+                    `${root}identity`,
+                    `${root}mode09/#`,
+                    `${root}pids/#`,
+                    `${root}dtc/#`,
+                    `${root}srs/#`,
+                    `${root}discovery/#`,
+                ];
 
-    loadNotifications();
+                client.subscribe(topics);
 
-    const interval = setInterval(loadNotifications, 30000);
+                const onMessage = (topic: string, message: Buffer) => {
+                    if (!mounted) return;
 
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, []);
+                    const data = getPayloadData(message);
+                    if (!data) return;
 
-  const performDirectScan = async () => {
-    try {
-      setIsChecking(true);
-      setDebugText("");
+                    const parts = topic.split("/");
+                    const incomingCarId = parts[2];
+                    const section = parts[3];
+                    const sub = parts[4];
 
-      const { data: authData } = await supabase.auth.getUser();
-      const userId = authData.user?.id;
+                    if (incomingCarId) setCarId(incomingCarId);
 
-      if (!userId) {
-        Alert.alert("خطأ", "يجب تسجيل الدخول قبل التحليل.");
-        setIsChecking(false);
-        return;
-      }
+                    if (section === "status") {
+                        setStatusText(
+                            data.status === "disconnected"
+                                ? "القطعة غير متصلة"
+                                : data.status || "تم تحديث الحالة",
+                        );
 
-      const scannedCarId =
-        carId || vehicleScannerService.getCachedCarId() || "car_a521e25";
+                        setIsAutoRunning(!!data.streaming);
+                        setIsConnected(!!data.obdConnected);
+                    }
 
-      setStatusText("جاري التقاط لقطة من بيانات السيارة وتشغيل التحليل...");
+                    if (section === "identity") {
+                        setVin(data.vin || data.fingerprints?.vin || null);
+                        setLastRaw(prettyJson(data));
+                    }
 
-      const response = await fetch(`${API_URL}/api/scan-from-mqtt`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: userId,
-          car_id: scannedCarId,
-          freshness_seconds: 120,
-          wait_ms: 0,
-          vehicle_info: null,
-        }),
-      });
+                    if (section === "mode09") {
+                        if (sub === "vin" && data.vin) setVin(data.vin);
+                        if (sub === "full" && data.vin) setVin(data.vin);
+                    }
 
-      if (!response.ok) {
-        let detail = "فشل تشغيل التحليل";
+                    if (section === "pids") {
+                        if (sub === "supported") {
+                            if (Array.isArray(data.supportedPids)) {
+                                setSupportedCount(data.supportedPids.length);
+                            }
+                        }
 
+                        if (sub === "010C") {
+                            setMetrics((prev) => ({ ...prev, rpm: data.value ?? null }));
+                        }
+
+                        if (sub === "010D") {
+                            setMetrics((prev) => ({ ...prev, speed: data.value ?? null }));
+                        }
+
+                        if (sub === "0142") {
+                            setMetrics((prev) => ({ ...prev, voltage: data.value ?? null }));
+                        }
+
+                        if (sub === "0105") {
+                            setMetrics((prev) => ({ ...prev, coolant: data.value ?? null }));
+                        }
+                    }
+
+                    if (section === "dtc") {
+                        if (sub === "full") {
+                            const stored = data.stored?.dtcs?.length || 0;
+                            const pending = data.pending?.dtcs?.length || 0;
+                            const permanent = data.permanent?.dtcs?.length || 0;
+                            setDtcCount(stored + pending + permanent);
+                        } else if (Array.isArray(data.dtcs)) {
+                            setDtcCount((prev) => Math.max(prev, data.dtcs.length));
+                        }
+                    }
+
+                    if (section === "discovery") {
+                        setLastRaw(prettyJson(data));
+                    }
+                };
+
+                client.on("message", onMessage);
+
+                return () => {
+                    try {
+                        client.off?.("message", onMessage);
+                        client.unsubscribe?.(topics);
+                    } catch { }
+                };
+            } catch (error) {
+                console.log("MQTT Home subscribe error:", error);
+            }
+        };
+
+        let cleanup: any;
+
+        setupMqttListener().then((fn) => {
+            cleanup = fn;
+        });
+
+        return () => {
+            mounted = false;
+            if (cleanup) cleanup();
+        };
+    }, []);
+
+    useEffect(() => {
+        let mounted = true;
+
+        const loadHomeAi = async () => {
+            try {
+                const { data } = await supabase.auth.getUser();
+                const userId = data.user?.id;
+
+                if (!userId || !carId) return;
+
+                const res = await fetch(`${CORTEX_URL}/cortex/${userId}/${carId}/home`);
+                if (!res.ok) {
+                    setDebugText(`Cortex HTTP ${res.status}`);
+                    return;
+                }
+
+                const json = await res.json();
+
+                if (mounted) {
+                    setHomeAi(json);
+                }
+            } catch (e: any) {
+                setDebugText(e?.message || "فشل الاتصال مع Cortex");
+            }
+        };
+
+        loadHomeAi();
+
+        const interval = setInterval(loadHomeAi, 5000);
+
+        return () => {
+            mounted = false;
+            clearInterval(interval);
+        };
+    }, [carId]);
+
+    useEffect(() => {
+        let mounted = true;
+
+        const loadNotifications = async () => {
+            try {
+                const { data: authData } = await supabase.auth.getUser();
+                const userId = authData.user?.id;
+
+                if (!userId) return;
+
+                const { data, error } = await supabase
+                    .from("notifications")
+                    .select("id, title, body, is_read, created_at")
+                    .eq("user_id", userId)
+                    .order("created_at", { ascending: false })
+                    .limit(20);
+
+                if (error) throw error;
+
+                if (!mounted) return;
+
+                const mapped = (data || []).map((item) => ({
+                    id: item.id,
+                    title: item.title,
+                    body: item.body,
+                    is_read: item.is_read,
+                    created_at: item.created_at,
+                }));
+
+                setNotificationsList(mapped);
+                setNotificationsCount(mapped.filter((item) => !item.is_read).length);
+            } catch (error) {
+                console.log("Load notifications error:", error);
+            }
+        };
+
+        loadNotifications();
+
+        const interval = setInterval(loadNotifications, 30000);
+
+        return () => {
+            mounted = false;
+            clearInterval(interval);
+        };
+    }, []);
+
+    const performDirectScan = async () => {
         try {
-          const errBody = await response.json();
-          detail =
-            typeof errBody?.detail === "string"
-              ? errBody.detail
-              : typeof errBody?.error === "string"
-                ? errBody.error
-                : JSON.stringify(errBody);
-        } catch {
-          detail = `HTTP ${response.status}`;
+            setIsChecking(true);
+            setDebugText("");
+
+            const { data: authData } = await supabase.auth.getUser();
+            const userId = authData.user?.id;
+
+            if (!userId) {
+                Alert.alert("خطأ", "يجب تسجيل الدخول قبل التحليل.");
+                setIsChecking(false);
+                return;
+            }
+
+            const scannedCarId =
+                carId || vehicleScannerService.getCachedCarId() || "car_a521e25";
+
+            setStatusText("جاري التقاط لقطة من بيانات السيارة وتشغيل التحليل...");
+
+            const response = await fetch(`${API_URL}/api/scan-from-mqtt`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    user_id: userId,
+                    car_id: scannedCarId,
+                    freshness_seconds: 120,
+                    wait_ms: 0,
+                    vehicle_info: null,
+                }),
+            });
+
+            if (!response.ok) {
+                let detail = "فشل تشغيل التحليل";
+
+                try {
+                    const errBody = await response.json();
+                    detail =
+                        typeof errBody?.detail === "string"
+                            ? errBody.detail
+                            : typeof errBody?.error === "string"
+                                ? errBody.error
+                                : JSON.stringify(errBody);
+                } catch {
+                    detail = `HTTP ${response.status}`;
+                }
+
+                throw new Error(detail);
+            }
+
+            const report = await response.json();
+            setStatusText("تم إنشاء التقرير بنجاح");
+
+            router.push({
+                pathname: "/report",
+                params: { report: JSON.stringify(report) },
+            });
+        } catch (e: any) {
+            const errorMsg =
+                typeof e?.message === "string"
+                    ? e.message
+                    : JSON.stringify(e?.message || e || "خطأ غير متوقع");
+
+            setStatusText("فشل تشغيل التحليل");
+            setDebugText(errorMsg);
+            Alert.alert("خطأ", errorMsg);
+        } finally {
+            setIsChecking(false);
         }
-
-        throw new Error(detail);
-      }
-
-      const report = await response.json();
-      setStatusText("تم إنشاء التقرير بنجاح");
-
-      router.push({
-        pathname: "/report",
-        params: { report: JSON.stringify(report) },
-      });
-    } catch (e: any) {
-      const errorMsg =
-        typeof e?.message === "string"
-          ? e.message
-          : JSON.stringify(e?.message || e || "خطأ غير متوقع");
-
-      setStatusText("فشل تشغيل التحليل");
-      setDebugText(errorMsg);
-      Alert.alert("خطأ", errorMsg);
-    } finally {
-      setIsChecking(false);
-    }
-  };
+    };
 
 
-  const markNotificationAsRead = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("id", id);
+    const markNotificationAsRead = async (id: string) => {
+        try {
+            const { error } = await supabase
+                .from("notifications")
+                .update({ is_read: true })
+                .eq("id", id);
 
-      if (error) throw error;
+            if (error) throw error;
 
-      setNotificationsList((prev) =>
-        prev.map((item) =>
-          item.id === id ? { ...item, is_read: true } : item
-        )
-      );
+            setNotificationsList((prev) =>
+                prev.map((item) =>
+                    item.id === id ? { ...item, is_read: true } : item
+                )
+            );
 
-      setNotificationsCount((prev) => Math.max(prev - 1, 0));
-    } catch (error) {
-      console.log("Mark notification read error:", error);
-    }
-  };
-
-  const deleteNotification = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from("notifications")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-
-      setNotificationsList((prev) => {
-        const deleted = prev.find((item) => item.id === id);
-
-        if (deleted && !deleted.is_read) {
-          setNotificationsCount((count) => Math.max(count - 1, 0));
+            setNotificationsCount((prev) => Math.max(prev - 1, 0));
+        } catch (error) {
+            console.log("Mark notification read error:", error);
         }
+    };
 
-        return prev.filter((item) => item.id !== id);
-      });
-    } catch (error) {
-      console.log("Delete notification error:", error);
-    }
-  };
+    const deleteNotification = async (id: string) => {
+        try {
+            const { error } = await supabase
+                .from("notifications")
+                .delete()
+                .eq("id", id);
 
-  return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+            if (error) throw error;
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollContent,
-          isWide && styles.scrollContentWide,
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={[styles.header, isWide && styles.headerWide]}>
-          <View style={styles.headerTextBox}>
-            <Text style={styles.helloText}>
-              {userName
-                ? `أهلًا بك في تنبّهـ ${userName}`
-                : "أهلًا بك في تنبّهـ"}
-            </Text>
+            setNotificationsList((prev) => {
+                const deleted = prev.find((item) => item.id === id);
 
-            <Text style={styles.headerTitle}>
-              سيارتك تتكلم، ونحن نترجمها لك
-            </Text>
-          </View>
+                if (deleted && !deleted.is_read) {
+                    setNotificationsCount((count) => Math.max(count - 1, 0));
+                }
 
-          <View style={styles.headerActions}>
-            <View style={styles.headerRightArea}>
-              <Pressable
-                onPress={() => setShowNotifications(true)}
-                style={styles.notificationButton}
-              >
-                <Feather name="bell" size={21} color={COLORS.text} />
+                return prev.filter((item) => item.id !== id);
+            });
+        } catch (error) {
+            console.log("Delete notification error:", error);
+        }
+    };
 
-                {notificationsCount > 0 && (
-                  <View style={styles.notificationDot} />
-                )}
-              </Pressable>
+    return (
+        <SafeAreaView style={styles.safeArea} edges={["top"]}>
+            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-              {/* تعديل: تصميم نافذة منبثقة احترافية (Pop-up Modal) بدلاً من القائمة الجانبية المنسدلة */}
-              <Modal
-                visible={showNotifications}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setShowNotifications(false)}
-              >
-                <Pressable
-                  style={styles.modalOverlay}
-                  onPress={() => setShowNotifications(false)}
-                >
-                  <Pressable style={styles.modalContainer} pointerEvents="auto">
-                    <View style={styles.modalHeader}>
-                      <Pressable
-                        style={styles.closeButton}
-                        onPress={() => setShowNotifications(false)}
-                      >
-                        <Feather name="x" size={20} color={COLORS.text} />
-                      </Pressable>
-                      <Text style={styles.notificationsTitle}>الإشعارات</Text>
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={[
+                    styles.scrollContent,
+                    isWide && styles.scrollContentWide,
+                ]}
+                showsVerticalScrollIndicator={false}
+            >
+                <View style={[styles.header, isWide && styles.headerWide]}>
+                    <View style={styles.headerTextBox}>
+                        <Text style={styles.helloText}>
+                            {userName
+                                ? `أهلًا بك في تنبّهـ ${userName}`
+                                : "أهلًا بك في تنبّهـ"}
+                        </Text>
+
+                        <Text style={styles.headerTitle}>
+                            سيارتك تتكلم، ونحن نترجمها لك
+                        </Text>
                     </View>
 
-                    <ScrollView
-                      showsVerticalScrollIndicator={true}
-                      style={styles.modalScroll}
-                      contentContainerStyle={styles.modalScrollContent}
-                      nestedScrollEnabled
-                    >
-                      {notificationsList.length === 0 ? (
-                        <Text style={styles.emptyNotificationText}>
-                          لا توجد إشعارات جديدة حالياً
-                        </Text>
-                      ) : (
-                        notificationsList.map((item) => (
-                          <View
-                            key={item.id}
-                            style={[
-                              styles.notificationItem,
-                              !item.is_read && styles.notificationItemUnread,
-                            ]}
-                          >
-                            <View style={styles.notificationTopRow}>
-                              {!item.is_read && <View style={styles.unreadDot} />}
+                    <View style={styles.headerActions}>
+                        <View style={styles.headerRightArea}>
+                            <Pressable
+                                onPress={() => setShowNotifications(true)}
+                                style={styles.notificationButton}
+                            >
+                                <Feather name="bell" size={21} color={COLORS.text} />
 
-                              <Text style={styles.notificationTitleText}>
-                                {item.title}
-                              </Text>
-                            </View>
+                                {notificationsCount > 0 && (
+                                    <View style={styles.notificationDot} />
+                                )}
+                            </Pressable>
 
-                            <Text style={styles.notificationText}>
-                              {item.body}
-                            </Text>
-
-                            <View style={styles.notificationActions}>
-                              {!item.is_read && (
+                            {/* تعديل: تصميم نافذة منبثقة احترافية (Pop-up Modal) بدلاً من القائمة الجانبية المنسدلة */}
+                            <Modal
+                                visible={showNotifications}
+                                transparent={true}
+                                animationType="fade"
+                                onRequestClose={() => setShowNotifications(false)}
+                            >
                                 <Pressable
-                                  style={styles.readButton}
-                                  onPress={() => markNotificationAsRead(item.id)}
+                                    style={styles.modalOverlay}
+                                    onPress={() => setShowNotifications(false)}
                                 >
-                                  <Text style={styles.readButtonText}>تمت القراءة</Text>
+                                    <Pressable style={styles.modalContainer} pointerEvents="auto">
+                                        <View style={styles.modalHeader}>
+                                            <Pressable
+                                                style={styles.closeButton}
+                                                onPress={() => setShowNotifications(false)}
+                                            >
+                                                <Feather name="x" size={20} color={COLORS.text} />
+                                            </Pressable>
+                                            <Text style={styles.notificationsTitle}>الإشعارات</Text>
+                                        </View>
+
+                                        <ScrollView
+                                            showsVerticalScrollIndicator={true}
+                                            style={styles.modalScroll}
+                                            contentContainerStyle={styles.modalScrollContent}
+                                            nestedScrollEnabled
+                                        >
+                                            {notificationsList.length === 0 ? (
+                                                <Text style={styles.emptyNotificationText}>
+                                                    لا توجد إشعارات جديدة حالياً
+                                                </Text>
+                                            ) : (
+                                                notificationsList.map((item) => (
+                                                    <View
+                                                        key={item.id}
+                                                        style={[
+                                                            styles.notificationItem,
+                                                            !item.is_read && styles.notificationItemUnread,
+                                                        ]}
+                                                    >
+                                                        <View style={styles.notificationTopRow}>
+                                                            {!item.is_read && <View style={styles.unreadDot} />}
+
+                                                            <Text style={styles.notificationTitleText}>
+                                                                {item.title}
+                                                            </Text>
+                                                        </View>
+
+                                                        <Text style={styles.notificationText}>
+                                                            {item.body}
+                                                        </Text>
+
+                                                        <View style={styles.notificationActions}>
+                                                            {!item.is_read && (
+                                                                <Pressable
+                                                                    style={styles.readButton}
+                                                                    onPress={() => markNotificationAsRead(item.id)}
+                                                                >
+                                                                    <Text style={styles.readButtonText}>تمت القراءة</Text>
+                                                                </Pressable>
+                                                            )}
+
+                                                            <Pressable
+                                                                style={styles.deleteButton}
+                                                                onPress={() => deleteNotification(item.id)}
+                                                            >
+                                                                <Text style={styles.deleteButtonText}>حذف</Text>
+                                                            </Pressable>
+                                                        </View>
+                                                    </View>
+                                                ))
+                                            )}
+                                        </ScrollView>
+                                    </Pressable>
                                 </Pressable>
-                              )}
+                            </Modal>
+                        </View>
 
-                              <Pressable
-                                style={styles.deleteButton}
-                                onPress={() => deleteNotification(item.id)}
-                              >
-                                <Text style={styles.deleteButtonText}>حذف</Text>
-                              </Pressable>
-                            </View>
-                          </View>
-                        ))
-                      )}
-                    </ScrollView>
-                  </Pressable>
-                </Pressable>
-              </Modal>
-            </View>
+                        <View
+                            style={[
+                                styles.connectionBadge,
+                                isConnected ? styles.connectedBadge : styles.disconnectedBadge,
+                            ]}
+                        >
+                            <View
+                                style={[
+                                    styles.connectionDot,
+                                    {
+                                        backgroundColor: isConnected
+                                            ? COLORS.success
+                                            : COLORS.danger,
+                                    },
+                                ]}
+                            />
 
-            <View
-              style={[
-                styles.connectionBadge,
-                isConnected ? styles.connectedBadge : styles.disconnectedBadge,
-              ]}
-            >
-              <View
-                style={[
-                  styles.connectionDot,
-                  {
-                    backgroundColor: isConnected
-                      ? COLORS.success
-                      : COLORS.danger,
-                  },
-                ]}
-              />
+                            <Text
+                                style={[
+                                    styles.connectionText,
+                                    {
+                                        color: isConnected ? COLORS.success : COLORS.danger,
+                                    },
+                                ]}
+                            >
+                                {isConnected ? "متصل" : "غير متصل"}
+                            </Text>
+                        </View>
+                    </View>
+                </View>
 
-              <Text
-                style={[
-                  styles.connectionText,
-                  {
-                    color: isConnected ? COLORS.success : COLORS.danger,
-                  },
-                ]}
-              >
-                {isConnected ? "متصل" : "غير متصل"}
-              </Text>
-            </View>
-          </View>
-        </View>
+                <View style={[styles.carImageArea, isWide && styles.carImageAreaWide]}>
+                    <Image
+                        source={require("../../assets/images/car-card.png")}
+                        style={styles.carImage}
+                        resizeMode="cover"
+                    />
+                </View>
 
-        <View style={[styles.carImageArea, isWide && styles.carImageAreaWide]}>
-          <Image
-            source={require("../../assets/images/car-card.png")}
-            style={styles.carImage}
-            resizeMode="cover"
-          />
-        </View>
+                <View style={[styles.heroCard, isWide && styles.heroCardWide]}>
+                    <View style={styles.heroContent}>
+                        <Text style={styles.heroTitle}>فحص تنبّه</Text>
+                    </View>
 
-        <View style={[styles.heroCard, isWide && styles.heroCardWide]}>
-          <View style={styles.heroContent}>
-            <Text style={styles.heroTitle}>فحص تنبّه</Text>
-          </View>
+                    {homeAi && (
+                        <View style={styles.aiHomeBox}>
+                            <Text style={styles.aiHomeMessage}>{homeAi.message}</Text>
+                        </View>
+                    )}
 
-          {homeAi && (
-            <View style={styles.aiHomeBox}>
-              <Text style={styles.aiHomeMessage}>{homeAi.message}</Text>
-            </View>
-          )}
+                    <View style={styles.heroButtons}>
+                        <Pressable
+                            style={({ pressed }) => [
+                                styles.mainButton,
+                                pressed && { opacity: 0.9 },
+                                isChecking && { opacity: 0.65 },
+                            ]}
+                            onPress={performDirectScan}
+                            disabled={isChecking}
+                        >
+                            <LinearGradient
+                                colors={[COLORS.primaryLight, COLORS.primaryDark]}
+                                start={{ x: 0.5, y: 0 }}
+                                end={{ x: 0.5, y: 1 }}
+                                style={styles.mainButtonGradient}
+                            >
+                                {isChecking ? (
+                                    <ActivityIndicator color="#FFFFFF" />
+                                ) : (
+                                    <>
+                                        <Feather name="file-text" size={18} color="#FFFFFF" />
+                                        <Text style={styles.mainButtonText}>إنشاء تقرير</Text>
+                                    </>
+                                )}
+                            </LinearGradient>
+                        </Pressable>
+                    </View>
+                </View>
 
-          <View style={styles.heroButtons}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.mainButton,
-                pressed && { opacity: 0.9 },
-                isChecking && { opacity: 0.65 },
-              ]}
-              onPress={performDirectScan}
-              disabled={isChecking}
-            >
-              <LinearGradient
-                colors={[COLORS.primaryLight, COLORS.primaryDark]}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={styles.mainButtonGradient}
-              >
-                {isChecking ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Feather name="file-text" size={18} color="#FFFFFF" />
-                    <Text style={styles.mainButtonText}>إنشاء تقرير</Text>
-                  </>
-                )}
-              </LinearGradient>
-            </Pressable>
-          </View>
-        </View>
+                <Text style={styles.sectionTitle}>قراءات السيارة من MQTT</Text>
 
-        <Text style={styles.sectionTitle}>قراءات السيارة من MQTT</Text>
+                <View style={styles.metricsGrid}>
+                    <MetricCard
+                        width={metricWidth}
+                        icon="activity"
+                        label="RPM"
+                        value={safeValue(metrics.rpm)}
+                        unit="دورة/دقيقة"
+                    />
 
-        <View style={styles.metricsGrid}>
-          <MetricCard
-            width={metricWidth}
-            icon="activity"
-            label="RPM"
-            value={safeValue(metrics.rpm)}
-            unit="دورة/دقيقة"
-          />
+                    <MetricCard
+                        width={metricWidth}
+                        icon="navigation"
+                        label="السرعة"
+                        value={safeValue(metrics.speed)}
+                        unit="كم/س"
+                    />
 
-          <MetricCard
-            width={metricWidth}
-            icon="navigation"
-            label="السرعة"
-            value={safeValue(metrics.speed)}
-            unit="كم/س"
-          />
+                    <MetricCard
+                        width={metricWidth}
+                        icon="battery"
+                        label="الفولت"
+                        value={safeValue(metrics.voltage)}
+                        unit="V"
+                    />
 
-          <MetricCard
-            width={metricWidth}
-            icon="battery"
-            label="الفولت"
-            value={safeValue(metrics.voltage)}
-            unit="V"
-          />
+                    <MetricCard
+                        width={metricWidth}
+                        icon="thermometer"
+                        label="حرارة المحرك"
+                        value={safeValue(metrics.coolant)}
+                        unit="°C"
+                    />
+                </View>
 
-          <MetricCard
-            width={metricWidth}
-            icon="thermometer"
-            label="حرارة المحرك"
-            value={safeValue(metrics.coolant)}
-            unit="°C"
-          />
-        </View>
+                <Text style={styles.sectionTitle}>ملخص السيارة</Text>
 
-        <Text style={styles.sectionTitle}>ملخص السيارة</Text>
+                <View style={styles.metricsGrid}>
+                    <MetricCard
+                        width={metricWidth}
+                        icon="hash"
+                        label="Car ID"
+                        value={carId ? "موجود" : "--"}
+                        unit={carId || "بانتظار MQTT"}
+                    />
 
-        <View style={styles.metricsGrid}>
-          <MetricCard
-            width={metricWidth}
-            icon="hash"
-            label="Car ID"
-            value={carId ? "موجود" : "--"}
-            unit={carId || "بانتظار MQTT"}
-          />
+                    <MetricCard
+                        width={metricWidth}
+                        icon="file-text"
+                        label="VIN"
+                        value={vin ? "موجود" : "--"}
+                        unit={vin || "Mode 09"}
+                    />
 
-          <MetricCard
-            width={metricWidth}
-            icon="file-text"
-            label="VIN"
-            value={vin ? "موجود" : "--"}
-            unit={vin || "Mode 09"}
-          />
+                    <MetricCard
+                        width={metricWidth}
+                        icon="list"
+                        label="Supported"
+                        value={String(supportedCount)}
+                        unit="PID"
+                    />
 
-          <MetricCard
-            width={metricWidth}
-            icon="list"
-            label="Supported"
-            value={String(supportedCount)}
-            unit="PID"
-          />
+                    <MetricCard
+                        width={metricWidth}
+                        icon="alert-triangle"
+                        label="DTC"
+                        value={String(dtcCount)}
+                        unit="أعطال"
+                    />
+                </View>
 
-          <MetricCard
-            width={metricWidth}
-            icon="alert-triangle"
-            label="DTC"
-            value={String(dtcCount)}
-            unit="أعطال"
-          />
-        </View>
+                <View style={styles.statusCard}>
+                    <View style={styles.statusHeader}>
+                        <View style={styles.statusIconCircle}>
+                            <Feather name="info" size={18} color={COLORS.primary} />
+                        </View>
 
-        <View style={styles.statusCard}>
-          <View style={styles.statusHeader}>
-            <View style={styles.statusIconCircle}>
-              <Feather name="info" size={18} color={COLORS.primary} />
-            </View>
+                        <Text style={styles.statusTitle}>حالة الفحص</Text>
+                    </View>
 
-            <Text style={styles.statusTitle}>حالة الفحص</Text>
-          </View>
+                    <Text style={styles.statusDescription}>{statusText}</Text>
 
-          <Text style={styles.statusDescription}>{statusText}</Text>
+                    {!!debugText && <Text style={styles.debugText}>{debugText}</Text>}
 
-          {!!debugText && <Text style={styles.debugText}>{debugText}</Text>}
+                    {!!lastRaw && (
+                        <View style={styles.rawBox}>
+                            <Text style={styles.rawTitle}>MQTT / Scanner Response</Text>
+                            <Text selectable style={styles.rawText}>
+                                {lastRaw}
+                            </Text>
+                        </View>
+                    )}
+                </View>
 
-          {!!lastRaw && (
-            <View style={styles.rawBox}>
-              <Text style={styles.rawTitle}>MQTT / Scanner Response</Text>
-              <Text selectable style={styles.rawText}>
-                {lastRaw}
-              </Text>
-            </View>
-          )}
-        </View>
+                <View style={styles.tipCard}>
+                    <View style={styles.tipIcon}>
+                        <Feather name="wifi" size={18} color={COLORS.primary} />
+                    </View>
 
-        <View style={styles.tipCard}>
-          <View style={styles.tipIcon}>
-            <Feather name="wifi" size={18} color={COLORS.primary} />
-          </View>
-
-          <View style={styles.tipTextBox}>
-            <Text style={styles.tipTitle}>MQTT Live View</Text>
-            <Text style={styles.tipText}>
-              القيم المعروضة هنا تنعكس من MQTT. آخر قيمة تبقى ظاهرة حتى لو
-              انقطعت القطعة، والحالة فقط تتحول إلى غير متصل.
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
+                    <View style={styles.tipTextBox}>
+                        <Text style={styles.tipTitle}>MQTT Live View</Text>
+                        <Text style={styles.tipText}>
+                            القيم المعروضة هنا تنعكس من MQTT. آخر قيمة تبقى ظاهرة حتى لو
+                            انقطعت القطعة، والحالة فقط تتحول إلى غير متصل.
+                        </Text>
+                    </View>
+                </View>
+            </ScrollView>
+        </SafeAreaView>
+    );
 }
 
 function MetricCard({
-  width,
-  icon,
-  label,
-  value,
-  unit,
+    width,
+    icon,
+    label,
+    value,
+    unit,
 }: {
-  width: number;
-  icon: keyof typeof Feather.glyphMap;
-  label: string;
-  value: string;
-  unit: string;
+    width: number;
+    icon: keyof typeof Feather.glyphMap;
+    label: string;
+    value: string;
+    unit: string;
 }) {
-  return (
-    <View style={[styles.metricCard, { width }]}>
-      <View style={styles.metricHeader}>
-        <View style={styles.metricIconCircle}>
-          <Feather name={icon} size={18} color={COLORS.primary} />
+    return (
+        <View style={[styles.metricCard, { width }]}>
+            <View style={styles.metricHeader}>
+                <View style={styles.metricIconCircle}>
+                    <Feather name={icon} size={18} color={COLORS.primary} />
+                </View>
+
+                <Text style={styles.metricLabel}>{label}</Text>
+            </View>
+
+            <Text style={styles.metricValue} numberOfLines={1}>
+                {value}
+            </Text>
+
+            <Text style={styles.metricUnit} numberOfLines={2}>
+                {unit}
+            </Text>
         </View>
-
-        <Text style={styles.metricLabel}>{label}</Text>
-      </View>
-
-      <Text style={styles.metricValue} numberOfLines={1}>
-        {value}
-      </Text>
-
-      <Text style={styles.metricUnit} numberOfLines={2}>
-        {unit}
-      </Text>
-    </View>
-  );
+    );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
-
-  scrollView: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
-
-  scrollContent: {
-    paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 130,
-  },
-
-  scrollContentWide: {
-    paddingHorizontal: 26,
-  },
-
-  header: {
-    width: "100%",
-    flexDirection: "row-reverse",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 12,
-  },
-
-  headerWide: {
-    alignSelf: "center",
-    maxWidth: 980,
-  },
-
-  headerTextBox: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-
-  headerRightArea: {
-    position: "relative",
-  },
-
-  notificationButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.soft,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-
-  notificationDot: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#D32F2F",
-  },
-
-  /* ==========================================================================
-     تعديل: إضافة وتعديل تصميم الـ Pop-up Modal بالكامل ليكون مرتب ومتناسق
-     ========================================================================== */
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)", // تعتيم خلفية الشاشة بنعومة فائقة
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-  },
-
-  modalContainer: {
-    width: "100%",
-    maxWidth: 340, // حجم مثالي جداً ومتناسق مع شاشات الجوال والأجهزة اللوحية
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 20,
-    maxHeight: "70%", // لمنع تمدد الصندوق المنبثق خارج حدود الشاشة عند كثرة الإشعارات
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F5F5F5",
-    paddingBottom: 12,
-    marginBottom: 10,
-  },
-
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: COLORS.soft,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-
-  notificationsTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: COLORS.text,
-    textAlign: "right",
-  },
-
-
-
-  emptyNotificationText: {
-    fontSize: 13,
-    color: COLORS.muted,
-    textAlign: "center",
-    fontWeight: "700",
-    paddingVertical: 30,
-  },
-
-  notificationItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#FBFBFB",
-  },
-
-  notificationText: {
-    fontSize: 13,
-    color: COLORS.text,
-    textAlign: "right",
-    lineHeight: 22,
-    fontWeight: "700",
-  },
-  /* ========================================================================== */
-
-  helloText: {
-    fontSize: 17,
-    color: COLORS.text,
-    fontWeight: "900",
-    textAlign: "right",
-    lineHeight: 25,
-  },
-
-  headerTitle: {
-    marginTop: 4,
-    fontSize: 14,
-    color: COLORS.muted,
-    fontWeight: "700",
-    textAlign: "right",
-    lineHeight: 22,
-  },
-
-  headerActions: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 8,
-  },
-
-  notificationItemText: {
-    flex: 1,
-    textAlign: "right",
-    fontSize: 13,
-    fontWeight: "700",
-    color: COLORS.text,
-  },
-
-  emptyNotificationsText: {
-    textAlign: "center",
-    fontSize: 13,
-    color: COLORS.muted,
-    fontWeight: "700",
-  },
-
-  redDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: COLORS.danger,
-  },
-
-  notificationBadge: {
-    position: "absolute",
-    top: -4,
-    right: -2,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: COLORS.danger,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-
-  notificationBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 10,
-    fontWeight: "900",
-  },
-
-  connectionBadge: {
-    height: 38,
-    borderRadius: 19,
-    paddingHorizontal: 13,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 7,
-    borderWidth: 1,
-  },
-
-  connectedBadge: {
-    backgroundColor: "#EFFAF3",
-    borderColor: "#D6F0DF",
-  },
-
-  disconnectedBadge: {
-    backgroundColor: "#FFF1F1",
-    borderColor: "#FFD9D9",
-  },
-
-  connectionDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-
-  connectionText: {
-    fontSize: 12,
-    fontWeight: "900",
-  },
-
-  carImageArea: {
-    width: "100%",
-    height: 235,
-    marginBottom: 6,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-
-  carImageAreaWide: {
-    maxWidth: 980,
-    alignSelf: "center",
-    height: 310,
-  },
-
-  carImage: {
-    width: "100%",
-    height: "100%",
-  },
-
-  heroCard: {
-    width: "100%",
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 1,
-    marginBottom: 4,
-  },
-
-  heroCardWide: {
-    maxWidth: 980,
-    alignSelf: "center",
-  },
-
-  heroContent: {
-    alignItems: "center",
-    maxWidth: 460,
-  },
-
-  heroTitle: {
-    fontSize: 21,
-    fontWeight: "900",
-    color: COLORS.text,
-    textAlign: "center",
-  },
-
-  heroSubtitle: {
-    marginTop: 8,
-    fontSize: 14,
-    color: COLORS.muted,
-    fontWeight: "600",
-    textAlign: "center",
-    lineHeight: 24,
-  },
-
-  heroButtons: {
-    width: "100%",
-    alignItems: "center",
-    marginTop: 18,
-  },
-
-  mainButton: {
-    width: "100%",
-    height: 56,
-    borderRadius: 28,
-    overflow: "hidden",
-    shadowColor: COLORS.primaryDark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.14,
-    shadowRadius: 14,
-    elevation: 4,
-  },
-
-  mainButtonGradient: {
-    flex: 1,
-    borderRadius: 28,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-
-  mainButtonText: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "900",
-  },
-
-  sectionTitle: {
-    marginTop: 24,
-    marginBottom: 12,
-    fontSize: 15,
-    fontWeight: "900",
-    color: COLORS.text,
-    textAlign: "right",
-    alignSelf: "stretch",
-  },
-
-  metricsGrid: {
-    width: "100%",
-    flexDirection: "row-reverse",
-    flexWrap: "wrap",
-    gap: 10,
-    justifyContent: "center",
-  },
-
-  metricCard: {
-    minHeight: 138,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.soft,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    justifyContent: "space-between",
-  },
-
-  metricHeader: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-
-  metricIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 14,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  metricLabel: {
-    flex: 1,
-    fontSize: 13,
-    color: COLORS.muted,
-    fontWeight: "800",
-    textAlign: "right",
-  },
-
-  metricValue: {
-    marginTop: 10,
-    fontSize: 30,
-    color: COLORS.text,
-    fontWeight: "900",
-    textAlign: "right",
-  },
-
-  metricUnit: {
-    fontSize: 12,
-    color: COLORS.muted,
-    fontWeight: "700",
-    textAlign: "right",
-  },
-
-  statusCard: {
-    marginTop: 12,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-    padding: 16,
-  },
-
-  statusHeader: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 8,
-  },
-
-  statusIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 14,
-    backgroundColor: COLORS.softRed,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  statusTitle: {
-    fontSize: 15,
-    fontWeight: "900",
-    color: COLORS.text,
-  },
-
-  statusDescription: {
-    marginTop: 10,
-    fontSize: 13,
-    color: COLORS.muted,
-    fontWeight: "700",
-    textAlign: "right",
-    lineHeight: 22,
-  },
-
-  debugText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: COLORS.warning,
-    fontWeight: "800",
-    textAlign: "right",
-    lineHeight: 20,
-  },
-
-  rawBox: {
-    marginTop: 12,
-    borderRadius: 16,
-    backgroundColor: COLORS.soft,
-    padding: 12,
-  },
-
-  rawTitle: {
-    fontSize: 12,
-    color: COLORS.primary,
-    fontWeight: "900",
-    textAlign: "right",
-    marginBottom: 6,
-  },
-
-  rawText: {
-    fontSize: 11,
-    color: "#555555",
-    fontWeight: "700",
-    textAlign: "left",
-    lineHeight: 18,
-  },
-
-  tipCard: {
-    marginTop: 12,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "#F1E0E0",
-    backgroundColor: "#FFF8F8",
-    padding: 14,
-    flexDirection: "row-reverse",
-    alignItems: "flex-start",
-    gap: 10,
-  },
-
-  tipIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 14,
-    backgroundColor: "#F2D7DA",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  tipTextBox: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-
-  tipTitle: {
-    fontSize: 14,
-    fontWeight: "900",
-    color: COLORS.text,
-    textAlign: "right",
-  },
-
-  tipText: {
-    marginTop: 5,
-    fontSize: 12,
-    color: COLORS.muted,
-    fontWeight: "600",
-    lineHeight: 20,
-    textAlign: "right",
-  },
-
-  aiHomeBox: {
-    width: "100%",
-    marginTop: 16,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#F1E0E0",
-    padding: 14,
-  },
-
-  aiHomeTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: COLORS.text,
-    textAlign: "right",
-  },
-
-  aiHomeMessage: {
-    marginTop: 6,
-    fontSize: 13,
-    fontWeight: "700",
-    color: COLORS.muted,
-    textAlign: "right",
-    lineHeight: 22,
-  },
-
-  aiHomeFooter: {
-    marginTop: 10,
-    flexDirection: "row-reverse",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-
-  aiHomeScore: {
-    fontSize: 12,
-    fontWeight: "900",
-    color: COLORS.primary,
-  },
-
-  aiHomeAction: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: "800",
-    color: COLORS.success,
-    textAlign: "left",
-  },
-
-  notificationItemUnread: {
-    backgroundColor: "#FFF8F8",
-    borderRadius: 16,
-    paddingHorizontal: 12,
-  },
-
-  notificationTopRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 4,
-  },
-
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.primary,
-  },
-
-  notificationTitleText: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: "900",
-    color: COLORS.text,
-    textAlign: "right",
-  },
-
-  notificationActions: {
-    marginTop: 10,
-    flexDirection: "row-reverse",
-    gap: 8,
-  },
-
-  readButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 10,
-  },
-
-  readButtonText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "900",
-  },
-
-  deleteButton: {
-    backgroundColor: "rgba(198,40,40,0.10)",
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 10,
-  },
-
-  deleteButtonText: {
-    color: COLORS.danger,
-    fontSize: 11,
-    fontWeight: "900",
-  },
-
-  modalScrollContent: {
-    paddingBottom: 12,
-  },
-
-  modalScroll: {
-    maxHeight: 350,
-    width: "100%",
-  },
+    safeArea: {
+        flex: 1,
+        backgroundColor: COLORS.bg,
+    },
+
+    scrollView: {
+        flex: 1,
+        backgroundColor: COLORS.bg,
+    },
+
+    scrollContent: {
+        paddingHorizontal: 18,
+        paddingTop: 14,
+        paddingBottom: 130,
+    },
+
+    scrollContentWide: {
+        paddingHorizontal: 26,
+    },
+
+    header: {
+        width: "100%",
+        flexDirection: "row-reverse",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 12,
+        marginBottom: 12,
+    },
+
+    headerWide: {
+        alignSelf: "center",
+        maxWidth: 980,
+    },
+
+    headerTextBox: {
+        flex: 1,
+        alignItems: "flex-end",
+    },
+
+    headerRightArea: {
+        position: "relative",
+    },
+
+    notificationButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: COLORS.soft,
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+
+    notificationDot: {
+        position: "absolute",
+        top: 12,
+        right: 12,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: "#D32F2F",
+    },
+
+    /* ==========================================================================
+       تعديل: إضافة وتعديل تصميم الـ Pop-up Modal بالكامل ليكون مرتب ومتناسق
+       ========================================================================== */
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0, 0, 0, 0.4)", // تعتيم خلفية الشاشة بنعومة فائقة
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 24,
+    },
+
+    modalContainer: {
+        width: "100%",
+        maxWidth: 340, // حجم مثالي جداً ومتناسق مع شاشات الجوال والأجهزة اللوحية
+        backgroundColor: "#FFFFFF",
+        borderRadius: 24,
+        padding: 20,
+        maxHeight: "70%", // لمنع تمدد الصندوق المنبثق خارج حدود الشاشة عند كثرة الإشعارات
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+        elevation: 10,
+    },
+
+    modalHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        borderBottomWidth: 1,
+        borderBottomColor: "#F5F5F5",
+        paddingBottom: 12,
+        marginBottom: 10,
+    },
+
+    closeButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: COLORS.soft,
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+
+    notificationsTitle: {
+        fontSize: 16,
+        fontWeight: "900",
+        color: COLORS.text,
+        textAlign: "right",
+    },
+
+
+
+    emptyNotificationText: {
+        fontSize: 13,
+        color: COLORS.muted,
+        textAlign: "center",
+        fontWeight: "700",
+        paddingVertical: 30,
+    },
+
+    notificationItem: {
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: "#FBFBFB",
+    },
+
+    notificationText: {
+        fontSize: 13,
+        color: COLORS.text,
+        textAlign: "right",
+        lineHeight: 22,
+        fontWeight: "700",
+    },
+    /* ========================================================================== */
+
+    helloText: {
+        fontSize: 17,
+        color: COLORS.text,
+        fontWeight: "900",
+        textAlign: "right",
+        lineHeight: 25,
+    },
+
+    headerTitle: {
+        marginTop: 4,
+        fontSize: 14,
+        color: COLORS.muted,
+        fontWeight: "700",
+        textAlign: "right",
+        lineHeight: 22,
+    },
+
+    headerActions: {
+        flexDirection: "row-reverse",
+        alignItems: "center",
+        gap: 8,
+    },
+
+    notificationItemText: {
+        flex: 1,
+        textAlign: "right",
+        fontSize: 13,
+        fontWeight: "700",
+        color: COLORS.text,
+    },
+
+    emptyNotificationsText: {
+        textAlign: "center",
+        fontSize: 13,
+        color: COLORS.muted,
+        fontWeight: "700",
+    },
+
+    redDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: COLORS.danger,
+    },
+
+    notificationBadge: {
+        position: "absolute",
+        top: -4,
+        right: -2,
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: COLORS.danger,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 4,
+    },
+
+    notificationBadgeText: {
+        color: "#FFFFFF",
+        fontSize: 10,
+        fontWeight: "900",
+    },
+
+    connectionBadge: {
+        height: 38,
+        borderRadius: 19,
+        paddingHorizontal: 13,
+        flexDirection: "row-reverse",
+        alignItems: "center",
+        gap: 7,
+        borderWidth: 1,
+    },
+
+    connectedBadge: {
+        backgroundColor: "#EFFAF3",
+        borderColor: "#D6F0DF",
+    },
+
+    disconnectedBadge: {
+        backgroundColor: "#FFF1F1",
+        borderColor: "#FFD9D9",
+    },
+
+    connectionDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+    },
+
+    connectionText: {
+        fontSize: 12,
+        fontWeight: "900",
+    },
+
+    carImageArea: {
+        width: "100%",
+        height: 235,
+        marginBottom: 6,
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+    },
+
+    carImageAreaWide: {
+        maxWidth: 980,
+        alignSelf: "center",
+        height: 310,
+    },
+
+    carImage: {
+        width: "100%",
+        height: "100%",
+    },
+
+    heroCard: {
+        width: "100%",
+        borderRadius: 28,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        backgroundColor: COLORS.surface,
+        paddingHorizontal: 20,
+        paddingVertical: 24,
+        alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 6,
+        elevation: 1,
+        marginBottom: 4,
+    },
+
+    heroCardWide: {
+        maxWidth: 980,
+        alignSelf: "center",
+    },
+
+    heroContent: {
+        alignItems: "center",
+        maxWidth: 460,
+    },
+
+    heroTitle: {
+        fontSize: 21,
+        fontWeight: "900",
+        color: COLORS.text,
+        textAlign: "center",
+    },
+
+    heroSubtitle: {
+        marginTop: 8,
+        fontSize: 14,
+        color: COLORS.muted,
+        fontWeight: "600",
+        textAlign: "center",
+        lineHeight: 24,
+    },
+
+    heroButtons: {
+        width: "100%",
+        alignItems: "center",
+        marginTop: 18,
+    },
+
+    mainButton: {
+        width: "100%",
+        height: 56,
+        borderRadius: 28,
+        overflow: "hidden",
+        shadowColor: COLORS.primaryDark,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.14,
+        shadowRadius: 14,
+        elevation: 4,
+    },
+
+    mainButtonGradient: {
+        flex: 1,
+        borderRadius: 28,
+        flexDirection: "row-reverse",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+    },
+
+    mainButtonText: {
+        color: "#FFFFFF",
+        fontSize: 17,
+        fontWeight: "900",
+    },
+
+    sectionTitle: {
+        marginTop: 24,
+        marginBottom: 12,
+        fontSize: 15,
+        fontWeight: "900",
+        color: COLORS.text,
+        textAlign: "right",
+        alignSelf: "stretch",
+    },
+
+    metricsGrid: {
+        width: "100%",
+        flexDirection: "row-reverse",
+        flexWrap: "wrap",
+        gap: 10,
+        justifyContent: "center",
+    },
+
+    metricCard: {
+        minHeight: 138,
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        backgroundColor: COLORS.soft,
+        paddingHorizontal: 14,
+        paddingVertical: 14,
+        justifyContent: "space-between",
+    },
+
+    metricHeader: {
+        flexDirection: "row-reverse",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+    },
+
+    metricIconCircle: {
+        width: 36,
+        height: 36,
+        borderRadius: 14,
+        backgroundColor: "#FFFFFF",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
+    metricLabel: {
+        flex: 1,
+        fontSize: 13,
+        color: COLORS.muted,
+        fontWeight: "800",
+        textAlign: "right",
+    },
+
+    metricValue: {
+        marginTop: 10,
+        fontSize: 30,
+        color: COLORS.text,
+        fontWeight: "900",
+        textAlign: "right",
+    },
+
+    metricUnit: {
+        fontSize: 12,
+        color: COLORS.muted,
+        fontWeight: "700",
+        textAlign: "right",
+    },
+
+    statusCard: {
+        marginTop: 12,
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        backgroundColor: COLORS.surface,
+        padding: 16,
+    },
+
+    statusHeader: {
+        flexDirection: "row-reverse",
+        alignItems: "center",
+        gap: 8,
+    },
+
+    statusIconCircle: {
+        width: 36,
+        height: 36,
+        borderRadius: 14,
+        backgroundColor: COLORS.softRed,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
+    statusTitle: {
+        fontSize: 15,
+        fontWeight: "900",
+        color: COLORS.text,
+    },
+
+    statusDescription: {
+        marginTop: 10,
+        fontSize: 13,
+        color: COLORS.muted,
+        fontWeight: "700",
+        textAlign: "right",
+        lineHeight: 22,
+    },
+
+    debugText: {
+        marginTop: 8,
+        fontSize: 12,
+        color: COLORS.warning,
+        fontWeight: "800",
+        textAlign: "right",
+        lineHeight: 20,
+    },
+
+    rawBox: {
+        marginTop: 12,
+        borderRadius: 16,
+        backgroundColor: COLORS.soft,
+        padding: 12,
+    },
+
+    rawTitle: {
+        fontSize: 12,
+        color: COLORS.primary,
+        fontWeight: "900",
+        textAlign: "right",
+        marginBottom: 6,
+    },
+
+    rawText: {
+        fontSize: 11,
+        color: "#555555",
+        fontWeight: "700",
+        textAlign: "left",
+        lineHeight: 18,
+    },
+
+    tipCard: {
+        marginTop: 12,
+        borderRadius: 22,
+        borderWidth: 1,
+        borderColor: "#F1E0E0",
+        backgroundColor: "#FFF8F8",
+        padding: 14,
+        flexDirection: "row-reverse",
+        alignItems: "flex-start",
+        gap: 10,
+    },
+
+    tipIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: 14,
+        backgroundColor: "#F2D7DA",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+
+    tipTextBox: {
+        flex: 1,
+        alignItems: "flex-end",
+    },
+
+    tipTitle: {
+        fontSize: 14,
+        fontWeight: "900",
+        color: COLORS.text,
+        textAlign: "right",
+    },
+
+    tipText: {
+        marginTop: 5,
+        fontSize: 12,
+        color: COLORS.muted,
+        fontWeight: "600",
+        lineHeight: 20,
+        textAlign: "right",
+    },
+
+    aiHomeBox: {
+        width: "100%",
+        marginTop: 16,
+        borderRadius: 20,
+        backgroundColor: "#FFFFFF",
+        borderWidth: 1,
+        borderColor: "#F1E0E0",
+        padding: 14,
+    },
+
+    aiHomeTitle: {
+        fontSize: 16,
+        fontWeight: "900",
+        color: COLORS.text,
+        textAlign: "right",
+    },
+
+    aiHomeMessage: {
+        marginTop: 6,
+        fontSize: 13,
+        fontWeight: "700",
+        color: COLORS.muted,
+        textAlign: "right",
+        lineHeight: 22,
+    },
+
+    aiHomeFooter: {
+        marginTop: 10,
+        flexDirection: "row-reverse",
+        justifyContent: "space-between",
+        gap: 10,
+    },
+
+    aiHomeScore: {
+        fontSize: 12,
+        fontWeight: "900",
+        color: COLORS.primary,
+    },
+
+    aiHomeAction: {
+        flex: 1,
+        fontSize: 12,
+        fontWeight: "800",
+        color: COLORS.success,
+        textAlign: "left",
+    },
+
+    notificationItemUnread: {
+        backgroundColor: "#FFF8F8",
+        borderRadius: 16,
+        paddingHorizontal: 12,
+    },
+
+    notificationTopRow: {
+        flexDirection: "row-reverse",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 4,
+    },
+
+    unreadDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: COLORS.primary,
+    },
+
+    notificationTitleText: {
+        flex: 1,
+        fontSize: 13,
+        fontWeight: "900",
+        color: COLORS.text,
+        textAlign: "right",
+    },
+
+    notificationActions: {
+        marginTop: 10,
+        flexDirection: "row-reverse",
+        gap: 8,
+    },
+
+    readButton: {
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+        borderRadius: 10,
+    },
+
+    readButtonText: {
+        color: "#FFFFFF",
+        fontSize: 11,
+        fontWeight: "900",
+    },
+
+    deleteButton: {
+        backgroundColor: "rgba(198,40,40,0.10)",
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+        borderRadius: 10,
+    },
+
+    deleteButtonText: {
+        color: COLORS.danger,
+        fontSize: 11,
+        fontWeight: "900",
+    },
+
+    modalScrollContent: {
+        paddingBottom: 12,
+    },
+
+    modalScroll: {
+        maxHeight: 350,
+        width: "100%",
+    },
 
 });

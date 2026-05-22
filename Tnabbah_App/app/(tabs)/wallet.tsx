@@ -223,6 +223,14 @@ export default function Wallet() {
       }
 
       await fetchMaintenance();
+
+      try {
+        await fetch("http://207.180.244.27:3102/check-now", {
+          method: "POST",
+        });
+      } catch (error) {
+        console.log("Check notifications now error:", error);
+      }
       setModalVisible(false);
       Alert.alert("تم", "تم حفظ الصيانة وتفعيل التذكير");
     } catch (err: any) {

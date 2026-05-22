@@ -74,7 +74,7 @@ export function NotificationsProvider({
     useEffect(() => {
         checkNotifications();
 
-        const interval = setInterval(checkNotifications, 30000);
+        const interval = setInterval(checkNotifications, 5000);
 
         return () => clearInterval(interval);
     }, [session?.user?.id]);
