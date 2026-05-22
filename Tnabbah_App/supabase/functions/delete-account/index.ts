@@ -1,46 +1,93 @@
-// Follow this setup guide to integrate the Deno language server with your editor:
-// https://deno.land/manual/getting_started/setup_your_environment
-// This enables autocomplete, go to definition, etc.
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Setup type definitions for built-in Supabase Runtime APIs
-import "@supabase/functions-js/edge-runtime.d.ts";
-import { withSupabase } from "@supabase/server";
-
-console.log("Hello from Functions!");
-
-// This endpoint uses 'publishable' | 'secret' access, apiKey is required.
-// Use publishable for Client-facing, key-validated endpoints
-// Use secret for Server-to-server, internal calls
-export default {
-  fetch: withSupabase({ auth: ["publishable", "secret"] }, async (req, ctx) => {
-    // Called by another service with a secret key
-    // ctx.supabaseAdmin bypasses RLS — use for privileged operations
-    /*
-    if (ctx.authMode === "secret") {
-      const { user_id } = await req.json();
-      const { data } = await ctx.supabaseAdmin.auth.admin.getUserById(user_id);
-
-      return Response.json({
-        email: data?.user?.email,
-      });
+serve(async (req) => {
+  try {
+    if (req.method !== "POST") {
+      return new Response(
+        JSON.stringify({ error: "Method not allowed" }),
+        { status: 405 }
+      );
     }
-    */
 
-    const { name } = await req.json();
+    const authHeader = req.headers.get("Authorization");
 
-    return Response.json({
-      message: `Hello ${name}!`,
-    });
-  }),
-};
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing authorization" }),
+        { status: 401 }
+      );
+    }
 
-/* To invoke locally:
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  1. Run `supabase start` (see: https://supabase.com/docs/reference/cli/supabase-start)
-  2. Make an HTTP request:
+    const admin = createClient(supabaseUrl, serviceRoleKey);
 
-  curl -i --location --request POST 'http://127.0.0.1:54321/functions/v1/delete-account' \
-    --header 'apiKey: sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH' \
-    --data '{"name":"Functions"}'
+    const token = authHeader.replace("Bearer ", "");
 
-*/
+    const {
+      data: { user },
+      error: userError,
+    } = await admin.auth.getUser(token);
+
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401 }
+      );
+    }
+
+    const userId = user.id;
+
+    await admin
+      .from("notifications")
+      .delete()
+      .eq("user_id", userId);
+
+    await admin
+      .from("maintenance_reminders")
+      .delete()
+      .eq("user_id", userId);
+
+    await admin
+      .from("reports")
+      .delete()
+      .eq("user_id", userId);
+
+    await admin
+      .from("user_settings")
+      .delete()
+      .eq("user_id", userId);
+
+    await admin
+      .from("profiles")
+      .delete()
+      .eq("id", userId);
+
+    const { error: deleteError } =
+      await admin.auth.admin.deleteUser(userId);
+
+    if (deleteError) {
+      return new Response(
+        JSON.stringify({ error: deleteError.message }),
+        { status: 400 }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ success: true }),
+      { status: 200 }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown error",
+      }),
+      { status: 500 }
+    );
+  }
+});

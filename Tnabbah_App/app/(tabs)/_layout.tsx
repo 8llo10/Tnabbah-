@@ -163,11 +163,9 @@ function buildNotchPath({
     `L ${start} 0`,
 
     `C ${start + 10} 0 ${cx - 36} 4 ${cx - 31} 17`,
-    `C ${cx - 26} ${NOTCH_DEPTH} ${cx - 17} ${
-      NOTCH_DEPTH + 7
+    `C ${cx - 26} ${NOTCH_DEPTH} ${cx - 17} ${NOTCH_DEPTH + 7
     } ${cx} ${NOTCH_DEPTH + 7}`,
-    `C ${cx + 17} ${NOTCH_DEPTH + 7} ${cx + 26} ${NOTCH_DEPTH} ${
-      cx + 31
+    `C ${cx + 17} ${NOTCH_DEPTH + 7} ${cx + 26} ${NOTCH_DEPTH} ${cx + 31
     } 17`,
     `C ${cx + 36} 4 ${end - 10} 0 ${end} 0`,
 

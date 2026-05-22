@@ -208,76 +208,76 @@ export default function ConnectionIntroScreen() {
   };
 
   const wait = (ms: number) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+    new Promise((resolve) => setTimeout(resolve, ms));
 
-const startScan = async () => {
-  try {
-    setErrorMessage("");
-    setDevices([]);
-    setSelectedDevice(null);
-    setShowDeviceList(true);
+  const startScan = async () => {
+    try {
+      setErrorMessage("");
+      setDevices([]);
+      setSelectedDevice(null);
+      setShowDeviceList(true);
 
-    let state = await manager.state();
-    console.log("Bluetooth state before wait:", state);
+      let state = await manager.state();
+      console.log("Bluetooth state before wait:", state);
 
-    if (state !== State.PoweredOn) {
-      await wait(1200);
-      state = await manager.state();
-      console.log("Bluetooth state after wait:", state);
-    }
-
-    if (state !== State.PoweredOn) {
-      setErrorMessage(getBluetoothStateMessage(state));
-      return;
-    }
-
-    stopScan();
-    setIsScanning(true);
-
-    manager.startDeviceScan(
-      null,
-      { allowDuplicates: false },
-      (error, device) => {
-        if (error) {
-          console.log("BLE scan error:", error);
-          setErrorMessage(
-            error.message || "صار خطأ أثناء البحث عن أجهزة البلوتوث."
-          );
-          stopScan();
-          return;
-        }
-
-        if (!device) return;
-
-        const deviceName =
-          device.name ||
-          device.localName ||
-          `جهاز بلوتوث ${device.id.slice(-5)}`;
-
-        console.log("Found BLE device:", deviceName, device.id);
-
-        setDevices((prev) => {
-          const exists = prev.some((item) => item.id === device.id);
-          if (exists) return prev;
-
-          const item: DeviceItem = {
-            id: device.id,
-            name: deviceName,
-            raw: device,
-          };
-
-          return [...prev, item];
-        });
+      if (state !== State.PoweredOn) {
+        await wait(1200);
+        state = await manager.state();
+        console.log("Bluetooth state after wait:", state);
       }
-    );
 
-    scanTimeoutRef.current = setTimeout(stopScan, 12000);
-  } catch (error: any) {
-    console.log("BLE start scan catch:", error);
-    setErrorMessage(error?.message || "تعذر تشغيل البحث عن البلوتوث.");
-    stopScan();
-  }
-};
+      if (state !== State.PoweredOn) {
+        setErrorMessage(getBluetoothStateMessage(state));
+        return;
+      }
+
+      stopScan();
+      setIsScanning(true);
+
+      manager.startDeviceScan(
+        null,
+        { allowDuplicates: false },
+        (error, device) => {
+          if (error) {
+            console.log("BLE scan error:", error);
+            setErrorMessage(
+              error.message || "صار خطأ أثناء البحث عن أجهزة البلوتوث."
+            );
+            stopScan();
+            return;
+          }
+
+          if (!device) return;
+
+          const deviceName =
+            device.name ||
+            device.localName ||
+            `جهاز بلوتوث ${device.id.slice(-5)}`;
+
+          console.log("Found BLE device:", deviceName, device.id);
+
+          setDevices((prev) => {
+            const exists = prev.some((item) => item.id === device.id);
+            if (exists) return prev;
+
+            const item: DeviceItem = {
+              id: device.id,
+              name: deviceName,
+              raw: device,
+            };
+
+            return [...prev, item];
+          });
+        }
+      );
+
+      scanTimeoutRef.current = setTimeout(stopScan, 12000);
+    } catch (error: any) {
+      console.log("BLE start scan catch:", error);
+      setErrorMessage(error?.message || "تعذر تشغيل البحث عن البلوتوث.");
+      stopScan();
+    }
+  };
 
   const goBackToPreviousScreen = () => {
     stopScan();
@@ -336,11 +336,11 @@ const startScan = async () => {
       try {
         await elmBluetoothService.disconnect();
         await vehicleScannerService.stopAutoScan();
-      } catch {}
+      } catch { }
 
       setErrorMessage(
         error?.message ||
-          "تعذر الاتصال بالقطعة. لو قطعتك ELM قديمة Bluetooth Classic فلن تظهر هنا، ولازم مكتبة Classic Bluetooth."
+        "تعذر الاتصال بالقطعة. لو قطعتك ELM قديمة Bluetooth Classic فلن تظهر هنا، ولازم مكتبة Classic Bluetooth."
       );
     } finally {
       setIsConnecting(false);
@@ -562,9 +562,9 @@ const startScan = async () => {
                       currentStep === 3
                         ? pulseAnim
                         : stepThreeAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0.9, 1],
-                          }),
+                          inputRange: [0, 1],
+                          outputRange: [0.9, 1],
+                        }),
                   },
                 ],
               }}
@@ -593,9 +593,9 @@ const startScan = async () => {
                       currentStep === 2
                         ? pulseAnim
                         : stepTwoAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0.9, 1],
-                          }),
+                          inputRange: [0, 1],
+                          outputRange: [0.9, 1],
+                        }),
                   },
                 ],
               }}
@@ -624,9 +624,9 @@ const startScan = async () => {
                       currentStep === 1
                         ? pulseAnim
                         : stepOneAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0.9, 1],
-                          }),
+                          inputRange: [0, 1],
+                          outputRange: [0.9, 1],
+                        }),
                   },
                 ],
               }}
@@ -705,8 +705,8 @@ const startScan = async () => {
                   style={[
                     styles.startButtonWrapper,
                     currentStep === 3 &&
-                      (!selectedDevice || isConnecting) &&
-                      styles.disabledButton,
+                    (!selectedDevice || isConnecting) &&
+                    styles.disabledButton,
                   ]}
                   activeOpacity={0.9}
                   onPress={goNext}
@@ -841,8 +841,8 @@ function BluetoothContent({
           {isScanning
             ? "جاري البحث..."
             : selectedDevice
-            ? selectedDevice.name
-            : "اختار الجهاز"}
+              ? selectedDevice.name
+              : "اختار الجهاز"}
         </Text>
       </TouchableOpacity>
 
@@ -1025,8 +1025,8 @@ function createStyles({
   const longCardMaxHeight = isVerySmallScreen
     ? height * 0.56
     : isSmallScreen
-    ? height * 0.58
-    : height * 0.61;
+      ? height * 0.58
+      : height * 0.61;
 
   return StyleSheet.create({
     container: {
@@ -1207,8 +1207,8 @@ function createStyles({
           ? 34
           : 42
         : isVerySmallScreen
-        ? 22
-        : 26,
+          ? 22
+          : 26,
     },
 
     cardHeader: {
