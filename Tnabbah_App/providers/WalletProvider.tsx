@@ -8,7 +8,6 @@ import React, {
 } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthProvider";
-import * as Notifications from "expo-notifications";
 
 type ReportStatus = "pending" | "saved" | "temp_rejected" | "deleted";
 
@@ -62,62 +61,6 @@ const getMaintenanceStatus = (
     if (remainingDays < 0) return "overdue";
     if (remainingDays <= 7) return "due";
     return "upcoming";
-};
-
-const scheduleMaintenanceNotification = async (
-    title: string,
-    nextDate: string,
-    maintenanceTypeId: number
-) => {
-    const notificationId = `maintenance-${maintenanceTypeId}`;
-
-    try {
-        await Notifications.cancelScheduledNotificationAsync(notificationId);
-    } catch { }
-
-    const targetDate = new Date(nextDate);
-    const now = new Date();
-
-    const notifyDate = new Date(targetDate);
-    notifyDate.setDate(notifyDate.getDate() - 7);
-    notifyDate.setHours(9, 0, 0, 0);
-
-    // متأخر
-    if (targetDate.getTime() < now.getTime()) {
-        return await Notifications.scheduleNotificationAsync({
-            content: {
-                title: "صيانة متأخرة",
-                body: `موعد صيانة ${title} متأخر`,
-                sound: true,
-            },
-            trigger: null,
-        });
-    }
-
-    // قريب
-    if (notifyDate.getTime() <= now.getTime()) {
-        return await Notifications.scheduleNotificationAsync({
-            content: {
-                title: "تذكير صيانة قريب",
-                body: `اقترب موعد صيانة ${title}`,
-                sound: true,
-            },
-            trigger: null,
-        });
-    }
-
-    // جدولة مستقبلية
-    return await Notifications.scheduleNotificationAsync({
-        content: {
-            title: "تذكير صيانة",
-            body: `اقترب موعد صيانة ${title}`,
-            sound: true,
-        },
-        trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DATE,
-            date: notifyDate,
-        },
-    });
 };
 
 const mapRowToReport = (row: any): ReportItem => {
@@ -280,6 +223,31 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             supabase.removeChannel(channel);
         };
     }, [userId, fetchReports]);
+
+
+    useEffect(() => {
+        if (!userId) return;
+
+        const channel = supabase
+            .channel(`wallet-maintenance-${userId}`)
+            .on(
+                "postgres_changes",
+                {
+                    event: "*",
+                    schema: "public",
+                    table: "maintenance_reminders",
+                    filter: `user_id=eq.${userId}`,
+                },
+                () => {
+                    fetchMaintenance();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [userId, fetchMaintenance]);
 
     const value = useMemo(
         () => ({

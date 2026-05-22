@@ -140,11 +140,19 @@ export default function Wallet() {
     setModalVisible(true);
   };
 
+  const formatLocalDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+  };
+
   const handleConfirmDate = (date: Date) => {
     setDatePickerVisible(false);
     if (currentEditingId === null) return;
 
-    const formatted = date.toISOString().split("T")[0];
+    const formatted = formatLocalDate(date);
 
     setEditData((prev) =>
       prev.map((item) =>
@@ -181,11 +189,15 @@ export default function Wallet() {
 
     try {
       for (const item of changed) {
-        const next = new Date(item.lastDate);
+        const [year, month, day] = item.lastDate
+          .split("-")
+          .map(Number);
+
+        const next = new Date(year, month - 1, day);
+
         next.setDate(next.getDate() + item.intervalDays);
 
-
-        const nextDate = next.toISOString().split("T")[0];
+        const nextDate = formatLocalDate(next);
 
         const { error } = await supabase
           .from("maintenance_reminders")

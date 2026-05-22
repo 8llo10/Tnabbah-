@@ -4,25 +4,23 @@
     "slug": "tnabbah-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/splash-logo.png",
+    "icon": "./assets/images/logoG.png",
     "scheme": "tnabbah",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rawanamoodi.tnabbahfree2026",
       "icon": "./assets/images/splash-logo.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-
         "NSBluetoothAlwaysUsageDescription": "Tnabbah needs Bluetooth access to connect to the OBD device and read car data.",
         "NSBluetoothPeripheralUsageDescription": "Tnabbah needs Bluetooth access to connect to the OBD device.",
-
-        "UIBackgroundModes": ["bluetooth-central"]
+        "UIBackgroundModes": [
+          "bluetooth-central"
+        ]
       }
     },
-
     "android": {
       "package": "com.rawanamoodi.tnabbahapp",
       "permissions": [
@@ -30,23 +28,27 @@
         "BLUETOOTH_ADMIN",
         "BLUETOOTH_SCAN",
         "BLUETOOTH_CONNECT",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS"
       ],
+      "notification": {
+        "icon": "./assets/images/logoG.png",
+        "color": "#871B17"
+      },
       "adaptiveIcon": {
         "backgroundColor": "#EFE7DE",
-        "foregroundImage": "./assets/images/splash-logo.png"
+        "foregroundImage": "./assets/images/logoG.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
-
     "web": {
       "output": "static",
-      "favicon": "./assets/images/splash-logo.png"
+      "favicon": "./assets/images/logoG.png"
     },
-
     "plugins": [
       "expo-router",
+      "expo-notifications",
       [
         "expo-splash-screen",
         {
@@ -62,7 +64,7 @@
           },
           "android": {
             "backgroundColor": "#EFE7DE",
-            "image": "./assets/images/start-background.png",
+            "image": "./assets/images/logoG.png",
             "resizeMode": "cover"
           }
         }
@@ -72,19 +74,19 @@
         "react-native-ble-plx",
         {
           "isBackgroundEnabled": true,
-          "modes": ["central"],
+          "modes": [
+            "central"
+          ],
           "bluetoothAlwaysPermission": "Tnabbah needs Bluetooth access to connect to the OBD device and read car data."
         }
       ],
       "@react-native-community/datetimepicker",
       "expo-asset"
     ],
-
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
-
     "extra": {
       "router": {},
       "eas": {

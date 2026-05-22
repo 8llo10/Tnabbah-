@@ -125,10 +125,16 @@ export default function HomeScreen() {
   const [debugText, setDebugText] = useState("");
   const [notificationsCount, setNotificationsCount] = useState(0);
   const [notificationsList, setNotificationsList] = useState<
-    { id: string; text: string }[]
+    {
+      id: string;
+      title: string;
+      body: string;
+      is_read: boolean;
+      created_at: string;
+    }[]
   >([]);
   const [showNotifications, setShowNotifications] = useState(false);
-  const notifiedIdsRef = useRef<string[]>([]);
+
 
   const metricWidth = useMemo(() => {
     const pagePadding = isWide ? 52 : 36;
@@ -338,87 +344,42 @@ export default function HomeScreen() {
   useEffect(() => {
     let mounted = true;
 
-    const checkMaintenanceReminders = async () => {
+    const loadNotifications = async () => {
       try {
         const { data: authData } = await supabase.auth.getUser();
         const userId = authData.user?.id;
 
         if (!userId) return;
 
-        const today = new Date();
-
         const { data, error } = await supabase
-          .from("maintenance_reminders")
-          .select(`
-    reminder_id,
-    next_date,
-    maintenance_type_id,
-    maintenance_types (
-      name
-    )
-  `)
+          .from("notifications")
+          .select("id, title, body, is_read, created_at")
           .eq("user_id", userId)
-          .eq("is_active", true);
+          .order("created_at", { ascending: false })
+          .limit(20);
 
-        if (error || !data) return;
+        if (error) throw error;
 
-        let upcomingCount = 0;
+        if (!mounted) return;
 
-        const collectedNotifications: {
-          id: string;
-          text: string;
-        }[] = [];
+        const mapped = (data || []).map((item) => ({
+          id: item.id,
+          title: item.title,
+          body: item.body,
+          is_read: item.is_read,
+          created_at: item.created_at,
+        }));
 
-        for (const item of data) {
-          if (!item?.next_date) continue;
-
-          const dueDate = new Date(item.next_date);
-
-          const diffMs = dueDate.getTime() - today.getTime();
-
-          const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
-          const shouldNotify = diffDays <= 3 && diffDays >= 0;
-
-          if (shouldNotify) {
-            collectedNotifications.push({
-              id: String(item.reminder_id),
-              text:
-                diffDays === 0
-                  ? `موعد "${item.maintenance_types?.[0]?.name || "صيانة"}" اليوم`
-                  : `موعد "${item.maintenance_types?.[0]?.name || "صيانة"}" بعد ${diffDays} يوم`,
-            });
-            upcomingCount++;
-
-            const notifyId = `${item.reminder_id}_${diffDays}`;
-
-            if (!notifiedIdsRef.current.includes(notifyId)) {
-              notifiedIdsRef.current.push(notifyId);
-
-              await Notifications.scheduleNotificationAsync({
-                content: {
-                  title: "تذكير صيانة",
-                  body: `موعد "${item.maintenance_types?.[0]?.name || "صيانة"}" بعد ${diffDays} يوم`,
-                  sound: true,
-                },
-                trigger: null,
-              });
-            }
-          }
-        }
-
-        if (mounted) {
-          setNotificationsCount(upcomingCount);
-          setNotificationsList(collectedNotifications);
-        }
-      } catch (e) {
-        console.log("Reminder notification error:", e);
+        setNotificationsList(mapped);
+        setNotificationsCount(mapped.filter((item) => !item.is_read).length);
+      } catch (error) {
+        console.log("Load notifications error:", error);
       }
     };
 
-    checkMaintenanceReminders();
+    loadNotifications();
 
-    const interval = setInterval(checkMaintenanceReminders, 60000);
+    const interval = setInterval(loadNotifications, 30000);
 
     return () => {
       mounted = false;
@@ -496,6 +457,51 @@ export default function HomeScreen() {
     }
   };
 
+
+  const markNotificationAsRead = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      setNotificationsList((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, is_read: true } : item
+        )
+      );
+
+      setNotificationsCount((prev) => Math.max(prev - 1, 0));
+    } catch (error) {
+      console.log("Mark notification read error:", error);
+    }
+  };
+
+  const deleteNotification = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from("notifications")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      setNotificationsList((prev) => {
+        const deleted = prev.find((item) => item.id === id);
+
+        if (deleted && !deleted.is_read) {
+          setNotificationsCount((count) => Math.max(count - 1, 0));
+        }
+
+        return prev.filter((item) => item.id !== id);
+      });
+    } catch (error) {
+      console.log("Delete notification error:", error);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -529,7 +535,7 @@ export default function HomeScreen() {
               >
                 <Feather name="bell" size={21} color={COLORS.text} />
 
-                {notificationsList.length > 0 && (
+                {notificationsCount > 0 && (
                   <View style={styles.notificationDot} />
                 )}
               </Pressable>
@@ -557,19 +563,53 @@ export default function HomeScreen() {
                     </View>
 
                     <ScrollView
-                      showsVerticalScrollIndicator={false}
+                      showsVerticalScrollIndicator={true}
                       style={styles.modalScroll}
+                      contentContainerStyle={styles.modalScrollContent}
+                      nestedScrollEnabled
                     >
                       {notificationsList.length === 0 ? (
                         <Text style={styles.emptyNotificationText}>
                           لا توجد إشعارات جديدة حالياً
                         </Text>
                       ) : (
-                        notificationsList.map((item, index) => (
-                          <View key={index} style={styles.notificationItem}>
+                        notificationsList.map((item) => (
+                          <View
+                            key={item.id}
+                            style={[
+                              styles.notificationItem,
+                              !item.is_read && styles.notificationItemUnread,
+                            ]}
+                          >
+                            <View style={styles.notificationTopRow}>
+                              {!item.is_read && <View style={styles.unreadDot} />}
+
+                              <Text style={styles.notificationTitleText}>
+                                {item.title}
+                              </Text>
+                            </View>
+
                             <Text style={styles.notificationText}>
-                              {item.text}
+                              {item.body}
                             </Text>
+
+                            <View style={styles.notificationActions}>
+                              {!item.is_read && (
+                                <Pressable
+                                  style={styles.readButton}
+                                  onPress={() => markNotificationAsRead(item.id)}
+                                >
+                                  <Text style={styles.readButtonText}>تمت القراءة</Text>
+                                </Pressable>
+                              )}
+
+                              <Pressable
+                                style={styles.deleteButton}
+                                onPress={() => deleteNotification(item.id)}
+                              >
+                                <Text style={styles.deleteButtonText}>حذف</Text>
+                              </Pressable>
+                            </View>
                           </View>
                         ))
                       )}
@@ -923,9 +963,7 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
 
-  modalScroll: {
-    maxHeight: 350,
-  },
+
 
   emptyNotificationText: {
     fontSize: 13,
@@ -1368,4 +1406,74 @@ const styles = StyleSheet.create({
     color: COLORS.success,
     textAlign: "left",
   },
+
+  notificationItemUnread: {
+    backgroundColor: "#FFF8F8",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+  },
+
+  notificationTopRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.primary,
+  },
+
+  notificationTitleText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "900",
+    color: COLORS.text,
+    textAlign: "right",
+  },
+
+  notificationActions: {
+    marginTop: 10,
+    flexDirection: "row-reverse",
+    gap: 8,
+  },
+
+  readButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+
+  readButtonText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+
+  deleteButton: {
+    backgroundColor: "rgba(198,40,40,0.10)",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+
+  deleteButtonText: {
+    color: COLORS.danger,
+    fontSize: 11,
+    fontWeight: "900",
+  },
+
+  modalScrollContent: {
+    paddingBottom: 12,
+  },
+
+  modalScroll: {
+    maxHeight: 350,
+    width: "100%",
+  },
+
 });

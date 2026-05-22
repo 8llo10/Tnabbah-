@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Stack, useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
+  ScrollView,
+  Platform,
   useWindowDimensions,
   ActivityIndicator,
   Animated,
@@ -14,6 +16,8 @@ import {
   StatusBar,
 } from "react-native";
 import { supabase } from "../lib/supabase";
+import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
 
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather, Ionicons } from "@expo/vector-icons";
@@ -63,7 +67,6 @@ export default function LoginScreen() {
   const screenOpacity = useRef(new Animated.Value(0)).current;
   const screenTranslateY = useRef(new Animated.Value(10)).current;
   const transitionAnim = useRef(new Animated.Value(0)).current;
-  const passwordInputRef = useRef<TextInput>(null);
 
   const isSmallScreen = height < 720;
   const isVerySmallScreen = height < 650;
@@ -226,14 +229,12 @@ export default function LoginScreen() {
 
         const message = error.message?.toLowerCase() || "";
         const code = error.code?.toLowerCase() || "";
-        const status = error.status;
 
         const isNotConfirmed =
           message.includes("email not confirmed") ||
           message.includes("email_not_confirmed") ||
           message.includes("not confirmed") ||
-          code.includes("email_not_confirmed") ||
-          status === 400;
+          code.includes("email_not_confirmed");
 
         if (isNotConfirmed) {
           const { error: resendError } = await supabase.auth.resend({
@@ -308,6 +309,39 @@ export default function LoginScreen() {
       setErrorMessage("");
 
       if (data.session) {
+        try {
+          if (Device.isDevice) {
+            const { status: existingStatus } =
+              await Notifications.getPermissionsAsync();
+
+            let finalStatus = existingStatus;
+
+            if (existingStatus !== "granted") {
+              const { status } =
+                await Notifications.requestPermissionsAsync();
+
+              finalStatus = status;
+            }
+
+            if (finalStatus === "granted") {
+              const tokenData = await Notifications.getExpoPushTokenAsync();
+
+              const expoPushToken = tokenData.data;
+
+              console.log("EXPO PUSH TOKEN:", expoPushToken);
+
+              await supabase
+                .from("profiles")
+                .update({
+                  expo_push_token: expoPushToken,
+                })
+                .eq("id", user.id);
+            }
+          }
+        } catch (pushError) {
+          console.log("Push token error:", pushError);
+        }
+
         smoothReplace("/connection-intro");
       }
     } catch (err) {
@@ -320,8 +354,6 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ gestureEnabled: false }} />
-
       <StatusBar
         translucent
         backgroundColor="transparent"
@@ -340,213 +372,215 @@ export default function LoginScreen() {
         <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
           <KeyboardAvoidingView
             style={styles.keyboardAvoidingView}
-            behavior="padding"
-            keyboardVerticalOffset={0}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
           >
-            <View style={styles.screenContent}>
-              {/* زر الرجوع فوق */}
-              <View style={styles.backArea}>
-                <TouchableOpacity
-                  style={styles.backButtonWrapper}
-                  activeOpacity={0.85}
-                  onPress={smoothBack}
-                  disabled={isNavigating || loading}
-                >
-                  <Ionicons
-                    name="arrow-back-outline"
-                    size={isVerySmallScreen ? 23 : 25}
-                    color={COLORS.textDark}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {/* العنوان تحت زر الرجوع */}
-              <View style={styles.titleArea}>
-                <Text style={styles.title}>تسجيل الدخول</Text>
-
-                <Text style={styles.subtitle}>مرحباً بك في تنبّه</Text>
-              </View>
-
-              {/* الفورم */}
-              <View style={styles.formArea}>
-                {/* البريد الإلكتروني */}
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.inputLabel}>البريد الإلكتروني</Text>
-
-                  <View
-                    style={[
-                      styles.inputWrapper,
-                      errorMessage.includes("البريد") &&
-                      styles.inputWrapperError,
-                    ]}
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              keyboardDismissMode="interactive"
+            >
+              <View style={styles.screenContent}>
+                {/* زر الرجوع فوق */}
+                <View style={styles.backArea}>
+                  <TouchableOpacity
+                    style={styles.backButtonWrapper}
+                    activeOpacity={0.85}
+                    onPress={smoothBack}
+                    disabled={isNavigating || loading}
                   >
-                    <Feather
-                      name="mail"
-                      size={isVerySmallScreen ? 20 : 21}
-                      color={COLORS.primary}
-                      style={styles.inputIcon}
+                    <Ionicons
+                      name="chevron-back"
+                      size={isVerySmallScreen ? 21 : 23}
+                      color={COLORS.shadowGray}
                     />
-
-                    <TextInput
-                      style={styles.input}
-                      placeholder="example@email.com"
-                      placeholderTextColor={COLORS.placeholder}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      value={email}
-                      onChangeText={(text) => {
-                        setEmail(text);
-                        setErrorMessage("");
-                      }}
-                      textAlign="right"
-                      returnKeyType="next"
-                      blurOnSubmit={false}
-                      onSubmitEditing={() => passwordInputRef.current?.focus()}
-                      editable={!loading && !isNavigating}
-                      selectionColor={COLORS.primary}
-                    />
-                  </View>
+                  </TouchableOpacity>
                 </View>
 
-                {/* كلمة المرور */}
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.inputLabel}>كلمة المرور</Text>
+                {/* العنوان تحت زر الرجوع */}
+                <View style={styles.titleArea}>
+                  <Text style={styles.title}>تسجيل الدخول</Text>
 
-                  <View
-                    style={[
-                      styles.inputWrapper,
-                      errorMessage.includes("كلمة المرور") &&
-                      styles.inputWrapperError,
-                    ]}
-                  >
-                    <Feather
-                      name="lock"
-                      size={isVerySmallScreen ? 21 : 22}
-                      color={COLORS.primary}
-                      style={styles.inputIcon}
-                    />
+                  <Text style={styles.subtitle}>مرحباً بك في تنبّه</Text>
+                </View>
 
-                    <TextInput
-                      ref={passwordInputRef}
-                      style={styles.input}
-                      placeholder="••••••••"
-                      placeholderTextColor={COLORS.placeholder}
-                      secureTextEntry={!showPassword}
-                      value={password}
-                      onChangeText={(text) => {
-                        setPassword(text);
-                        setErrorMessage("");
-                      }}
-                      textAlign="right"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      returnKeyType="done"
-                      onSubmitEditing={handleLogin}
-                      editable={!loading && !isNavigating}
-                      selectionColor={COLORS.primary}
-                    />
+                {/* الفورم */}
+                <View style={styles.formArea}>
+                  {/* البريد الإلكتروني */}
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.inputLabel}>البريد الإلكتروني</Text>
 
-                    <TouchableOpacity
-                      style={styles.eyeButton}
-                      activeOpacity={0.7}
-                      onPress={() => setShowPassword(!showPassword)}
-                      disabled={loading || isNavigating}
+                    <View
+                      style={[
+                        styles.inputWrapper,
+                        errorMessage.includes("البريد") &&
+                        styles.inputWrapperError,
+                      ]}
                     >
-                      <Ionicons
-                        name={
-                          showPassword ? "eye-outline" : "eye-off-outline"
-                        }
+                      <Feather
+                        name="mail"
+                        size={isVerySmallScreen ? 20 : 21}
+                        color={COLORS.primary}
+                        style={styles.inputIcon}
+                      />
+
+                      <TextInput
+                        style={styles.input}
+                        placeholder="example@email.com"
+                        placeholderTextColor={COLORS.placeholder}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        value={email}
+                        onChangeText={(text) => {
+                          setEmail(text);
+                          setErrorMessage("");
+                        }}
+                        textAlign="right"
+                        returnKeyType="next"
+                        editable={!loading && !isNavigating}
+                        selectionColor={COLORS.primary}
+                      />
+                    </View>
+                  </View>
+
+                  {/* كلمة المرور */}
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.inputLabel}>كلمة المرور</Text>
+
+                    <View
+                      style={[
+                        styles.inputWrapper,
+                        errorMessage.includes("كلمة المرور") &&
+                        styles.inputWrapperError,
+                      ]}
+                    >
+                      <Feather
+                        name="lock"
                         size={isVerySmallScreen ? 21 : 22}
                         color={COLORS.primary}
+                        style={styles.inputIcon}
                       />
-                    </TouchableOpacity>
+
+                      <TextInput
+                        style={styles.input}
+                        placeholder="••••••••"
+                        placeholderTextColor={COLORS.placeholder}
+                        secureTextEntry={!showPassword}
+                        value={password}
+                        onChangeText={(text) => {
+                          setPassword(text);
+                          setErrorMessage("");
+                        }}
+                        textAlign="right"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        returnKeyType="done"
+                        editable={!loading && !isNavigating}
+                        selectionColor={COLORS.primary}
+                      />
+
+                      <TouchableOpacity
+                        style={styles.eyeButton}
+                        activeOpacity={0.7}
+                        onPress={() => setShowPassword(!showPassword)}
+                        disabled={loading || isNavigating}
+                      >
+                        <Ionicons
+                          name={
+                            showPassword ? "eye-outline" : "eye-off-outline"
+                          }
+                          size={isVerySmallScreen ? 21 : 22}
+                          color={COLORS.primary}
+                        />
+                      </TouchableOpacity>
+                    </View>
                   </View>
+
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    style={styles.forgotPasswordButton}
+                    onPress={() => smoothPush("/forgot-password")}
+                    disabled={isNavigating || loading}
+                  >
+                    <Text style={styles.forgotPasswordText}>
+                      نسيت كلمة المرور؟
+                    </Text>
+                  </TouchableOpacity>
+
+                  {errorMessage ? (
+                    <View style={styles.errorBox}>
+                      <Ionicons
+                        name="alert-circle"
+                        size={isVerySmallScreen ? 18 : 19}
+                        color={COLORS.primary}
+                      />
+
+                      <Text style={styles.errorText}>{errorMessage}</Text>
+                    </View>
+                  ) : null}
+
+                  {/* زر تسجيل الدخول */}
+                  <TouchableOpacity
+                    style={[
+                      styles.loginButtonWrapper,
+                      loading && styles.loginButtonDisabled,
+                    ]}
+                    onPress={handleLogin}
+                    disabled={loading || isNavigating}
+                    activeOpacity={0.9}
+                  >
+                    <LinearGradient
+                      colors={[
+                        "rgba(154,33,28,0.98)",
+                        "rgba(118,23,19,0.98)",
+                      ]}
+                      start={{ x: 0.15, y: 0 }}
+                      end={{ x: 0.9, y: 1 }}
+                      style={styles.loginGradient}
+                    >
+                      <View style={styles.loginShine} />
+
+                      <View style={styles.loadingContent}>
+                        {loading ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={COLORS.white}
+                            style={styles.loadingSpinner}
+                          />
+                        ) : null}
+
+                        <Text style={styles.loginText}>
+                          {loading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
+                        </Text>
+                      </View>
+                    </LinearGradient>
+                  </TouchableOpacity>
                 </View>
 
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  style={styles.forgotPasswordButton}
-                  onPress={() => smoothPush("/forgot-password")}
-                  disabled={isNavigating || loading}
-                >
-                  <Text style={styles.forgotPasswordText}>
-                    نسيت كلمة المرور؟
-                  </Text>
-                </TouchableOpacity>
+                {/* أو */}
+                <View style={styles.orArea}>
+                  <View style={styles.orLine} />
+                  <Text style={styles.orText}>أو</Text>
+                  <View style={styles.orLine} />
+                </View>
 
-                {errorMessage ? (
-                  <View style={styles.errorBox}>
-                    <Ionicons
-                      name="alert-circle"
-                      size={isVerySmallScreen ? 18 : 19}
-                      color={COLORS.primary}
-                    />
+                {/* إنشاء حساب */}
+                <View style={styles.registerTextArea}>
+                  <Text style={styles.registerText}>ليس لديك حساب؟ </Text>
 
-                    <Text style={styles.errorText}>{errorMessage}</Text>
-                  </View>
-                ) : null}
-
-                {/* زر تسجيل الدخول */}
-                <TouchableOpacity
-                  style={[
-                    styles.loginButtonWrapper,
-                    loading && styles.loginButtonDisabled,
-                  ]}
-                  onPress={handleLogin}
-                  disabled={loading || isNavigating}
-                  activeOpacity={0.9}
-                >
-                  <LinearGradient
-                    colors={[
-                      "rgba(154,33,28,0.98)",
-                      "rgba(118,23,19,0.98)",
-                    ]}
-                    start={{ x: 0.15, y: 0 }}
-                    end={{ x: 0.9, y: 1 }}
-                    style={styles.loginGradient}
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => smoothPush("/register")}
+                    disabled={isNavigating || loading}
                   >
-                    <View style={styles.loginShine} />
-
-                    <View style={styles.loadingContent}>
-                      {loading ? (
-                        <ActivityIndicator
-                          size="small"
-                          color={COLORS.white}
-                          style={styles.loadingSpinner}
-                        />
-                      ) : null}
-
-                      <Text style={styles.loginText}>
-                        {loading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
-                      </Text>
-                    </View>
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <Text style={styles.registerTextBold}>
+                      إنشاء حساب جديد
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-
-              {/* أو */}
-              <View style={styles.orArea}>
-                <View style={styles.orLine} />
-                <Text style={styles.orText}>أو</Text>
-                <View style={styles.orLine} />
-              </View>
-
-              {/* إنشاء حساب */}
-              <View style={styles.registerTextArea}>
-                <Text style={styles.registerText}>ليس لديك حساب؟ </Text>
-
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => smoothPush("/register")}
-                  disabled={isNavigating || loading}
-                >
-                  <Text style={styles.registerTextBold}>
-                    إنشاء حساب جديد
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Animated.View>
@@ -627,6 +661,7 @@ function createStyles({
       paddingHorizontal: horizontalPadding,
       paddingTop: topSpacing,
       paddingBottom: bottomSpacing,
+      minHeight: height,
       backgroundColor: COLORS.screenBackground,
     },
 
@@ -635,25 +670,33 @@ function createStyles({
       paddingTop: safeTop + 2,
       alignItems: "flex-start",
       justifyContent: "center",
-      marginBottom: isVerySmallScreen ? 12 : 16,
+      marginBottom: isVerySmallScreen ? 26 : 32,
     },
 
     backButtonWrapper: {
       width: backButtonSize,
       height: backButtonSize,
+      borderRadius: backButtonRadius,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "transparent",
-      borderWidth: 0,
-      shadowOpacity: 0,
-      elevation: 0,
+
+      backgroundColor: COLORS.white,
+
+      borderWidth: 1.7,
+      borderColor: COLORS.border,
+
+      shadowColor: COLORS.shadowGray,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: Platform.OS === "android" ? 0.16 : 0.22,
+      shadowRadius: 4,
+      elevation: 3,
     },
 
     titleArea: {
       width: "100%",
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: isVerySmallScreen ? 20 : isSmallScreen ? 24 : 28,
+      marginBottom: isVerySmallScreen ? 34 : isSmallScreen ? 42 : 48,
       paddingHorizontal: clamp(width * 0.02, 8, 14),
     },
 
@@ -668,7 +711,6 @@ function createStyles({
       textShadowColor: "rgba(255,255,255,0.95)",
       textShadowOffset: { width: 0, height: 2 },
       textShadowRadius: 12,
-      includeFontPadding: false,
     },
 
     subtitle: {
@@ -681,7 +723,6 @@ function createStyles({
       textShadowColor: "rgba(255,255,255,0.90)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 10,
-      includeFontPadding: false,
     },
 
     formArea: {
@@ -691,7 +732,7 @@ function createStyles({
 
     fieldGroup: {
       width: "100%",
-      marginBottom: isVerySmallScreen ? 14 : 16,
+      marginBottom: isVerySmallScreen ? 18 : 21,
     },
 
     inputLabel: {
@@ -700,7 +741,6 @@ function createStyles({
       fontWeight: "800",
       textAlign: "right",
       marginBottom: 10,
-      includeFontPadding: false,
     },
 
     inputWrapper: {
@@ -719,7 +759,7 @@ function createStyles({
 
       shadowColor: COLORS.shadowGray,
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.18,
+      shadowOpacity: Platform.OS === "android" ? 0.16 : 0.22,
       shadowRadius: 4,
       elevation: 3,
     },
@@ -740,8 +780,6 @@ function createStyles({
       fontWeight: "700",
       paddingVertical: 0,
       minHeight: inputHeight - 8,
-      textAlignVertical: "center",
-      includeFontPadding: false,
     },
 
     eyeButton: {
@@ -758,7 +796,7 @@ function createStyles({
       marginRight: 12,
 
       marginTop: isVerySmallScreen ? -5 : -7,
-      marginBottom: isVerySmallScreen ? 14 : 16,
+      marginBottom: isVerySmallScreen ? 18 : 22,
 
       paddingVertical: 6,
       zIndex: 20,
@@ -770,7 +808,6 @@ function createStyles({
       fontSize: isVerySmallScreen ? 14.5 : 15.2,
       textAlign: "right",
       fontWeight: "900",
-      includeFontPadding: false,
     },
 
     errorBox: {
@@ -793,7 +830,7 @@ function createStyles({
 
       shadowColor: COLORS.shadowGray,
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
+      shadowOpacity: Platform.OS === "android" ? 0.08 : 0.1,
       shadowRadius: 4,
       elevation: 2,
 
@@ -807,7 +844,6 @@ function createStyles({
       fontWeight: "800",
       textAlign: "right",
       lineHeight: isVerySmallScreen ? 20 : 22,
-      includeFontPadding: false,
     },
 
     loginButtonWrapper: {
@@ -818,7 +854,7 @@ function createStyles({
 
       shadowColor: "#6E1411",
       shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.2,
+      shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
       shadowRadius: 14,
       elevation: 6,
       backgroundColor: COLORS.primary,
@@ -864,11 +900,10 @@ function createStyles({
       fontSize: isVerySmallScreen ? 19 : 21,
       fontWeight: "900",
       textAlign: "center",
-      includeFontPadding: false,
     },
 
     orArea: {
-      marginTop: isVerySmallScreen ? 22 : 26,
+      marginTop: isVerySmallScreen ? 34 : 40,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
@@ -901,7 +936,6 @@ function createStyles({
       fontSize: isVerySmallScreen ? 15 : 16,
       fontWeight: "700",
       textAlign: "center",
-      includeFontPadding: false,
     },
 
     registerTextBold: {
@@ -909,7 +943,6 @@ function createStyles({
       fontSize: isVerySmallScreen ? 15 : 16,
       fontWeight: "900",
       textAlign: "center",
-      includeFontPadding: false,
     },
 
     transitionOverlay: {
