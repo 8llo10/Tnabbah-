@@ -8,7 +8,10 @@ import React, {
 } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthProvider";
-import * as Notifications from "expo-notifications";
+
+// تم التعليق مؤقتًا لأن Push Notifications على iPhone الحقيقي تحتاج Apple Developer مدفوع.
+// التنبيهات داخل التطبيق والمحفظة والصيانة ما زالت شغالة بدون هذا الاستيراد.
+// import * as Notifications from "expo-notifications";
 
 type ReportStatus = "pending" | "saved" | "temp_rejected" | "deleted";
 
@@ -44,7 +47,6 @@ type WalletContextValue = {
     refreshWallet: () => Promise<void>;
 };
 
-
 const calcRemainingDays = (nextDate: string): number => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -64,11 +66,25 @@ const getMaintenanceStatus = (
     return "upcoming";
 };
 
+// تم التعطيل مؤقتًا:
+// هذه الدالة كانت ترسل Push Notifications خارج التطبيق باستخدام expo-notifications.
+// حساب Apple المجاني لا يدعم Push Notifications على iPhone الحقيقي.
+// خليتها no-op عشان ما نكسر أي استدعاء لها مستقبلًا.
 const scheduleMaintenanceNotification = async (
     title: string,
     nextDate: string,
     maintenanceTypeId: number
 ) => {
+    console.log(
+        "Push notification disabled temporarily:",
+        title,
+        nextDate,
+        maintenanceTypeId
+    );
+
+    return null;
+
+    /*
     const notificationId = `maintenance-${maintenanceTypeId}`;
 
     try {
@@ -118,6 +134,7 @@ const scheduleMaintenanceNotification = async (
             date: notifyDate,
         },
     });
+    */
 };
 
 const mapRowToReport = (row: any): ReportItem => {
@@ -191,7 +208,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const fetchMaintenance = useCallback(async () => {
         if (!userId) {
             setMaintenance([]);
-
             setMaintenanceLoading(false);
             return;
         }
@@ -242,7 +258,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             setMaintenance(items);
         } catch (error) {
             console.log("WalletProvider fetchMaintenance error:", error);
-
             setMaintenance([]);
         } finally {
             setMaintenanceLoading(false);

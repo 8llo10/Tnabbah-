@@ -1,6 +1,7 @@
 {
   "expo": {
     "name": "Tnabbah",
+    "jsEngine": "jsc",
     "slug": "tnabbah-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -80,10 +81,9 @@
       "expo-asset"
     ],
 
-    "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
-    },
+   "experiments": {
+  "typedRoutes": true
+},
 
     "extra": {
       "router": {},
