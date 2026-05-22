@@ -1,8 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import { useFonts } from "expo-font";
-import * as Notifications from "expo-notifications";
-import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import { router } from "expo-router";
+import React, { useState } from "react";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../providers/AuthProvider";
+import { useWallet } from "../../providers/WalletProvider";
 import {
   ActivityIndicator,
   Alert,
@@ -18,20 +20,8 @@ import {
 } from "react-native";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { supabase } from "../../lib/supabase";
-import { useAuth } from "../../providers/AuthProvider";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
 
-// ─── Constants ───────────────────────────────────────────────────────────────
 
 const COLORS = {
   primary: "#871B17",
@@ -53,8 +43,6 @@ const COLORS = {
   successBg: "#EFFAF3",
 };
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface MaintenanceItem {
   reminderId: number | null;
   maintenanceTypeId: number;
@@ -65,88 +53,16 @@ interface MaintenanceItem {
   remainingDays: number | null;
   status: "upcoming" | "due" | "overdue";
 }
-
-type ReportStatus = "pending" | "saved" | "temp_rejected" | "deleted";
-
-interface ReportItem {
-  id: string;
-  title: string;
-  date: string;
-  type: "PDF" | "DTC";
-  status: ReportStatus;
-  createdAt: string;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const mapRowToReport = (row: any): ReportItem => {
-  const content = row?.content || {};
-  const hasDtc =
-    Array.isArray(content.detected_dtcs) && content.detected_dtcs.length > 0;
-  const ts = content.timestamp || row.created_at;
-
-  let dateLabel = "";
-  try {
-    dateLabel = new Date(ts).toLocaleDateString("ar-SA", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  } catch {
-    dateLabel = String(ts || "");
-  }
-
-  return {
-    id: row.id,
-    title: hasDtc ? "تقرير أعطال DTC" : "تقرير فحص شامل",
-    date: dateLabel,
-    type: hasDtc ? "DTC" : "PDF",
-    status: (row.status || "pending") as ReportStatus,
-    createdAt: row.created_at,
-  };
-};
-
-const calcRemainingDays = (nextDate: string): number => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const next = new Date(nextDate);
-  next.setHours(0, 0, 0, 0);
-  return Math.ceil((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-};
-
-const getMaintenanceStatus = (
-  remainingDays: number | null,
-): "upcoming" | "due" | "overdue" => {
-  if (remainingDays === null) return "upcoming";
-  if (remainingDays < 0) return "overdue";
-  if (remainingDays <= 7) return "due";
-  return "upcoming";
-};
-
-const requestNotificationPermissions = async () => {
-  const { status } = await Notifications.requestPermissionsAsync();
-
-  if (status !== "granted") {
-    Alert.alert("تنبيه", "يرجى السماح بالإشعارات لتفعيل التذكيرات");
-  }
-};
-
-// القائمة الثابتة لأنواع الصيانة — تعكس جدول maintenance_types في قاعدة البيانات
-// id يجب أن يطابق الـ id الموجود في جدول maintenance_types
-const STATIC_MAINTENANCE_TYPES: Pick<
-  MaintenanceItem,
-  "maintenanceTypeId" | "title" | "intervalDays"
->[] = [
-  { maintenanceTypeId: 1, title: "زيت المحرك", intervalDays: 90 },
-  { maintenanceTypeId: 2, title: "الكفرات", intervalDays: 365 },
-  { maintenanceTypeId: 3, title: "الفرامل", intervalDays: 180 },
-  { maintenanceTypeId: 4, title: "فلتر الهواء", intervalDays: 90 },
-  { maintenanceTypeId: 5, title: "البطارية", intervalDays: 730 },
-];
-
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export default function Wallet() {
+  const {
+    reports,
+    setReports,
+    reportsLoading,
+    maintenance,
+    maintenanceLoading,
+    fetchMaintenance,
+  } = useWallet();
+
   const [fontsLoaded] = useFonts({
     "Tajawal-Regular": require("../../assets/fonts/Tajawal-Regular.ttf"),
     "Tajawal-Bold": require("../../assets/fonts/Tajawal-Bold.ttf"),
@@ -155,212 +71,20 @@ export default function Wallet() {
   const { session } = useAuth();
   const userId = session?.user?.id;
 
-  const scheduleMaintenanceNotification = async (
-    title: string,
-    nextDate: string,
-    maintenanceTypeId: number,
-  ) => {
-    const notificationId = `maintenance-${maintenanceTypeId}`;
-    const targetDate = new Date(nextDate);
-
-    const daysBefore = 7;
-    const diff = targetDate.getTime() - Date.now();
-
-    if (diff < 0) return;
-
-    const notifyDate = new Date(targetDate);
-    notifyDate.setDate(notifyDate.getDate() - daysBefore);
-
-    if (notifyDate.getTime() < Date.now()) {
-      notifyDate.setTime(Date.now() + 5000);
-    }
-
-    notifyDate.setHours(9);
-    notifyDate.setSeconds(0);
-    notifyDate.setMilliseconds(0);
-
-    if (notifyDate.getTime() < Date.now()) return;
-
-    await Notifications.cancelScheduledNotificationAsync(notificationId);
-
-    const id = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "تذكير صيانة",
-        body: `اقترب موعد صيانة ${title}`,
-        sound: true,
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: notifyDate,
-      },
-    });
-
-    return id;
-  };
-
-  // ── State ──────────────────────────────────────────────────────────────────
-
-  const [maintenance, setMaintenance] = useState<MaintenanceItem[]>([]);
-  const [maintenanceLoading, setMaintenanceLoading] = useState(true);
   const [savingId, setSavingId] = useState<number | null>(null);
-
-  const [reports, setReports] = useState<ReportItem[]>([]);
-  const [reportsLoading, setReportsLoading] = useState(true);
-  const [reportFilter, setReportFilter] = useState<"all" | "saved" | "pending">(
-    "all",
-  );
+  const [reportFilter, setReportFilter] = useState<"all" | "saved" | "pending">("all");
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editData, setEditData] = useState<MaintenanceItem[]>([]);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [currentEditingId, setCurrentEditingId] = useState<number | null>(null);
 
-  // ── Data Fetching ──────────────────────────────────────────────────────────
-
-  const fetchReports = useCallback(async () => {
-    if (!userId) {
-      setReports([]);
-      setReportsLoading(false);
-      return;
-    }
-    try {
-      const { data, error } = await supabase
-        .from("reports")
-        .select("id, content, status, created_at, is_permanently_saved")
-        .eq("user_id", userId)
-        .in("status", ["pending", "saved"])
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setReports((data || []).map(mapRowToReport));
-    } catch (err: any) {
-      console.error("Failed to load reports:", err?.message || err);
-    } finally {
-      setReportsLoading(false);
-    }
-  }, [userId]);
-
-  const fetchMaintenance = useCallback(async () => {
-    if (!userId) {
-      // عرض القائمة الثابتة بدون تواريخ حتى لو المستخدم مش مسجل دخول
-      setMaintenance(
-        STATIC_MAINTENANCE_TYPES.map((t) => ({
-          ...t,
-          reminderId: null,
-          lastDate: "",
-          nextDate: "",
-          remainingDays: 0,
-          status: "upcoming",
-          notificationId: null,
-        })),
-      );
-      setMaintenanceLoading(false);
-      return;
-    }
-    try {
-      const { data: reminders, error } = await supabase
-        .from("maintenance_reminders")
-        .select("reminder_id, maintenance_type_id, last_date, next_date")
-        .eq("user_id", userId)
-        .eq("is_active", true);
-
-      if (error) throw error;
-
-      const remindersMap = new Map(
-        (reminders || []).map((r: any) => [r.maintenance_type_id, r]),
-      );
-
-      // ندمج القائمة الثابتة مع التواريخ الديناميكية
-      const items = STATIC_MAINTENANCE_TYPES.map((type) => {
-        const reminder = remindersMap.get(type.maintenanceTypeId);
-
-        const nextDate = reminder?.next_date ?? "";
-        const remainingDays = nextDate ? calcRemainingDays(nextDate) : null;
-
-        return {
-          ...type,
-          reminderId: reminder?.reminder_id ?? null,
-          lastDate: reminder?.last_date ?? "",
-          nextDate: reminder?.next_date ?? "",
-          remainingDays,
-          status: getMaintenanceStatus(remainingDays),
-        };
-      });
-      setMaintenance(items);
-    } catch (err: any) {
-      console.error("Failed to load maintenance:", err?.message || err);
-    } finally {
-      setMaintenanceLoading(false);
-    }
-  }, [userId]);
-
-  useFocusEffect(
-    useCallback(() => {
-      const load = async () => {
-        await fetchReports();
-        await fetchMaintenance();
-      };
-
-      load();
-    }, [fetchReports, fetchMaintenance]),
-  );
-
-  const rescheduleAllNotifications = useCallback(
-    async (list: MaintenanceItem[]) => {
-      if (!list.length) return;
-
-      for (const item of list) {
-        if (!item.nextDate || !item.maintenanceTypeId) continue;
-
-        await scheduleMaintenanceNotification(
-          item.title,
-          item.nextDate,
-          item.maintenanceTypeId,
-        );
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!maintenance.length) return;
-    rescheduleAllNotifications(maintenance);
-  }, [maintenance, rescheduleAllNotifications]);
-
-  useEffect(() => {
-    requestNotificationPermissions();
-  }, []);
-
-  useEffect(() => {
-    if (!userId) return;
-
-    const channel = supabase
-      .channel(`wallet-reports-${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "reports",
-          filter: `user_id=eq.${userId}`,
-        },
-        () => fetchReports(),
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId, fetchReports]);
-
-  // ── Handlers ───────────────────────────────────────────────────────────────
-
   const handleSaveReport = async (id: string) => {
     if (!userId) return;
     const prev = reports;
 
-    setReports((rs) =>
-      rs.map((r) => (r.id === id ? { ...r, status: "saved" } : r)),
+    setReports((rs: any[]) =>
+      rs.map((r) => (r.id === id ? { ...r, status: "saved" } : r))
     );
 
     try {
@@ -390,7 +114,7 @@ export default function Wallet() {
     if (!userId) return;
     const prev = reports;
 
-    setReports((rs) => rs.filter((r) => r.id !== id));
+    setReports((rs: any[]) => rs.filter((r) => r.id !== id));
 
     try {
       const { error } = await supabase
@@ -416,89 +140,88 @@ export default function Wallet() {
     setModalVisible(true);
   };
 
-  // currentEditingId هنا هو maintenanceTypeId
   const handleConfirmDate = (date: Date) => {
     setDatePickerVisible(false);
     if (currentEditingId === null) return;
 
     const formatted = date.toISOString().split("T")[0];
 
-    // تحديث محلي فقط — الحفظ يصير عند الضغط على "حفظ التغييرات"
     setEditData((prev) =>
       prev.map((item) =>
         item.maintenanceTypeId === currentEditingId
           ? { ...item, lastDate: formatted }
-          : item,
-      ),
+          : item
+      )
     );
   };
 
-  const saveAll = async () => {
-    if (!userId) return;
 
-    // نحدد فقط العناصر اللي تغير فيها lastDate مقارنةً بالبيانات الحالية
+  const saveAll = async () => {
+    if (!userId) {
+      Alert.alert("خطأ", "لا يوجد مستخدم مسجل");
+      return;
+    }
+
     const changed = editData.filter((item) => {
       const original = maintenance.find(
-        (m) => m.maintenanceTypeId === item.maintenanceTypeId,
+        (m: MaintenanceItem) => m.maintenanceTypeId === item.maintenanceTypeId
       );
+
       return item.lastDate && item.lastDate !== original?.lastDate;
     });
 
     if (changed.length === 0) {
-      setModalVisible(false);
+      Alert.alert("تنبيه", "ما فيه تغييرات للحفظ");
       return;
     }
 
-    setSavingId(-1); // -1 = كل شيء يتحفظ
-    try {
-      await Promise.all(
-        changed.map((item) => {
-          if (!item.lastDate) return Promise.resolve();
+    setSavingId(-1);
 
-          return supabase.functions.invoke("create-reminder", {
-            body: {
+
+
+    try {
+      for (const item of changed) {
+        const next = new Date(item.lastDate);
+        next.setDate(next.getDate() + item.intervalDays);
+
+
+        const nextDate = next.toISOString().split("T")[0];
+
+        const { error } = await supabase
+          .from("maintenance_reminders")
+          .upsert(
+            {
               user_id: userId,
               maintenance_type_id: item.maintenanceTypeId,
               last_date: item.lastDate,
+              next_date: nextDate,
+              notification_stage: 0,
+              is_active: true,
+              updated_at: new Date().toISOString(),
             },
-          });
-        }),
-      );
+            {
+              onConflict: "user_id,maintenance_type_id",
+            }
+          );
 
-      // رفرش الواجهة من قاعدة البيانات بعد الحفظ
-      await fetchMaintenance();
-
-      for (const item of changed) {
-        const intervalItem = STATIC_MAINTENANCE_TYPES.find(
-          (t) => t.maintenanceTypeId === item.maintenanceTypeId,
-        );
-
-        if (!intervalItem) continue;
-
-        const date = new Date(item.lastDate);
-        date.setDate(date.getDate() + intervalItem.intervalDays);
-
-        const nextDate = date.toISOString().split("T")[0];
-
-        // فقط جدولة إشعار محلي (Expo)
-        await scheduleMaintenanceNotification(
-          item.title,
-          nextDate,
-          item.maintenanceTypeId,
-        );
+        if (error) {
+          console.log("UPSERT ERROR:", error);
+          throw error;
+        }
       }
+
+      await fetchMaintenance();
       setModalVisible(false);
+      Alert.alert("تم", "تم حفظ الصيانة وتفعيل التذكير");
     } catch (err: any) {
-      console.error("Save maintenance failed:", err?.message || err);
-      Alert.alert("خطأ", "تعذر حفظ التعديلات، حاول مجدداً");
+      console.error("Save maintenance failed:", err);
+      Alert.alert("خطأ", err?.message || "تعذر حفظ التعديلات");
     } finally {
       setSavingId(null);
     }
   };
 
-  // ── Derived Values ─────────────────────────────────────────────────────────
-
-  const visibleReports = reports.filter((r) => {
+  const visibleReports = reports.filter((r: any) => {
     if (reportFilter === "all") return true;
     return r.status === reportFilter;
   });
@@ -506,39 +229,36 @@ export default function Wallet() {
   const getFilterCount = (key: "all" | "saved" | "pending") => {
     if (key === "all") {
       return reports.filter(
-        (r) => r.status === "saved" || r.status === "pending",
+        (r: any) => r.status === "saved" || r.status === "pending"
       ).length;
     }
-    return reports.filter((r) => r.status === key).length;
+
+    return reports.filter((r: any) => r.status === key).length;
   };
 
-  // ── Early Return ───────────────────────────────────────────────────────────
-
   if (!fontsLoaded) return null;
-
-  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
 
-      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerSide} />
         <Text style={styles.headerTitle}>المحفظة</Text>
         <View style={styles.headerSide} />
       </View>
+
       <View style={styles.headerDivider} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* ── Reports Section ── */}
         <View style={styles.sectionHeader}>
           <View style={styles.sectionIconCircle}>
             <Feather name="file-text" size={18} color={COLORS.primary} />
           </View>
+
           <View style={styles.sectionTextBox}>
             <Text style={styles.sectionTitle}>التقارير</Text>
             <Text style={styles.sectionSubtitle}>
@@ -547,20 +267,19 @@ export default function Wallet() {
           </View>
         </View>
 
-        {/* Filter Chips */}
         <View style={styles.filterRow}>
-          {(
-            [
-              { key: "all", label: "الكل" },
-              { key: "saved", label: "المحفوظة" },
-              { key: "pending", label: "غير المحفوظة" },
-            ] as { key: "all" | "saved" | "pending"; label: string }[]
-          ).map((f) => {
-            const active = reportFilter === f.key;
+          {[
+            { key: "all", label: "الكل" },
+            { key: "saved", label: "المحفوظة" },
+            { key: "pending", label: "غير المحفوظة" },
+          ].map((f) => {
+            const key = f.key as "all" | "saved" | "pending";
+            const active = reportFilter === key;
+
             return (
               <TouchableOpacity
-                key={f.key}
-                onPress={() => setReportFilter(f.key)}
+                key={key}
+                onPress={() => setReportFilter(key)}
                 activeOpacity={0.85}
                 style={[styles.filterChip, active && styles.filterChipActive]}
               >
@@ -570,14 +289,13 @@ export default function Wallet() {
                     active && styles.filterChipTextActive,
                   ]}
                 >
-                  {f.label} ({getFilterCount(f.key)})
+                  {f.label} ({getFilterCount(key)})
                 </Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        {/* Report Cards */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -601,7 +319,7 @@ export default function Wallet() {
             </View>
           )}
 
-          {visibleReports.map((report) => {
+          {visibleReports.map((report: any) => {
             const isPending = report.status === "pending";
             const isDtc = report.type === "DTC";
 
@@ -618,6 +336,7 @@ export default function Wallet() {
                       },
                     ]}
                   />
+
                   <View
                     style={[
                       styles.reportBadge,
@@ -677,6 +396,7 @@ export default function Wallet() {
                     >
                       <Text style={styles.saveReportText}>حفظ التقرير</Text>
                     </TouchableOpacity>
+
                     <TouchableOpacity
                       style={styles.rejectBtn}
                       activeOpacity={0.85}
@@ -699,7 +419,6 @@ export default function Wallet() {
           })}
         </ScrollView>
 
-        {/* ── Maintenance Section ── */}
         <View style={styles.sectionHeader}>
           <TouchableOpacity
             onPress={openModal}
@@ -709,6 +428,7 @@ export default function Wallet() {
             <Feather name="edit-3" size={15} color="#FFFFFF" />
             <Text style={styles.editActionText}>تعديل البيانات</Text>
           </TouchableOpacity>
+
           <View style={styles.sectionTextBox}>
             <Text style={styles.sectionTitle}>الصيانات الدورية</Text>
             <Text style={styles.sectionSubtitle}>
@@ -723,16 +443,17 @@ export default function Wallet() {
             <Text style={styles.emptyText}>جاري تحميل الصيانات...</Text>
           </View>
         ) : (
-          maintenance.map((item) => {
+          maintenance.map((item: MaintenanceItem) => {
             const hasData = !!item.lastDate;
             const progress = hasData
               ? Math.min(
-                  ((item.intervalDays - (item.remainingDays ?? 0)) /
-                    item.intervalDays) *
-                    100,
-                  100,
-                )
+                ((item.intervalDays - (item.remainingDays ?? 0)) /
+                  item.intervalDays) *
+                100,
+                100
+              )
               : 0;
+
             const isSoon = item.status === "due";
             const isOverdue = item.status === "overdue";
 
@@ -770,6 +491,7 @@ export default function Wallet() {
                             : `متبقي ${item.remainingDays} يوم`}
                     </Text>
                   </View>
+
                   <View style={styles.maintenanceTitleBox}>
                     <Text style={styles.maintenanceTitle}>{item.title}</Text>
                     <Text style={styles.maintenanceHint}>
@@ -782,15 +504,12 @@ export default function Wallet() {
 
                 <View style={styles.dateRow}>
                   <Text style={styles.dateLabel}>موعد الصيانة القادم:</Text>
-                  <Text style={styles.nextDateText}>
-                    {item.nextDate || "—"}
-                  </Text>
+                  <Text style={styles.nextDateText}>{item.nextDate || "—"}</Text>
                 </View>
+
                 <View style={[styles.dateRow, { marginTop: 5 }]}>
                   <Text style={styles.dateLabel}>آخر صيانة تمت:</Text>
-                  <Text style={styles.lastDateText}>
-                    {item.lastDate || "—"}
-                  </Text>
+                  <Text style={styles.lastDateText}>{item.lastDate || "—"}</Text>
                 </View>
 
                 <View style={styles.progressContainer}>
@@ -812,7 +531,6 @@ export default function Wallet() {
         )}
       </ScrollView>
 
-      {/* ── Edit Modal ── */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -824,19 +542,18 @@ export default function Wallet() {
               >
                 <Feather name="x" size={20} color={COLORS.primary} />
               </TouchableOpacity>
+
               <Text style={styles.modalTitle}>تعديل البيانات</Text>
               <View style={styles.modalHeaderSide} />
             </View>
 
             <View style={styles.modalDivider} />
 
-            <ScrollView
-              style={styles.modalList}
-              showsVerticalScrollIndicator={false}
-            >
+            <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
               {editData.map((item) => (
                 <View key={item.maintenanceTypeId} style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>{item.title}</Text>
+
                   <TouchableOpacity
                     style={{ flex: 1 }}
                     activeOpacity={0.85}
@@ -878,6 +595,7 @@ export default function Wallet() {
               onCancel={() => setDatePickerVisible(false)}
             />
           </View>
+
         </View>
       </Modal>
     </SafeAreaView>

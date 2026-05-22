@@ -280,7 +280,7 @@ export default function HomeScreen() {
           try {
             client.off?.("message", onMessage);
             client.unsubscribe?.(topics);
-          } catch {}
+          } catch { }
         };
       } catch (error) {
         console.log("MQTT Home subscribe error:", error);
@@ -349,8 +349,16 @@ export default function HomeScreen() {
 
         const { data, error } = await supabase
           .from("maintenance_reminders")
-          .select("*")
-          .eq("user_id", userId);
+          .select(`
+    reminder_id,
+    next_date,
+    maintenance_type_id,
+    maintenance_types (
+      name
+    )
+  `)
+          .eq("user_id", userId)
+          .eq("is_active", true);
 
         if (error || !data) return;
 
@@ -362,9 +370,9 @@ export default function HomeScreen() {
         }[] = [];
 
         for (const item of data) {
-          if (!item?.due_date) continue;
+          if (!item?.next_date) continue;
 
-          const dueDate = new Date(item.due_date);
+          const dueDate = new Date(item.next_date);
 
           const diffMs = dueDate.getTime() - today.getTime();
 
@@ -374,15 +382,15 @@ export default function HomeScreen() {
 
           if (shouldNotify) {
             collectedNotifications.push({
-              id: String(item.id),
+              id: String(item.reminder_id),
               text:
                 diffDays === 0
-                  ? `موعد "${item.title}" اليوم`
-                  : `موعد "${item.title}" بعد ${diffDays} يوم`,
+                  ? `موعد "${item.maintenance_types?.[0]?.name || "صيانة"}" اليوم`
+                  : `موعد "${item.maintenance_types?.[0]?.name || "صيانة"}" بعد ${diffDays} يوم`,
             });
             upcomingCount++;
 
-            const notifyId = `${item.id}_${diffDays}`;
+            const notifyId = `${item.reminder_id}_${diffDays}`;
 
             if (!notifiedIdsRef.current.includes(notifyId)) {
               notifiedIdsRef.current.push(notifyId);
@@ -390,7 +398,7 @@ export default function HomeScreen() {
               await Notifications.scheduleNotificationAsync({
                 content: {
                   title: "تذكير صيانة",
-                  body: `موعد "${item.title}" بعد ${diffDays} يوم`,
+                  body: `موعد "${item.maintenance_types?.[0]?.name || "صيانة"}" بعد ${diffDays} يوم`,
                   sound: true,
                 },
                 trigger: null,
