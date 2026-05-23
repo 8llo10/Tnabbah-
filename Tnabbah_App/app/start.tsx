@@ -34,7 +34,10 @@ const COLORS = {
   title: "#7A1815",
   darkText: "#263238",
 
-  logoLine: "#B86B69",
+  // لون الخط بين الكلمتين صار نفس لون اللوقو تقريبًا
+  logoLine: "#8F1F1A",
+  logoLineBorder: "rgba(255,255,255,0.88)",
+
   white: "#FFFFFF",
 
   glassLight: "rgba(255,255,255,0.78)",
@@ -62,7 +65,7 @@ export default function StartScreen() {
   const horizontalPadding = clamp(width * 0.055, 20, 26);
 
   const splashLogoWidth = clamp(width * 0.72, 220, 280);
-  const splashLogoHeight = splashLogoWidth * (210 / 270);
+  const splashLogoHeight = splashLogoWidth * (240 / 270);
 
   const finalLogoWidth = clamp(width * 0.2, 70, 82);
   const finalLogoHeight = finalLogoWidth * (64 / 88);
@@ -260,9 +263,11 @@ export default function StartScreen() {
     outputRange: [1, 1],
   });
 
+  // عرض الخط أثناء الأنيميشن
+  // كبرته شوي عشان يكون قريب من شكل الخط في الصورة
   const animatedLineWidth = lineAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, splashLogoWidth * 0.73],
+    outputRange: [0, splashLogoWidth * 0.84],
   });
 
   const arabicTranslateY = arabicAnim.interpolate({
@@ -307,13 +312,10 @@ export default function StartScreen() {
         onLoadEnd={hideSplashAfterBackground}
       />
 
-      {/* الطبقة الأولى: تهدي الصورة شوي */}
       <View pointerEvents="none" style={styles.backgroundSoftLayer} />
 
-      {/* الطبقة الثانية: طبقة زيادة عشان الكلام يوضح أكثر */}
       <View pointerEvents="none" style={styles.backgroundExtraLayer} />
 
-      {/* طبقة تدرج ناعمة فوق وتحت */}
       <LinearGradient
         pointerEvents="none"
         colors={[
@@ -581,24 +583,28 @@ function createStyles({
       marginBottom: splashLogoHeight * 0.048,
     },
 
+    // هنا حجم ومكان الخط
     logoLineContainer: {
-      width: splashLogoWidth * 0.73,
-      height: 6,
-      alignItems: "flex-end",
+      width: splashLogoWidth * 0.84,
+      height: 8,
+      alignItems: "center",
       justifyContent: "center",
       overflow: "hidden",
     },
 
+    // هنا شكل الخط نفسه: أحمر غامق + حد أبيض خفيف
     logoLine: {
-      height: 6,
-      borderRadius: 3,
+      height: 5.5,
+      borderRadius: 1.5,
       backgroundColor: COLORS.logoLine,
+      borderWidth: 0.8,
+      borderColor: COLORS.logoLineBorder,
     },
 
     logoEnglish: {
-      width: splashLogoWidth * 0.815,
-      height: splashLogoHeight * 0.162,
-      marginTop: splashLogoHeight * 0.076,
+      width: splashLogoWidth * 1.07,
+      height: splashLogoHeight * 0.3,
+      marginTop: splashLogoHeight * 0.037,
     },
 
     header: {

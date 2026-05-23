@@ -614,14 +614,15 @@ export default function RegisterScreen() {
                   activeOpacity={0.9}
                 >
                   <LinearGradient
-                    colors={[
-                      "rgba(154,33,28,0.98)",
-                      "rgba(118,23,19,0.98)",
-                    ]}
+  colors={[
+    "rgba(154,33,28,0.98)",
+    "rgba(118,23,19,0.98)",
+  ]}
                     start={{ x: 0.15, y: 0 }}
                     end={{ x: 0.9, y: 1 }}
                     style={styles.registerGradient}
                   >
+                    <View style={styles.loginShine} />
                     <View style={styles.loadingContent}>
                       {loading ? (
                         <ActivityIndicator
@@ -942,35 +943,38 @@ function createStyles({
     },
 
     bottomArea: {
-      width: "100%",
-      paddingTop: isVerySmallScreen ? 8 : isTabletLike ? 14 : 10,
-      paddingBottom: 0,
-    },
+  marginTop: isVerySmallScreen ? 10 : 16,
+  width: "100%",
+  paddingTop: isVerySmallScreen ? 10 : 14,
+  paddingBottom: isVerySmallScreen ? 2 : 6,
+},
 
     registerButtonWrapper: {
-      width: "100%",
-      height: buttonHeight,
-      borderRadius: buttonRadius,
-      overflow: "hidden",
-      shadowColor: "#6E1411",
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
-      shadowRadius: 14,
-      elevation: 6,
-      backgroundColor: COLORS.primary,
-    },
+  width: "100%",
+  height: buttonHeight,
+  borderRadius: buttonRadius,
+  overflow: "hidden",
+
+  shadowColor: "#6E1411",
+  shadowOffset: { width: 0, height: 8 },
+  shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
+  shadowRadius: 14,
+  elevation: 6,
+
+  backgroundColor: COLORS.primary,
+},
 
     registerButtonDisabled: {
       opacity: 0.72,
     },
 
-    registerGradient: {
-      flex: 1,
-      borderRadius: buttonRadius,
-      justifyContent: "center",
-      alignItems: "center",
-      overflow: "hidden",
-    },
+   registerGradient: {
+  flex: 1,
+  borderRadius: buttonRadius,
+  justifyContent: "center",
+  alignItems: "center",
+  overflow: "hidden",
+},
 
     loadingContent: {
       flexDirection: "row",
@@ -1019,6 +1023,16 @@ function createStyles({
       justifyContent: "center",
       flexWrap: "wrap",
     },
+    loginShine: {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  right: 0,
+  height: "48%",
+  backgroundColor: "rgba(255,255,255,0.10)",
+  borderTopLeftRadius: buttonRadius,
+  borderTopRightRadius: buttonRadius,
+},
 
     loginLightText: {
       color: COLORS.muted,

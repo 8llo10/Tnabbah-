@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
 
@@ -8,10 +8,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
-  ScrollView,
   Platform,
   Modal,
   useWindowDimensions,
@@ -43,6 +41,9 @@ const COLORS = {
 
   shadowGray: "#8E8E8E",
   white: "#FFFFFF",
+
+  successGreen: "#3F7F52",
+  successGreenSoft: "rgba(63,127,82,0.10)",
 };
 
 const clamp = (value: number, min: number, max: number) =>
@@ -56,6 +57,8 @@ export default function ForgotPasswordScreen() {
 
   const [email, setEmail] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [infoMessage, setInfoMessage] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -64,21 +67,25 @@ export default function ForgotPasswordScreen() {
   const screenTranslateY = useRef(new Animated.Value(10)).current;
   const transitionAnim = useRef(new Animated.Value(0)).current;
 
+  const checkShortWidthAnim = useRef(new Animated.Value(0)).current;
+  const checkLongWidthAnim = useRef(new Animated.Value(0)).current;
+  const checkScaleAnim = useRef(new Animated.Value(0.92)).current;
+
   const isSmallScreen = height < 720;
   const isVerySmallScreen = height < 650;
 
   const horizontalPadding = clamp(width * 0.055, 18, 24);
 
-  const backButtonSize = isVerySmallScreen ? 44 : 48;
+  const backButtonSize = isVerySmallScreen ? 42 : 46;
   const backButtonRadius = backButtonSize / 2;
 
-  const topSpacing = clamp(height * 0.012, 6, 12);
-  const bottomSpacing = clamp(height * 0.025, 16, 24);
+  const topSpacing = clamp(height * 0.008, 4, 8);
+  const bottomSpacing = clamp(height * 0.014, 8, 14);
 
-  const inputHeight = isVerySmallScreen ? 61 : 66;
+  const inputHeight = isVerySmallScreen ? 58 : 62;
   const inputRadius = inputHeight / 2;
 
-  const buttonHeight = isVerySmallScreen ? 58 : 64;
+  const buttonHeight = isVerySmallScreen ? 54 : 58;
   const buttonRadius = 30;
 
   const styles = useMemo(
@@ -117,6 +124,45 @@ export default function ForgotPasswordScreen() {
     ]
   );
 
+  const checkShortWidth = checkShortWidthAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 18],
+  });
+
+  const checkLongWidth = checkLongWidthAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 34],
+  });
+
+  useEffect(() => {
+    if (!showSuccessModal) return;
+
+    checkShortWidthAnim.setValue(0);
+    checkLongWidthAnim.setValue(0);
+    checkScaleAnim.setValue(0.92);
+
+    Animated.sequence([
+      Animated.timing(checkShortWidthAnim, {
+        toValue: 1,
+        duration: 230,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(checkLongWidthAnim, {
+        toValue: 1,
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.spring(checkScaleAnim, {
+        toValue: 1,
+        friction: 5,
+        tension: 90,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [showSuccessModal, checkShortWidthAnim, checkLongWidthAnim, checkScaleAnim]);
+
   useFocusEffect(
     useCallback(() => {
       setIsNavigating(false);
@@ -140,7 +186,7 @@ export default function ForgotPasswordScreen() {
         }),
       ]).start();
 
-      return () => { };
+      return () => {};
     }, [screenOpacity, screenTranslateY, transitionAnim])
   );
 
@@ -190,10 +236,18 @@ export default function ForgotPasswordScreen() {
 
     if (!cleanEmail) {
       setErrorMessage("الرجاء إدخال البريد الإلكتروني");
+      setInfoMessage("");
+      return;
+    }
+
+    if (!cleanEmail.includes("@") || !cleanEmail.includes(".")) {
+      setErrorMessage("الرجاء إدخال بريد إلكتروني صحيح");
+      setInfoMessage("");
       return;
     }
 
     setErrorMessage("");
+    setInfoMessage("");
 
     try {
       setLoading(true);
@@ -202,14 +256,14 @@ export default function ForgotPasswordScreen() {
 
       if (error) {
         console.log("Forgot password error:", error.message);
-        Alert.alert("خطأ", "لم نتمكن من إرسال كود إعادة التعيين");
+        setErrorMessage("لم نتمكن من إرسال كود إعادة التعيين، حاول مرة أخرى");
         return;
       }
 
       setShowSuccessModal(true);
     } catch (err) {
       console.log("Forgot password unexpected error:", err);
-      Alert.alert("خطأ", "حدث خطأ غير متوقع");
+      setErrorMessage("حدث خطأ غير متوقع، حاول مرة أخرى");
     } finally {
       setLoading(false);
     }
@@ -223,6 +277,28 @@ export default function ForgotPasswordScreen() {
     setTimeout(() => {
       smoothReplace("/auth/reset-password", { email: cleanEmail });
     }, 120);
+  };
+
+  const renderMessage = () => {
+    if (errorMessage) {
+      return (
+        <View style={styles.messageBox}>
+          <Ionicons name="alert-circle" size={17} color={COLORS.primary} />
+          <Text style={styles.messageText}>{errorMessage}</Text>
+        </View>
+      );
+    }
+
+    if (infoMessage) {
+      return (
+        <View style={styles.messageBox}>
+          <Ionicons name="information-circle" size={17} color={COLORS.primary} />
+          <Text style={styles.messageText}>{infoMessage}</Text>
+        </View>
+      );
+    }
+
+    return <View style={styles.messagePlaceholder} />;
   };
 
   return (
@@ -247,123 +323,112 @@ export default function ForgotPasswordScreen() {
         <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
           <KeyboardAvoidingView
             style={styles.keyboardAvoidingView}
-            behavior="padding"
-            keyboardVerticalOffset={0}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 16}
           >
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              keyboardDismissMode="interactive"
-            >
-              <View style={styles.screenContent}>
-                {/* زر الرجوع فوق */}
-                <View style={styles.backArea}>
-                  <TouchableOpacity
-                    style={styles.backButtonWrapper}
-                    activeOpacity={0.85}
-                    onPress={smoothBack}
-                    disabled={isNavigating || loading}
-                  >
-                    <Ionicons
-                      name="arrow-back-outline"
-                      size={isVerySmallScreen ? 23 : 25}
-                      color={COLORS.textDark}
-                    />
-                  </TouchableOpacity>
-                </View>
+            <View style={styles.screenContent}>
+              <View style={styles.backArea}>
+                <TouchableOpacity
+                  style={styles.backButtonWrapper}
+                  activeOpacity={0.85}
+                  onPress={smoothBack}
+                  disabled={isNavigating || loading}
+                >
+                  <Ionicons
+                    name="arrow-back-outline"
+                    size={isVerySmallScreen ? 23 : 25}
+                    color={COLORS.textDark}
+                  />
+                </TouchableOpacity>
+              </View>
 
-                {/* العنوان تحت زر الرجوع */}
-                <View style={styles.titleArea}>
-                  <Text style={styles.title}>نسيت كلمة المرور؟</Text>
+              <View style={styles.titleArea}>
+                <Text style={styles.title}>نسيت كلمة المرور؟</Text>
 
-                  <Text style={styles.subtitle}>
-                    أدخل البريد الإلكتروني المرتبط بحسابك لإرسال كود إعادة
-                    تعيين كلمة المرور
-                  </Text>
-                </View>
+                <Text style={styles.subtitle}>
+                  أدخل البريد الإلكتروني المرتبط بحسابك لإرسال كود إعادة تعيين كلمة المرور
+                </Text>
+              </View>
 
-                <View style={styles.formArea}>
-                  <View style={styles.fieldGroup}>
-                    <Text style={styles.inputLabel}>البريد الإلكتروني</Text>
+              <View style={styles.formArea}>
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.inputLabel}>البريد الإلكتروني</Text>
 
-                    <View
-                      style={[
-                        styles.inputWrapper,
-                        errorMessage.includes("البريد") && styles.inputWrapperError,
-                      ]}
-                    >
-                      <Feather
-                        name="mail"
-                        size={isVerySmallScreen ? 20 : 21}
-                        color={COLORS.primary}
-                        style={styles.inputIcon}
-                      />
-
-                      <TextInput
-                        style={styles.input}
-                        placeholder="example@email.com"
-                        placeholderTextColor={COLORS.placeholder}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        value={email}
-                        onChangeText={(text) => {
-                          setEmail(text);
-                          setErrorMessage("");
-                        }}
-                        textAlign="right"
-                        returnKeyType="done"
-                        editable={!loading && !isNavigating}
-                        selectionColor={COLORS.primary}
-                      />
-                    </View>
-
-                    {errorMessage.includes("البريد") ? (
-                      <Text style={styles.emailErrorText}>{errorMessage}</Text>
-                    ) : null}
-                  </View>
-                </View>
-
-                <View style={styles.buttonsArea}>
-                  <TouchableOpacity
+                  <View
                     style={[
-                      styles.resetButtonWrapper,
-                      loading && styles.resetButtonDisabled,
+                      styles.inputWrapper,
+                      errorMessage.includes("البريد") && styles.inputWrapperError,
                     ]}
-                    onPress={handleSubmit}
-                    disabled={loading || isNavigating}
-                    activeOpacity={0.9}
                   >
-                    <LinearGradient
-                      colors={[
-                        "rgba(154,33,28,0.98)",
-                        "rgba(118,23,19,0.98)",
-                      ]}
-                      start={{ x: 0.15, y: 0 }}
-                      end={{ x: 0.9, y: 1 }}
-                      style={styles.resetGradient}
-                    >
-                      <View style={styles.resetGlassTop} />
+                    <Feather
+                      name="mail"
+                      size={isVerySmallScreen ? 20 : 21}
+                      color={COLORS.primary}
+                      style={styles.inputIcon}
+                    />
 
-                      <View style={styles.loadingRow}>
-                        {loading ? (
-                          <ActivityIndicator
-                            size="small"
-                            color={COLORS.white}
-                            style={styles.loadingSpinner}
-                          />
-                        ) : null}
+                    <TextInput
+                      style={styles.input}
+                      placeholder="example@email.com"
+                      placeholderTextColor={COLORS.placeholder}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      value={email}
+                      onChangeText={(text) => {
+                        setEmail(text);
+                        setErrorMessage("");
+                        setInfoMessage("");
+                      }}
+                      textAlign="right"
+                      returnKeyType="done"
+                      editable={!loading && !isNavigating}
+                      selectionColor={COLORS.primary}
+                    />
+                  </View>
 
-                        <Text style={styles.resetText}>
-                          {loading ? "جاري الإرسال..." : "إرسال الكود"}
-                        </Text>
-                      </View>
-                    </LinearGradient>
-                  </TouchableOpacity>
+                  {renderMessage()}
                 </View>
               </View>
-            </ScrollView>
+
+              <View style={styles.buttonsArea}>
+                <TouchableOpacity
+                  style={[
+                    styles.resetButtonWrapper,
+                    loading && styles.resetButtonDisabled,
+                  ]}
+                  onPress={handleSubmit}
+                  disabled={loading || isNavigating}
+                  activeOpacity={0.9}
+                >
+                  <LinearGradient
+                    colors={[
+                      "rgba(154,33,28,0.98)",
+                      "rgba(118,23,19,0.98)",
+                    ]}
+                    start={{ x: 0.15, y: 0 }}
+                    end={{ x: 0.9, y: 1 }}
+                    style={styles.resetGradient}
+                  >
+                    <View style={styles.resetGlassTop} />
+
+                    <View style={styles.loadingRow}>
+                      {loading ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={COLORS.white}
+                          style={styles.loadingSpinner}
+                        />
+                      ) : null}
+
+                      <Text style={styles.resetText}>
+                        {loading ? "جاري الإرسال..." : "إرسال الكود"}
+                      </Text>
+                    </View>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Animated.View>
@@ -375,15 +440,35 @@ export default function ForgotPasswordScreen() {
         onRequestClose={() => setShowSuccessModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <LinearGradient
-            colors={["rgba(255,255,255,0.98)", "rgba(255,241,238,0.95)"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.successModal}
-          >
-            <View style={styles.successIconCircle}>
-              <Ionicons name="checkmark" size={30} color={COLORS.primaryText} />
-            </View>
+          <View style={styles.successModal}>
+            <Animated.View
+              style={[
+                styles.animatedCheckCircle,
+                {
+                  transform: [{ scale: checkScaleAnim }],
+                },
+              ]}
+            >
+              <View style={styles.checkCanvas}>
+                <Animated.View
+                  style={[
+                    styles.checkLineShort,
+                    {
+                      width: checkShortWidth,
+                    },
+                  ]}
+                />
+
+                <Animated.View
+                  style={[
+                    styles.checkLineLong,
+                    {
+                      width: checkLongWidth,
+                    },
+                  ]}
+                />
+              </View>
+            </Animated.View>
 
             <Text style={styles.successTitle}>تم إرسال الكود</Text>
 
@@ -410,7 +495,7 @@ export default function ForgotPasswordScreen() {
                 <Text style={styles.modalButtonText}>إدخال الكود</Text>
               </LinearGradient>
             </TouchableOpacity>
-          </LinearGradient>
+          </View>
         </View>
       </Modal>
 
@@ -480,17 +565,11 @@ function createStyles({
       backgroundColor: COLORS.screenBackground,
     },
 
-    scrollContent: {
-      flexGrow: 1,
-      backgroundColor: COLORS.screenBackground,
-    },
-
     screenContent: {
       flex: 1,
       paddingHorizontal: horizontalPadding,
       paddingTop: topSpacing,
       paddingBottom: bottomSpacing,
-      minHeight: height,
       backgroundColor: COLORS.screenBackground,
     },
 
@@ -499,12 +578,13 @@ function createStyles({
       paddingTop: safeTop + 2,
       alignItems: "flex-start",
       justifyContent: "center",
-      marginBottom: isVerySmallScreen ? 26 : 32,
+      marginBottom: isVerySmallScreen ? 18 : 22,
     },
 
     backButtonWrapper: {
       width: backButtonSize,
       height: backButtonSize,
+      borderRadius: backButtonRadius,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: "transparent",
@@ -517,7 +597,7 @@ function createStyles({
       width: "100%",
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: isVerySmallScreen ? 34 : isSmallScreen ? 42 : 48,
+      marginBottom: isVerySmallScreen ? 30 : isSmallScreen ? 38 : 44,
       paddingHorizontal: clamp(width * 0.02, 8, 14),
     },
 
@@ -528,7 +608,6 @@ function createStyles({
       textAlign: "center",
       letterSpacing: -0.4,
       lineHeight: isVerySmallScreen ? 32 : 35,
-
       textShadowColor: "rgba(255,255,255,0.95)",
       textShadowOffset: { width: 0, height: 2 },
       textShadowRadius: 12,
@@ -537,13 +616,12 @@ function createStyles({
 
     subtitle: {
       marginTop: isVerySmallScreen ? 12 : 15,
-      fontSize: isVerySmallScreen ? 15.5 : 17,
-      lineHeight: isVerySmallScreen ? 24 : 28,
+      fontSize: isVerySmallScreen ? 15 : 16.5,
+      lineHeight: isVerySmallScreen ? 23 : 27,
       color: COLORS.textDark,
       fontWeight: "800",
       textAlign: "center",
       maxWidth: clamp(width * 0.9, 300, 360),
-
       textShadowColor: "rgba(255,255,255,0.90)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 10,
@@ -557,7 +635,6 @@ function createStyles({
 
     fieldGroup: {
       width: "100%",
-      marginBottom: isVerySmallScreen ? 18 : 21,
     },
 
     inputLabel: {
@@ -573,25 +650,21 @@ function createStyles({
       width: "100%",
       height: inputHeight,
       borderRadius: inputRadius,
-
       backgroundColor: COLORS.white,
-
       borderWidth: 1.7,
       borderColor: COLORS.border,
-
       paddingHorizontal: isVerySmallScreen ? 16 : 18,
       flexDirection: "row-reverse",
       alignItems: "center",
-
       shadowColor: COLORS.shadowGray,
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.18,
+      shadowOpacity: Platform.OS === "android" ? 0.14 : 0.2,
       shadowRadius: 4,
       elevation: 3,
     },
 
     inputWrapperError: {
-      borderColor: "rgba(154,33,28,0.35)",
+      borderColor: "rgba(154,33,28,0.45)",
       backgroundColor: "rgba(154,33,28,0.015)",
     },
 
@@ -601,7 +674,7 @@ function createStyles({
 
     input: {
       flex: 1,
-      fontSize: isVerySmallScreen ? 16.5 : 17.5,
+      fontSize: isVerySmallScreen ? 16 : 17,
       color: COLORS.inputText,
       fontWeight: "700",
       paddingVertical: 0,
@@ -610,21 +683,41 @@ function createStyles({
       includeFontPadding: false,
     },
 
-    emailErrorText: {
-      marginTop: 9,
-      marginRight: 12,
+    messagePlaceholder: {
+      height: isVerySmallScreen ? 42 : 46,
+      marginTop: 8,
+    },
+
+    messageBox: {
+      width: "100%",
+      minHeight: isVerySmallScreen ? 42 : 46,
+      marginTop: 8,
+      flexDirection: "row-reverse",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+      borderRadius: 18,
+      backgroundColor: "rgba(154,33,28,0.065)",
+      borderWidth: 1.1,
+      borderColor: "rgba(154,33,28,0.16)",
+      gap: 7,
+    },
+
+    messageText: {
+      flex: 1,
       color: COLORS.primary,
-      fontSize: isVerySmallScreen ? 13.2 : 14,
+      fontSize: isVerySmallScreen ? 12.8 : 13.5,
       fontWeight: "800",
       textAlign: "right",
-      lineHeight: isVerySmallScreen ? 19 : 21,
+      lineHeight: isVerySmallScreen ? 18 : 20,
       includeFontPadding: false,
     },
 
     buttonsArea: {
-      marginTop: isVerySmallScreen ? 10 : 14,
-      paddingTop: 0,
-      zIndex: 8,
+      marginTop: "auto",
+      width: "100%",
+      paddingTop: isVerySmallScreen ? 14 : 20,
+      paddingBottom: isVerySmallScreen ? 4 : 8,
     },
 
     resetButtonWrapper: {
@@ -634,7 +727,7 @@ function createStyles({
       overflow: "hidden",
       shadowColor: "#6E1411",
       shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.20,
+      shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
       shadowRadius: 14,
       elevation: 6,
       backgroundColor: COLORS.primary,
@@ -679,7 +772,7 @@ function createStyles({
     resetText: {
       color: COLORS.white,
       textAlign: "center",
-      fontSize: isVerySmallScreen ? 19 : 21,
+      fontSize: isVerySmallScreen ? 18.5 : 20,
       fontWeight: "900",
       zIndex: 5,
       includeFontPadding: false,
@@ -700,6 +793,7 @@ function createStyles({
       paddingTop: 28,
       paddingBottom: 24,
       alignItems: "center",
+      backgroundColor: COLORS.white,
       borderWidth: 1,
       borderColor: "rgba(135, 27, 23, 0.14)",
       shadowColor: "#6E1411",
@@ -709,14 +803,42 @@ function createStyles({
       elevation: 8,
     },
 
-    successIconCircle: {
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      backgroundColor: "rgba(135, 27, 23, 0.09)",
+    animatedCheckCircle: {
+      width: 70,
+      height: 70,
+      borderRadius: 35,
+      backgroundColor: COLORS.successGreenSoft,
       alignItems: "center",
       justifyContent: "center",
       marginBottom: 18,
+      borderWidth: 1.2,
+      borderColor: "rgba(63,127,82,0.18)",
+    },
+
+    checkCanvas: {
+      width: 48,
+      height: 38,
+      position: "relative",
+    },
+
+    checkLineShort: {
+      position: "absolute",
+      left: 8,
+      top: 20,
+      height: 5,
+      borderRadius: 5,
+      backgroundColor: COLORS.successGreen,
+      transform: [{ rotate: "45deg" }],
+    },
+
+    checkLineLong: {
+      position: "absolute",
+      left: 20,
+      top: 15,
+      height: 5,
+      borderRadius: 5,
+      backgroundColor: COLORS.successGreen,
+      transform: [{ rotate: "-45deg" }],
     },
 
     successTitle: {
@@ -724,6 +846,7 @@ function createStyles({
       fontWeight: "900",
       color: COLORS.primaryText,
       textAlign: "center",
+      includeFontPadding: false,
     },
 
     successMessage: {
@@ -734,6 +857,7 @@ function createStyles({
       fontWeight: "700",
       color: COLORS.label,
       textAlign: "center",
+      includeFontPadding: false,
     },
 
     modalButtonWrapper: {
@@ -775,6 +899,7 @@ function createStyles({
       fontWeight: "900",
       textAlign: "center",
       zIndex: 5,
+      includeFontPadding: false,
     },
 
     transitionOverlay: {
