@@ -8,6 +8,7 @@ import {
     Alert,
     Image,
     Modal,
+    Platform,
     Pressable,
     ScrollView,
     StatusBar,
@@ -58,6 +59,13 @@ type HomeAiState = {
     score: number;
     action: string;
     alertsCount: number;
+} | null;
+
+
+type InAppNotificationState = {
+    id: string;
+    title: string;
+    body: string;
 } | null;
 
 function safeValue(value: any) {
@@ -134,6 +142,11 @@ export default function HomeScreen() {
         }[]
     >([]);
     const [showNotifications, setShowNotifications] = useState(false);
+    const [inAppNotification, setInAppNotification] =
+        useState<InAppNotificationState>(null);
+
+    const seenNotificationIdsRef = useRef<Set<string>>(new Set());
+    const firstNotificationsLoadRef = useRef(true);
 
 
     const metricWidth = useMemo(() => {
@@ -341,6 +354,40 @@ export default function HomeScreen() {
         };
     }, [carId]);
 
+    const showAppleInAppNotification = (notification: {
+        id: string;
+        title: string;
+        body: string;
+    }) => {
+        setInAppNotification(notification);
+
+        setTimeout(() => {
+            setInAppNotification((current) =>
+                current?.id === notification.id ? null : current
+            );
+        }, 4500);
+    };
+
+    const showDeviceNotificationForAndroid = async (notification: {
+        title: string;
+        body: string;
+    }) => {
+        try {
+            if (Platform.OS !== "android") return;
+
+            await Notifications.scheduleNotificationAsync({
+                content: {
+                    title: notification.title,
+                    body: notification.body,
+                    sound: true,
+                },
+                trigger: null,
+            });
+        } catch (error) {
+            console.log("Android local notification error:", error);
+        }
+    };
+
     useEffect(() => {
         let mounted = true;
 
@@ -370,8 +417,35 @@ export default function HomeScreen() {
                     created_at: item.created_at,
                 }));
 
+                const unreadNotifications = mapped.filter((item) => !item.is_read);
+                const newestUnread = unreadNotifications.find(
+                    (item) => !seenNotificationIdsRef.current.has(item.id)
+                );
+
                 setNotificationsList(mapped);
-                setNotificationsCount(mapped.filter((item) => !item.is_read).length);
+                setNotificationsCount(unreadNotifications.length);
+
+                mapped.forEach((item) => {
+                    seenNotificationIdsRef.current.add(item.id);
+                });
+
+                if (firstNotificationsLoadRef.current) {
+                    firstNotificationsLoadRef.current = false;
+                    return;
+                }
+
+                if (newestUnread) {
+                    showAppleInAppNotification({
+                        id: newestUnread.id,
+                        title: newestUnread.title,
+                        body: newestUnread.body,
+                    });
+
+                    showDeviceNotificationForAndroid({
+                        title: newestUnread.title,
+                        body: newestUnread.body,
+                    });
+                }
             } catch (error) {
                 console.log("Load notifications error:", error);
             }
@@ -505,6 +579,37 @@ export default function HomeScreen() {
     return (
         <SafeAreaView style={styles.safeArea} edges={["top"]}>
             <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+            {inAppNotification && (
+                <Pressable
+                    style={styles.inAppNotificationCard}
+                    onPress={() => {
+                        setShowNotifications(true);
+                        setInAppNotification(null);
+                        markNotificationAsRead(inAppNotification.id);
+                    }}
+                >
+                    <View style={styles.inAppNotificationIcon}>
+                        <Feather name="bell" size={18} color="#FFFFFF" />
+                    </View>
+
+                    <View style={styles.inAppNotificationTextBox}>
+                        <Text style={styles.inAppNotificationTitle} numberOfLines={1}>
+                            {inAppNotification.title}
+                        </Text>
+                        <Text style={styles.inAppNotificationBody} numberOfLines={2}>
+                            {inAppNotification.body}
+                        </Text>
+                    </View>
+
+                    <Pressable
+                        style={styles.inAppNotificationClose}
+                        onPress={() => setInAppNotification(null)}
+                    >
+                        <Feather name="x" size={17} color={COLORS.muted} />
+                    </Pressable>
+                </Pressable>
+            )}
 
             <ScrollView
                 style={styles.scrollView}
@@ -846,6 +951,66 @@ function MetricCard({
 }
 
 const styles = StyleSheet.create({
+    inAppNotificationCard: {
+        position: "absolute",
+        top: 58,
+        left: 18,
+        right: 18,
+        zIndex: 100,
+        elevation: 12,
+        borderRadius: 20,
+        backgroundColor: "#FFFFFF",
+        borderWidth: 1,
+        borderColor: "#F1E0E0",
+        padding: 12,
+        flexDirection: "row-reverse",
+        alignItems: "center",
+        gap: 10,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.14,
+        shadowRadius: 16,
+    },
+
+    inAppNotificationIcon: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: COLORS.primary,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
+    inAppNotificationTextBox: {
+        flex: 1,
+        alignItems: "flex-end",
+    },
+
+    inAppNotificationTitle: {
+        fontSize: 13,
+        fontWeight: "900",
+        color: COLORS.text,
+        textAlign: "right",
+    },
+
+    inAppNotificationBody: {
+        marginTop: 3,
+        fontSize: 12,
+        fontWeight: "700",
+        color: COLORS.muted,
+        textAlign: "right",
+        lineHeight: 18,
+    },
+
+    inAppNotificationClose: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        backgroundColor: COLORS.soft,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
     safeArea: {
         flex: 1,
         backgroundColor: COLORS.bg,

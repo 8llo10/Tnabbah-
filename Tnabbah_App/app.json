@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rawanamoodi.tnabbahfree2026",
-      "icon": "./assets/images/splash-logo.png",
+      "icon": "./assets/images/logoG.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSBluetoothAlwaysUsageDescription": "Tnabbah needs Bluetooth access to connect to the OBD device and read car data.",
@@ -48,7 +48,6 @@
     },
     "plugins": [
       "expo-router",
-      "expo-notifications",
       [
         "expo-splash-screen",
         {
@@ -64,7 +63,7 @@
           },
           "android": {
             "backgroundColor": "#EFE7DE",
-            "image": "./assets/images/logoG.png",
+            "image": "./assets/images/start-background.png",
             "resizeMode": "cover"
           }
         }

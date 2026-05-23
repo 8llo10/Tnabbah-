@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { useFocusEffect, useRouter } from "expo-router";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
-  ScrollView,
   Platform,
   useWindowDimensions,
   ActivityIndicator,
@@ -70,19 +69,22 @@ export default function LoginScreen() {
 
   const isSmallScreen = height < 720;
   const isVerySmallScreen = height < 650;
+  const isTabletLike = width >= 768;
 
-  const horizontalPadding = clamp(width * 0.055, 18, 24);
+  const horizontalPadding = isTabletLike
+    ? 24
+    : clamp(width * 0.055, 18, 24);
 
   const backButtonSize = isVerySmallScreen ? 44 : 48;
   const backButtonRadius = backButtonSize / 2;
 
   const topSpacing = clamp(height * 0.012, 6, 12);
-  const bottomSpacing = clamp(height * 0.025, 16, 24);
+  const bottomSpacing = clamp(height * 0.026, 16, 24);
 
-  const inputHeight = isVerySmallScreen ? 61 : 66;
+  const inputHeight = isVerySmallScreen ? 58 : 62;
   const inputRadius = inputHeight / 2;
 
-  const buttonHeight = isVerySmallScreen ? 58 : 64;
+  const buttonHeight = isVerySmallScreen ? 56 : 60;
   const buttonRadius = 30;
 
   const styles = useMemo(
@@ -99,6 +101,7 @@ export default function LoginScreen() {
         buttonRadius,
         isSmallScreen,
         isVerySmallScreen,
+        isTabletLike,
         safeTop: insets.top,
         width,
         height,
@@ -115,6 +118,7 @@ export default function LoginScreen() {
       buttonRadius,
       isSmallScreen,
       isVerySmallScreen,
+      isTabletLike,
       insets.top,
       width,
       height,
@@ -144,7 +148,7 @@ export default function LoginScreen() {
         }),
       ]).start();
 
-      return () => { };
+      return () => {};
     }, [screenOpacity, screenTranslateY, transitionAnim])
   );
 
@@ -245,8 +249,6 @@ export default function LoginScreen() {
           if (resendError) {
             console.log("RESEND VERIFY ERROR:", resendError);
 
-            // حتى لو ما قدر يرسل كود جديد
-            // دخليه صفحة التحقق عشان يستخدم الكود القديم
             router.push({
               pathname: "/verify-email",
               params: {
@@ -317,15 +319,12 @@ export default function LoginScreen() {
             let finalStatus = existingStatus;
 
             if (existingStatus !== "granted") {
-              const { status } =
-                await Notifications.requestPermissionsAsync();
-
+              const { status } = await Notifications.requestPermissionsAsync();
               finalStatus = status;
             }
 
             if (finalStatus === "granted") {
               const tokenData = await Notifications.getExpoPushTokenAsync();
-
               const expoPushToken = tokenData.data;
 
               console.log("EXPO PUSH TOKEN:", expoPushToken);
@@ -354,6 +353,8 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
+      <Stack.Screen options={{ gestureEnabled: false }} />
+
       <StatusBar
         translucent
         backgroundColor="transparent"
@@ -373,15 +374,10 @@ export default function LoginScreen() {
           <KeyboardAvoidingView
             style={styles.keyboardAvoidingView}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
           >
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              keyboardDismissMode="interactive"
-            >
-              <View style={styles.screenContent}>
-                {/* زر الرجوع فوق */}
+            <View style={styles.screenContent}>
+              <View style={styles.innerContent}>
                 <View style={styles.backArea}>
                   <TouchableOpacity
                     style={styles.backButtonWrapper}
@@ -390,23 +386,20 @@ export default function LoginScreen() {
                     disabled={isNavigating || loading}
                   >
                     <Ionicons
-                      name="chevron-back"
-                      size={isVerySmallScreen ? 21 : 23}
-                      color={COLORS.shadowGray}
+                      name="arrow-back-outline"
+                      size={isVerySmallScreen ? 23 : 25}
+                      color={COLORS.textDark}
                     />
                   </TouchableOpacity>
                 </View>
 
-                {/* العنوان تحت زر الرجوع */}
                 <View style={styles.titleArea}>
                   <Text style={styles.title}>تسجيل الدخول</Text>
 
-                  <Text style={styles.subtitle}>مرحباً بك في تنبّه</Text>
+                  <Text style={styles.subtitle}>مرحباً بعودتك إلى تنبّه</Text>
                 </View>
 
-                {/* الفورم */}
                 <View style={styles.formArea}>
-                  {/* البريد الإلكتروني */}
                   <View style={styles.fieldGroup}>
                     <Text style={styles.inputLabel}>البريد الإلكتروني</Text>
 
@@ -414,7 +407,7 @@ export default function LoginScreen() {
                       style={[
                         styles.inputWrapper,
                         errorMessage.includes("البريد") &&
-                        styles.inputWrapperError,
+                          styles.inputWrapperError,
                       ]}
                     >
                       <Feather
@@ -444,7 +437,6 @@ export default function LoginScreen() {
                     </View>
                   </View>
 
-                  {/* كلمة المرور */}
                   <View style={styles.fieldGroup}>
                     <Text style={styles.inputLabel}>كلمة المرور</Text>
 
@@ -452,7 +444,7 @@ export default function LoginScreen() {
                       style={[
                         styles.inputWrapper,
                         errorMessage.includes("كلمة المرور") &&
-                        styles.inputWrapperError,
+                          styles.inputWrapperError,
                       ]}
                     >
                       <Feather
@@ -519,8 +511,9 @@ export default function LoginScreen() {
                       <Text style={styles.errorText}>{errorMessage}</Text>
                     </View>
                   ) : null}
+                </View>
 
-                  {/* زر تسجيل الدخول */}
+                <View style={styles.bottomArea}>
                   <TouchableOpacity
                     style={[
                       styles.loginButtonWrapper,
@@ -551,36 +544,36 @@ export default function LoginScreen() {
                         ) : null}
 
                         <Text style={styles.loginText}>
-                          {loading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
+                          {loading
+                            ? "جاري تسجيل الدخول..."
+                            : "تسجيل الدخول"}
                         </Text>
                       </View>
                     </LinearGradient>
                   </TouchableOpacity>
-                </View>
 
-                {/* أو */}
-                <View style={styles.orArea}>
-                  <View style={styles.orLine} />
-                  <Text style={styles.orText}>أو</Text>
-                  <View style={styles.orLine} />
-                </View>
+                  <View style={styles.orArea}>
+                    <View style={styles.orLine} />
+                    <Text style={styles.orText}>أو</Text>
+                    <View style={styles.orLine} />
+                  </View>
 
-                {/* إنشاء حساب */}
-                <View style={styles.registerTextArea}>
-                  <Text style={styles.registerText}>ليس لديك حساب؟ </Text>
+                  <View style={styles.registerTextArea}>
+                    <Text style={styles.registerText}>ليس لديك حساب؟ </Text>
 
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={() => smoothPush("/register")}
-                    disabled={isNavigating || loading}
-                  >
-                    <Text style={styles.registerTextBold}>
-                      إنشاء حساب جديد
-                    </Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => smoothPush("/register")}
+                      disabled={isNavigating || loading}
+                    >
+                      <Text style={styles.registerTextBold}>
+                        إنشاء حساب جديد
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
-            </ScrollView>
+            </View>
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Animated.View>
@@ -610,6 +603,7 @@ function createStyles({
   buttonRadius,
   isSmallScreen,
   isVerySmallScreen,
+  isTabletLike,
   safeTop,
   width,
   height,
@@ -625,6 +619,7 @@ function createStyles({
   buttonRadius: number;
   isSmallScreen: boolean;
   isVerySmallScreen: boolean;
+  isTabletLike: boolean;
   safeTop: number;
   width: number;
   height: number;
@@ -651,18 +646,20 @@ function createStyles({
       backgroundColor: COLORS.screenBackground,
     },
 
-    scrollContent: {
-      flexGrow: 1,
-      backgroundColor: COLORS.screenBackground,
-    },
-
     screenContent: {
       flex: 1,
       paddingHorizontal: horizontalPadding,
       paddingTop: topSpacing,
       paddingBottom: bottomSpacing,
-      minHeight: height,
       backgroundColor: COLORS.screenBackground,
+      alignItems: "center",
+    },
+
+    innerContent: {
+      flex: 1,
+      width: "100%",
+      maxWidth: 430,
+      alignSelf: "center",
     },
 
     backArea: {
@@ -670,7 +667,7 @@ function createStyles({
       paddingTop: safeTop + 2,
       alignItems: "flex-start",
       justifyContent: "center",
-      marginBottom: isVerySmallScreen ? 26 : 32,
+      marginBottom: isVerySmallScreen ? 16 : isTabletLike ? 24 : 22,
     },
 
     backButtonWrapper: {
@@ -679,45 +676,43 @@ function createStyles({
       borderRadius: backButtonRadius,
       alignItems: "center",
       justifyContent: "center",
-
-      backgroundColor: COLORS.white,
-
-      borderWidth: 1.7,
-      borderColor: COLORS.border,
-
-      shadowColor: COLORS.shadowGray,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: Platform.OS === "android" ? 0.16 : 0.22,
-      shadowRadius: 4,
-      elevation: 3,
+      backgroundColor: "transparent",
+      borderWidth: 0,
+      shadowOpacity: 0,
+      elevation: 0,
     },
 
     titleArea: {
       width: "100%",
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: isVerySmallScreen ? 34 : isSmallScreen ? 42 : 48,
+      marginBottom: isVerySmallScreen
+        ? 30
+        : isSmallScreen
+        ? 38
+        : isTabletLike
+        ? 46
+        : 44,
       paddingHorizontal: clamp(width * 0.02, 8, 14),
     },
 
     title: {
-      fontSize: isVerySmallScreen ? 22 : isSmallScreen ? 24 : 25,
+      fontSize: isVerySmallScreen ? 23 : isSmallScreen ? 25 : 26,
       fontWeight: "900",
       color: COLORS.title,
       textAlign: "center",
       letterSpacing: -0.4,
-      lineHeight: isVerySmallScreen ? 32 : 35,
-
+      lineHeight: isVerySmallScreen ? 33 : 36,
       textShadowColor: "rgba(255,255,255,0.95)",
       textShadowOffset: { width: 0, height: 2 },
       textShadowRadius: 12,
     },
 
     subtitle: {
-      marginTop: isVerySmallScreen ? 12 : 15,
-      fontSize: isVerySmallScreen ? 16 : 17.5,
-      lineHeight: isVerySmallScreen ? 25 : 28,
-      color: COLORS.textDark,
+      marginTop: isVerySmallScreen ? 8 : 10,
+      fontSize: isVerySmallScreen ? 15.5 : 16.5,
+      lineHeight: isVerySmallScreen ? 24 : 27,
+      color: COLORS.placeholder,
       fontWeight: "800",
       textAlign: "center",
       textShadowColor: "rgba(255,255,255,0.90)",
@@ -732,7 +727,7 @@ function createStyles({
 
     fieldGroup: {
       width: "100%",
-      marginBottom: isVerySmallScreen ? 18 : 21,
+      marginBottom: isVerySmallScreen ? 18 : 20,
     },
 
     inputLabel: {
@@ -747,19 +742,15 @@ function createStyles({
       width: "100%",
       height: inputHeight,
       borderRadius: inputRadius,
-
       backgroundColor: COLORS.white,
-
       borderWidth: 1.7,
       borderColor: COLORS.border,
-
       paddingHorizontal: isVerySmallScreen ? 16 : 18,
       flexDirection: "row-reverse",
       alignItems: "center",
-
       shadowColor: COLORS.shadowGray,
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: Platform.OS === "android" ? 0.16 : 0.22,
+      shadowOpacity: Platform.OS === "android" ? 0.14 : 0.2,
       shadowRadius: 4,
       elevation: 3,
     },
@@ -775,7 +766,7 @@ function createStyles({
 
     input: {
       flex: 1,
-      fontSize: isVerySmallScreen ? 16.5 : 17.5,
+      fontSize: isVerySmallScreen ? 16.2 : 17,
       color: COLORS.inputText,
       fontWeight: "700",
       paddingVertical: 0,
@@ -794,10 +785,8 @@ function createStyles({
     forgotPasswordButton: {
       alignSelf: "flex-end",
       marginRight: 12,
-
-      marginTop: isVerySmallScreen ? -5 : -7,
-      marginBottom: isVerySmallScreen ? 18 : 22,
-
+      marginTop: isVerySmallScreen ? -5 : -6,
+      marginBottom: isVerySmallScreen ? 10 : 12,
       paddingVertical: 6,
       zIndex: 20,
       elevation: 20,
@@ -815,25 +804,19 @@ function createStyles({
       flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "flex-start",
-
-      marginTop: isVerySmallScreen ? -5 : -6,
-      marginBottom: isVerySmallScreen ? 18 : 22,
-
+      marginTop: isVerySmallScreen ? 0 : 2,
+      marginBottom: isVerySmallScreen ? 8 : 10,
       paddingHorizontal: isVerySmallScreen ? 14 : 16,
       paddingVertical: isVerySmallScreen ? 10 : 12,
-
       borderRadius: 22,
-
       backgroundColor: "rgba(154,33,28,0.07)",
       borderWidth: 1.2,
       borderColor: "rgba(154,33,28,0.16)",
-
       shadowColor: COLORS.shadowGray,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: Platform.OS === "android" ? 0.08 : 0.1,
       shadowRadius: 4,
       elevation: 2,
-
       gap: 8,
     },
 
@@ -846,12 +829,18 @@ function createStyles({
       lineHeight: isVerySmallScreen ? 20 : 22,
     },
 
+    bottomArea: {
+      marginTop: "auto",
+      width: "100%",
+      paddingTop: isVerySmallScreen ? 18 : isTabletLike ? 34 : 30,
+      paddingBottom: isVerySmallScreen ? 2 : 6,
+    },
+
     loginButtonWrapper: {
       width: "100%",
       height: buttonHeight,
       borderRadius: buttonRadius,
       overflow: "hidden",
-
       shadowColor: "#6E1411",
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
@@ -903,7 +892,7 @@ function createStyles({
     },
 
     orArea: {
-      marginTop: isVerySmallScreen ? 34 : 40,
+      marginTop: isVerySmallScreen ? 24 : 30,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
@@ -924,7 +913,7 @@ function createStyles({
     },
 
     registerTextArea: {
-      marginTop: isVerySmallScreen ? 16 : 18,
+      marginTop: isVerySmallScreen ? 14 : 16,
       flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "center",

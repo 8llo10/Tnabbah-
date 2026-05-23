@@ -17,6 +17,8 @@ import { Feather } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as SplashScreen from "expo-splash-screen";
 
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
 const BACKGROUND_IMAGE = require("../assets/images/start-background.png");
 const LOGO_ARABIC = require("../assets/images/logo-arabic.png");
 const LOGO_ENGLISH = require("../assets/images/logo-english.png");
@@ -305,7 +307,23 @@ export default function StartScreen() {
         onLoadEnd={hideSplashAfterBackground}
       />
 
+      {/* الطبقة الأولى: تهدي الصورة شوي */}
       <View pointerEvents="none" style={styles.backgroundSoftLayer} />
+
+      {/* الطبقة الثانية: طبقة زيادة عشان الكلام يوضح أكثر */}
+      <View pointerEvents="none" style={styles.backgroundExtraLayer} />
+
+      {/* طبقة تدرج ناعمة فوق وتحت */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={[
+          "rgba(255,255,255,0.34)",
+          "rgba(255,255,255,0.10)",
+          "rgba(233,238,241,0.50)",
+        ]}
+        locations={[0, 0.48, 1]}
+        style={styles.backgroundGradientLayer}
+      />
 
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <Animated.View
@@ -353,7 +371,10 @@ export default function StartScreen() {
                   مرحباً بك في <Text style={styles.titleBrand}>تنبه</Text>
                 </Text>
               ) : (
-                <Text style={[styles.title, styles.englishTitle]} numberOfLines={1}>
+                <Text
+                  style={[styles.title, styles.englishTitle]}
+                  numberOfLines={1}
+                >
                   Welcome to <Text style={styles.titleBrand}>Tnabbah</Text>
                 </Text>
               )}
@@ -486,15 +507,15 @@ function createStyles({
   const buttonRadius = buttonHeight / 2;
 
   const titleShadow = {
-    textShadowColor: "rgba(255,255,255,0.78)",
+    textShadowColor: "rgba(255,255,255,0.82)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowRadius: 5,
   };
 
   const subtitleShadow = {
-    textShadowColor: "rgba(255,255,255,0.70)",
+    textShadowColor: "rgba(255,255,255,0.76)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
   };
 
   return StyleSheet.create({
@@ -514,8 +535,19 @@ function createStyles({
 
     backgroundSoftLayer: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: "rgba(255,255,255,0.28)",
+      backgroundColor: "rgba(255,255,255,0.25)",
+      zIndex: 1,
+    },
+
+    backgroundExtraLayer: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(233,238,241,0.22)",
       zIndex: 2,
+    },
+
+    backgroundGradientLayer: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 3,
     },
 
     safeArea: {
@@ -628,10 +660,10 @@ function createStyles({
       alignItems: "center",
       justifyContent: "flex-start",
       paddingTop: isVerySmallScreen
-        ? height * 0.10
+        ? height * 0.1
         : isSmallScreen
-        ? height * 0.10
-        : height * 0.10,
+        ? height * 0.1
+        : height * 0.1,
       flex: 1,
     },
 
