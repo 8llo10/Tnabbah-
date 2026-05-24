@@ -2,9 +2,6 @@ import { Feather } from "@expo/vector-icons";
 import { useFonts } from "expo-font";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import { supabase } from "../../lib/supabase";
-import { useAuth } from "../../providers/AuthProvider";
-import { useWallet } from "../../providers/WalletProvider";
 import {
   ActivityIndicator,
   Alert,
@@ -20,8 +17,9 @@ import {
 } from "react-native";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../providers/AuthProvider";
+import { useWallet } from "../../providers/WalletProvider";
 
 const COLORS = {
   primary: "#871B17",
@@ -53,6 +51,7 @@ interface MaintenanceItem {
   remainingDays: number | null;
   status: "upcoming" | "due" | "overdue";
 }
+
 export default function Wallet() {
   const {
     reports,
@@ -72,7 +71,9 @@ export default function Wallet() {
   const userId = session?.user?.id;
 
   const [savingId, setSavingId] = useState<number | null>(null);
-  const [reportFilter, setReportFilter] = useState<"all" | "saved" | "pending">("all");
+  const [reportFilter, setReportFilter] = useState<"all" | "saved" | "pending">(
+    "all",
+  );
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editData, setEditData] = useState<MaintenanceItem[]>([]);
@@ -84,7 +85,7 @@ export default function Wallet() {
     const prev = reports;
 
     setReports((rs: any[]) =>
-      rs.map((r) => (r.id === id ? { ...r, status: "saved" } : r))
+      rs.map((r) => (r.id === id ? { ...r, status: "saved" } : r)),
     );
 
     try {
@@ -135,8 +136,9 @@ export default function Wallet() {
     router.push({ pathname: "/report", params: { id } });
   };
 
-  const openModal = () => {
-    setEditData([...maintenance]);
+  // تعديل الدالة لتقبل عنصر الصيانة المحدد فقط بدلاً من جلب المصفوفة كاملة
+  const openSingleMaintenanceModal = (item: MaintenanceItem) => {
+    setEditData([item]);
     setModalVisible(true);
   };
 
@@ -158,11 +160,10 @@ export default function Wallet() {
       prev.map((item) =>
         item.maintenanceTypeId === currentEditingId
           ? { ...item, lastDate: formatted }
-          : item
-      )
+          : item,
+      ),
     );
   };
-
 
   const saveAll = async () => {
     if (!userId) {
@@ -172,7 +173,7 @@ export default function Wallet() {
 
     const changed = editData.filter((item) => {
       const original = maintenance.find(
-        (m: MaintenanceItem) => m.maintenanceTypeId === item.maintenanceTypeId
+        (m: MaintenanceItem) => m.maintenanceTypeId === item.maintenanceTypeId,
       );
 
       return item.lastDate && item.lastDate !== original?.lastDate;
@@ -185,13 +186,9 @@ export default function Wallet() {
 
     setSavingId(-1);
 
-
-
     try {
       for (const item of changed) {
-        const [year, month, day] = item.lastDate
-          .split("-")
-          .map(Number);
+        const [year, month, day] = item.lastDate.split("-").map(Number);
 
         const next = new Date(year, month - 1, day);
 
@@ -199,22 +196,20 @@ export default function Wallet() {
 
         const nextDate = formatLocalDate(next);
 
-        const { error } = await supabase
-          .from("maintenance_reminders")
-          .upsert(
-            {
-              user_id: userId,
-              maintenance_type_id: item.maintenanceTypeId,
-              last_date: item.lastDate,
-              next_date: nextDate,
-              notification_stage: 0,
-              is_active: true,
-              updated_at: new Date().toISOString(),
-            },
-            {
-              onConflict: "user_id,maintenance_type_id",
-            }
-          );
+        const { error } = await supabase.from("maintenance_reminders").upsert(
+          {
+            user_id: userId,
+            maintenance_type_id: item.maintenanceTypeId,
+            last_date: item.lastDate,
+            next_date: nextDate,
+            notification_stage: 0,
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "user_id,maintenance_type_id",
+          },
+        );
 
         if (error) {
           console.log("UPSERT ERROR:", error);
@@ -249,7 +244,7 @@ export default function Wallet() {
   const getFilterCount = (key: "all" | "saved" | "pending") => {
     if (key === "all") {
       return reports.filter(
-        (r: any) => r.status === "saved" || r.status === "pending"
+        (r: any) => r.status === "saved" || r.status === "pending",
       ).length;
     }
 
@@ -274,6 +269,7 @@ export default function Wallet() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {/* قسم التقارير */}
         <View style={styles.sectionHeader}>
           <View style={styles.sectionIconCircle}>
             <Feather name="file-text" size={18} color={COLORS.primary} />
@@ -439,20 +435,13 @@ export default function Wallet() {
           })}
         </ScrollView>
 
+        {/* قسم الصيانات الدورية */}
         <View style={styles.sectionHeader}>
-          <TouchableOpacity
-            onPress={openModal}
-            style={styles.editActionBtn}
-            activeOpacity={0.85}
-          >
-            <Feather name="edit-3" size={15} color="#FFFFFF" />
-            <Text style={styles.editActionText}>تعديل البيانات</Text>
-          </TouchableOpacity>
-
+          {/* تم حذف زر "تعديل البيانات" العام من هنا بناءً على طلبك */}
           <View style={styles.sectionTextBox}>
             <Text style={styles.sectionTitle}>الصيانات الدورية</Text>
             <Text style={styles.sectionSubtitle}>
-              مواعيد الصيانة القادمة حسب آخر تحديث
+              اضغط على أي صيانة لتعديل تاريخها مباشرة
             </Text>
           </View>
         </View>
@@ -467,18 +456,24 @@ export default function Wallet() {
             const hasData = !!item.lastDate;
             const progress = hasData
               ? Math.min(
-                ((item.intervalDays - (item.remainingDays ?? 0)) /
-                  item.intervalDays) *
-                100,
-                100
-              )
+                  ((item.intervalDays - (item.remainingDays ?? 0)) /
+                    item.intervalDays) *
+                    100,
+                  100,
+                )
               : 0;
 
             const isSoon = item.status === "due";
             const isOverdue = item.status === "overdue";
 
             return (
-              <View key={item.maintenanceTypeId} style={styles.maintenanceCard}>
+              /* تحويل الحاوية إلى زر قابل للضغط يفتح نافذة التعديل الخاصة بالصيانة المحددة فقط */
+              <TouchableOpacity
+                key={item.maintenanceTypeId}
+                style={styles.maintenanceCard}
+                activeOpacity={0.7}
+                onPress={() => openSingleMaintenanceModal(item)}
+              >
                 <View style={styles.maintenanceHeader}>
                   <View
                     style={[
@@ -524,12 +519,16 @@ export default function Wallet() {
 
                 <View style={styles.dateRow}>
                   <Text style={styles.dateLabel}>موعد الصيانة القادم:</Text>
-                  <Text style={styles.nextDateText}>{item.nextDate || "—"}</Text>
+                  <Text style={styles.nextDateText}>
+                    {item.nextDate || "—"}
+                  </Text>
                 </View>
 
                 <View style={[styles.dateRow, { marginTop: 5 }]}>
                   <Text style={styles.dateLabel}>آخر صيانة تمت:</Text>
-                  <Text style={styles.lastDateText}>{item.lastDate || "—"}</Text>
+                  <Text style={styles.lastDateText}>
+                    {item.lastDate || "—"}
+                  </Text>
                 </View>
 
                 <View style={styles.progressContainer}>
@@ -545,12 +544,13 @@ export default function Wallet() {
                     ]}
                   />
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })
         )}
       </ScrollView>
 
+      {/* المودال الخاص بالتعديل */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -563,13 +563,16 @@ export default function Wallet() {
                 <Feather name="x" size={20} color={COLORS.primary} />
               </TouchableOpacity>
 
-              <Text style={styles.modalTitle}>تعديل البيانات</Text>
+              <Text style={styles.modalTitle}>تعديل موعد الصيانة</Text>
               <View style={styles.modalHeaderSide} />
             </View>
 
             <View style={styles.modalDivider} />
 
-            <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={styles.modalList}
+              showsVerticalScrollIndicator={false}
+            >
               {editData.map((item) => (
                 <View key={item.maintenanceTypeId} style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>{item.title}</Text>
@@ -615,7 +618,6 @@ export default function Wallet() {
               onCancel={() => setDatePickerVisible(false)}
             />
           </View>
-
         </View>
       </Modal>
     </SafeAreaView>
@@ -629,8 +631,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.bg,
   },
-
-  // Header
   header: {
     alignItems: "center",
     justifyContent: "space-between",
@@ -656,16 +656,12 @@ const styles = StyleSheet.create({
     fontFamily: "Tajawal-Bold",
     textAlign: "center",
   },
-
-  // Scroll Content
   scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 14,
     paddingBottom: 130,
     backgroundColor: COLORS.bg,
   },
-
-  // Section Header
   sectionHeader: {
     flexDirection: "row-reverse",
     justifyContent: "space-between",
@@ -703,8 +699,6 @@ const styles = StyleSheet.create({
     textAlign: "right",
     fontFamily: "Tajawal-Regular",
   },
-
-  // Filter
   filterRow: {
     flexDirection: "row-reverse",
     marginBottom: 12,
@@ -730,15 +724,11 @@ const styles = StyleSheet.create({
   filterChipTextActive: {
     color: "#FFFFFF",
   },
-
-  // Horizontal Scroll
   horizontalScroll: {
     paddingRight: 2,
     paddingLeft: 18,
     flexDirection: "row",
   },
-
-  // Empty State
   emptyCard: {
     width: 220,
     height: 180,
@@ -767,8 +757,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: "center",
   },
-
-  // Report Card
   reportCard: {
     backgroundColor: COLORS.surface,
     padding: 16,
@@ -870,8 +858,6 @@ const styles = StyleSheet.create({
   statusPillTextSaved: {
     color: COLORS.success,
   },
-
-  // Report Actions
   actionsRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
@@ -923,27 +909,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Tajawal-Bold",
   },
-
-  // Edit Button
-  editActionBtn: {
-    height: 40,
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  editActionText: {
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontWeight: "900",
-    fontSize: 12,
-    fontFamily: "Tajawal-Bold",
-  },
-
-  // Maintenance Card
   maintenanceLoadingBox: {
     alignItems: "center",
     justifyContent: "center",
@@ -1010,11 +975,9 @@ const styles = StyleSheet.create({
   daysBadgeDanger: {
     backgroundColor: COLORS.dangerBg,
   },
-
   daysBadgeTextDanger: {
     color: COLORS.danger,
   },
-
   divider: {
     height: 1,
     backgroundColor: "#F2F2F2",
@@ -1055,8 +1018,6 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 4,
   },
-
-  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.32)",
@@ -1105,8 +1066,6 @@ const styles = StyleSheet.create({
   modalList: {
     marginBottom: 18,
   },
-
-  // Input Group
   inputGroup: {
     marginBottom: 14,
     padding: 14,
@@ -1133,8 +1092,6 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontFamily: "Tajawal-Regular",
   },
-
-  // Save Button
   saveBtn: {
     backgroundColor: COLORS.primary,
     height: 54,
