@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
+    TouchableOpacity,
     Alert,
     Image,
     Modal,
@@ -909,13 +910,13 @@ export default function HomeScreen() {
                 </View>
             </ScrollView>
 
-            <Pressable
+            <TouchableOpacity
     style={styles.aiFloatingButton}
     activeOpacity={0.85}
     onPress={() => router.push("/chatbot")}
 >
-   <Feather name="message-circle" size={29} color="#830a0aff" />
-</Pressable>
+    <Feather name="message-circle" size={29} color="#5F5F5F" />
+</TouchableOpacity>
         </SafeAreaView>
     );
 }
