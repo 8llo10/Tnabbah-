@@ -14,9 +14,11 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "../providers/AuthProvider";
+import { useLocalSearchParams } from "expo-router";
 
-const N8N_WEBHOOK_URL =
-    "https://raghad6789.app.n8n.cloud/webhook-test/904796a0-040c-4ce2-8521-417a1d1be905";
+
+const CHATBOT_API_URL = "http://207.180.244.27:4010/chat";
 
 const SESSION_ID = `session-${Date.now()}-${Math.random()
     .toString(36)
@@ -52,6 +54,11 @@ function getCurrentTime() {
 }
 
 export default function Chatbot() {
+
+    const { session, profile } = useAuth();
+    const params = useLocalSearchParams<{ carId?: string }>();
+    const incomingCarId = params.carId;
+
     const scrollRef = useRef<ScrollView | null>(null);
     const inputRef = useRef<TextInput | null>(null);
 
@@ -69,13 +76,19 @@ export default function Chatbot() {
 
     const fetchBotReply = async (userText: string): Promise<string> => {
         try {
+
+            if (!session?.user?.id) {
+                return "لازم تسجلين دخول أولًا عشان أقدر أقرأ بيانات سيارتك.";
+            }
+
+
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 30000);
 
             let res: Response;
 
             try {
-                res = await fetch(N8N_WEBHOOK_URL, {
+                res = await fetch(CHATBOT_API_URL, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -83,7 +96,10 @@ export default function Chatbot() {
                     },
                     body: JSON.stringify({
                         message: userText,
-                        chatInput: userText,
+                        userId: session?.user?.id,
+                        carId: incomingCarId || null,
+                        email: session?.user?.email,
+                        fullName: profile?.full_name ?? null,
                         sessionId: SESSION_ID,
                     }),
                     signal: controller.signal,
