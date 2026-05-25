@@ -18,24 +18,28 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../../providers/AuthProvider";
-import { supabase } from "../../lib/supabase";
 import { useRouter } from "expo-router";
-import { elmBluetoothService } from "../../services/elmBluetoothService";
-import { vehicleScannerService } from "../../services/vehicleScannerService";
-import { mqttService } from "../../services/mqttService";
-import * as Notifications from "expo-notifications";
-import * as Device from "expo-device";
-import Constants from "expo-constants";
+import { useCars, UserCar } from "../../providers/CarsProvider";
+import { useAppSettings } from "../../providers/AppSettingsProvider";
+import { useNotifications } from "../../providers/NotificationsProvider";
+import { useAccountSettings } from "../../providers/AccountSettingsProvider";
 
 
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-    }),
-});
+import {
+    EditNameModal,
+    EditEmailModal,
+    DeleteAccountModal,
+    LogoutLoadingModal,
+} from "../../components/settings/AccountModals";
+import { EditCarNameModal } from "../../components/settings/CarModals";
+import {
+    ConfirmModal,
+    MessageModal,
+} from "../../components/settings/CommonModals";
+import { HelpModal } from "../../components/settings/HelpModal";
+
+
+
 
 
 const COLORS = {
@@ -221,14 +225,6 @@ const translations = {
     },
 };
 
-type UserCar = {
-    id: string;
-    user_id: string;
-    car_id: string;
-    display_name: string | null;
-    last_connected_at: string | null;
-    is_deleted: boolean;
-};
 
 function AppSwitch({
     value,
@@ -286,30 +282,54 @@ export default function Settings() {
     const { profile, session } = useAuth();
     const router = useRouter();
 
-    const [loggingOut, setLoggingOut] = useState(false);
-    const [settingsLoading, setSettingsLoading] = useState(true);
-    const [savingSettings, setSavingSettings] = useState(false);
 
-    const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-    const [darkModeEnabled, setDarkModeEnabled] = useState(false);
-    const [selectedLanguage, setSelectedLanguage] = useState<"AR" | "EN">("AR");
+    const {
+        obdConnected,
+        scannerRunning,
+        mqttConnected,
+        lastConnectionTime,
+        selectedCarId,
+        connectedCarId,
+        userCars,
+        selectDefaultCar,
+        renameCar,
+        deleteCar,
+        stopScanner,
+        disconnectObd,
+    } = useCars();
+
+
+    const {
+        settingsLoading,
+        savingSettings,
+        selectedLanguage,
+        darkModeEnabled,
+        notificationsEnabled,
+        handleLanguageChange,
+        handleDarkModeChange,
+    } = useAppSettings();
+
+    const { handleNotificationsChange } = useNotifications();
+
+
+    const {
+        updateName,
+        updateEmail,
+        deleteAccount,
+        logout,
+    } = useAccountSettings();
+
+    const [loggingOut, setLoggingOut] = useState(false);
+
     const [displayName, setDisplayName] = useState("");
 
-    const [obdConnected, setObdConnected] = useState(false);
-    const [scannerRunning, setScannerRunning] = useState(false);
-
-    const [mqttConnected, setMqttConnected] = useState(false);
-    const [lastConnectionTime, setLastConnectionTime] = useState<string | null>(null);
-
-    const [currentCarId, setCurrentCarId] = useState<string | null>(null);
-    const [knownCarIds, setKnownCarIds] = useState<string[]>([]);
-
-    const [userCars, setUserCars] = useState<UserCar[]>([]);
-    const [carsLoading, setCarsLoading] = useState(false);
     const [editCarVisible, setEditCarVisible] = useState(false);
     const [selectedCarForEdit, setSelectedCarForEdit] = useState<UserCar | null>(null);
     const [carNameInput, setCarNameInput] = useState("");
     const [savingCarName, setSavingCarName] = useState(false);
+
+    const [switchingCarId, setSwitchingCarId] = useState<string | null>(null);
+    const [optimisticSelectedCarId, setOptimisticSelectedCarId] = useState<string | null>(null);
 
     const [helpVisible, setHelpVisible] = useState(false);
     const [confirmLogoutVisible, setConfirmLogoutVisible] = useState(false);
@@ -332,43 +352,20 @@ export default function Settings() {
     const [deletePassword, setDeletePassword] = useState("");
     const [deletingAccount, setDeletingAccount] = useState(false);
 
-    const notificationListener = useRef<any>(null);
-    const responseListener = useRef<any>(null);
+    const [confirmDeleteCarVisible, setConfirmDeleteCarVisible] = useState(false);
+    const [carToDelete, setCarToDelete] = useState<UserCar | null>(null);
 
 
     const t = translations[selectedLanguage];
     const isRTL = selectedLanguage === "AR";
     const theme = darkModeEnabled ? darkTheme : lightTheme;
 
+    const activeSelectedCarId = optimisticSelectedCarId || selectedCarId;
+
     const userName =
         profile?.full_name ||
         session?.user?.user_metadata?.full_name ||
         "مستخدم";
-
-
-
-    useEffect(() => {
-        notificationListener.current =
-            Notifications.addNotificationReceivedListener((notification) => {
-                console.log("Notification received:", notification);
-            });
-
-        responseListener.current =
-            Notifications.addNotificationResponseReceivedListener((response) => {
-                console.log("Notification response:", response);
-            });
-
-        return () => {
-            if (notificationListener.current) {
-                notificationListener.current?.remove();
-            }
-
-            if (responseListener.current) {
-                responseListener.current?.remove();
-            }
-        };
-    }, []);
-
 
 
     useEffect(() => {
@@ -383,284 +380,40 @@ export default function Settings() {
 
     const userId = session?.user?.id || "—";
 
-    const loadUserSettings = async () => {
-        const realUserId = session?.user?.id;
-
-        if (!realUserId) {
-            setSettingsLoading(false);
-            return;
-        }
-
-        setSettingsLoading(true);
-
-        try {
-            const { data, error } = await supabase
-                .from("user_settings")
-                .select("language, dark_mode_enabled, notifications_enabled, last_car_id")
-                .eq("user_id", realUserId)
-                .maybeSingle();
-
-            if (error) throw error;
-
-            if (!data) {
-                const { error: insertError } = await supabase
-                    .from("user_settings")
-                    .insert({
-                        user_id: realUserId,
-                        language: "AR",
-                        dark_mode_enabled: false,
-                        notifications_enabled: true,
-                        last_car_id: null,
-                    });
-
-                if (insertError) throw insertError;
-                return;
-            }
-
-            setSelectedLanguage(data.language === "EN" ? "EN" : "AR");
-            setDarkModeEnabled(!!data.dark_mode_enabled);
-            setNotificationsEnabled(!!data.notifications_enabled);
-
-            if (data.last_car_id) {
-                setCurrentCarId(data.last_car_id);
-            }
-        } catch (error) {
-            console.log("Load user settings error:", error);
-        } finally {
-            setSettingsLoading(false);
-        }
-    };
-
-    const saveUserSettings = async (updates: {
-        language?: "AR" | "EN";
-        dark_mode_enabled?: boolean;
-        notifications_enabled?: boolean;
-        last_car_id?: string | null;
-    }) => {
-        const realUserId = session?.user?.id;
-        if (!realUserId) return;
-
-        setSavingSettings(true);
-
-        try {
-            const { error } = await supabase
-                .from("user_settings")
-                .upsert(
-                    {
-                        user_id: realUserId,
-                        ...updates,
-                        updated_at: new Date().toISOString(),
-                    },
-                    { onConflict: "user_id" }
-                );
-
-            if (error) throw error;
-        } catch (error) {
-            console.log("Save user settings error:", error);
-
-            showMessage({
-                title: selectedLanguage === "AR" ? "حدث خطأ" : "Error",
-                body:
-                    selectedLanguage === "AR"
-                        ? "تعذر حفظ الإعدادات."
-                        : "Could not save settings.",
-                icon: "alert-circle",
-            });
-        } finally {
-            setSavingSettings(false);
-        }
-    };
 
 
-    const saveExpoPushToken = async (token: string | null) => {
-        const realUserId = session?.user?.id;
-        if (!realUserId) return;
-
-        const { error } = await supabase
-            .from("profiles")
-            .update({
-                expo_push_token: token,
-                updated_at: new Date().toISOString(),
-            })
-            .eq("id", realUserId);
-
-        if (error) {
-            console.log("Save expo push token error:", error);
-        }
-    };
-
-    const getProjectId = () => {
-        return (
-            Constants.easConfig?.projectId ||
-            Constants.expoConfig?.extra?.eas?.projectId
-        );
-    };
-
-    const registerForPushNotifications = async () => {
-        if (!Device.isDevice) {
-            showMessage({
-                title: selectedLanguage === "AR" ? "تنبيه" : "Notice",
-                body:
-                    selectedLanguage === "AR"
-                        ? "الإشعارات تحتاج جهاز حقيقي للتجربة."
-                        : "Push notifications require a real device.",
-                icon: "alert-circle",
-            });
-
-            return null;
-        }
-
-        const currentPermission = await Notifications.getPermissionsAsync();
-        let finalStatus = currentPermission.status;
-
-        if (finalStatus !== "granted") {
-            const requestedPermission = await Notifications.requestPermissionsAsync();
-            finalStatus = requestedPermission.status;
-        }
-
-        if (finalStatus !== "granted") {
-            await saveUserSettings({ notifications_enabled: false });
-            await saveExpoPushToken(null);
-            setNotificationsEnabled(false);
-
-            showMessage({
-                title: t.notificationsDeniedTitle,
-                body: t.notificationsDeniedBody,
-                icon: "alert-circle",
-            });
-
-            setTimeout(() => {
-                Linking.openSettings();
-            }, 900);
-
-            return null;
-        }
-
-        if (Platform.OS === "android") {
-            await Notifications.setNotificationChannelAsync("default", {
-                name: "default",
-                importance: Notifications.AndroidImportance.MAX,
-            });
-        }
-
-        const projectId = getProjectId();
-
-        if (!projectId) {
-            console.log("No Expo projectId found");
-            return null;
-        }
-
-        try {
-            const tokenData = await Notifications.getExpoPushTokenAsync({
-                projectId,
-            });
-
-            return tokenData.data;
-        } catch (error) {
-            console.log("Expo push token error:", error);
-
-            /*  showMessage({
-                 title: selectedLanguage === "AR" ? "الإشعارات غير جاهزة" : "Notifications not ready",
-                 body:
-                     selectedLanguage === "AR"
-                         ? "إعدادات إشعارات أندرويد تحتاج FCM. سنوقف الإشعارات مؤقتًا."
-                         : "Android notifications need FCM setup. Notifications will be disabled for now.",
-                 icon: "alert-circle",
-             }); */
-
-            await saveExpoPushToken(null);
-            return "LOCAL_ONLY";
-        }
-    };
-
-    const handleNotificationsChange = async (value: boolean) => {
-        if (value) {
-            const token = await registerForPushNotifications();
-
-            if (!token) {
-                return;
-            }
-
-            setNotificationsEnabled(true);
-            await saveUserSettings({ notifications_enabled: true });
-            await saveExpoPushToken(token === "LOCAL_ONLY" ? null : token);
-
-            return;
-        }
-
-        setNotificationsEnabled(false);
-        await saveUserSettings({ notifications_enabled: false });
-        await saveExpoPushToken(null);
-    };
-
-    useEffect(() => {
-        if (!session?.user?.id) return;
-        if (!notificationsEnabled) return;
-
-        registerForPushNotifications()
-            .then(async (token) => {
-                if (!token) return;
-
-                await saveExpoPushToken(
-                    token === "LOCAL_ONLY" ? null : token
-                );
-            })
-            .catch((error) => {
-                console.log("Auto push registration error:", error);
-            });
-    }, [session?.user?.id, notificationsEnabled]);
-
-    const handleDarkModeChange = async (value: boolean) => {
-        setDarkModeEnabled(value);
-        await saveUserSettings({ dark_mode_enabled: value });
-    };
-
-    const handleLanguageChange = async (value: "AR" | "EN") => {
-        setSelectedLanguage(value);
-        await saveUserSettings({ language: value });
-    };
-
-    const saveLastCarId = async (carId: string | null) => {
-        setCurrentCarId(carId);
-        await saveUserSettings({ last_car_id: carId });
-    };
-
-    const loadUserCars = async () => {
-        const realUserId = session?.user?.id;
-        if (!realUserId) return;
-
-        setCarsLoading(true);
-
-        try {
-            const { data, error } = await supabase
-                .from("user_cars")
-                .select("id, user_id, car_id, display_name, last_connected_at, is_deleted")
-                .eq("user_id", realUserId)
-                .eq("is_deleted", false)
-                .order("last_connected_at", { ascending: false, nullsFirst: false });
-
-            if (error) throw error;
-
-            setUserCars(data || []);
-        } catch (error) {
-            console.log("Load user cars error:", error);
-        } finally {
-            setCarsLoading(false);
-        }
-    };
 
     const handleSelectDefaultCar = async (carId: string) => {
-        await saveLastCarId(carId);
+        if (switchingCarId) return;
+        if (carId === activeSelectedCarId) return;
 
-        showMessage({
-            title: t.done,
-            body:
-                selectedLanguage === "AR"
-                    ? "تم تعيين السيارة كافتراضية."
-                    : "Default car has been updated.",
-            icon: "check-circle",
-        });
+        const previousCarId = activeSelectedCarId;
+
+        setSwitchingCarId(carId);
+        setOptimisticSelectedCarId(carId);
+
+        try {
+            await selectDefaultCar(carId);
+
+            setOptimisticSelectedCarId(null);
+        } catch (error) {
+            console.log("Select car error:", error);
+
+            setOptimisticSelectedCarId(previousCarId);
+
+            showMessage({
+                title: t.errorTitle,
+                body:
+                    selectedLanguage === "AR"
+                        ? "تعذر اختيار السيارة. رجعنا للاختيار السابق."
+                        : "Could not select car. Restored previous selection.",
+                icon: "alert-circle",
+            });
+        } finally {
+            setSwitchingCarId(null);
+        }
     };
+
 
     const openEditCarName = (car: UserCar) => {
         setSelectedCarForEdit(car);
@@ -674,23 +427,11 @@ export default function Settings() {
         setSavingCarName(true);
 
         try {
-            const cleanName = carNameInput.trim();
-
-            const { error } = await supabase
-                .from("user_cars")
-                .update({
-                    display_name: cleanName || null,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq("id", selectedCarForEdit.id);
-
-            if (error) throw error;
+            await renameCar(selectedCarForEdit.id, carNameInput);
 
             setEditCarVisible(false);
             setSelectedCarForEdit(null);
             setCarNameInput("");
-
-            await loadUserCars();
 
             showMessage({
                 title: t.done,
@@ -702,6 +443,7 @@ export default function Settings() {
             });
         } catch (error) {
             console.log("Save car name error:", error);
+
             showMessage({
                 title: t.errorTitle,
                 body:
@@ -717,21 +459,7 @@ export default function Settings() {
 
     const handleDeleteCar = async (car: UserCar) => {
         try {
-            const { error } = await supabase
-                .from("user_cars")
-                .update({
-                    is_deleted: true,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq("id", car.id);
-
-            if (error) throw error;
-
-            if (currentCarId === car.car_id) {
-                await saveLastCarId(null);
-            }
-
-            await loadUserCars();
+            await deleteCar(car);
 
             showMessage({
                 title: t.done,
@@ -743,6 +471,7 @@ export default function Settings() {
             });
         } catch (error) {
             console.log("Delete car error:", error);
+
             showMessage({
                 title: t.errorTitle,
                 body:
@@ -753,130 +482,6 @@ export default function Settings() {
             });
         }
     };
-
-    const refreshObdState = async () => {
-        const connected = await elmBluetoothService
-            .isActuallyConnected?.()
-            .catch(() => false);
-
-        setObdConnected(!!connected);
-        setScannerRunning(vehicleScannerService.isAutoScanRunning());
-        const cachedCarId = vehicleScannerService.getCachedCarId();
-
-        if (cachedCarId) {
-            setCurrentCarId(cachedCarId);
-        }
-    };
-
-    useEffect(() => {
-        refreshObdState();
-
-        const interval = setInterval(refreshObdState, 1500);
-        return () => clearInterval(interval);
-    }, []);
-
-    useEffect(() => {
-        loadUserSettings();
-    }, [session?.user?.id]);
-
-    useEffect(() => {
-        loadUserCars();
-    }, [session?.user?.id]);
-
-    useEffect(() => {
-        let mounted = true;
-        let client: any = null;
-
-        const setupCarsListener = async () => {
-            try {
-                const { data } = await supabase.auth.getUser();
-                const userId = data.user?.id;
-
-                if (!userId) return;
-
-                client = await mqttService.connectAsync();
-                setMqttConnected(true);
-
-                const topics = [
-                    `Tnabbah/${userId}/+/identity`,
-                    `Tnabbah/${userId}/+/status`,
-                ];
-
-                client.subscribe(topics);
-
-                const onMessage = (topic: string, message: Buffer) => {
-                    if (!mounted) return;
-
-                    const parts = topic.split("/");
-                    const incomingCarId = parts[2];
-
-                    if (incomingCarId) {
-                        setKnownCarIds((prev) =>
-                            prev.includes(incomingCarId) ? prev : [...prev, incomingCarId]
-                        );
-                    }
-
-                    try {
-                        const parsed = JSON.parse(message.toString());
-                        const data = parsed?.data ?? parsed;
-
-                        if (data?.obdConnected && incomingCarId) {
-                            saveLastCarId(incomingCarId);
-                            const now = new Date().toISOString();
-                            setLastConnectionTime(now);
-
-                            const realUserId = session?.user?.id;
-
-                            if (realUserId) {
-                                supabase
-                                    .from("user_cars")
-                                    .upsert(
-                                        {
-                                            user_id: realUserId,
-                                            car_id: incomingCarId,
-                                            display_name: null,
-                                            last_connected_at: now,
-                                            is_deleted: false,
-                                            updated_at: now,
-                                        },
-                                        { onConflict: "user_id,car_id" }
-                                    )
-                                    .then(() => loadUserCars());
-                            }
-                        }
-                    } catch (error) {
-                        console.log("Settings MQTT message parse error:", error);
-                    }
-                };
-
-                client.on("message", onMessage);
-
-                return () => {
-                    try {
-                        client.off?.("message", onMessage);
-                        client.unsubscribe?.(topics);
-                    } catch (error) {
-                        console.log("Settings MQTT cleanup error:", error);
-                    }
-                };
-            } catch (error) {
-                console.log("Settings cars listener error:", error);
-                setMqttConnected(false);
-            }
-        };
-
-        let cleanup: any;
-
-        setupCarsListener().then((fn) => {
-            cleanup = fn;
-        });
-
-        return () => {
-            mounted = false;
-            setMqttConnected(false);
-            if (cleanup) cleanup();
-        };
-    }, []);
 
     const showMessage = ({
         title,
@@ -903,7 +508,7 @@ export default function Settings() {
     const openSupportEmail = () => {
         const subject = encodeURIComponent("Tnabbah Support Request");
         const body = encodeURIComponent(
-            `User ID: ${userId}\nEmail: ${userEmail}\nCurrent Car: ${currentCarId || "—"}\n\nاكتبي مشكلتك هنا:\n`
+            `User ID: ${userId}\nEmail: ${userEmail}\nCurrent Car: ${selectedCarId || "—"}\n\nاكتبي مشكلتك هنا:\n`
         );
 
         Linking.openURL(`mailto:tanbbahteem@gmail.com?subject=${subject}&body=${body}`);
@@ -911,7 +516,7 @@ export default function Settings() {
 
     const openWhatsAppSupport = () => {
         const message = encodeURIComponent(
-            `مرحبا، أحتاج مساعدة في تطبيق تنبّه.\nUser ID: ${userId}\nCurrent Car: ${currentCarId || "—"}`
+            `مرحبا، أحتاج مساعدة في تطبيق تنبّه.\nUser ID: ${userId}\nCurrent Car: ${selectedCarId || "—"}`
         );
 
         Linking.openURL(`https://wa.me/966560602239?text=${message}`);
@@ -920,7 +525,7 @@ export default function Settings() {
     const sendIssueReport = () => {
         const subject = encodeURIComponent("Tnabbah Issue Report");
         const body = encodeURIComponent(
-            `Issue Report\n\nUser ID: ${userId}\nEmail: ${userEmail}\nCurrent Car: ${currentCarId || "—"}\nOBD Connected: ${obdConnected}\nScanner Running: ${scannerRunning}\nMQTT Connected: ${mqttConnected}\nLast Connection: ${lastConnectionTime || "—"}\n\nDescribe the issue:\n`
+            `Issue Report\n\nUser ID: ${userId}\nEmail: ${userEmail}\nCurrent Car: ${connectedCarId || "—"}\nOBD Connected: ${obdConnected}\nScanner Running: ${scannerRunning}\nMQTT Connected: ${mqttConnected}\nLast Connection: ${lastConnectionTime || "—"}\n\nDescribe the issue:\n`
         );
 
         Linking.openURL(`mailto:tanbbahteem@gmail.com?subject=${subject}&body=${body}`);
@@ -928,8 +533,7 @@ export default function Settings() {
 
     const handleStopScanner = async () => {
         try {
-            await vehicleScannerService.stopAutoScan();
-            await refreshObdState();
+            await stopScanner();
 
             showMessage({
                 title: t.done,
@@ -938,6 +542,7 @@ export default function Settings() {
             });
         } catch (error) {
             console.log("Stop scanner error:", error);
+
             showMessage({
                 title: t.errorTitle,
                 body:
@@ -953,10 +558,7 @@ export default function Settings() {
         setConfirmDisconnectVisible(false);
 
         try {
-            await vehicleScannerService.stopAutoScan();
-            await elmBluetoothService.disconnect();
-            await refreshObdState();
-
+            await disconnectObd();
 
             showMessage({
                 title: t.done,
@@ -965,6 +567,7 @@ export default function Settings() {
             });
         } catch (error) {
             console.log("Disconnect OBD error:", error);
+
             showMessage({
                 title: t.errorTitle,
                 body:
@@ -985,25 +588,7 @@ export default function Settings() {
         setSavingName(true);
 
         try {
-            const { error: profileError } = await supabase
-                .from("profiles")
-                .update({
-                    full_name: cleanName,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq("id", realUserId);
-
-            if (profileError) throw profileError;
-
-            const { error: authError } = await supabase.auth.updateUser({
-                data: {
-                    full_name: cleanName,
-                    name: cleanName,
-                    display_name: cleanName,
-                },
-            });
-
-            if (authError) throw authError;
+            await updateName(cleanName);
 
             setEditNameVisible(false);
             setDisplayName(cleanName);
@@ -1046,11 +631,7 @@ export default function Settings() {
         setSavingEmail(true);
 
         try {
-            const { error } = await supabase.auth.updateUser({
-                email: cleanEmail,
-            });
-
-            if (error) throw error;
+            await updateEmail(cleanEmail);
 
             setEditEmailVisible(false);
 
@@ -1099,53 +680,7 @@ export default function Settings() {
         setDeletingAccount(true);
 
         try {
-            const { error } = await supabase.auth.signInWithPassword({
-                email: userEmail,
-                password: deletePassword,
-            });
-
-
-
-            if (error) {
-                showMessage({
-                    title: t.errorTitle,
-                    body:
-                        selectedLanguage === "AR"
-                            ? "كلمة المرور غير صحيحة."
-                            : "Incorrect password.",
-                    icon: "alert-circle",
-                });
-
-                setDeletingAccount(false);
-                return;
-            }
-
-            const {
-                data: { session: freshSession },
-            } = await supabase.auth.getSession();
-
-            const accessToken = freshSession?.access_token;
-
-            if (!accessToken) {
-                throw new Error("No access token");
-            }
-
-            const response = await fetch(
-                "https://qzhnghwmgujgthbkivdi.supabase.co/functions/v1/delete-account",
-                {
-                    method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${accessToken}`,
-                        "Content-Type": "application/json",
-                    },
-                }
-            );
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result?.error || "Delete failed");
-            }
+            await deleteAccount(deletePassword);
 
             setDeleteAccountVisible(false);
             setDeletePassword("");
@@ -1163,7 +698,6 @@ export default function Settings() {
             });
 
             setTimeout(async () => {
-                await supabase.auth.signOut();
                 router.replace("/start" as any);
             }, 1200);
 
@@ -1192,33 +726,7 @@ export default function Settings() {
         setLoggingOut(true);
 
         try {
-            await vehicleScannerService.stopAutoScan();
-            await elmBluetoothService.disconnect();
-            try {
-                mqttService.disconnect();
-            } catch (error) {
-                console.log("MQTT disconnect error:", error);
-            }
-
-            try {
-                vehicleScannerService.resetCache();
-            } catch (error) {
-                console.log("Scanner cache reset error:", error);
-            }
-
-            const { error } = await supabase.auth.signOut();
-
-            if (error) {
-                setLoggingOut(false);
-
-                showMessage({
-                    title: t.errorTitle,
-                    body: t.logoutError,
-                    icon: "alert-circle",
-                });
-
-                return;
-            }
+            await logout(disconnectObd);
 
             router.replace("/start" as any);
         } catch (error) {
@@ -1489,8 +997,8 @@ export default function Settings() {
                                         { color: theme.textSecondary, textAlign },
                                     ]}
                                 >
-                                    {userCars.find((car) => car.car_id === currentCarId)?.display_name ||
-                                        currentCarId ||
+                                    {userCars.find((car) => car.car_id === activeSelectedCarId)?.display_name ||
+                                        activeSelectedCarId ||
                                         t.noCar}
                                 </Text>
                             </View>
@@ -1540,6 +1048,29 @@ export default function Settings() {
                         </View>
                     </View>
 
+
+                    <Text
+                        style={{
+                            color: connectedCarId ? COLORS.success : theme.textSecondary,
+                            textAlign,
+                            marginTop: 10,
+                            fontSize: 12,
+                            fontWeight: "700",
+                        }}
+                    >
+                        {connectedCarId
+                            ? selectedLanguage === "AR"
+                                ? `السيارة المتصلة الآن: ${userCars.find((car) => car.car_id === connectedCarId)?.display_name ||
+                                connectedCarId
+                                }`
+                                : `Connected now: ${userCars.find((car) => car.car_id === connectedCarId)?.display_name ||
+                                connectedCarId
+                                }`
+                            : selectedLanguage === "AR"
+                                ? "لا توجد سيارة متصلة الآن"
+                                : "No car is connected now"}
+                    </Text>
+
                     <View
                         style={[
                             styles.panelDivider,
@@ -1547,11 +1078,8 @@ export default function Settings() {
                         ]}
                     />
 
-                    {carsLoading ? (
-                        <View style={{ paddingVertical: 18 }}>
-                            <ActivityIndicator size="small" color={theme.iconColor} />
-                        </View>
-                    ) : userCars.length === 0 ? (
+
+                    {userCars.length === 0 ? (
                         <Text
                             style={{
                                 color: theme.textSecondary,
@@ -1560,7 +1088,7 @@ export default function Settings() {
                                 fontSize: 13,
                             }}
                         >
-                            {currentCarId
+                            {connectedCarId
                                 ? selectedLanguage === "AR"
                                     ? "تم العثور على آخر سيارة متصلة، وسيتم حفظها عند وصول أول تحديث اتصال."
                                     : "Last connected car found. It will be saved when the next connection update arrives."
@@ -1571,7 +1099,9 @@ export default function Settings() {
                     ) : (
                         <View style={{ marginTop: 12, gap: 12 }}>
                             {userCars.map((car) => {
-                                const isCurrent = currentCarId === car.car_id;
+                                const isCurrent = activeSelectedCarId === car.car_id;
+                                const isSwitchingThisCar = switchingCarId === car.car_id;
+                                const isConnectedNow = connectedCarId === car.car_id;
 
                                 return (
                                     <View
@@ -1648,6 +1178,29 @@ export default function Settings() {
                                                             } ${car.car_id}`}
                                                     </Text>
 
+                                                    {isConnectedNow && (
+                                                        <View
+                                                            style={{
+                                                                alignSelf: isRTL ? "flex-end" : "flex-start",
+                                                                backgroundColor: theme.successBg,
+                                                                borderRadius: 999,
+                                                                paddingHorizontal: 10,
+                                                                paddingVertical: 4,
+                                                                marginTop: 6,
+                                                            }}
+                                                        >
+                                                            <Text
+                                                                style={{
+                                                                    color: COLORS.success,
+                                                                    fontSize: 11,
+                                                                    fontWeight: "800",
+                                                                }}
+                                                            >
+                                                                {selectedLanguage === "AR" ? "متصلة الآن" : "Connected now"}
+                                                            </Text>
+                                                        </View>
+                                                    )}
+
                                                     <Text
                                                         numberOfLines={1}
                                                         style={[
@@ -1695,27 +1248,29 @@ export default function Settings() {
                                         >
                                             {!isCurrent && (
                                                 <Pressable
-                                                    onPress={() =>
-                                                        handleSelectDefaultCar(car.car_id)
-                                                    }
+                                                    onPress={() => handleSelectDefaultCar(car.car_id)}
+                                                    disabled={!!switchingCarId}
                                                     style={{
                                                         backgroundColor: COLORS.primary,
                                                         paddingHorizontal: 12,
                                                         paddingVertical: 10,
                                                         borderRadius: 12,
+                                                        opacity: switchingCarId ? 0.65 : 1,
                                                     }}
                                                 >
-                                                    <Text
-                                                        style={{
-                                                            color: "#FFF",
-                                                            fontSize: 12,
-                                                            fontWeight: "700",
-                                                        }}
-                                                    >
-                                                        {selectedLanguage === "AR"
-                                                            ? "تعيين"
-                                                            : "Set"}
-                                                    </Text>
+                                                    {isSwitchingThisCar ? (
+                                                        <ActivityIndicator size="small" color="#FFF" />
+                                                    ) : (
+                                                        <Text
+                                                            style={{
+                                                                color: "#FFF",
+                                                                fontSize: 12,
+                                                                fontWeight: "700",
+                                                            }}
+                                                        >
+                                                            {selectedLanguage === "AR" ? "تعيين" : "Set"}
+                                                        </Text>
+                                                    )}
                                                 </Pressable>
                                             )}
 
@@ -1742,7 +1297,10 @@ export default function Settings() {
                                             </Pressable>
 
                                             <Pressable
-                                                onPress={() => handleDeleteCar(car)}
+                                                onPress={() => {
+                                                    setCarToDelete(car);
+                                                    setConfirmDeleteCarVisible(true);
+                                                }}
                                                 style={{
                                                     backgroundColor: "rgba(135,27,23,0.12)",
                                                     paddingHorizontal: 12,
@@ -2509,6 +2067,30 @@ export default function Settings() {
                 </View>
             </ScrollView>
 
+            {switchingCarId && (
+                <View style={styles.fullScreenBlockingOverlay}>
+                    <View
+                        style={[
+                            styles.blockingOverlayCard,
+                            { backgroundColor: theme.surface },
+                        ]}
+                    >
+                        <ActivityIndicator size="small" color={COLORS.primary} />
+
+                        <Text
+                            style={[
+                                styles.blockingOverlayText,
+                                { color: theme.textPrimary },
+                            ]}
+                        >
+                            {selectedLanguage === "AR"
+                                ? "جاري تبديل السيارة..."
+                                : "Switching vehicle..."}
+                        </Text>
+                    </View>
+                </View>
+            )}
+
             <HelpModal
                 visible={helpVisible}
                 onClose={() => setHelpVisible(false)}
@@ -2518,6 +2100,7 @@ export default function Settings() {
                 onEmail={openSupportEmail}
                 onWhatsApp={openWhatsAppSupport}
                 onIssue={sendIssueReport}
+                styles={styles}
             />
 
             <ConfirmModal
@@ -2530,6 +2113,7 @@ export default function Settings() {
                 theme={theme}
                 isRTL={isRTL}
                 danger
+                styles={styles}
                 onCancel={() => setConfirmLogoutVisible(false)}
                 onConfirm={handleLogout}
             />
@@ -2543,8 +2127,36 @@ export default function Settings() {
                 icon="power"
                 theme={theme}
                 isRTL={isRTL}
+                styles={styles}
                 onCancel={() => setConfirmDisconnectVisible(false)}
                 onConfirm={handleDisconnectObd}
+            />
+
+            <ConfirmModal
+                visible={confirmDeleteCarVisible}
+                title={selectedLanguage === "AR" ? "حذف السيارة" : "Delete Car"}
+                message={
+                    selectedLanguage === "AR"
+                        ? "هل أنتِ متأكدة؟ سيتم حذف السيارة من قائمتك، وإذا كانت متصلة سيتم فصل الاتصال وإيقاف المتابعة."
+                        : "Are you sure? This car will be removed from your list. If it is connected, the connection will be ended."
+                }
+                confirmText={selectedLanguage === "AR" ? "حذف" : "Delete"}
+                cancelText={t.cancel}
+                icon="trash-2"
+                theme={theme}
+                isRTL={isRTL}
+                danger
+                styles={styles}
+                onCancel={() => {
+                    setConfirmDeleteCarVisible(false);
+                    setCarToDelete(null);
+                }}
+                onConfirm={async () => {
+                    if (!carToDelete) return;
+                    setConfirmDeleteCarVisible(false);
+                    await handleDeleteCar(carToDelete);
+                    setCarToDelete(null);
+                }}
             />
 
             <MessageModal
@@ -2555,6 +2167,7 @@ export default function Settings() {
                 buttonText={t.ok}
                 theme={theme}
                 isRTL={isRTL}
+                styles={styles}
                 onClose={() => setMessageVisible(false)}
             />
 
@@ -2568,6 +2181,7 @@ export default function Settings() {
                 theme={theme}
                 isRTL={isRTL}
                 t={t}
+                styles={styles}
             />
 
             <EditEmailModal
@@ -2580,6 +2194,7 @@ export default function Settings() {
                 theme={theme}
                 isRTL={isRTL}
                 t={t}
+                styles={styles}
             />
 
             <EditCarNameModal
@@ -2595,6 +2210,7 @@ export default function Settings() {
                 saving={savingCarName}
                 theme={theme}
                 isRTL={isRTL}
+                styles={styles}
             />
 
             <DeleteAccountModal
@@ -2609,6 +2225,7 @@ export default function Settings() {
                 loading={deletingAccount}
                 theme={theme}
                 isRTL={isRTL}
+                styles={styles}
             />
 
 
@@ -2617,977 +2234,9 @@ export default function Settings() {
                 visible={loggingOut}
                 text={t.loggingOut}
                 theme={theme}
+                styles={styles}
             />
         </SafeAreaView>
-    );
-}
-
-function EditNameModal({
-    visible,
-    value,
-    onChangeText,
-    onCancel,
-    onSave,
-    saving,
-    theme,
-    isRTL,
-    t,
-}: {
-    visible: boolean;
-    value: string;
-    onChangeText: (text: string) => void;
-    onCancel: () => void;
-    onSave: () => void;
-    saving: boolean;
-    theme: any;
-    isRTL: boolean;
-    t: any;
-}) {
-    const textAlign = isRTL ? "right" : "left";
-    const rowDirection = isRTL ? "row-reverse" : "row";
-
-    return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-            <View style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}>
-                <View
-                    style={[
-                        styles.confirmModal,
-                        {
-                            backgroundColor: theme.surface,
-                            borderColor: theme.cardBorder,
-                        },
-                    ]}
-                >
-                    <Text style={[styles.confirmTitle, { color: theme.textPrimary }]}>
-                        {isRTL ? "تعديل الاسم" : "Edit Name"}
-                    </Text>
-
-                    <TextInput
-                        value={value}
-                        onChangeText={onChangeText}
-                        placeholder={isRTL ? "اكتبي الاسم" : "Enter name"}
-                        placeholderTextColor={theme.textSecondary}
-                        style={[
-                            styles.nameInput,
-                            {
-                                color: theme.textPrimary,
-                                borderColor: theme.cardBorder,
-                                backgroundColor: theme.subtle,
-                                textAlign,
-                            },
-                        ]}
-                    />
-
-                    <View style={[styles.confirmButtons, { flexDirection: rowDirection }]}>
-                        <Pressable
-                            style={[
-                                styles.confirmSecondaryButton,
-                                {
-                                    backgroundColor: theme.iconBg,
-                                    borderColor: theme.cardBorder,
-                                },
-                            ]}
-                            onPress={onCancel}
-                            disabled={saving}
-                        >
-                            <Text style={[styles.confirmSecondaryText, { color: theme.textPrimary }]}>
-                                {t.cancel}
-                            </Text>
-                        </Pressable>
-
-                        <Pressable
-                            style={[
-                                styles.confirmPrimaryButton,
-                                { backgroundColor: COLORS.primary },
-                                saving && { opacity: 0.7 },
-                            ]}
-                            onPress={onSave}
-                            disabled={saving}
-                        >
-                            {saving ? (
-                                <ActivityIndicator size="small" color="#FFFFFF" />
-                            ) : (
-                                <Text style={styles.confirmPrimaryText}>
-                                    {t.confirm}
-                                </Text>
-                            )}
-                        </Pressable>
-                    </View>
-                </View>
-            </View>
-        </Modal>
-    );
-}
-
-
-function EditEmailModal({
-    visible,
-    value,
-    onChangeText,
-    onCancel,
-    onSave,
-    saving,
-    theme,
-    isRTL,
-    t,
-}: {
-    visible: boolean;
-    value: string;
-    onChangeText: (text: string) => void;
-    onCancel: () => void;
-    onSave: () => void;
-    saving: boolean;
-    theme: any;
-    isRTL: boolean;
-    t: any;
-}) {
-    const textAlign = isRTL ? "right" : "left";
-    const rowDirection = isRTL ? "row-reverse" : "row";
-
-    return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-            <View style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}>
-                <View style={[styles.confirmModal, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
-                    <Text style={[styles.confirmTitle, { color: theme.textPrimary }]}>
-                        {isRTL ? "تعديل الإيميل" : "Edit Email"}
-                    </Text>
-
-                    <TextInput
-                        value={value}
-                        onChangeText={onChangeText}
-                        placeholder={isRTL ? "اكتبي الإيميل الجديد" : "Enter new email"}
-                        placeholderTextColor={theme.textSecondary}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        style={[
-                            styles.nameInput,
-                            {
-                                color: theme.textPrimary,
-                                borderColor: theme.cardBorder,
-                                backgroundColor: theme.subtle,
-                                textAlign,
-                            },
-                        ]}
-                    />
-
-                    <View style={[styles.confirmButtons, { flexDirection: rowDirection }]}>
-                        <Pressable
-                            style={[styles.confirmSecondaryButton, { backgroundColor: theme.iconBg, borderColor: theme.cardBorder }]}
-                            onPress={onCancel}
-                            disabled={saving}
-                        >
-                            <Text style={[styles.confirmSecondaryText, { color: theme.textPrimary }]}>
-                                {t.cancel}
-                            </Text>
-                        </Pressable>
-
-                        <Pressable
-                            style={[styles.confirmPrimaryButton, { backgroundColor: COLORS.primary }, saving && { opacity: 0.7 }]}
-                            onPress={onSave}
-                            disabled={saving}
-                        >
-                            {saving ? (
-                                <ActivityIndicator size="small" color="#FFFFFF" />
-                            ) : (
-                                <Text style={styles.confirmPrimaryText}>{t.confirm}</Text>
-                            )}
-                        </Pressable>
-                    </View>
-                </View>
-            </View>
-        </Modal>
-    );
-}
-
-function EditCarNameModal({
-    visible,
-    value,
-    onChangeText,
-    onCancel,
-    onSave,
-    saving,
-    theme,
-    isRTL,
-}: {
-    visible: boolean;
-    value: string;
-    onChangeText: (text: string) => void;
-    onCancel: () => void;
-    onSave: () => void;
-    saving: boolean;
-    theme: any;
-    isRTL: boolean;
-}) {
-    const textAlign = isRTL ? "right" : "left";
-    const rowDirection = isRTL ? "row-reverse" : "row";
-
-    return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-            <View style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}>
-                <View style={[styles.confirmModal, { backgroundColor: theme.surface, borderColor: theme.cardBorder }]}>
-                    <Text style={[styles.confirmTitle, { color: theme.textPrimary }]}>
-                        {isRTL ? "تسمية السيارة" : "Rename Car"}
-                    </Text>
-
-                    <TextInput
-                        value={value}
-                        onChangeText={onChangeText}
-                        placeholder={isRTL ? "اسم السيارة" : "Car name"}
-                        placeholderTextColor={theme.textSecondary}
-                        style={[
-                            styles.nameInput,
-                            {
-                                color: theme.textPrimary,
-                                borderColor: theme.cardBorder,
-                                backgroundColor: theme.subtle,
-                                textAlign,
-                            },
-                        ]}
-                    />
-
-                    <View style={[styles.confirmButtons, { flexDirection: rowDirection }]}>
-                        <Pressable
-                            style={[
-                                styles.confirmSecondaryButton,
-                                {
-                                    backgroundColor: theme.iconBg,
-                                    borderColor: theme.cardBorder,
-                                },
-                            ]}
-                            onPress={onCancel}
-                            disabled={saving}
-                        >
-                            <Text style={[styles.confirmSecondaryText, { color: theme.textPrimary }]}>
-                                {isRTL ? "إلغاء" : "Cancel"}
-                            </Text>
-                        </Pressable>
-
-                        <Pressable
-                            style={[
-                                styles.confirmPrimaryButton,
-                                { backgroundColor: COLORS.primary },
-                                saving && { opacity: 0.7 },
-                            ]}
-                            onPress={onSave}
-                            disabled={saving}
-                        >
-                            {saving ? (
-                                <ActivityIndicator size="small" color="#FFFFFF" />
-                            ) : (
-                                <Text style={styles.confirmPrimaryText}>
-                                    {isRTL ? "حفظ" : "Save"}
-                                </Text>
-                            )}
-                        </Pressable>
-                    </View>
-                </View>
-            </View>
-        </Modal>
-    );
-}
-
-function DeleteAccountModal({
-    visible,
-    password,
-    onChangePassword,
-    onCancel,
-    onConfirm,
-    loading,
-    theme,
-    isRTL,
-}: {
-    visible: boolean;
-    password: string;
-    onChangePassword: (text: string) => void;
-    onCancel: () => void;
-    onConfirm: () => void;
-    loading: boolean;
-    theme: any;
-    isRTL: boolean;
-}) {
-    const textAlign = isRTL ? "right" : "left";
-    const rowDirection = isRTL ? "row-reverse" : "row";
-
-    return (
-        <Modal
-            visible={visible}
-            transparent
-            animationType="fade"
-            onRequestClose={onCancel}
-        >
-            <View
-                style={[
-                    styles.modalOverlay,
-                    { backgroundColor: theme.modalOverlay },
-                ]}
-            >
-                <View
-                    style={[
-                        styles.confirmModal,
-                        {
-                            backgroundColor: theme.surface,
-                            borderColor: theme.cardBorder,
-                        },
-                    ]}
-                >
-                    <View
-                        style={[
-                            styles.confirmIconCircle,
-                            {
-                                backgroundColor: "rgba(135,27,23,0.12)",
-                            },
-                        ]}
-                    >
-                        <Feather
-                            name="trash-2"
-                            size={28}
-                            color={COLORS.danger}
-                        />
-                    </View>
-
-                    <Text
-                        style={[
-                            styles.confirmTitle,
-                            { color: theme.textPrimary },
-                        ]}
-                    >
-                        {isRTL ? "حذف الحساب" : "Delete Account"}
-                    </Text>
-
-                    <Text
-                        style={[
-                            styles.confirmMessage,
-                            {
-                                color: theme.textSecondary,
-                                textAlign,
-                            },
-                        ]}
-                    >
-                        {isRTL
-                            ? "هذا الإجراء نهائي. اكتبي كلمة المرور الحالية للمتابعة."
-                            : "This action is permanent. Enter your current password to continue."}
-                    </Text>
-
-                    <TextInput
-                        value={password}
-                        onChangeText={onChangePassword}
-                        secureTextEntry
-                        placeholder={
-                            isRTL
-                                ? "كلمة المرور الحالية"
-                                : "Current password"
-                        }
-                        placeholderTextColor={theme.textSecondary}
-                        style={[
-                            styles.nameInput,
-                            {
-                                color: theme.textPrimary,
-                                borderColor: theme.cardBorder,
-                                backgroundColor: theme.subtle,
-                                textAlign,
-                            },
-                        ]}
-                    />
-
-                    <View
-                        style={[
-                            styles.confirmButtons,
-                            { flexDirection: rowDirection },
-                        ]}
-                    >
-                        <Pressable
-                            style={[
-                                styles.confirmSecondaryButton,
-                                {
-                                    backgroundColor: theme.iconBg,
-                                    borderColor: theme.cardBorder,
-                                },
-                            ]}
-                            onPress={onCancel}
-                            disabled={loading}
-                        >
-                            <Text
-                                style={[
-                                    styles.confirmSecondaryText,
-                                    { color: theme.textPrimary },
-                                ]}
-                            >
-                                {isRTL ? "إلغاء" : "Cancel"}
-                            </Text>
-                        </Pressable>
-
-                        <Pressable
-                            style={[
-                                styles.confirmPrimaryButton,
-                                {
-                                    backgroundColor: COLORS.danger,
-                                },
-                                loading && { opacity: 0.7 },
-                            ]}
-                            onPress={onConfirm}
-                            disabled={loading}
-                        >
-                            {loading ? (
-                                <ActivityIndicator
-                                    size="small"
-                                    color="#FFFFFF"
-                                />
-                            ) : (
-                                <Text style={styles.confirmPrimaryText}>
-                                    {isRTL ? "متابعة" : "Continue"}
-                                </Text>
-                            )}
-                        </Pressable>
-                    </View>
-                </View>
-            </View>
-        </Modal>
-    );
-}
-
-
-function HelpModal({
-    visible,
-    onClose,
-    t,
-    theme,
-    isRTL,
-    onEmail,
-    onWhatsApp,
-    onIssue,
-}: {
-    visible: boolean;
-    onClose: () => void;
-    t: any;
-    theme: any;
-    isRTL: boolean;
-    onEmail: () => void;
-    onWhatsApp: () => void;
-    onIssue: () => void;
-}) {
-    const textAlign = isRTL ? "right" : "left";
-    const rowDirection = isRTL ? "row-reverse" : "row";
-
-    return (
-        <Modal
-            visible={visible}
-            transparent
-            animationType="fade"
-            onRequestClose={onClose}
-        >
-            <View
-                style={[
-                    styles.modalOverlay,
-                    { backgroundColor: theme.modalOverlay },
-                ]}
-            >
-                <View
-                    style={[
-                        styles.helpModal,
-                        {
-                            backgroundColor: theme.surface,
-                            borderColor: theme.cardBorder,
-                        },
-                    ]}
-                >
-                    <ScrollView
-                        showsVerticalScrollIndicator={false}
-                        contentContainerStyle={{ paddingBottom: 10 }}
-                    >
-                        <View
-                            style={{
-                                flexDirection: rowDirection,
-                                alignItems: "center",
-                                marginBottom: 18,
-                            }}
-                        >
-                            <View
-                                style={{
-                                    width: 48,
-                                    height: 48,
-                                    borderRadius: 16,
-                                    backgroundColor: theme.iconBg,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    marginRight: isRTL ? 0 : 12,
-                                    marginLeft: isRTL ? 12 : 0,
-                                }}
-                            >
-                                <Feather
-                                    name="help-circle"
-                                    size={24}
-                                    color={theme.iconColor}
-                                />
-                            </View>
-
-                            <View style={{ flex: 1 }}>
-                                <Text
-                                    style={[
-                                        styles.helpTitle,
-                                        {
-                                            color: theme.textPrimary,
-                                            textAlign,
-                                        },
-                                    ]}
-                                >
-                                    {isRTL ? "المساعدة والدعم" : "Help & Support"}
-                                </Text>
-
-                                <Text
-                                    style={{
-                                        color: theme.textSecondary,
-                                        fontSize: 13,
-                                        marginTop: 2,
-                                        textAlign,
-                                    }}
-                                >
-                                    {isRTL
-                                        ? "نحن هنا لمساعدتك 🤍"
-                                        : "We're here to help 🤍"}
-                                </Text>
-                            </View>
-                        </View>
-
-                        {/* FAQ */}
-
-                        <View
-                            style={[
-                                styles.helpCard,
-                                {
-                                    backgroundColor: theme.subtle,
-                                    borderColor: theme.cardBorder,
-                                },
-                            ]}
-                        >
-                            <Text
-                                style={[
-                                    styles.helpQuestion,
-                                    {
-                                        color: theme.textPrimary,
-                                        textAlign,
-                                    },
-                                ]}
-                            >
-                                {isRTL
-                                    ? "كيف أوصل قطعة السيارة؟"
-                                    : "How do I connect the OBD device?"}
-                            </Text>
-
-                            <Text
-                                style={[
-                                    styles.helpAnswer,
-                                    {
-                                        color: theme.textSecondary,
-                                        textAlign,
-                                    },
-                                ]}
-                            >
-                                {isRTL
-                                    ? "من صفحة الاتصال اختاري البلوتوث ثم اختاري قطعة السيارة وابدئي الفحص."
-                                    : "Go to the connection page, enable Bluetooth, select your device, and start scanning."}
-                            </Text>
-                        </View>
-
-                        <View
-                            style={[
-                                styles.helpCard,
-                                {
-                                    backgroundColor: theme.subtle,
-                                    borderColor: theme.cardBorder,
-                                },
-                            ]}
-                        >
-                            <Text
-                                style={[
-                                    styles.helpQuestion,
-                                    {
-                                        color: theme.textPrimary,
-                                        textAlign,
-                                    },
-                                ]}
-                            >
-                                {isRTL
-                                    ? "لماذا لا تظهر السيارة؟"
-                                    : "Why can't I see my car?"}
-                            </Text>
-
-                            <Text
-                                style={[
-                                    styles.helpAnswer,
-                                    {
-                                        color: theme.textSecondary,
-                                        textAlign,
-                                    },
-                                ]}
-                            >
-                                {isRTL
-                                    ? "تأكدي أن القطعة تعمل وأن البلوتوث والصلاحيات مفعلة."
-                                    : "Make sure the device is powered on and Bluetooth permissions are enabled."}
-                            </Text>
-                        </View>
-
-                        <View
-                            style={[
-                                styles.helpCard,
-                                {
-                                    backgroundColor: theme.subtle,
-                                    borderColor: theme.cardBorder,
-                                },
-                            ]}
-                        >
-                            <Text
-                                style={[
-                                    styles.helpQuestion,
-                                    {
-                                        color: theme.textPrimary,
-                                        textAlign,
-                                    },
-                                ]}
-                            >
-                                {isRTL
-                                    ? "هل التطبيق يحفظ بيانات السيارة؟"
-                                    : "Does the app save vehicle data?"}
-                            </Text>
-
-                            <Text
-                                style={[
-                                    styles.helpAnswer,
-                                    {
-                                        color: theme.textSecondary,
-                                        textAlign,
-                                    },
-                                ]}
-                            >
-                                {isRTL
-                                    ? "يتم حفظ البيانات الضرورية فقط لتحسين تجربتك وعرض التقارير."
-                                    : "Only necessary data is stored to improve your experience and reports."}
-                            </Text>
-                        </View>
-
-                        {/* ACTIONS */}
-
-                        <View style={{ marginTop: 8 }}>
-                            <Pressable
-                                onPress={onWhatsApp}
-                                style={[
-                                    styles.supportButton,
-                                    {
-                                        backgroundColor: "#25D366",
-                                    },
-                                ]}
-                            >
-                                <Feather name="message-circle" size={18} color="#FFF" />
-
-                                <Text style={styles.supportButtonText}>
-                                    {isRTL
-                                        ? "التواصل عبر واتساب"
-                                        : "Contact via WhatsApp"}
-                                </Text>
-                            </Pressable>
-
-                            <Pressable
-                                onPress={onEmail}
-                                style={[
-                                    styles.supportButton,
-                                    {
-                                        backgroundColor: COLORS.primary,
-                                    },
-                                ]}
-                            >
-                                <Feather name="mail" size={18} color="#FFF" />
-
-                                <Text style={styles.supportButtonText}>
-                                    {isRTL
-                                        ? "إرسال بريد للدعم"
-                                        : "Send Support Email"}
-                                </Text>
-                            </Pressable>
-
-                            <Pressable
-                                onPress={onIssue}
-                                style={[
-                                    styles.supportButton,
-                                    {
-                                        backgroundColor: theme.iconBg,
-                                    },
-                                ]}
-                            >
-                                <Feather
-                                    name="alert-triangle"
-                                    size={18}
-                                    color={theme.textPrimary}
-                                />
-
-                                <Text
-                                    style={[
-                                        styles.supportIssueText,
-                                        {
-                                            color: theme.textPrimary,
-                                        },
-                                    ]}
-                                >
-                                    {isRTL
-                                        ? "الإبلاغ عن مشكلة"
-                                        : "Report an Issue"}
-                                </Text>
-                            </Pressable>
-                        </View>
-
-                        <Pressable
-                            onPress={onClose}
-                            style={[
-                                styles.closeHelpButton,
-                                {
-                                    backgroundColor: theme.subtle,
-                                    borderColor: theme.cardBorder,
-                                },
-                            ]}
-                        >
-                            <Text
-                                style={{
-                                    color: theme.textPrimary,
-                                    fontWeight: "700",
-                                    fontSize: 14,
-                                }}
-                            >
-                                {t.done}
-                            </Text>
-                        </Pressable>
-                    </ScrollView>
-                </View>
-            </View>
-        </Modal>
-    );
-}
-
-function ConfirmModal({
-    visible,
-    title,
-    message,
-    confirmText,
-    cancelText,
-    icon,
-    theme,
-    isRTL,
-    danger = false,
-    onCancel,
-    onConfirm,
-}: {
-    visible: boolean;
-    title: string;
-    message: string;
-    confirmText: string;
-    cancelText: string;
-    icon: keyof typeof Feather.glyphMap;
-    theme: any;
-    isRTL: boolean;
-    danger?: boolean;
-    onCancel: () => void;
-    onConfirm: () => void;
-}) {
-    const textAlign = isRTL ? "right" : "left";
-    const rowDirection = isRTL ? "row-reverse" : "row";
-
-    return (
-        <Modal
-            visible={visible}
-            transparent
-            animationType="fade"
-            onRequestClose={onCancel}
-        >
-            <View
-                style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}
-            >
-                <View
-                    style={[
-                        styles.confirmModal,
-                        {
-                            backgroundColor: theme.surface,
-                            borderColor: theme.cardBorder,
-                        },
-                    ]}
-                >
-                    <View
-                        style={[
-                            styles.confirmIconCircle,
-                            { backgroundColor: theme.iconBg },
-                        ]}
-                    >
-                        <Feather name={icon} size={28} color={theme.iconColor} />
-                    </View>
-
-                    <Text style={[styles.confirmTitle, { color: theme.textPrimary }]}>
-                        {title}
-                    </Text>
-
-                    <Text
-                        style={[
-                            styles.confirmMessage,
-                            { color: theme.textSecondary, textAlign },
-                        ]}
-                    >
-                        {message}
-                    </Text>
-
-                    <View style={[styles.confirmButtons, { flexDirection: rowDirection }]}>
-                        <Pressable
-                            style={[
-                                styles.confirmSecondaryButton,
-                                {
-                                    backgroundColor: theme.iconBg,
-                                    borderColor: theme.cardBorder,
-                                },
-                            ]}
-                            onPress={onCancel}
-                        >
-                            <Text
-                                style={[
-                                    styles.confirmSecondaryText,
-                                    { color: theme.textPrimary },
-                                ]}
-                            >
-                                {cancelText}
-                            </Text>
-                        </Pressable>
-
-                        <Pressable
-                            style={[
-                                styles.confirmPrimaryButton,
-                                { backgroundColor: danger ? COLORS.primary : COLORS.primary },
-                            ]}
-                            onPress={onConfirm}
-                        >
-                            <Text style={styles.confirmPrimaryText}>{confirmText}</Text>
-                        </Pressable>
-                    </View>
-                </View>
-            </View>
-        </Modal>
-    );
-}
-
-function MessageModal({
-    visible,
-    title,
-    message,
-    icon,
-    buttonText,
-    theme,
-    isRTL,
-    onClose,
-}: {
-    visible: boolean;
-    title: string;
-    message: string;
-    icon: keyof typeof Feather.glyphMap;
-    buttonText: string;
-    theme: any;
-    isRTL: boolean;
-    onClose: () => void;
-}) {
-    const textAlign = isRTL ? "right" : "left";
-
-    return (
-        <Modal
-            visible={visible}
-            transparent
-            animationType="fade"
-            onRequestClose={onClose}
-        >
-            <View
-                style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}
-            >
-                <View
-                    style={[
-                        styles.confirmModal,
-                        {
-                            backgroundColor: theme.surface,
-                            borderColor: theme.cardBorder,
-                        },
-                    ]}
-                >
-                    <View
-                        style={[
-                            styles.confirmIconCircle,
-                            { backgroundColor: theme.iconBg },
-                        ]}
-                    >
-                        <Feather name={icon} size={28} color={theme.iconColor} />
-                    </View>
-
-                    <Text style={[styles.confirmTitle, { color: theme.textPrimary }]}>
-                        {title}
-                    </Text>
-
-                    <Text
-                        style={[
-                            styles.confirmMessage,
-                            { color: theme.textSecondary, textAlign },
-                        ]}
-                    >
-                        {message}
-                    </Text>
-
-                    <Pressable
-                        style={[
-                            styles.singleModalButton,
-                            { backgroundColor: COLORS.primary },
-                        ]}
-                        onPress={onClose}
-                    >
-                        <Text style={styles.confirmPrimaryText}>{buttonText}</Text>
-                    </Pressable>
-                </View>
-            </View>
-        </Modal>
-    );
-}
-
-function LogoutLoadingModal({
-    visible,
-    text,
-    theme,
-}: {
-    visible: boolean;
-    text: string;
-    theme: any;
-}) {
-    return (
-        <Modal visible={visible} transparent animationType="fade">
-            <View
-                style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}
-            >
-                <View
-                    style={[
-                        styles.logoutLoadingBox,
-                        {
-                            backgroundColor: theme.surface,
-                            borderColor: theme.cardBorder,
-                        },
-                    ]}
-                >
-                    <View
-                        style={[
-                            styles.logoutLoadingIconCircle,
-                            { backgroundColor: theme.iconBg },
-                        ]}
-                    >
-                        <Feather name="log-out" size={28} color={theme.iconColor} />
-                    </View>
-
-                    <ActivityIndicator
-                        size="small"
-                        color={theme.iconColor}
-                        style={styles.logoutLoadingSpinner}
-                    />
-
-                    <Text style={[styles.logoutLoadingText, { color: theme.textPrimary }]}>
-                        {text}
-                    </Text>
-                </View>
-            </View>
-        </Modal>
     );
 }
 
@@ -4221,5 +2870,36 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
         borderWidth: 1,
+    },
+
+    fullScreenBlockingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: "rgba(0,0,0,0.22)",
+        zIndex: 9999,
+        elevation: 9999,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
+    blockingOverlayCard: {
+        minWidth: 210,
+        borderRadius: 24,
+        paddingVertical: 22,
+        paddingHorizontal: 20,
+        alignItems: "center",
+        justifyContent: "center",
+
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.18,
+        shadowRadius: 18,
+        elevation: 8,
+    },
+
+    blockingOverlayText: {
+        marginTop: 12,
+        fontSize: 14,
+        fontWeight: "900",
+        textAlign: "center",
     },
 });
