@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
 
@@ -67,9 +67,7 @@ export default function ForgotPasswordScreen() {
   const screenTranslateY = useRef(new Animated.Value(10)).current;
   const transitionAnim = useRef(new Animated.Value(0)).current;
 
-  const checkShortWidthAnim = useRef(new Animated.Value(0)).current;
-  const checkLongWidthAnim = useRef(new Animated.Value(0)).current;
-  const checkScaleAnim = useRef(new Animated.Value(0.92)).current;
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isSmallScreen = height < 720;
   const isVerySmallScreen = height < 650;
@@ -124,45 +122,6 @@ export default function ForgotPasswordScreen() {
     ]
   );
 
-  const checkShortWidth = checkShortWidthAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 18],
-  });
-
-  const checkLongWidth = checkLongWidthAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 34],
-  });
-
-  useEffect(() => {
-    if (!showSuccessModal) return;
-
-    checkShortWidthAnim.setValue(0);
-    checkLongWidthAnim.setValue(0);
-    checkScaleAnim.setValue(0.92);
-
-    Animated.sequence([
-      Animated.timing(checkShortWidthAnim, {
-        toValue: 1,
-        duration: 230,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }),
-      Animated.timing(checkLongWidthAnim, {
-        toValue: 1,
-        duration: 320,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }),
-      Animated.spring(checkScaleAnim, {
-        toValue: 1,
-        friction: 5,
-        tension: 90,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [showSuccessModal, checkShortWidthAnim, checkLongWidthAnim, checkScaleAnim]);
-
   useFocusEffect(
     useCallback(() => {
       setIsNavigating(false);
@@ -186,7 +145,12 @@ export default function ForgotPasswordScreen() {
         }),
       ]).start();
 
-      return () => {};
+      return () => {
+        if (successTimerRef.current) {
+          clearTimeout(successTimerRef.current);
+          successTimerRef.current = null;
+        }
+      };
     }, [screenOpacity, screenTranslateY, transitionAnim])
   );
 
@@ -216,6 +180,11 @@ export default function ForgotPasswordScreen() {
 
   const smoothBack = () => {
     if (isNavigating || loading) return;
+
+    if (successTimerRef.current) {
+      clearTimeout(successTimerRef.current);
+      successTimerRef.current = null;
+    }
 
     setIsNavigating(true);
 
@@ -256,27 +225,34 @@ export default function ForgotPasswordScreen() {
 
       if (error) {
         console.log("Forgot password error:", error.message);
+
+        if (error.message.includes("rate limit")) {
+          setErrorMessage(
+            "تم إرسال محاولات كثيرة. الرجاء الانتظار قليلًا ثم المحاولة مرة أخرى"
+          );
+          return;
+        }
+
         setErrorMessage("لم نتمكن من إرسال كود إعادة التعيين، حاول مرة أخرى");
         return;
       }
 
       setShowSuccessModal(true);
+
+      if (successTimerRef.current) {
+        clearTimeout(successTimerRef.current);
+      }
+
+      successTimerRef.current = setTimeout(() => {
+        setShowSuccessModal(false);
+        smoothReplace("/auth/reset-password", { email: cleanEmail });
+      }, 3000);
     } catch (err) {
       console.log("Forgot password unexpected error:", err);
       setErrorMessage("حدث خطأ غير متوقع، حاول مرة أخرى");
     } finally {
       setLoading(false);
     }
-  };
-
-  const goToResetPassword = () => {
-    const cleanEmail = email.trim().toLowerCase();
-
-    setShowSuccessModal(false);
-
-    setTimeout(() => {
-      smoothReplace("/auth/reset-password", { email: cleanEmail });
-    }, 120);
   };
 
   const renderMessage = () => {
@@ -437,38 +413,17 @@ export default function ForgotPasswordScreen() {
         visible={showSuccessModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowSuccessModal(false)}
+        onRequestClose={() => {}}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.successModal}>
-            <Animated.View
-              style={[
-                styles.animatedCheckCircle,
-                {
-                  transform: [{ scale: checkScaleAnim }],
-                },
-              ]}
-            >
-              <View style={styles.checkCanvas}>
-                <Animated.View
-                  style={[
-                    styles.checkLineShort,
-                    {
-                      width: checkShortWidth,
-                    },
-                  ]}
-                />
-
-                <Animated.View
-                  style={[
-                    styles.checkLineLong,
-                    {
-                      width: checkLongWidth,
-                    },
-                  ]}
-                />
-              </View>
-            </Animated.View>
+            <View style={styles.successIconCircle}>
+              <Ionicons
+                name="checkmark"
+                size={42}
+                color={COLORS.successGreen}
+              />
+            </View>
 
             <Text style={styles.successTitle}>تم إرسال الكود</Text>
 
@@ -476,25 +431,9 @@ export default function ForgotPasswordScreen() {
               أرسلنا كود إعادة تعيين كلمة المرور إلى بريدك الإلكتروني.
             </Text>
 
-            <TouchableOpacity
-              style={styles.modalButtonWrapper}
-              activeOpacity={0.9}
-              onPress={goToResetPassword}
-            >
-              <LinearGradient
-                colors={[
-                  "rgba(154,33,28,0.98)",
-                  "rgba(118,23,19,0.98)",
-                ]}
-                start={{ x: 0.15, y: 0 }}
-                end={{ x: 0.9, y: 1 }}
-                style={styles.modalButtonGradient}
-              >
-                <View style={styles.modalButtonGlassTop} />
-
-                <Text style={styles.modalButtonText}>إدخال الكود</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+            <Text style={styles.successHint}>
+              سيتم نقلك تلقائيًا لإدخال الكود
+            </Text>
           </View>
         </View>
       </Modal>
@@ -790,8 +729,8 @@ function createStyles({
       width: "100%",
       borderRadius: 28,
       paddingHorizontal: 24,
-      paddingTop: 28,
-      paddingBottom: 24,
+      paddingTop: 30,
+      paddingBottom: 28,
       alignItems: "center",
       backgroundColor: COLORS.white,
       borderWidth: 1,
@@ -803,42 +742,16 @@ function createStyles({
       elevation: 8,
     },
 
-    animatedCheckCircle: {
-      width: 70,
-      height: 70,
-      borderRadius: 35,
+    successIconCircle: {
+      width: 74,
+      height: 74,
+      borderRadius: 37,
       backgroundColor: COLORS.successGreenSoft,
       alignItems: "center",
       justifyContent: "center",
       marginBottom: 18,
       borderWidth: 1.2,
       borderColor: "rgba(63,127,82,0.18)",
-    },
-
-    checkCanvas: {
-      width: 48,
-      height: 38,
-      position: "relative",
-    },
-
-    checkLineShort: {
-      position: "absolute",
-      left: 8,
-      top: 20,
-      height: 5,
-      borderRadius: 5,
-      backgroundColor: COLORS.successGreen,
-      transform: [{ rotate: "45deg" }],
-    },
-
-    checkLineLong: {
-      position: "absolute",
-      left: 20,
-      top: 15,
-      height: 5,
-      borderRadius: 5,
-      backgroundColor: COLORS.successGreen,
-      transform: [{ rotate: "-45deg" }],
     },
 
     successTitle: {
@@ -851,7 +764,6 @@ function createStyles({
 
     successMessage: {
       marginTop: 12,
-      marginBottom: 24,
       fontSize: 15.5,
       lineHeight: 24,
       fontWeight: "700",
@@ -860,45 +772,13 @@ function createStyles({
       includeFontPadding: false,
     },
 
-    modalButtonWrapper: {
-      width: "100%",
-      height: 56,
-      borderRadius: 28,
-      overflow: "hidden",
-      shadowColor: "#6E1411",
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.16,
-      shadowRadius: 16,
-      elevation: 5,
-      backgroundColor: COLORS.primary,
-    },
-
-    modalButtonGradient: {
-      flex: 1,
-      borderRadius: 28,
-      justifyContent: "center",
-      alignItems: "center",
-      overflow: "hidden",
-    },
-
-    modalButtonGlassTop: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      height: "46%",
-      borderTopLeftRadius: 28,
-      borderTopRightRadius: 28,
-      backgroundColor: "rgba(255,255,255,0.10)",
-      zIndex: 1,
-    },
-
-    modalButtonText: {
-      color: COLORS.white,
-      fontSize: 18,
-      fontWeight: "900",
+    successHint: {
+      marginTop: 12,
+      fontSize: 13.5,
+      lineHeight: 20,
+      fontWeight: "800",
+      color: COLORS.successGreen,
       textAlign: "center",
-      zIndex: 5,
       includeFontPadding: false,
     },
 

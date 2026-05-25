@@ -13,7 +13,7 @@ import {
     ScrollView,
     StatusBar,
     StyleSheet,
-    Text, // إضافة الـ Modal الرسمي للـ Pop-up
+    Text,
     useWindowDimensions,
     View,
 } from "react-native";
@@ -60,7 +60,6 @@ type HomeAiState = {
     action: string;
     alertsCount: number;
 } | null;
-
 
 type InAppNotificationState = {
     id: string;
@@ -147,7 +146,6 @@ export default function HomeScreen() {
 
     const seenNotificationIdsRef = useRef<Set<string>>(new Set());
     const firstNotificationsLoadRef = useRef(true);
-
 
     const metricWidth = useMemo(() => {
         const pagePadding = isWide ? 52 : 36;
@@ -531,7 +529,6 @@ export default function HomeScreen() {
         }
     };
 
-
     const markNotificationAsRead = async (id: string) => {
         try {
             const { error } = await supabase
@@ -645,7 +642,6 @@ export default function HomeScreen() {
                                 )}
                             </Pressable>
 
-                            {/* تعديل: تصميم نافذة منبثقة احترافية (Pop-up Modal) بدلاً من القائمة الجانبية المنسدلة */}
                             <Modal
                                 visible={showNotifications}
                                 transparent={true}
@@ -912,6 +908,14 @@ export default function HomeScreen() {
                     </View>
                 </View>
             </ScrollView>
+
+            <Pressable
+    style={styles.aiFloatingButton}
+    activeOpacity={0.85}
+    onPress={() => router.push("/chatbot")}
+>
+   <Feather name="message-circle" size={29} color="#830a0aff" />
+</Pressable>
         </SafeAreaView>
     );
 }
@@ -1075,12 +1079,9 @@ const styles = StyleSheet.create({
         backgroundColor: "#D32F2F",
     },
 
-    /* ==========================================================================
-       تعديل: إضافة وتعديل تصميم الـ Pop-up Modal بالكامل ليكون مرتب ومتناسق
-       ========================================================================== */
     modalOverlay: {
         flex: 1,
-        backgroundColor: "rgba(0, 0, 0, 0.4)", // تعتيم خلفية الشاشة بنعومة فائقة
+        backgroundColor: "rgba(0, 0, 0, 0.4)",
         justifyContent: "center",
         alignItems: "center",
         padding: 24,
@@ -1088,11 +1089,11 @@ const styles = StyleSheet.create({
 
     modalContainer: {
         width: "100%",
-        maxWidth: 340, // حجم مثالي جداً ومتناسق مع شاشات الجوال والأجهزة اللوحية
+        maxWidth: 340,
         backgroundColor: "#FFFFFF",
         borderRadius: 24,
         padding: 20,
-        maxHeight: "70%", // لمنع تمدد الصندوق المنبثق خارج حدود الشاشة عند كثرة الإشعارات
+        maxHeight: "70%",
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.15,
@@ -1128,8 +1129,6 @@ const styles = StyleSheet.create({
         textAlign: "right",
     },
 
-
-
     emptyNotificationText: {
         fontSize: 13,
         color: COLORS.muted,
@@ -1151,7 +1150,6 @@ const styles = StyleSheet.create({
         lineHeight: 22,
         fontWeight: "700",
     },
-    /* ========================================================================== */
 
     helloText: {
         fontSize: 17,
@@ -1641,4 +1639,25 @@ const styles = StyleSheet.create({
         width: "100%",
     },
 
+    aiFloatingButton: {
+    position: "absolute",
+    right: 24,
+    bottom: Platform.OS === "ios" ? 10 : 10,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: "#EBEBEB",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 800,
+    elevation: 14,
+
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.20,
+    shadowRadius: 12,
+
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.35)",
+},
 });
