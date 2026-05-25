@@ -1,21 +1,18 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useFonts } from "expo-font";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Modal,
-  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../providers/AuthProvider";
@@ -75,23 +72,35 @@ export default function Wallet() {
     "all",
   );
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editData, setEditData] = useState<MaintenanceItem[]>([]);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
-  const [currentEditingId, setCurrentEditingId] = useState<number | null>(null);
+  const [currentEditingItem, setCurrentEditingItem] =
+    useState<MaintenanceItem | null>(null);
+
+  // دالة مساعدة لاختيار أيقونة الصيانة بناءً على الكلمات المفتاحية بالاسم لمظهر احترافي
+
+  const getMaintenanceIcon = (
+    title: string,
+  ): React.ComponentProps<typeof MaterialCommunityIcons>["name"] => {
+    const t = title.toLowerCase();
+
+    if (t.includes("زيت المحرك")) return "oil";
+    if (t.includes("الكفرات") || t.includes("كفر")) return "car-tire-alert";
+    if (t.includes("الفرامل") || t.includes("فحم")) return "car-brake-alert";
+    if (t.includes("فلتر الهواء")) return "air-filter";
+    if (t.includes("بطارية") || t.includes("البطارية")) return "battery"; // إيقونة البطارية المضافة هنا
+
+    return "car-cog"; // الأيقونة الافتراضية لأي صيانة أخرى ثابتة
+  };
 
   const handleSaveReport = async (id: string) => {
     if (!userId) return;
     const prev = reports;
-
     setReports((rs: any[]) =>
       rs.map((r) => (r.id === id ? { ...r, status: "saved" } : r)),
     );
-
     try {
       const now = new Date();
       const expiry = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 365 * 10);
-
       const { error } = await supabase
         .from("reports")
         .update({
@@ -102,7 +111,6 @@ export default function Wallet() {
         })
         .eq("id", id)
         .eq("user_id", userId);
-
       if (error) throw error;
     } catch (err: any) {
       console.error("Save report failed:", err?.message || err);
@@ -114,16 +122,13 @@ export default function Wallet() {
   const handleRejectReport = async (id: string) => {
     if (!userId) return;
     const prev = reports;
-
     setReports((rs: any[]) => rs.filter((r) => r.id !== id));
-
     try {
       const { error } = await supabase
         .from("reports")
         .update({ status: "temp_rejected" })
         .eq("id", id)
         .eq("user_id", userId);
-
       if (error) throw error;
     } catch (err: any) {
       console.error("Reject report failed:", err?.message || err);
@@ -136,103 +141,57 @@ export default function Wallet() {
     router.push({ pathname: "/report", params: { id } });
   };
 
-  // تعديل الدالة لتقبل عنصر الصيانة المحدد فقط بدلاً من جلب المصفوفة كاملة
-  const openSingleMaintenanceModal = (item: MaintenanceItem) => {
-    setEditData([item]);
-    setModalVisible(true);
-  };
-
   const formatLocalDate = (date: Date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
-
     return `${year}-${month}-${day}`;
   };
 
-  const handleConfirmDate = (date: Date) => {
+  const handleConfirmDate = async (date: Date) => {
     setDatePickerVisible(false);
-    if (currentEditingId === null) return;
+    if (!currentEditingItem || !userId) return;
 
-    const formatted = formatLocalDate(date);
+    const selectedDateStr = formatLocalDate(date);
+    if (selectedDateStr === currentEditingItem.lastDate) return;
 
-    setEditData((prev) =>
-      prev.map((item) =>
-        item.maintenanceTypeId === currentEditingId
-          ? { ...item, lastDate: formatted }
-          : item,
-      ),
-    );
-  };
-
-  const saveAll = async () => {
-    if (!userId) {
-      Alert.alert("خطأ", "لا يوجد مستخدم مسجل");
-      return;
-    }
-
-    const changed = editData.filter((item) => {
-      const original = maintenance.find(
-        (m: MaintenanceItem) => m.maintenanceTypeId === item.maintenanceTypeId,
-      );
-
-      return item.lastDate && item.lastDate !== original?.lastDate;
-    });
-
-    if (changed.length === 0) {
-      Alert.alert("تنبيه", "ما فيه تغييرات للحفظ");
-      return;
-    }
-
-    setSavingId(-1);
+    setSavingId(currentEditingItem.maintenanceTypeId);
 
     try {
-      for (const item of changed) {
-        const [year, month, day] = item.lastDate.split("-").map(Number);
+      const [year, month, day] = selectedDateStr.split("-").map(Number);
+      const next = new Date(year, month - 1, day);
+      next.setDate(next.getDate() + currentEditingItem.intervalDays);
+      const nextDateStr = formatLocalDate(next);
 
-        const next = new Date(year, month - 1, day);
+      const { error } = await supabase.from("maintenance_reminders").upsert(
+        {
+          user_id: userId,
+          maintenance_type_id: currentEditingItem.maintenanceTypeId,
+          last_date: selectedDateStr,
+          next_date: nextDateStr,
+          notification_stage: 0,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,maintenance_type_id" },
+      );
 
-        next.setDate(next.getDate() + item.intervalDays);
-
-        const nextDate = formatLocalDate(next);
-
-        const { error } = await supabase.from("maintenance_reminders").upsert(
-          {
-            user_id: userId,
-            maintenance_type_id: item.maintenanceTypeId,
-            last_date: item.lastDate,
-            next_date: nextDate,
-            notification_stage: 0,
-            is_active: true,
-            updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: "user_id,maintenance_type_id",
-          },
-        );
-
-        if (error) {
-          console.log("UPSERT ERROR:", error);
-          throw error;
-        }
-      }
-
+      if (error) throw error;
       await fetchMaintenance();
 
       try {
-        await fetch("http://207.180.244.27:3102/check-now", {
-          method: "POST",
-        });
+        await fetch("http://207.180.244.27:3102/check-now", { method: "POST" });
       } catch (error) {
         console.log("Check notifications now error:", error);
       }
-      setModalVisible(false);
-      Alert.alert("تم", "تم حفظ الصيانة وتفعيل التذكير");
+
+      Alert.alert("تم", `تم تحديث صيانة (${currentEditingItem.title}) بنجاح`);
     } catch (err: any) {
       console.error("Save maintenance failed:", err);
-      Alert.alert("خطأ", err?.message || "تعذر حفظ التعديلات");
+      Alert.alert("خطأ", err?.message || "تعذر حفظ التعديل");
     } finally {
       setSavingId(null);
+      setCurrentEditingItem(null);
     }
   };
 
@@ -247,7 +206,6 @@ export default function Wallet() {
         (r: any) => r.status === "saved" || r.status === "pending",
       ).length;
     }
-
     return reports.filter((r: any) => r.status === key).length;
   };
 
@@ -269,12 +227,11 @@ export default function Wallet() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* قسم التقارير */}
+        {/* ─── قسم التقارير ─── */}
         <View style={styles.sectionHeader}>
           <View style={styles.sectionIconCircle}>
             <Feather name="file-text" size={18} color={COLORS.primary} />
           </View>
-
           <View style={styles.sectionTextBox}>
             <Text style={styles.sectionTitle}>التقارير</Text>
             <Text style={styles.sectionSubtitle}>
@@ -291,7 +248,6 @@ export default function Wallet() {
           ].map((f) => {
             const key = f.key as "all" | "saved" | "pending";
             const active = reportFilter === key;
-
             return (
               <TouchableOpacity
                 key={key}
@@ -352,7 +308,6 @@ export default function Wallet() {
                       },
                     ]}
                   />
-
                   <View
                     style={[
                       styles.reportBadge,
@@ -412,7 +367,6 @@ export default function Wallet() {
                     >
                       <Text style={styles.saveReportText}>حفظ التقرير</Text>
                     </TouchableOpacity>
-
                     <TouchableOpacity
                       style={styles.rejectBtn}
                       activeOpacity={0.85}
@@ -435,13 +389,19 @@ export default function Wallet() {
           })}
         </ScrollView>
 
-        {/* قسم الصيانات الدورية */}
+        {/* ─── قسم الصيانات الدورية (المحسن بالكامل لـ UX) ─── */}
         <View style={styles.sectionHeader}>
-          {/* تم حذف زر "تعديل البيانات" العام من هنا بناءً على طلبك */}
+          <View style={styles.sectionIconCircle}>
+            <MaterialCommunityIcons
+              name="wrench-clock"
+              size={18}
+              color={COLORS.primary}
+            />
+          </View>
           <View style={styles.sectionTextBox}>
             <Text style={styles.sectionTitle}>الصيانات الدورية</Text>
             <Text style={styles.sectionSubtitle}>
-              اضغط على أي صيانة لتعديل تاريخها مباشرة
+              اضغط على أي بطاقة لتحديث تاريخ الصيانة فوراً
             </Text>
           </View>
         </View>
@@ -463,86 +423,141 @@ export default function Wallet() {
                 )
               : 0;
 
+            const isUpcoming = item.status === "upcoming";
             const isSoon = item.status === "due";
             const isOverdue = item.status === "overdue";
+            const isCurrentlySaving = savingId === item.maintenanceTypeId;
+
+            let statusColor = COLORS.success;
+            let statusBg = COLORS.successBg;
+            if (isSoon) {
+              statusColor = COLORS.warning;
+              statusBg = COLORS.warningBg;
+            }
+            if (isOverdue) {
+              statusColor = COLORS.danger;
+              statusBg = COLORS.dangerBg;
+            }
+            if (!hasData) {
+              statusColor = COLORS.muted;
+              statusBg = COLORS.softGray;
+            }
+
+            // تحديد نص الشارة بناءً على الشروط الجديدة المطلوبة
+            let badgeText = "";
+            if (!hasData) {
+              badgeText = "لم يُسجَّل";
+            } else if (isOverdue) {
+              const absDays = Math.abs(item.remainingDays ?? 0);
+              badgeText = `${absDays} يوم متأخر`;
+            } else if (isSoon) {
+              badgeText = `متبقي ${item.remainingDays} يوم`;
+            } else {
+              badgeText = `متبقي ${item.remainingDays} يوم`;
+            }
+
+            // تلوين نص التاريخ بناءً على الحالة (أخضر للمستقبل البعيد)
+            let valueDateColor = COLORS.text;
+            if (isOverdue) valueDateColor = COLORS.danger;
+            else if (isSoon) valueDateColor = COLORS.warning;
+            else if (isUpcoming) valueDateColor = COLORS.success;
 
             return (
-              /* تحويل الحاوية إلى زر قابل للضغط يفتح نافذة التعديل الخاصة بالصيانة المحددة فقط */
               <TouchableOpacity
                 key={item.maintenanceTypeId}
-                style={styles.maintenanceCard}
-                activeOpacity={0.7}
-                onPress={() => openSingleMaintenanceModal(item)}
+                style={[
+                  styles.uxMaintenanceCard,
+                  isCurrentlySaving && { opacity: 0.5 },
+                ]}
+                activeOpacity={0.75}
+                disabled={isCurrentlySaving}
+                onPress={() => {
+                  setCurrentEditingItem(item);
+                  setDatePickerVisible(true);
+                }}
               >
-                <View style={styles.maintenanceHeader}>
+                {/* الجزء العلوي: العنوان والأيقونة والـ Badge */}
+                <View style={styles.uxCardTopElement}>
                   <View
                     style={[
-                      styles.daysBadge,
-                      !hasData
-                        ? styles.daysBadgeNormal
-                        : isOverdue
-                          ? styles.daysBadgeDanger
-                          : isSoon
-                            ? styles.daysBadgeWarning
-                            : styles.daysBadgeNormal,
+                      styles.uxStatusBadge,
+                      { backgroundColor: statusBg },
                     ]}
                   >
+                    {isCurrentlySaving ? (
+                      <ActivityIndicator size="small" color={COLORS.primary} />
+                    ) : (
+                      <Text
+                        style={[
+                          styles.uxStatusBadgeText,
+                          { color: statusColor },
+                        ]}
+                      >
+                        {badgeText}
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={styles.uxTitleRow}>
+                    <View style={styles.uxTextGroup}>
+                      <Text style={styles.uxMaintenanceTitle}>
+                        {item.title}
+                      </Text>
+                      <Text style={styles.uxMaintenanceSub}>
+                        كل {item.intervalDays} يوم
+                      </Text>
+                    </View>
+                    <View style={styles.uxIconContainer}>
+                      <MaterialCommunityIcons
+                        name={getMaintenanceIcon(item.title)}
+                        size={22}
+                        color={COLORS.primary}
+                      />
+                    </View>
+                  </View>
+                </View>
+
+                {/* جزء التواريخ: متناسق تماماً مع القراءة العربية من اليمين (الماضي) إلى اليسار (المستقبل) */}
+                <View style={styles.uxGridContainer}>
+                  {/* اليمين: آخر صيانة تمت */}
+                  <View style={styles.uxGridItem}>
+                    <Text style={styles.uxGridLabel}>آخر صيانة</Text>
+                    <Text style={styles.uxGridValue}>
+                      {item.lastDate || "—"}
+                    </Text>
+                  </View>
+
+                  <View style={styles.uxGridDivider} />
+
+                  {/* اليسار: الموعد القادم المستحق */}
+                  <View style={styles.uxGridItem}>
+                    <Text style={styles.uxGridLabel}>الموعد القادم</Text>
                     <Text
-                      style={[
-                        styles.daysBadgeText,
-                        isOverdue
-                          ? styles.daysBadgeTextDanger
-                          : isSoon
-                            ? styles.daysBadgeTextWarning
-                            : styles.daysBadgeTextNormal,
-                      ]}
+                      style={[styles.uxGridValue, { color: valueDateColor }]}
                     >
-                      {!hasData
-                        ? "لم يُسجَّل بعد"
-                        : isOverdue
-                          ? "متأخر"
-                          : isSoon
-                            ? `مستحقة خلال ${item.remainingDays} يوم`
-                            : `متبقي ${item.remainingDays} يوم`}
-                    </Text>
-                  </View>
-
-                  <View style={styles.maintenanceTitleBox}>
-                    <Text style={styles.maintenanceTitle}>{item.title}</Text>
-                    <Text style={styles.maintenanceHint}>
-                      كل {item.intervalDays} يوم
+                      {item.nextDate || "—"}
                     </Text>
                   </View>
                 </View>
 
-                <View style={styles.divider} />
-
-                <View style={styles.dateRow}>
-                  <Text style={styles.dateLabel}>موعد الصيانة القادم:</Text>
-                  <Text style={styles.nextDateText}>
-                    {item.nextDate || "—"}
-                  </Text>
-                </View>
-
-                <View style={[styles.dateRow, { marginTop: 5 }]}>
-                  <Text style={styles.dateLabel}>آخر صيانة تمت:</Text>
-                  <Text style={styles.lastDateText}>
-                    {item.lastDate || "—"}
-                  </Text>
-                </View>
-
-                <View style={styles.progressContainer}>
-                  <View
-                    style={[
-                      styles.progressBar,
-                      {
-                        width: `${progress}%`,
-                        backgroundColor: isSoon
-                          ? COLORS.warning
-                          : COLORS.primary,
-                      },
-                    ]}
-                  />
+                {/* شريط التقدم السفلي ومؤشر التفاعل */}
+                <View style={styles.uxFooterRow}>
+                  <View style={styles.uxActionIndicator}>
+                    <Feather
+                      name="calendar"
+                      size={13}
+                      color={COLORS.mutedLight}
+                    />
+                    <Text style={styles.uxActionText}>تحديث</Text>
+                  </View>
+                  <View style={styles.uxProgressWrapper}>
+                    <View
+                      style={[
+                        styles.uxProgressBar,
+                        { width: `${progress}%`, backgroundColor: statusColor },
+                      ]}
+                    />
+                  </View>
                 </View>
               </TouchableOpacity>
             );
@@ -550,76 +565,29 @@ export default function Wallet() {
         )}
       </ScrollView>
 
-      {/* المودال الخاص بالتعديل */}
-      <Modal visible={modalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity
-                onPress={() => setModalVisible(false)}
-                style={styles.modalCloseBtn}
-                activeOpacity={0.85}
-              >
-                <Feather name="x" size={20} color={COLORS.primary} />
-              </TouchableOpacity>
-
-              <Text style={styles.modalTitle}>تعديل موعد الصيانة</Text>
-              <View style={styles.modalHeaderSide} />
-            </View>
-
-            <View style={styles.modalDivider} />
-
-            <ScrollView
-              style={styles.modalList}
-              showsVerticalScrollIndicator={false}
-            >
-              {editData.map((item) => (
-                <View key={item.maintenanceTypeId} style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>{item.title}</Text>
-
-                  <TouchableOpacity
-                    style={{ flex: 1 }}
-                    activeOpacity={0.85}
-                    onPress={() => {
-                      setCurrentEditingId(item.maintenanceTypeId);
-                      setDatePickerVisible(true);
-                    }}
-                  >
-                    <TextInput
-                      value={item.lastDate}
-                      placeholder="اختر التاريخ"
-                      placeholderTextColor={COLORS.mutedLight}
-                      style={styles.input}
-                      editable={false}
-                      textAlign="center"
-                    />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </ScrollView>
-
-            <TouchableOpacity
-              style={[styles.saveBtn, savingId === -1 && { opacity: 0.7 }]}
-              onPress={saveAll}
-              activeOpacity={0.85}
-              disabled={savingId === -1}
-            >
-              {savingId === -1 ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.saveBtnText}>حفظ التغييرات</Text>
-              )}
-            </TouchableOpacity>
-
-            <DateTimePickerModal
-              isVisible={datePickerVisible}
-              mode="date"
-              onConfirm={handleConfirmDate}
-              onCancel={() => setDatePickerVisible(false)}
-            />
-          </View>
-        </View>
-      </Modal>
+      {/* منتقي التاريخ الموحد */}
+      {datePickerVisible && (
+        <DateTimePicker
+          value={
+            currentEditingItem?.lastDate
+              ? new Date(currentEditingItem.lastDate)
+              : new Date()
+          }
+          mode="date"
+          display="default"
+          locale="ar"
+          onChange={(event, selectedDate) => {
+            setDatePickerVisible(false);
+            if (event.type === "dismissed") {
+              setCurrentEditingItem(null);
+              return;
+            }
+            if (selectedDate) {
+              handleConfirmDate(selectedDate);
+            }
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -666,14 +634,14 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 16,
-    marginBottom: 12,
+    marginTop: 22,
+    marginBottom: 14,
     gap: 12,
   },
   sectionIconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     backgroundColor: COLORS.softGray,
     alignItems: "center",
     justifyContent: "center",
@@ -915,200 +883,116 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
     gap: 10,
   },
-  maintenanceCard: {
+
+  /* ─── الستايلات الحديثة والمحسنة لقسم الصيانات (UX Optimized) ─── */
+  uxMaintenanceCard: {
     backgroundColor: COLORS.surface,
     padding: 16,
-    borderRadius: 24,
-    marginBottom: 12,
+    borderRadius: 20,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  maintenanceHeader: {
+  uxCardTopElement: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 16,
   },
-  maintenanceTitleBox: {
-    flex: 1,
+  uxTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  uxTextGroup: {
     alignItems: "flex-end",
   },
-  maintenanceTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: COLORS.text,
-    textAlign: "right",
+  uxMaintenanceTitle: {
+    fontSize: 15.5,
     fontFamily: "Tajawal-Bold",
+    color: COLORS.text,
   },
-  maintenanceHint: {
-    marginTop: 3,
-    fontSize: 11.5,
+  uxMaintenanceSub: {
+    fontSize: 11,
     color: COLORS.muted,
     fontFamily: "Tajawal-Regular",
-    textAlign: "right",
+    marginTop: 2,
   },
-  daysBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 14,
-  },
-  daysBadgeNormal: {
+  uxIconContainer: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     backgroundColor: COLORS.softGray,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  daysBadgeWarning: {
-    backgroundColor: COLORS.warningBg,
+  uxStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
   },
-  daysBadgeText: {
+  uxStatusBadgeText: {
     fontSize: 11,
     fontFamily: "Tajawal-Bold",
   },
-  daysBadgeTextNormal: {
-    color: COLORS.text,
-  },
-  daysBadgeTextWarning: {
-    color: COLORS.warning,
-  },
-  daysBadgeDanger: {
-    backgroundColor: COLORS.dangerBg,
-  },
-  daysBadgeTextDanger: {
-    color: COLORS.danger,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#F2F2F2",
-    marginVertical: 12,
-  },
-  dateRow: {
+  uxGridContainer: {
     flexDirection: "row-reverse",
-    justifyContent: "flex-start",
-    alignItems: "center",
-  },
-  dateLabel: {
-    fontSize: 13,
-    color: COLORS.muted,
-    marginLeft: 8,
-    fontFamily: "Tajawal-Regular",
-  },
-  nextDateText: {
-    fontSize: 14,
-    fontWeight: "900",
-    color: COLORS.text,
-    fontFamily: "Tajawal-Bold",
-  },
-  lastDateText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: COLORS.muted,
-    fontFamily: "Tajawal-Regular",
-  },
-  progressContainer: {
-    height: 8,
-    backgroundColor: COLORS.softGray,
-    borderRadius: 4,
-    marginTop: 15,
-    overflow: "hidden",
-    flexDirection: "row-reverse",
-  },
-  progressBar: {
-    height: "100%",
-    borderRadius: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.32)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    paddingHorizontal: 18,
-    paddingTop: 16,
-    paddingBottom: Platform.OS === "ios" ? 30 : 22,
-    maxHeight: "90%",
-  },
-  modalHeader: {
-    minHeight: 48,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  modalCloseBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: COLORS.softGray,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalHeaderSide: {
-    width: 42,
-    height: 42,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: COLORS.text,
-    fontFamily: "Tajawal-Bold",
-  },
-  modalDivider: {
-    height: 1,
-    backgroundColor: "#F2F2F2",
-    marginBottom: 14,
-  },
-  modalList: {
-    marginBottom: 18,
-  },
-  inputGroup: {
-    marginBottom: 14,
-    padding: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
     backgroundColor: COLORS.soft,
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+    marginBottom: 14,
   },
-  inputLabel: {
-    fontSize: 15,
-    fontWeight: "900",
-    marginBottom: 10,
-    textAlign: "right",
-    color: COLORS.primary,
+  uxGridItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  uxGridDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: COLORS.border,
+  },
+  uxGridLabel: {
+    fontSize: 11,
+    color: COLORS.muted,
+    fontFamily: "Tajawal-Regular",
+    marginBottom: 4,
+  },
+  uxGridValue: {
+    fontSize: 13,
     fontFamily: "Tajawal-Bold",
   },
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 12,
-    borderRadius: 16,
-    backgroundColor: COLORS.surface,
-    fontSize: 14,
-    color: COLORS.text,
-    fontFamily: "Tajawal-Regular",
-  },
-  saveBtn: {
-    backgroundColor: COLORS.primary,
-    height: 54,
-    borderRadius: 27,
+  uxFooterRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    shadowColor: COLORS.primaryDark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.14,
-    shadowRadius: 14,
-    elevation: 4,
+    justifyContent: "space-between",
+    gap: 12,
   },
-  saveBtnText: {
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontWeight: "900",
-    fontSize: 16,
+  uxProgressWrapper: {
+    flex: 1,
+    height: 6,
+    backgroundColor: COLORS.softGray,
+    borderRadius: 3,
+    overflow: "hidden",
+    flexDirection: "row-reverse", // متناسق مع الـ RTL للغة العربية
+  },
+  uxProgressBar: {
+    height: "100%",
+    borderRadius: 3,
+  },
+  uxActionIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  uxActionText: {
+    fontSize: 11,
+    color: COLORS.muted,
     fontFamily: "Tajawal-Bold",
   },
 });
