@@ -4,6 +4,10 @@ import { LanguageProvider } from "../providers/LanguageProvider";
 import * as SplashScreen from "expo-splash-screen";
 import { Asset } from "expo-asset";
 import { WalletProvider } from "../providers/WalletProvider";
+import { CarsProvider } from "../providers/CarsProvider";
+import { AppSettingsProvider } from "../providers/AppSettingsProvider";
+import { NotificationsProvider } from "../providers/NotificationsProvider";
+import { AccountSettingsProvider } from "../providers/AccountSettingsProvider";
 
 import {
   ThemeProvider as NavigationThemeProvider,
@@ -83,44 +87,56 @@ export default function RootLayout() {
   }
 
   return (
-  <View style={styles.root}>
-    <AuthProvider>
-      <LanguageProvider>
-        <WalletProvider>
-          <NavigationThemeProvider
-            value={colorScheme === "dark" ? AppDarkTheme : LightTheme}
-          >
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                animation: "none",
-                contentStyle: {
-                  backgroundColor: "#FFFFFF",
-                },
-              }}
-            >
-              <Stack.Screen name="index" />
-              <Stack.Screen name="start" />
-              <Stack.Screen name="login" />
-              <Stack.Screen name="register" />
-              <Stack.Screen name="forgot-password" />
+    <View style={styles.root}>
+      <AuthProvider>
+        <LanguageProvider>
+          <WalletProvider>
+            <AppSettingsProvider>
+              <AccountSettingsProvider>
+                <NotificationsProvider>
+                  <CarsProvider>
+                    <NavigationThemeProvider
+                      value={colorScheme === "dark" ? AppDarkTheme : LightTheme}
+                    >
+                      <Stack
+                        screenOptions={{
+                          headerShown: false,
+                          animation: "none",
+                          contentStyle: {
+                            backgroundColor: "#FFFFFF",
+                          },
+                        }}
+                      >
+                        <Stack.Screen name="index" />
+                        <Stack.Screen name="start" />
+                        <Stack.Screen name="login" />
+                        <Stack.Screen name="register" />
+                        <Stack.Screen name="forgot-password" />
 
-              <Stack.Screen name="connection-intro" />
-              <Stack.Screen name="connection-success" />
+                        <Stack.Screen name="connection-intro" />
+                        <Stack.Screen name="connection-success" />
 
-              <Stack.Screen name="auth/reset-password" />
-              <Stack.Screen name="auth/new-password" />
+                        <Stack.Screen name="auth/reset-password" />
+                        <Stack.Screen name="auth/new-password" />
 
-              <Stack.Screen name="(tabs)" />
-            </Stack>
+                        <Stack.Screen name="(tabs)" />
+                      </Stack>
 
-            <StatusBar style="dark" translucent backgroundColor="transparent" />
-          </NavigationThemeProvider>
-        </WalletProvider>
-      </LanguageProvider>
-    </AuthProvider>
-  </View>
-);
+                      <StatusBar
+                        style="dark"
+                        translucent
+                        backgroundColor="transparent"
+                      />
+                    </NavigationThemeProvider>
+                  </CarsProvider>
+                </NotificationsProvider>
+              </AccountSettingsProvider>
+            </AppSettingsProvider>
+          </WalletProvider>
+        </LanguageProvider>
+      </AuthProvider>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
