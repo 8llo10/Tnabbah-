@@ -288,6 +288,7 @@ export default function Settings() {
         scannerRunning,
         mqttConnected,
         lastConnectionTime,
+        activeCarId,
         selectedCarId,
         connectedCarId,
         userCars,
@@ -360,7 +361,12 @@ export default function Settings() {
     const isRTL = selectedLanguage === "AR";
     const theme = darkModeEnabled ? darkTheme : lightTheme;
 
-    const activeSelectedCarId = optimisticSelectedCarId || selectedCarId;
+    const activeSelectedCarId =
+        optimisticSelectedCarId ||
+        connectedCarId ||
+        selectedCarId ||
+        activeCarId;
+
 
     const userName =
         profile?.full_name ||
@@ -387,8 +393,6 @@ export default function Settings() {
         if (switchingCarId) return;
         if (carId === activeSelectedCarId) return;
 
-        const previousCarId = activeSelectedCarId;
-
         setSwitchingCarId(carId);
         setOptimisticSelectedCarId(carId);
 
@@ -399,7 +403,7 @@ export default function Settings() {
         } catch (error) {
             console.log("Select car error:", error);
 
-            setOptimisticSelectedCarId(previousCarId);
+            setOptimisticSelectedCarId(null);
 
             showMessage({
                 title: t.errorTitle,
@@ -1103,18 +1107,41 @@ export default function Settings() {
                                 const isSwitchingThisCar = switchingCarId === car.car_id;
                                 const isConnectedNow = connectedCarId === car.car_id;
 
+                                const isLockedByConnectedCar =
+                                    !!connectedCarId && !isConnectedNow;
+
+                                const canSelectThisCar =
+                                    !isCurrent && !isLockedByConnectedCar && !switchingCarId;
+
                                 return (
-                                    <View
+                                    <Pressable
                                         key={car.id}
-                                        style={[
-                                            styles.card,
+                                        onPress={() => {
+                                            if (canSelectThisCar) {
+                                                handleSelectDefaultCar(car.car_id);
+                                            }
+                                        }}
+                                        disabled={!canSelectThisCar}
+                                        style={({ pressed }) => [
+                                            styles.carCard, ,
                                             {
-                                                backgroundColor: theme.subtle,
+                                                backgroundColor: isCurrent
+                                                    ? "rgba(135,27,23,0.08)"
+                                                    : theme.subtle,
+
                                                 borderColor: isCurrent
-                                                    ? COLORS.primary
+                                                    ? "#5F201D"
                                                     : theme.cardBorder,
-                                                borderWidth: isCurrent ? 1.4 : 1,
-                                                marginBottom: 0,
+
+                                                transform: [{ scale: isCurrent ? 1.01 : 1 }],
+                                                shadowOpacity: isCurrent ? 0.12 : 0.03,
+                                                shadowRadius: isCurrent ? 10 : 6,
+                                                elevation: isCurrent ? 4 : 1,
+
+                                                opacity: isLockedByConnectedCar ? 0.45 : 1,
+                                            },
+                                            pressed && canSelectThisCar && {
+                                                backgroundColor: "rgba(135,27,23,0.12)",
                                             },
                                         ]}
                                     >
@@ -1201,6 +1228,29 @@ export default function Settings() {
                                                         </View>
                                                     )}
 
+                                                    {isCurrent && !isConnectedNow && (
+                                                        <View
+                                                            style={{
+                                                                alignSelf: isRTL ? "flex-end" : "flex-start",
+                                                                backgroundColor: "rgba(135,27,23,0.10)",
+                                                                borderRadius: 999,
+                                                                paddingHorizontal: 10,
+                                                                paddingVertical: 4,
+                                                                marginTop: 6,
+                                                            }}
+                                                        >
+                                                            <Text
+                                                                style={{
+                                                                    color: COLORS.primary,
+                                                                    fontSize: 11,
+                                                                    fontWeight: "900",
+                                                                }}
+                                                            >
+                                                                {selectedLanguage === "AR" ? "مختارة حاليًا" : "Selected now"}
+                                                            </Text>
+                                                        </View>
+                                                    )}
+
                                                     <Text
                                                         numberOfLines={1}
                                                         style={[
@@ -1246,41 +1296,13 @@ export default function Settings() {
                                                 marginTop: 14,
                                             }}
                                         >
-                                            {!isCurrent && (
-                                                <Pressable
-                                                    onPress={() => handleSelectDefaultCar(car.car_id)}
-                                                    disabled={!!switchingCarId}
-                                                    style={{
-                                                        backgroundColor: COLORS.primary,
-                                                        paddingHorizontal: 12,
-                                                        paddingVertical: 10,
-                                                        borderRadius: 12,
-                                                        opacity: switchingCarId ? 0.65 : 1,
-                                                    }}
-                                                >
-                                                    {isSwitchingThisCar ? (
-                                                        <ActivityIndicator size="small" color="#FFF" />
-                                                    ) : (
-                                                        <Text
-                                                            style={{
-                                                                color: "#FFF",
-                                                                fontSize: 12,
-                                                                fontWeight: "700",
-                                                            }}
-                                                        >
-                                                            {selectedLanguage === "AR" ? "تعيين" : "Set"}
-                                                        </Text>
-                                                    )}
-                                                </Pressable>
-                                            )}
-
                                             <Pressable
                                                 onPress={() => openEditCarName(car)}
                                                 style={{
                                                     backgroundColor: theme.iconBg,
-                                                    paddingHorizontal: 12,
-                                                    paddingVertical: 10,
-                                                    borderRadius: 12,
+                                                    paddingHorizontal: 16,
+                                                    paddingVertical: 12,
+                                                    borderRadius: 16,
                                                 }}
                                             >
                                                 <Text
@@ -1303,9 +1325,9 @@ export default function Settings() {
                                                 }}
                                                 style={{
                                                     backgroundColor: "rgba(135,27,23,0.12)",
-                                                    paddingHorizontal: 12,
-                                                    paddingVertical: 10,
-                                                    borderRadius: 12,
+                                                    paddingHorizontal: 16,
+                                                    paddingVertical: 12,
+                                                    borderRadius: 16,
                                                 }}
                                             >
                                                 <Text
@@ -1321,7 +1343,7 @@ export default function Settings() {
                                                 </Text>
                                             </Pressable>
                                         </View>
-                                    </View>
+                                    </Pressable>
                                 );
                             })}
                         </View>
@@ -2366,8 +2388,8 @@ const styles = StyleSheet.create({
     },
 
     settingLabel: {
-        fontSize: 14,
-        fontWeight: "800",
+        fontSize: 15,
+        fontWeight: "900",
     },
 
     actionLabel: {
@@ -2901,5 +2923,18 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: "900",
         textAlign: "center",
+    },
+
+    carCard: {
+        borderRadius: 24,
+        borderWidth: 1,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        marginBottom: 0,
+        shadowColor: "#871B17",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        elevation: 2,
     },
 });

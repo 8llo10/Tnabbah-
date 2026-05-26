@@ -89,6 +89,7 @@ function isBadResponse(raw: string) {
     upper.includes("NO DATA") ||
     upper.includes("ERROR") ||
     upper.includes("UNABLE TO CONNECT") ||
+    upper.includes("SEARCHING") ||
     upper.includes("STOPPED") ||
     upper.includes("?")
   );
@@ -343,10 +344,10 @@ export const obdCoreService = {
   async readAllSupportedPidValues(options?: ReadAllOptions) {
     const support = options?.supportedPids?.length
       ? {
-          supportedPids: options.supportedPids,
-          rawBlocks: {},
-          timestamp: Date.now(),
-        }
+        supportedPids: options.supportedPids,
+        rawBlocks: {},
+        timestamp: Date.now(),
+      }
       : await this.getSupportedPids();
 
     const values: Record<string, ObdValue> = {};

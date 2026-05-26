@@ -23,11 +23,22 @@ function normalizeText(value: unknown) {
 }
 
 function cleanRawFingerprint(value: unknown) {
-  return normalizeText(value)
-    .replace(/NODATA/g, "")
-    .replace(/ERROR/g, "")
-    .replace(/SEARCHING/g, "")
-    .replace(/[^A-Z0-9]/g, "");
+  const text = normalizeText(value);
+
+  if (
+    !text ||
+    text.includes("NODATA") ||
+    text.includes("NO DATA") ||
+    text.includes("ERROR") ||
+    text.includes("SEARCHING") ||
+    text.includes("UNABLETOCONNECT") ||
+    text.includes("UNABLE TO CONNECT") ||
+    text.includes("STOPPED") ||
+    text.includes("?")
+  ) {
+    return "";
+  }
+  return text.replace(/[^A-Z0-9]/g, "");
 }
 
 function buildStableFingerprint(parts: {
@@ -36,22 +47,22 @@ function buildStableFingerprint(parts: {
   ecuName: string;
   mode09Supported: string;
 }) {
-  if (parts.vin) return parts.vin;
-  if (parts.calibrationId) return parts.calibrationId;
-  if (parts.ecuName) return parts.ecuName;
-  if (parts.mode09Supported) return parts.mode09Supported;
+  if (parts.vin) return `VIN:${parts.vin}`;
+  if (parts.calibrationId) return `CAL:${parts.calibrationId}`;
+  if (parts.ecuName) return `ECU:${parts.ecuName}`;
+  if (parts.mode09Supported) return `MODE09:${parts.mode09Supported}`;
 
-  return [
-    "UNKNOWN_VEHICLE",
-    parts.calibrationId || "NO_CALIBRATION",
-    parts.ecuName || "NO_ECU",
-    parts.mode09Supported || "NO_MODE09",
-  ].join("|");
+  return "LOCAL_UNKNOWN_VEHICLE";
 }
 
 export const carIdentityService = {
   async getCarIdentity(options?: { forceRefresh?: boolean }) {
-    if (cachedIdentity && !options?.forceRefresh) {
+
+    if (options?.forceRefresh) {
+      cachedIdentity = null;
+    }
+
+    if (cachedIdentity) {
       return cachedIdentity;
     }
 
@@ -87,12 +98,12 @@ export const carIdentityService = {
       source: vin
         ? "vin_mode09"
         : calibrationId
-        ? "calibration_mode09"
-        : ecuName
-        ? "ecu_mode09"
-        : mode09Supported
-        ? "mode09_supported"
-        : "mode09_fallback",
+          ? "calibration_mode09"
+          : ecuName
+            ? "ecu_mode09"
+            : mode09Supported
+              ? "mode09_supported"
+              : "mode09_fallback",
 
       fingerprints: {
         identityBase,

@@ -1,6 +1,5 @@
 import { Stack } from "expo-router";
 import { AuthProvider } from "../providers/AuthProvider";
-import { LanguageProvider } from "../providers/LanguageProvider";
 import * as SplashScreen from "expo-splash-screen";
 import { Asset } from "expo-asset";
 import { WalletProvider } from "../providers/WalletProvider";
@@ -8,6 +7,8 @@ import { CarsProvider } from "../providers/CarsProvider";
 import { AppSettingsProvider } from "../providers/AppSettingsProvider";
 import { NotificationsProvider } from "../providers/NotificationsProvider";
 import { AccountSettingsProvider } from "../providers/AccountSettingsProvider";
+import { VehicleRealtimeProvider } from "../providers/VehicleRealtimeProvider";
+import { LanguageProvider } from "../providers/LanguageProvider";
 
 import {
   ThemeProvider as NavigationThemeProvider,
@@ -71,6 +72,7 @@ export default function RootLayout() {
       } finally {
         if (mounted) {
           setAppIsReady(true);
+
         }
       }
     }
@@ -90,11 +92,12 @@ export default function RootLayout() {
     <View style={styles.root}>
       <AuthProvider>
         <LanguageProvider>
-          <WalletProvider>
-            <AppSettingsProvider>
-              <AccountSettingsProvider>
-                <NotificationsProvider>
-                  <CarsProvider>
+        <WalletProvider>
+          <AppSettingsProvider>
+            <AccountSettingsProvider>
+              <NotificationsProvider>
+                <CarsProvider>
+                  <VehicleRealtimeProvider>
                     <NavigationThemeProvider
                       value={colorScheme === "dark" ? AppDarkTheme : LightTheme}
                     >
@@ -113,6 +116,7 @@ export default function RootLayout() {
                         <Stack.Screen name="register" />
                         <Stack.Screen name="forgot-password" />
 
+
                         <Stack.Screen name="connection-intro" />
                         <Stack.Screen name="connection-success" />
 
@@ -122,17 +126,14 @@ export default function RootLayout() {
                         <Stack.Screen name="(tabs)" />
                       </Stack>
 
-                      <StatusBar
-                        style="dark"
-                        translucent
-                        backgroundColor="transparent"
-                      />
+                      <StatusBar style="dark" translucent backgroundColor="transparent" />
                     </NavigationThemeProvider>
-                  </CarsProvider>
-                </NotificationsProvider>
-              </AccountSettingsProvider>
-            </AppSettingsProvider>
-          </WalletProvider>
+                  </VehicleRealtimeProvider>
+                </CarsProvider>
+              </NotificationsProvider>
+            </AccountSettingsProvider>
+          </AppSettingsProvider>
+        </WalletProvider>
         </LanguageProvider>
       </AuthProvider>
     </View>

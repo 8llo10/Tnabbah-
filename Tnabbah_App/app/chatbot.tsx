@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../providers/AuthProvider";
-import { useLocalSearchParams } from "expo-router";
+import { useCars } from "../providers/CarsProvider";
 
 
 const CHATBOT_API_URL = "http://207.180.244.27:4010/chat";
@@ -56,11 +56,11 @@ function getCurrentTime() {
 export default function Chatbot() {
 
     const { session, profile } = useAuth();
-    const params = useLocalSearchParams<{ carId?: string }>();
-    const incomingCarId = params.carId;
 
     const scrollRef = useRef<ScrollView | null>(null);
     const inputRef = useRef<TextInput | null>(null);
+
+    const { activeCarId } = useCars();
 
     const [messages, setMessages] = useState<Message[]>([
         {
@@ -97,7 +97,7 @@ export default function Chatbot() {
                     body: JSON.stringify({
                         message: userText,
                         userId: session?.user?.id,
-                        carId: incomingCarId || null,
+                        carId: activeCarId || null,
                         email: session?.user?.email,
                         fullName: profile?.full_name ?? null,
                         sessionId: SESSION_ID,
