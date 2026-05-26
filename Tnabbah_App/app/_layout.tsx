@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 import { AuthProvider } from "../providers/AuthProvider";
+import { LanguageProvider } from "../providers/LanguageProvider";
 import * as SplashScreen from "expo-splash-screen";
 import { Asset } from "expo-asset";
 import { WalletProvider } from "../providers/WalletProvider";
@@ -66,7 +67,6 @@ export default function RootLayout() {
       } finally {
         if (mounted) {
           setAppIsReady(true);
-
         }
       }
     }
@@ -83,8 +83,9 @@ export default function RootLayout() {
   }
 
   return (
-    <View style={styles.root}>
-      <AuthProvider>
+  <View style={styles.root}>
+    <AuthProvider>
+      <LanguageProvider>
         <WalletProvider>
           <NavigationThemeProvider
             value={colorScheme === "dark" ? AppDarkTheme : LightTheme}
@@ -104,7 +105,6 @@ export default function RootLayout() {
               <Stack.Screen name="register" />
               <Stack.Screen name="forgot-password" />
 
-
               <Stack.Screen name="connection-intro" />
               <Stack.Screen name="connection-success" />
 
@@ -117,9 +117,10 @@ export default function RootLayout() {
             <StatusBar style="dark" translucent backgroundColor="transparent" />
           </NavigationThemeProvider>
         </WalletProvider>
-      </AuthProvider>
-    </View>
-  );
+      </LanguageProvider>
+    </AuthProvider>
+  </View>
+);
 }
 
 const styles = StyleSheet.create({

@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   Keyboard,
   KeyboardAvoidingView,
@@ -19,6 +20,7 @@ import { supabase } from "../lib/supabase";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useLanguage } from "../providers/LanguageProvider";
 
 const OTP_DIGITS = 8;
 const RESEND_COOLDOWN = 60;
@@ -51,6 +53,10 @@ const clamp = (value: number, min: number, max: number) =>
 export default function VerifyEmailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { t, isArabic } = useLanguage();
+
+  const textAlign = isArabic ? "right" : "left";
+  const rowDirection = isArabic ? "row-reverse" : "row";
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -73,6 +79,7 @@ export default function VerifyEmailScreen() {
 
   const [errorMessage, setErrorMessage] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
+  const [showVerifySuccess, setShowVerifySuccess] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
@@ -175,6 +182,11 @@ export default function VerifyEmailScreen() {
     setInfoMessage("");
   };
 
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
+    setFocusedIndex(null);
+  };
+
   const handleOtpChange = (text: string, index: number) => {
     const onlyNumbers = text.replace(/[^0-9]/g, "");
 
@@ -256,12 +268,12 @@ export default function VerifyEmailScreen() {
     const cleanCode = otpCode.trim();
 
     if (!cleanEmail) {
-      setErrorMessage("البريد الإلكتروني غير موجود، ارجع وسجل مرة أخرى");
+      setErrorMessage(t.emailMissingRegisterAgain);
       return;
     }
 
     if (cleanCode.length !== OTP_DIGITS) {
-      setErrorMessage(`أدخل رمز التحقق المكوّن من ${OTP_DIGITS} أرقام`);
+      setErrorMessage(t.enterOtpCode);
       return;
     }
 
@@ -276,7 +288,7 @@ export default function VerifyEmailScreen() {
       });
 
       if (error) {
-        setErrorMessage("رمز التحقق غير صحيح أو انتهت صلاحيته");
+        setErrorMessage(t.invalidOtpCode);
         return;
       }
 
@@ -295,15 +307,20 @@ export default function VerifyEmailScreen() {
       }
 
       setOtpValues(Array(OTP_DIGITS).fill(""));
+      Keyboard.dismiss();
+      setFocusedIndex(null);
+      setShowVerifySuccess(true);
 
-      if (source === "forgot-password") {
-        smoothReplace("/forgot-password");
-      } else {
-        smoothReplace("/login");
-      }
+      setTimeout(() => {
+        if (source === "forgot-password") {
+          smoothReplace("/forgot-password");
+        } else {
+          smoothReplace("/login");
+        }
+      }, 2000);
     } catch (err) {
       console.log(err);
-      setErrorMessage("صار خطأ غير متوقع، حاول مرة أخرى");
+      setErrorMessage(t.verifyUnexpectedError);
     } finally {
       setLoading(false);
     }
@@ -313,7 +330,7 @@ export default function VerifyEmailScreen() {
     const cleanEmail = email.trim().toLowerCase();
 
     if (!cleanEmail) {
-      setErrorMessage("البريد الإلكتروني غير موجود");
+      setErrorMessage(t.emailMissing);
       return;
     }
 
@@ -336,25 +353,23 @@ export default function VerifyEmailScreen() {
         const message = error.message?.toLowerCase() || "";
 
         if (message.includes("rate limit")) {
-          setErrorMessage("تم إرسال رمز مسبقًا، تحقق من بريدك الإلكتروني");
+          setErrorMessage(t.codeAlreadySent);
           return;
         }
 
-        setErrorMessage("تعذر إرسال رمز جديد، حاول بعد قليل");
+        setErrorMessage(t.resendCodeErrorLater);
         return;
       }
 
       setOtpValues(Array(OTP_DIGITS).fill(""));
       setResendTimer(RESEND_COOLDOWN);
-      setInfoMessage("تم إرسال رمز جديد إلى بريدك الإلكتروني");
+      setInfoMessage(t.newCodeSent);
 
-      setTimeout(() => {
-        otpRefs.current[0]?.focus();
-        setFocusedIndex(0);
-      }, 100);
+      Keyboard.dismiss();
+      setFocusedIndex(null);
     } catch (err) {
       console.log(err);
-      setErrorMessage("تعذر إرسال رمز جديد، حاول مرة أخرى");
+      setErrorMessage(t.resendCodeErrorAgain);
     } finally {
       setResending(false);
     }
@@ -363,18 +378,22 @@ export default function VerifyEmailScreen() {
   const renderMessage = () => {
     if (errorMessage) {
       return (
-        <View style={styles.messageBoxError}>
-          <Ionicons name="alert-circle" size={18} color={COLORS.primary} />
-          <Text style={styles.messageTextError}>{errorMessage}</Text>
+        <View style={[styles.messageBoxError, { flexDirection: rowDirection }]}>
+          <Ionicons name="alert-circle" size={24} color={COLORS.primaryText} />
+          <Text style={[styles.messageTextError, { textAlign }]}>
+            {errorMessage}
+          </Text>
         </View>
       );
     }
 
     if (infoMessage) {
       return (
-        <View style={styles.messageBoxInfo}>
-          <Ionicons name="checkmark-circle" size={18} color={COLORS.primary} />
-          <Text style={styles.messageTextInfo}>{infoMessage}</Text>
+        <View style={[styles.messageBoxInfo, { flexDirection: rowDirection }]}>
+          <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
+          <Text style={[styles.messageTextInfo, { textAlign }]}>
+            {infoMessage}
+          </Text>
         </View>
       );
     }
@@ -385,18 +404,18 @@ export default function VerifyEmailScreen() {
   const renderResendArea = () => {
     if (resendTimer > 0) {
       return (
-        <View style={styles.timerBox}>
-          <Ionicons name="time-outline" size={16} color={COLORS.primaryText} />
+        <View style={[styles.timerBox, { flexDirection: rowDirection }]}>
+          <Ionicons name="time-outline" size={24} color={COLORS.primary} />
           <Text style={styles.timerText}>
-            يمكنك إعادة الإرسال بعد {resendTimer} ثانية
+            {t.resendAfter} {resendTimer} {t.seconds}
           </Text>
         </View>
       );
     }
 
     return (
-      <View style={styles.resendRow}>
-        <Text style={styles.resendQuestion}>لم يصلك الرمز؟</Text>
+      <View style={[styles.resendRow, { flexDirection: rowDirection }]}>
+        <Text style={styles.resendQuestion}>{t.didNotReceiveCode}</Text>
 
         <TouchableOpacity
           activeOpacity={0.75}
@@ -404,7 +423,7 @@ export default function VerifyEmailScreen() {
           disabled={loading || resending}
         >
           <Text style={styles.resendText}>
-            {resending ? "جاري الإرسال..." : "إعادة إرسال الرمز"}
+            {resending ? t.resendingCode : t.resendCode}
           </Text>
         </TouchableOpacity>
       </View>
@@ -413,6 +432,8 @@ export default function VerifyEmailScreen() {
 
   return (
     <View style={styles.container}>
+      <Stack.Screen options={{ gestureEnabled: false }} />
+
       <StatusBar
         translucent
         backgroundColor="transparent"
@@ -425,129 +446,153 @@ export default function VerifyEmailScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 16}
         >
-          <View style={styles.screenContent}>
-            <View style={styles.backArea}>
-              <TouchableOpacity
-                style={styles.backButtonWrapper}
-                activeOpacity={0.85}
-                onPress={() => router.back()}
-                disabled={loading || resending}
-              >
-                <Ionicons
-                  name="arrow-back-outline"
-                  size={isVerySmallScreen ? 23 : 25}
-                  color={COLORS.textDark}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.titleArea}>
-              <Text style={styles.title}>رمز التحقق</Text>
-
-              <Text style={styles.subtitle}>
-                أرسلنا رمز التحقق إلى بريدك الإلكتروني
-              </Text>
-
-              <Text style={styles.emailText}>
-                {email || "البريد الإلكتروني"}
-              </Text>
-            </View>
-
-            <View style={styles.otpArea}>
-              <Text style={styles.inputLabel}>أدخل الرمز</Text>
-
-              <View style={styles.otpRow}>
-                {otpValues.map((digit, index) => {
-                  const isFocused = focusedIndex === index;
-                  const isFilled = !!digit;
-                  const hasError = !!errorMessage;
-
-                  return (
-                    <Animated.View
-                      key={index}
-                      style={[
-                        styles.otpBoxWrapper,
-                        {
-                          transform: [{ scale: boxScales[index] }],
-                        },
-                        isFilled && styles.otpBoxFilled,
-                        isFocused && styles.otpBoxFocused,
-                        hasError && styles.otpBoxError,
-                      ]}
-                    >
-                      <TextInput
-                        ref={(ref) => {
-                          otpRefs.current[index] = ref;
-                        }}
-                        style={[
-                          styles.otpInput,
-                          isFilled && styles.otpInputFilled,
-                        ]}
-                        value={digit}
-                        onChangeText={(text) => handleOtpChange(text, index)}
-                        onKeyPress={({ nativeEvent }) =>
-                          handleOtpKeyPress(nativeEvent.key, index)
-                        }
-                        onFocus={() => handleFocus(index)}
-                        onBlur={() => handleBlur(index)}
-                        keyboardType="number-pad"
-                        maxLength={index === 0 ? OTP_DIGITS : 1}
-                        textAlign="center"
-                        autoCorrect={false}
-                        autoCapitalize="none"
-                        selectionColor={COLORS.primaryDark}
-                        editable={!loading && !resending}
-                      />
-                    </Animated.View>
-                  );
-                })}
+          <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}>
+            <View style={styles.screenContent}>
+              <View style={styles.backArea}>
+                <TouchableOpacity
+                  style={styles.backButtonWrapper}
+                  activeOpacity={0.85}
+                  onPress={() => router.back()}
+                  disabled={loading || resending}
+                >
+                  <Ionicons
+                    name="arrow-back-outline"
+                    size={isVerySmallScreen ? 23 : 25}
+                    color={COLORS.textDark}
+                  />
+                </TouchableOpacity>
               </View>
 
-              {renderMessage()}
-            </View>
+              <View style={styles.titleArea}>
+                <Text style={styles.title}>{t.verifyEmailTitle}</Text>
 
-            <View style={styles.bottomArea}>
-              <TouchableOpacity
-                style={[
-                  styles.mainButtonWrapper,
-                  loading && styles.mainButtonDisabled,
-                ]}
-                onPress={handleVerifyCode}
-                disabled={loading || resending}
-                activeOpacity={0.9}
-              >
-                <LinearGradient
-                  colors={[
-                    "rgba(154,33,28,0.98)",
-                    "rgba(118,23,19,0.98)",
+                <Text style={styles.subtitle}>{t.verifyEmailSubtitle}</Text>
+
+                <Text style={styles.emailText}>{email || t.emailFallback}</Text>
+              </View>
+
+              <View style={styles.otpArea}>
+                <Text style={[styles.inputLabel, { textAlign }]}>
+                  {t.enterCode}
+                </Text>
+
+                <View style={styles.otpRow}>
+                  {otpValues.map((digit, index) => {
+                    const isFocused = focusedIndex === index;
+                    const isFilled = !!digit;
+                    const hasError = !!errorMessage;
+
+                    return (
+                      <Animated.View
+                        key={index}
+                        style={[
+                          styles.otpBoxWrapper,
+                          {
+                            transform: [{ scale: boxScales[index] }],
+                          },
+                          isFilled && styles.otpBoxFilled,
+                          isFocused && styles.otpBoxFocused,
+                          hasError && styles.otpBoxError,
+                        ]}
+                      >
+                        <TextInput
+                          ref={(ref) => {
+                            otpRefs.current[index] = ref;
+                          }}
+                          style={[
+                            styles.otpInput,
+                            isFilled && styles.otpInputFilled,
+                          ]}
+                          value={digit}
+                          onChangeText={(text) => handleOtpChange(text, index)}
+                          onKeyPress={({ nativeEvent }) =>
+                            handleOtpKeyPress(nativeEvent.key, index)
+                          }
+                          onFocus={() => handleFocus(index)}
+                          onBlur={() => handleBlur(index)}
+                          keyboardType="number-pad"
+                          maxLength={index === 0 ? OTP_DIGITS : 1}
+                          textAlign="center"
+                          autoCorrect={false}
+                          autoCapitalize="none"
+                          selectionColor={COLORS.primaryDark}
+                          editable={!loading && !resending}
+                        />
+                      </Animated.View>
+                    );
+                  })}
+                </View>
+
+                {renderMessage()}
+              </View>
+
+              <View style={styles.bottomArea}>
+                <TouchableOpacity
+                  style={[
+                    styles.mainButtonWrapper,
+                    loading && styles.mainButtonDisabled,
                   ]}
-                  start={{ x: 0.15, y: 0 }}
-                  end={{ x: 0.9, y: 1 }}
-                  style={styles.buttonGradient}
+                  onPress={handleVerifyCode}
+                  disabled={loading || resending || showVerifySuccess}
+                  activeOpacity={0.9}
                 >
-                  <View style={styles.buttonGlassTop} />
+                  <LinearGradient
+                    colors={[
+                      "rgba(154,33,28,0.98)",
+                      "rgba(118,23,19,0.98)",
+                    ]}
+                    start={{ x: 0.15, y: 0 }}
+                    end={{ x: 0.9, y: 1 }}
+                    style={styles.buttonGradient}
+                  >
+                    <View style={styles.buttonGlassTop} />
 
-                  <View style={styles.loadingRow}>
-                    {loading ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={COLORS.white}
-                        style={styles.loadingSpinner}
-                      />
-                    ) : null}
+                    <View style={styles.loadingRow}>
+                      {loading ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={COLORS.white}
+                          style={styles.loadingSpinner}
+                        />
+                      ) : null}
 
-                    <Text style={styles.buttonText}>
-                      {loading ? "جاري التحقق..." : "تأكيد الرمز"}
-                    </Text>
-                  </View>
-                </LinearGradient>
-              </TouchableOpacity>
+                      <Text style={styles.buttonText}>
+                        {loading ? t.verifying : t.verifyCode}
+                      </Text>
+                    </View>
+                  </LinearGradient>
+                </TouchableOpacity>
 
-              {renderResendArea()}
+                {renderResendArea()}
+              </View>
             </View>
-          </View>
+          </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      {showVerifySuccess ? (
+        <View style={styles.verifySuccessOverlay} pointerEvents="none">
+          <View style={styles.verifySuccessBox}>
+            <Ionicons
+              name="checkmark-circle"
+              size={58}
+              color={COLORS.success}
+            />
+
+            <Text style={styles.verifySuccessTitle}>
+              {source === "forgot-password"
+                ? "تم التحقق من الرمز بنجاح"
+                : "تم التحقق من بريدك الإلكتروني بنجاح"}
+            </Text>
+
+            <Text style={styles.verifySuccessSubtitle}>
+              {source === "forgot-password"
+                ? "سيتم توجيهك لإعادة تعيين كلمة المرور"
+                : "سيتم توجيهك لتسجيل الدخول"}
+            </Text>
+          </View>
+        </View>
+      ) : null}
 
       <Animated.View
         pointerEvents="none"
@@ -662,7 +707,7 @@ function createStyles({
       marginTop: isVerySmallScreen ? 9 : 12,
       fontSize: isVerySmallScreen ? 14.5 : 15.5,
       lineHeight: isVerySmallScreen ? 22 : 25,
-      color: COLORS.textDark,
+      color: "#6C5B58",
       fontWeight: "800",
       textAlign: "center",
       maxWidth: clamp(width * 0.9, 300, 360),
@@ -757,45 +802,45 @@ function createStyles({
 
     messageBoxError: {
       width: "100%",
-      minHeight: isVerySmallScreen ? 42 : 46,
+      minHeight: isVerySmallScreen ? 48 : 52,
       flexDirection: "row-reverse",
       alignItems: "center",
       marginTop: 0,
-      paddingHorizontal: 14,
-      paddingVertical: 9,
-      borderRadius: 18,
-      backgroundColor: "rgba(154,33,28,0.075)",
+      paddingHorizontal: isVerySmallScreen ? 14 : 16,
+      paddingVertical: isVerySmallScreen ? 9 : 10,
+      borderRadius: 22,
+      backgroundColor: "#F5F5F5",
       borderWidth: 1.1,
-      borderColor: "rgba(154,33,28,0.18)",
+      borderColor: "rgba(170,170,170,0.45)",
       gap: 7,
     },
 
     messageBoxInfo: {
       width: "100%",
-      minHeight: isVerySmallScreen ? 42 : 46,
+      minHeight: isVerySmallScreen ? 48 : 52,
       flexDirection: "row-reverse",
       alignItems: "center",
       marginTop: 0,
-      paddingHorizontal: 14,
-      paddingVertical: 9,
-      borderRadius: 18,
-      backgroundColor: "rgba(154,33,28,0.055)",
+      paddingHorizontal: isVerySmallScreen ? 14 : 16,
+      paddingVertical: isVerySmallScreen ? 9 : 10,
+      borderRadius: 22,
+      backgroundColor: "#F5F5F5",
       borderWidth: 1.1,
-      borderColor: "rgba(154,33,28,0.16)",
+      borderColor: "rgba(170,170,170,0.45)",
       gap: 7,
+    },
+
+    messageTextInfo: {
+      color: "#6C5B58",
+      fontSize: isVerySmallScreen ? 13.8 : 15,
+      fontWeight: "900",
+      textAlign: "right",
+      flex: 1,
+      lineHeight: isVerySmallScreen ? 19 : 21,
     },
 
     messageTextError: {
       color: COLORS.primary,
-      fontSize: isVerySmallScreen ? 12.8 : 13.5,
-      fontWeight: "800",
-      textAlign: "right",
-      flex: 1,
-      lineHeight: isVerySmallScreen ? 18 : 20,
-    },
-
-    messageTextInfo: {
-      color: COLORS.primaryText,
       fontSize: isVerySmallScreen ? 12.8 : 13.5,
       fontWeight: "800",
       textAlign: "right",
@@ -869,22 +914,27 @@ function createStyles({
 
     timerBox: {
       marginTop: isVerySmallScreen ? 12 : 14,
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 18,
-      backgroundColor: "rgba(154,33,28,0.055)",
-      borderWidth: 1,
-      borderColor: "rgba(154,33,28,0.12)",
+      width: "100%",
+      minHeight: isVerySmallScreen ? 48 : 52,
+      paddingHorizontal: isVerySmallScreen ? 14 : 16,
+      paddingVertical: isVerySmallScreen ? 9 : 10,
+      borderRadius: 22,
+      backgroundColor: "#F5F5F5",
+      borderWidth: 1.1,
+      borderColor: "rgba(170,170,170,0.45)",
       flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "center",
-      gap: 6,
+      gap: 7,
     },
 
     timerText: {
-      color: COLORS.primaryText,
-      fontSize: isVerySmallScreen ? 13 : 13.8,
-      fontWeight: "800",
+      flexShrink: 1,
+      color: "#6C5B58",
+      fontSize: isVerySmallScreen ? 13.8 : 15,
+      fontWeight: "900",
+      textAlign: "center",
+      lineHeight: isVerySmallScreen ? 19 : 21,
     },
 
     resendRow: {
@@ -897,16 +947,61 @@ function createStyles({
     },
 
     resendQuestion: {
-      color: COLORS.label,
-      fontSize: isVerySmallScreen ? 13.5 : 14,
+      color: "rgba(87, 87, 87, 1)",
+      fontSize: isVerySmallScreen ? 16 : 17,
       fontWeight: "700",
     },
 
     resendText: {
       color: COLORS.primaryText,
-      fontSize: isVerySmallScreen ? 13.5 : 14,
+      fontSize: isVerySmallScreen ? 16 : 17,
       fontWeight: "900",
-      textDecorationLine: "underline",
+      textDecorationLine: "none",
+    },
+
+    verifySuccessOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 90,
+      backgroundColor: "rgba(255,255,255,0.72)",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 28,
+    },
+
+    verifySuccessBox: {
+      width: "100%",
+      maxWidth: 330,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 22,
+      paddingVertical: 24,
+      borderRadius: 24,
+      backgroundColor: "#F5F5F5",
+      borderWidth: 1.1,
+      borderColor: "rgba(170,170,170,0.45)",
+      shadowColor: COLORS.shadowGray,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: Platform.OS === "android" ? 0.12 : 0.18,
+      shadowRadius: 16,
+      elevation: 8,
+    },
+
+    verifySuccessTitle: {
+      marginTop: 12,
+      color: COLORS.primaryText,
+      fontSize: isVerySmallScreen ? 16 : 17,
+      fontWeight: "900",
+      textAlign: "center",
+      lineHeight: isVerySmallScreen ? 22 : 24,
+    },
+
+    verifySuccessSubtitle: {
+      marginTop: 6,
+      color: "#6C5B58",
+      fontSize: isVerySmallScreen ? 13.2 : 14,
+      fontWeight: "800",
+      textAlign: "center",
+      lineHeight: isVerySmallScreen ? 19 : 21,
     },
 
     transitionOverlay: {

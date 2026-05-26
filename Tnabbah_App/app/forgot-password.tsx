@@ -7,11 +7,12 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
   ActivityIndicator,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
-  Modal,
   useWindowDimensions,
   Animated,
   Easing,
@@ -21,6 +22,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useLanguage } from "../providers/LanguageProvider";
 
 const COLORS = {
   screenBackground: "#FFFFFF",
@@ -41,9 +43,6 @@ const COLORS = {
 
   shadowGray: "#8E8E8E",
   white: "#FFFFFF",
-
-  successGreen: "#3F7F52",
-  successGreenSoft: "rgba(63,127,82,0.10)",
 };
 
 const clamp = (value: number, min: number, max: number) =>
@@ -51,23 +50,23 @@ const clamp = (value: number, min: number, max: number) =>
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const { t, isArabic } = useLanguage();
+
+  const textAlign = isArabic ? "right" : "left";
+  const rowDirection = isArabic ? "row-reverse" : "row";
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [infoMessage, setInfoMessage] = useState("");
 
   const [loading, setLoading] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
 
   const screenOpacity = useRef(new Animated.Value(0)).current;
   const screenTranslateY = useRef(new Animated.Value(10)).current;
   const transitionAnim = useRef(new Animated.Value(0)).current;
-
-  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isSmallScreen = height < 720;
   const isVerySmallScreen = height < 650;
@@ -145,14 +144,13 @@ export default function ForgotPasswordScreen() {
         }),
       ]).start();
 
-      return () => {
-        if (successTimerRef.current) {
-          clearTimeout(successTimerRef.current);
-          successTimerRef.current = null;
-        }
-      };
+      return () => {};
     }, [screenOpacity, screenTranslateY, transitionAnim])
   );
+
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
+  };
 
   const smoothReplace = (path: string, params?: Record<string, string>) => {
     if (isNavigating) return;
@@ -181,11 +179,6 @@ export default function ForgotPasswordScreen() {
   const smoothBack = () => {
     if (isNavigating || loading) return;
 
-    if (successTimerRef.current) {
-      clearTimeout(successTimerRef.current);
-      successTimerRef.current = null;
-    }
-
     setIsNavigating(true);
 
     Animated.timing(transitionAnim, {
@@ -204,52 +197,58 @@ export default function ForgotPasswordScreen() {
     const cleanEmail = email.trim().toLowerCase();
 
     if (!cleanEmail) {
-      setErrorMessage("الرجاء إدخال البريد الإلكتروني");
-      setInfoMessage("");
+      setErrorMessage(t.enterForgotEmail);
       return;
     }
 
     if (!cleanEmail.includes("@") || !cleanEmail.includes(".")) {
-      setErrorMessage("الرجاء إدخال بريد إلكتروني صحيح");
-      setInfoMessage("");
+      setErrorMessage(t.enterValidForgotEmail);
       return;
     }
 
     setErrorMessage("");
-    setInfoMessage("");
+    Keyboard.dismiss();
 
     try {
       setLoading(true);
+
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("username", cleanEmail)
+        .maybeSingle();
+
+      if (profileError) {
+        console.log("Check email profile error:", profileError.message);
+        setErrorMessage(t.forgotSendError);
+        return;
+      }
+
+      if (!profileData) {
+        setErrorMessage(t.forgotEmailNotRegistered);
+        return;
+      }
 
       const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
 
       if (error) {
         console.log("Forgot password error:", error.message);
 
-        if (error.message.includes("rate limit")) {
-          setErrorMessage(
-            "تم إرسال محاولات كثيرة. الرجاء الانتظار قليلًا ثم المحاولة مرة أخرى"
-          );
+        const message = error.message?.toLowerCase() || "";
+
+        if (message.includes("rate limit") || message.includes("too many")) {
+          setErrorMessage(t.forgotRateLimit);
           return;
         }
 
-        setErrorMessage("لم نتمكن من إرسال كود إعادة التعيين، حاول مرة أخرى");
+        setErrorMessage(t.forgotSendError);
         return;
       }
 
-      setShowSuccessModal(true);
-
-      if (successTimerRef.current) {
-        clearTimeout(successTimerRef.current);
-      }
-
-      successTimerRef.current = setTimeout(() => {
-        setShowSuccessModal(false);
-        smoothReplace("/auth/reset-password", { email: cleanEmail });
-      }, 3000);
+      smoothReplace("/auth/reset-password", { email: cleanEmail });
     } catch (err) {
       console.log("Forgot password unexpected error:", err);
-      setErrorMessage("حدث خطأ غير متوقع، حاول مرة أخرى");
+      setErrorMessage(t.forgotUnexpectedError);
     } finally {
       setLoading(false);
     }
@@ -258,18 +257,12 @@ export default function ForgotPasswordScreen() {
   const renderMessage = () => {
     if (errorMessage) {
       return (
-        <View style={styles.messageBox}>
-          <Ionicons name="alert-circle" size={17} color={COLORS.primary} />
-          <Text style={styles.messageText}>{errorMessage}</Text>
-        </View>
-      );
-    }
+        <View style={[styles.messageBox, { flexDirection: rowDirection }]}>
+          <Ionicons name="alert-circle" size={18} color={COLORS.primaryText} />
 
-    if (infoMessage) {
-      return (
-        <View style={styles.messageBox}>
-          <Ionicons name="information-circle" size={17} color={COLORS.primary} />
-          <Text style={styles.messageText}>{infoMessage}</Text>
+          <Text style={[styles.messageTextError, { textAlign }]}>
+            {errorMessage}
+          </Text>
         </View>
       );
     }
@@ -278,176 +271,151 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ gestureEnabled: false }} />
+    <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}>
+      <View style={styles.container}>
+        <Stack.Screen options={{ gestureEnabled: false }} />
 
-      <StatusBar
-        translucent
-        backgroundColor="transparent"
-        barStyle="dark-content"
-      />
+        <StatusBar
+          translucent
+          backgroundColor="transparent"
+          barStyle="dark-content"
+        />
 
-      <Animated.View
-        style={[
-          styles.animatedScreen,
-          {
-            opacity: screenOpacity,
-            transform: [{ translateY: screenTranslateY }],
-          },
-        ]}
-      >
-        <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-          <KeyboardAvoidingView
-            style={styles.keyboardAvoidingView}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 16}
-          >
-            <View style={styles.screenContent}>
-              <View style={styles.backArea}>
-                <TouchableOpacity
-                  style={styles.backButtonWrapper}
-                  activeOpacity={0.85}
-                  onPress={smoothBack}
-                  disabled={isNavigating || loading}
-                >
-                  <Ionicons
-                    name="arrow-back-outline"
-                    size={isVerySmallScreen ? 23 : 25}
-                    color={COLORS.textDark}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.titleArea}>
-                <Text style={styles.title}>نسيت كلمة المرور؟</Text>
-
-                <Text style={styles.subtitle}>
-                  أدخل البريد الإلكتروني المرتبط بحسابك لإرسال كود إعادة تعيين كلمة المرور
-                </Text>
-              </View>
-
-              <View style={styles.formArea}>
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.inputLabel}>البريد الإلكتروني</Text>
-
-                  <View
-                    style={[
-                      styles.inputWrapper,
-                      errorMessage.includes("البريد") && styles.inputWrapperError,
-                    ]}
+        <Animated.View
+          style={[
+            styles.animatedScreen,
+            {
+              opacity: screenOpacity,
+              transform: [{ translateY: screenTranslateY }],
+            },
+          ]}
+        >
+          <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+            <KeyboardAvoidingView
+              style={styles.keyboardAvoidingView}
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 16}
+            >
+              <View style={styles.screenContent}>
+                <View style={styles.backArea}>
+                  <TouchableOpacity
+                    style={styles.backButtonWrapper}
+                    activeOpacity={0.85}
+                    onPress={smoothBack}
+                    disabled={isNavigating || loading}
                   >
-                    <Feather
-                      name="mail"
-                      size={isVerySmallScreen ? 20 : 21}
-                      color={COLORS.primary}
-                      style={styles.inputIcon}
+                    <Ionicons
+                      name="arrow-back-outline"
+                      size={isVerySmallScreen ? 23 : 25}
+                      color={COLORS.textDark}
                     />
+                  </TouchableOpacity>
+                </View>
 
-                    <TextInput
-                      style={styles.input}
-                      placeholder="example@email.com"
-                      placeholderTextColor={COLORS.placeholder}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      value={email}
-                      onChangeText={(text) => {
-                        setEmail(text);
-                        setErrorMessage("");
-                        setInfoMessage("");
-                      }}
-                      textAlign="right"
-                      returnKeyType="done"
-                      editable={!loading && !isNavigating}
-                      selectionColor={COLORS.primary}
-                    />
+                <View style={styles.titleArea}>
+                  <Text style={styles.title}>{t.forgotPasswordTitle}</Text>
+
+                  <Text style={styles.subtitle}>
+                    {t.forgotPasswordSubtitle}
+                  </Text>
+                </View>
+
+                <View style={styles.formArea}>
+                  <View style={styles.fieldGroup}>
+                    <Text style={[styles.inputLabel, { textAlign }]}>
+                      {t.email}
+                    </Text>
+
+                    <View
+                      style={[
+                        styles.inputWrapper,
+                        errorMessage && styles.inputWrapperError,
+                      ]}
+                    >
+                      <Feather
+                        name="mail"
+                        size={isVerySmallScreen ? 20 : 21}
+                        color={COLORS.primary}
+                        style={styles.inputIcon}
+                      />
+
+                      <TextInput
+                        style={styles.input}
+                        placeholder="example@email.com"
+                        placeholderTextColor={COLORS.placeholder}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        value={email}
+                        onChangeText={(text) => {
+                          setEmail(text);
+                          setErrorMessage("");
+                        }}
+                        textAlign={textAlign}
+                        returnKeyType="done"
+                        editable={!loading && !isNavigating}
+                        selectionColor={COLORS.primary}
+                        onSubmitEditing={handleSubmit}
+                      />
+                    </View>
+
+                    {renderMessage()}
                   </View>
+                </View>
 
-                  {renderMessage()}
+                <View style={styles.buttonsArea}>
+                  <TouchableOpacity
+                    style={[
+                      styles.resetButtonWrapper,
+                      loading && styles.resetButtonDisabled,
+                    ]}
+                    onPress={handleSubmit}
+                    disabled={loading || isNavigating}
+                    activeOpacity={0.9}
+                  >
+                    <LinearGradient
+                      colors={[
+                        "rgba(154,33,28,0.98)",
+                        "rgba(118,23,19,0.98)",
+                      ]}
+                      start={{ x: 0.15, y: 0 }}
+                      end={{ x: 0.9, y: 1 }}
+                      style={styles.resetGradient}
+                    >
+                      <View style={styles.resetGlassTop} />
+
+                      <View style={styles.loadingRow}>
+                        {loading ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={COLORS.white}
+                            style={styles.loadingSpinner}
+                          />
+                        ) : null}
+
+                        <Text style={styles.resetText}>
+                          {loading ? t.sending : t.sendCode}
+                        </Text>
+                      </View>
+                    </LinearGradient>
+                  </TouchableOpacity>
                 </View>
               </View>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
+        </Animated.View>
 
-              <View style={styles.buttonsArea}>
-                <TouchableOpacity
-                  style={[
-                    styles.resetButtonWrapper,
-                    loading && styles.resetButtonDisabled,
-                  ]}
-                  onPress={handleSubmit}
-                  disabled={loading || isNavigating}
-                  activeOpacity={0.9}
-                >
-                  <LinearGradient
-                    colors={[
-                      "rgba(154,33,28,0.98)",
-                      "rgba(118,23,19,0.98)",
-                    ]}
-                    start={{ x: 0.15, y: 0 }}
-                    end={{ x: 0.9, y: 1 }}
-                    style={styles.resetGradient}
-                  >
-                    <View style={styles.resetGlassTop} />
-
-                    <View style={styles.loadingRow}>
-                      {loading ? (
-                        <ActivityIndicator
-                          size="small"
-                          color={COLORS.white}
-                          style={styles.loadingSpinner}
-                        />
-                      ) : null}
-
-                      <Text style={styles.resetText}>
-                        {loading ? "جاري الإرسال..." : "إرسال الكود"}
-                      </Text>
-                    </View>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </Animated.View>
-
-      <Modal
-        visible={showSuccessModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {}}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.successModal}>
-            <View style={styles.successIconCircle}>
-              <Ionicons
-                name="checkmark"
-                size={42}
-                color={COLORS.successGreen}
-              />
-            </View>
-
-            <Text style={styles.successTitle}>تم إرسال الكود</Text>
-
-            <Text style={styles.successMessage}>
-              أرسلنا كود إعادة تعيين كلمة المرور إلى بريدك الإلكتروني.
-            </Text>
-
-            <Text style={styles.successHint}>
-              سيتم نقلك تلقائيًا لإدخال الكود
-            </Text>
-          </View>
-        </View>
-      </Modal>
-
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.transitionOverlay,
-          {
-            opacity: transitionAnim,
-          },
-        ]}
-      />
-    </View>
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.transitionOverlay,
+            {
+              opacity: transitionAnim,
+            },
+          ]}
+        />
+      </View>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -557,7 +525,7 @@ function createStyles({
       marginTop: isVerySmallScreen ? 12 : 15,
       fontSize: isVerySmallScreen ? 15 : 16.5,
       lineHeight: isVerySmallScreen ? 23 : 27,
-      color: COLORS.textDark,
+      color: "#6C5B58",
       fontWeight: "800",
       textAlign: "center",
       maxWidth: clamp(width * 0.9, 300, 360),
@@ -629,20 +597,19 @@ function createStyles({
 
     messageBox: {
       width: "100%",
-      minHeight: isVerySmallScreen ? 42 : 46,
+      minHeight: isVerySmallScreen ? 48 : 52,
       marginTop: 8,
-      flexDirection: "row-reverse",
       alignItems: "center",
-      paddingHorizontal: 14,
-      paddingVertical: 9,
-      borderRadius: 18,
-      backgroundColor: "rgba(154,33,28,0.065)",
+      paddingHorizontal: isVerySmallScreen ? 14 : 16,
+      paddingVertical: isVerySmallScreen ? 9 : 10,
+      borderRadius: 22,
+      backgroundColor: "#F5F5F5",
       borderWidth: 1.1,
-      borderColor: "rgba(154,33,28,0.16)",
+      borderColor: "rgba(170,170,170,0.45)",
       gap: 7,
     },
 
-    messageText: {
+    messageTextError: {
       flex: 1,
       color: COLORS.primary,
       fontSize: isVerySmallScreen ? 12.8 : 13.5,
@@ -714,71 +681,6 @@ function createStyles({
       fontSize: isVerySmallScreen ? 18.5 : 20,
       fontWeight: "900",
       zIndex: 5,
-      includeFontPadding: false,
-    },
-
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(46, 29, 29, 0.28)",
-      justifyContent: "center",
-      alignItems: "center",
-      paddingHorizontal: 28,
-    },
-
-    successModal: {
-      width: "100%",
-      borderRadius: 28,
-      paddingHorizontal: 24,
-      paddingTop: 30,
-      paddingBottom: 28,
-      alignItems: "center",
-      backgroundColor: COLORS.white,
-      borderWidth: 1,
-      borderColor: "rgba(135, 27, 23, 0.14)",
-      shadowColor: "#6E1411",
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: 0.16,
-      shadowRadius: 24,
-      elevation: 8,
-    },
-
-    successIconCircle: {
-      width: 74,
-      height: 74,
-      borderRadius: 37,
-      backgroundColor: COLORS.successGreenSoft,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 18,
-      borderWidth: 1.2,
-      borderColor: "rgba(63,127,82,0.18)",
-    },
-
-    successTitle: {
-      fontSize: 22,
-      fontWeight: "900",
-      color: COLORS.primaryText,
-      textAlign: "center",
-      includeFontPadding: false,
-    },
-
-    successMessage: {
-      marginTop: 12,
-      fontSize: 15.5,
-      lineHeight: 24,
-      fontWeight: "700",
-      color: COLORS.label,
-      textAlign: "center",
-      includeFontPadding: false,
-    },
-
-    successHint: {
-      marginTop: 12,
-      fontSize: 13.5,
-      lineHeight: 20,
-      fontWeight: "800",
-      color: COLORS.successGreen,
-      textAlign: "center",
       includeFontPadding: false,
     },
 

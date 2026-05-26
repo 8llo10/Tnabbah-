@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
 import {
   View,
@@ -12,11 +12,15 @@ import {
   Animated,
   Easing,
   StatusBar,
+  Keyboard,
+TouchableWithoutFeedback,
+
 } from "react-native";
 import { supabase } from "../lib/supabase";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useLanguage } from "../providers/LanguageProvider";
 
 const COLORS = {
   screenBackground: "#FFFFFF",
@@ -57,6 +61,9 @@ type FieldErrors = {
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const { t, isArabic } = useLanguage();
+
+  const textAlign = isArabic ? "right" : "left";
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -74,6 +81,7 @@ export default function RegisterScreen() {
   const screenOpacity = useRef(new Animated.Value(0)).current;
   const screenTranslateY = useRef(new Animated.Value(10)).current;
   const transitionAnim = useRef(new Animated.Value(0)).current;
+  const keyboardTranslateY = useRef(new Animated.Value(0)).current;
 
   const emailInputRef = useRef<TextInput>(null);
   const passwordInputRef = useRef<TextInput>(null);
@@ -136,6 +144,38 @@ export default function RegisterScreen() {
     ]
   );
 
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+   const keyboardShift = isVerySmallScreen ? -125 : isSmallScreen ? -108 : -90;
+
+    const showSubscription = Keyboard.addListener(showEvent, () => {
+      Animated.timing(keyboardTranslateY, {
+        toValue: keyboardShift,
+        duration: 180,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+    });
+
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      Animated.timing(keyboardTranslateY, {
+        toValue: 0,
+        duration: 180,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [keyboardTranslateY, isSmallScreen, isVerySmallScreen]);
+
   const passwordChecks = useMemo(() => {
     const digitCount = (password.match(/[0-9]/g) || []).length;
 
@@ -159,22 +199,22 @@ export default function RegisterScreen() {
   const passwordRules = [
     {
       key: "uppercase",
-      label: "حرف كبير واحد على الأقل A-Z",
+      label: t.passwordRuleUppercase,
       valid: passwordChecks.hasUpperCase,
     },
     {
       key: "lowercase",
-      label: "حرف صغير واحد على الأقل a-z",
+      label: t.passwordRuleLowercase,
       valid: passwordChecks.hasLowerCase,
     },
     {
       key: "sixDigits",
-      label: "6 أرقام على الأقل من 0-9",
+      label: t.passwordRuleSixDigits,
       valid: passwordChecks.hasSixDigits,
     },
     {
       key: "special",
-      label: "رمز خاص واحد على الأقل مثل @ # ! %",
+      label: t.passwordRuleSpecial,
       valid: passwordChecks.hasSpecialCharacter,
     },
   ];
@@ -186,6 +226,7 @@ export default function RegisterScreen() {
       transitionAnim.setValue(0);
       screenOpacity.setValue(0);
       screenTranslateY.setValue(10);
+      keyboardTranslateY.setValue(0);
 
       Animated.parallel([
         Animated.timing(screenOpacity, {
@@ -203,7 +244,7 @@ export default function RegisterScreen() {
       ]).start();
 
       return () => {};
-    }, [screenOpacity, screenTranslateY, transitionAnim])
+    }, [screenOpacity, screenTranslateY, transitionAnim, keyboardTranslateY])
   );
 
   const smoothPush = (path: RegisterRoute) => {
@@ -255,19 +296,19 @@ export default function RegisterScreen() {
     const errors: FieldErrors = {};
 
     if (!fullName.trim()) {
-      errors.fullName = "أدخل الاسم الكامل";
+      errors.fullName = t.enterFullName;
     }
 
     if (!email.trim()) {
-      errors.email = "أدخل البريد الإلكتروني";
+      errors.email = t.enterEmail;
     } else if (!email.includes("@") || !email.includes(".")) {
-      errors.email = "أدخل بريد إلكتروني صحيح";
+      errors.email = t.enterValidEmail;
     }
 
     if (!password.trim()) {
-      errors.password = "اكتب كلمة المرور";
+      errors.password = t.writePassword;
     } else if (!isPasswordValid) {
-      errors.password = "كلمة المرور لا تحقق المتطلبات";
+      errors.password = t.passwordRequirementsError;
     }
 
     setFieldErrors(errors);
@@ -324,7 +365,7 @@ export default function RegisterScreen() {
         }
 
         setFieldErrors({
-          email: error.message || "تعذر إنشاء الحساب، تحقق من البريد الإلكتروني",
+          email: error.message || t.registerEmailError,
         });
 
         return;
@@ -344,7 +385,7 @@ export default function RegisterScreen() {
     } catch (err) {
       console.log(err);
       setFieldErrors({
-        password: "صار خطأ غير متوقع، حاول مرة أخرى",
+        password: t.registerUnexpectedError,
       });
     } finally {
       setLoading(false);
@@ -352,6 +393,7 @@ export default function RegisterScreen() {
   };
 
   return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
     <View style={styles.container}>
       <Stack.Screen options={{ gestureEnabled: false }} />
 
@@ -373,7 +415,14 @@ export default function RegisterScreen() {
         <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
           <View style={styles.screenContent}>
             <View style={styles.innerContent}>
-              <View style={styles.topArea}>
+              <Animated.View
+                style={[
+                  styles.topArea,
+                  {
+                    transform: [{ translateY: keyboardTranslateY }],
+                  },
+                ]}
+              >
                 <View style={styles.backArea}>
                   <TouchableOpacity
                     style={styles.backButtonWrapper}
@@ -390,16 +439,16 @@ export default function RegisterScreen() {
                 </View>
 
                 <View style={styles.titleArea}>
-                  <Text style={styles.title}>إنشاء حساب جديد</Text>
+                  <Text style={styles.title}>{t.registerTitle}</Text>
 
-                  <Text style={styles.subtitle}>
-                    انضمّ إلى تنبّه وابدأ متابعة سيارتك
-                  </Text>
+                  <Text style={styles.subtitle}>{t.registerSubtitle}</Text>
                 </View>
 
                 <View style={styles.formArea}>
                   <View style={styles.fieldGroup}>
-                    <Text style={styles.inputLabel}>الاسم الكامل</Text>
+                    <Text style={[styles.inputLabel, { textAlign }]}>
+                      {t.fullName}
+                    </Text>
 
                     <View
                       style={[
@@ -416,14 +465,14 @@ export default function RegisterScreen() {
 
                       <TextInput
                         style={styles.input}
-                        placeholder="اكتب الاسم الكامل"
+                        placeholder={t.fullNamePlaceholder}
                         placeholderTextColor={COLORS.placeholder}
                         value={fullName}
                         onChangeText={(text) => {
                           setFullName(text);
                           clearFieldError("fullName");
                         }}
-                        textAlign="right"
+                        textAlign={textAlign}
                         returnKeyType="done"
                         editable={!loading && !isNavigating}
                         selectionColor={COLORS.primary}
@@ -437,7 +486,7 @@ export default function RegisterScreen() {
                           size={14}
                           color={COLORS.primary}
                         />
-                        <Text style={styles.fieldErrorText}>
+                        <Text style={[styles.fieldErrorText, { textAlign }]}>
                           {fieldErrors.fullName}
                         </Text>
                       </View>
@@ -445,7 +494,9 @@ export default function RegisterScreen() {
                   </View>
 
                   <View style={styles.fieldGroup}>
-                    <Text style={styles.inputLabel}>البريد الإلكتروني</Text>
+                    <Text style={[styles.inputLabel, { textAlign }]}>
+                      {t.email}
+                    </Text>
 
                     <View
                       style={[
@@ -473,7 +524,7 @@ export default function RegisterScreen() {
                           setEmail(text);
                           clearFieldError("email");
                         }}
-                        textAlign="right"
+                        textAlign={textAlign}
                         returnKeyType="next"
                         blurOnSubmit={false}
                         onSubmitEditing={() =>
@@ -491,7 +542,7 @@ export default function RegisterScreen() {
                           size={14}
                           color={COLORS.primary}
                         />
-                        <Text style={styles.fieldErrorText}>
+                        <Text style={[styles.fieldErrorText, { textAlign }]}>
                           {fieldErrors.email}
                         </Text>
                       </View>
@@ -499,7 +550,9 @@ export default function RegisterScreen() {
                   </View>
 
                   <View style={styles.passwordSection}>
-                    <Text style={styles.inputLabel}>كلمة المرور</Text>
+                    <Text style={[styles.inputLabel, { textAlign }]}>
+                      {t.password}
+                    </Text>
 
                     <View
                       style={[
@@ -525,7 +578,7 @@ export default function RegisterScreen() {
                           setPassword(text);
                           clearFieldError("password");
                         }}
-                        textAlign="right"
+                        textAlign={textAlign}
                         autoCapitalize="none"
                         autoCorrect={false}
                         returnKeyType="done"
@@ -556,7 +609,7 @@ export default function RegisterScreen() {
                           size={14}
                           color={COLORS.primary}
                         />
-                        <Text style={styles.fieldErrorText}>
+                        <Text style={[styles.fieldErrorText, { textAlign }]}>
                           {fieldErrors.password}
                         </Text>
                       </View>
@@ -569,8 +622,8 @@ export default function RegisterScreen() {
                       ]}
                       pointerEvents={showPasswordRules ? "auto" : "none"}
                     >
-                      <Text style={styles.passwordRulesTitle}>
-                        كلمة المرور يجب أن تحتوي على:
+                      <Text style={[styles.passwordRulesTitle, { textAlign }]}>
+                        {t.passwordRulesTitle}
                       </Text>
 
                       {passwordRules.map((rule) => (
@@ -591,6 +644,7 @@ export default function RegisterScreen() {
                           <Text
                             style={[
                               styles.passwordRuleText,
+                              { textAlign },
                               rule.valid && styles.passwordRuleTextValid,
                             ]}
                           >
@@ -601,7 +655,7 @@ export default function RegisterScreen() {
                     </View>
                   </View>
                 </View>
-              </View>
+              </Animated.View>
 
               <View style={styles.bottomArea}>
                 <TouchableOpacity
@@ -614,10 +668,10 @@ export default function RegisterScreen() {
                   activeOpacity={0.9}
                 >
                   <LinearGradient
-  colors={[
-    "rgba(154,33,28,0.98)",
-    "rgba(118,23,19,0.98)",
-  ]}
+                    colors={[
+                      "rgba(154,33,28,0.98)",
+                      "rgba(118,23,19,0.98)",
+                    ]}
                     start={{ x: 0.15, y: 0 }}
                     end={{ x: 0.9, y: 1 }}
                     style={styles.registerGradient}
@@ -633,7 +687,7 @@ export default function RegisterScreen() {
                       ) : null}
 
                       <Text style={styles.registerButtonText}>
-                        {loading ? "جاري التسجيل..." : "تسجيل حساب جديد"}
+                        {loading ? t.registering : t.registerButton}
                       </Text>
                     </View>
                   </LinearGradient>
@@ -641,13 +695,18 @@ export default function RegisterScreen() {
 
                 <View style={styles.orArea}>
                   <View style={styles.orLine} />
-                  <Text style={styles.orText}>أو</Text>
+                  <Text style={styles.orText}>{t.or}</Text>
                   <View style={styles.orLine} />
                 </View>
 
-                <View style={styles.loginTextArea}>
+                <View
+                  style={[
+                    styles.loginTextArea,
+                    { flexDirection: isArabic ? "row-reverse" : "row" },
+                  ]}
+                >
                   <Text style={styles.loginLightText}>
-                    لديك حساب بالفعل؟{" "}
+                    {t.alreadyHaveAccount}{" "}
                   </Text>
 
                   <TouchableOpacity
@@ -655,7 +714,7 @@ export default function RegisterScreen() {
                     onPress={() => smoothPush("/login")}
                     disabled={isNavigating || loading}
                   >
-                    <Text style={styles.loginBoldText}>تسجيل الدخول</Text>
+                    <Text style={styles.loginBoldText}>{t.login}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -674,6 +733,7 @@ export default function RegisterScreen() {
         ]}
       />
     </View>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -943,38 +1003,38 @@ function createStyles({
     },
 
     bottomArea: {
-  marginTop: isVerySmallScreen ? 10 : 16,
-  width: "100%",
-  paddingTop: isVerySmallScreen ? 10 : 14,
-  paddingBottom: isVerySmallScreen ? 2 : 6,
-},
+      marginTop: isVerySmallScreen ? 10 : 16,
+      width: "100%",
+      paddingTop: isVerySmallScreen ? 10 : 14,
+      paddingBottom: isVerySmallScreen ? 2 : 6,
+    },
 
     registerButtonWrapper: {
-  width: "100%",
-  height: buttonHeight,
-  borderRadius: buttonRadius,
-  overflow: "hidden",
+      width: "100%",
+      height: buttonHeight,
+      borderRadius: buttonRadius,
+      overflow: "hidden",
 
-  shadowColor: "#6E1411",
-  shadowOffset: { width: 0, height: 8 },
-  shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
-  shadowRadius: 14,
-  elevation: 6,
+      shadowColor: "#6E1411",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
+      shadowRadius: 14,
+      elevation: 6,
 
-  backgroundColor: COLORS.primary,
-},
+      backgroundColor: COLORS.primary,
+    },
 
     registerButtonDisabled: {
       opacity: 0.72,
     },
 
-   registerGradient: {
-  flex: 1,
-  borderRadius: buttonRadius,
-  justifyContent: "center",
-  alignItems: "center",
-  overflow: "hidden",
-},
+    registerGradient: {
+      flex: 1,
+      borderRadius: buttonRadius,
+      justifyContent: "center",
+      alignItems: "center",
+      overflow: "hidden",
+    },
 
     loadingContent: {
       flexDirection: "row",
@@ -1006,37 +1066,38 @@ function createStyles({
     orLine: {
       flex: 1,
       height: 1,
-      backgroundColor: "rgba(154,33,28,0.22)",
+      backgroundColor: "rgba(150, 150, 150, 1)",
     },
 
     orText: {
       marginHorizontal: 14,
-      color: COLORS.label,
-      fontSize: isVerySmallScreen ? 14.2 : 15,
-      fontWeight: "800",
+      color: "rgba(113, 113, 113, 1)",
+      fontSize: isVerySmallScreen ? 15.5 : 16.5,
+      fontWeight: "900",
     },
 
     loginTextArea: {
-      marginTop: isVerySmallScreen ? 5 : 7,
+      marginTop: isVerySmallScreen ? 12 : 16,
       flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "center",
       flexWrap: "wrap",
     },
+
     loginShine: {
-  position: "absolute",
-  top: 0,
-  left: 0,
-  right: 0,
-  height: "48%",
-  backgroundColor: "rgba(255,255,255,0.10)",
-  borderTopLeftRadius: buttonRadius,
-  borderTopRightRadius: buttonRadius,
-},
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      height: "48%",
+      backgroundColor: "rgba(255,255,255,0.10)",
+      borderTopLeftRadius: buttonRadius,
+      borderTopRightRadius: buttonRadius,
+    },
 
     loginLightText: {
       color: COLORS.muted,
-      fontSize: isVerySmallScreen ? 13.8 : 14.7,
+      fontSize: isVerySmallScreen ? 15 : 16,
       fontWeight: "700",
       textAlign: "center",
     },

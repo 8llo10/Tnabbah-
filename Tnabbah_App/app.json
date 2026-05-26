@@ -31,10 +31,7 @@
         "ACCESS_FINE_LOCATION",
         "POST_NOTIFICATIONS"
       ],
-      "notification": {
-        "icon": "./assets/images/logoG.png",
-        "color": "#871B17"
-      },
+      
       "adaptiveIcon": {
         "backgroundColor": "#EFE7DE",
         "foregroundImage": "./assets/images/logoG.png"

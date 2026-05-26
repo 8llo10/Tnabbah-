@@ -28,6 +28,7 @@ import {
 import { Device, State } from "react-native-ble-plx";
 import { elmBluetoothService } from "@/services/elmBluetoothService";
 import { vehicleScannerService } from "@/services/vehicleScannerService";
+import { useLanguage } from "../providers/LanguageProvider";
 
 const START_IMAGE = require("../assets/images/obd-connection-start.png");
 
@@ -59,32 +60,6 @@ type DeviceItem = {
   raw: Device;
 };
 
-const STEPS = {
-  1: {
-    title: "ابدأ ربط القطعة",
-    subtitle:
-      "اتّبع الخطوات التالية لتجهيز قطعة OBD وربطها بالتطبيق بطريقة سهلة وآمنة.",
-    icon: "cellphone-cog" as keyof typeof MaterialCommunityIcons.glyphMap,
-    buttonText: "ابدأ الآن",
-  },
-
-  2: {
-    title: "جهّز القطعة",
-    subtitle:
-      "ابدأ بتجهيز السيارة والقطعة حتى يتمكن التطبيق من التعرف عليها قبل اختيار طريقة الاتصال.",
-    icon: "car-outline" as keyof typeof MaterialCommunityIcons.glyphMap,
-    buttonText: "تم توصيل القطعة",
-  },
-
-  3: {
-    title: "اختار اتصال البلوتوث",
-    subtitle:
-      "اضغط على اختيار جهاز OBD لعرض الأجهزة القريبة، ثم اختر القطعة المناسبة.",
-    icon: "bluetooth" as keyof typeof MaterialCommunityIcons.glyphMap,
-    buttonText: "ربط الجهاز",
-  },
-};
-
 function isElmLikeDevice(name: string) {
   const n = name.toLowerCase();
 
@@ -106,6 +81,7 @@ function isElmLikeDevice(name: string) {
 export default function ConnectionIntroScreen() {
   const appRouter = useRouter();
   const { from } = useLocalSearchParams<{ from?: string }>();
+  const { t, isArabic } = useLanguage();
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -145,6 +121,30 @@ export default function ConnectionIntroScreen() {
   const lineWidth = clamp(width * 0.14, 44, isTablet ? 86 : 70);
   const backIconSize = isVerySmallScreen ? 24 : 26;
 
+  const steps = useMemo(
+    () => ({
+      1: {
+        title: t.connectionStep1Title,
+        subtitle: t.connectionStep1Subtitle,
+        icon: "cellphone-cog" as keyof typeof MaterialCommunityIcons.glyphMap,
+        buttonText: t.connectionStep1Button,
+      },
+      2: {
+        title: t.connectionStep2Title,
+        subtitle: t.connectionStep2Subtitle,
+        icon: "car-outline" as keyof typeof MaterialCommunityIcons.glyphMap,
+        buttonText: t.connectionStep2Button,
+      },
+      3: {
+        title: t.connectionStep3Title,
+        subtitle: t.connectionStep3Subtitle,
+        icon: "bluetooth" as keyof typeof MaterialCommunityIcons.glyphMap,
+        buttonText: t.connectionStep3Button,
+      },
+    }),
+    [t]
+  );
+
   const styles = useMemo(
     () =>
       createStyles({
@@ -159,6 +159,7 @@ export default function ConnectionIntroScreen() {
         isVerySmallScreen,
         isTablet,
         currentStep,
+        isArabic,
       }),
     [
       width,
@@ -172,6 +173,7 @@ export default function ConnectionIntroScreen() {
       isVerySmallScreen,
       isTablet,
       currentStep,
+      isArabic,
     ]
   );
 
@@ -180,22 +182,22 @@ export default function ConnectionIntroScreen() {
 
   const getBluetoothStateMessage = (state: State) => {
     if (state === State.PoweredOff) {
-      return "البلوتوث مقفل. فعّله من إعدادات الجوال ثم أعد المحاولة.";
+      return t.connectionBluetoothOff;
     }
 
     if (state === State.Unauthorized) {
-      return "التطبيق لا يملك صلاحية البلوتوث. فعّل صلاحية البلوتوث للتطبيق.";
+      return t.connectionBluetoothUnauthorized;
     }
 
     if (state === State.Unsupported) {
-      return "هذا الجهاز لا يدعم نوع البلوتوث المطلوب.";
+      return t.connectionBluetoothUnsupported;
     }
 
     if (state === State.Resetting) {
-      return "البلوتوث يعيد التشغيل الآن. انتظر ثواني ثم أعد المحاولة.";
+      return t.connectionBluetoothResetting;
     }
 
-    return "البلوتوث غير جاهز الآن. انتظر ثواني ثم أعد المحاولة.";
+    return t.connectionBluetoothNotReady;
   };
 
   const requestAndroidBluetoothPermissions = async () => {
@@ -253,9 +255,7 @@ export default function ConnectionIntroScreen() {
     }
 
     if (showNoDeviceMessage && foundDeviceCountRef.current === 0) {
-      setErrorMessage(
-        "ما ظهرت أجهزة بلوتوث قريبة. تأكد أن القطعة مركبة ولمبتها شغالة، ثم أعد البحث."
-      );
+      setErrorMessage(t.connectionNoBluetoothDevices);
     }
   };
 
@@ -272,7 +272,7 @@ export default function ConnectionIntroScreen() {
       const hasPermission = await requestAndroidBluetoothPermissions();
 
       if (!hasPermission) {
-        setErrorMessage("فعّل إذن البلوتوث للتطبيق حتى نقدر نبحث عن القطعة.");
+        setErrorMessage(t.connectionBluetoothPermission);
         return;
       }
 
@@ -299,9 +299,7 @@ export default function ConnectionIntroScreen() {
         (error: any, device: Device | null) => {
           if (error) {
             console.log("BLE scan error:", error);
-            setErrorMessage(
-              error.message || "صار خطأ أثناء البحث عن أجهزة البلوتوث."
-            );
+            setErrorMessage(error.message || t.connectionScanError);
             stopScan(false);
             return;
           }
@@ -311,7 +309,7 @@ export default function ConnectionIntroScreen() {
           const deviceName =
             device.name ||
             device.localName ||
-            `جهاز بلوتوث ${device.id.slice(-5)}`;
+            `${t.connectionBluetoothDeviceFallback} ${device.id.slice(-5)}`;
 
           console.log("Found BLE device:", deviceName, device.id);
 
@@ -343,7 +341,7 @@ export default function ConnectionIntroScreen() {
       }, 15000);
     } catch (error: any) {
       console.log("BLE start scan catch:", error);
-      setErrorMessage(error?.message || "تعذر تشغيل البحث عن البلوتوث.");
+      setErrorMessage(error?.message || t.connectionScanStartError);
       stopScan(false);
     }
   };
@@ -376,7 +374,7 @@ export default function ConnectionIntroScreen() {
 
   const handleConnectDevice = async () => {
     if (!selectedDevice) {
-      setErrorMessage("اختار جهاز البلوتوث أولًا");
+      setErrorMessage(t.connectionSelectDeviceFirst);
       return;
     }
 
@@ -407,10 +405,7 @@ export default function ConnectionIntroScreen() {
         await vehicleScannerService.stopAutoScan();
       } catch {}
 
-      setErrorMessage(
-        error?.message ||
-          "تعذر الاتصال بالقطعة. قرّب الجوال من القطعة وتأكد أنها شغالة، ثم حاول مرة ثانية."
-      );
+      setErrorMessage(error?.message || t.connectionConnectError);
     } finally {
       setIsConnecting(false);
     }
@@ -580,7 +575,7 @@ export default function ConnectionIntroScreen() {
     outputRange: [0, lineWidth],
   });
 
-  const stepData = STEPS[currentStep];
+  const stepData = steps[currentStep];
 
   const isButtonDisabled =
     currentStep === 3 && (!selectedDevice || isConnecting);
@@ -619,7 +614,7 @@ export default function ConnectionIntroScreen() {
                   onPress={handleSkip}
                   disabled={isConnecting}
                 >
-                  <Text style={styles.skipText}>تخطي</Text>
+                  <Text style={styles.skipText}>{t.connectionSkip}</Text>
                 </TouchableOpacity>
               ) : (
                 <View style={styles.skipPlaceholder} />
@@ -644,7 +639,7 @@ export default function ConnectionIntroScreen() {
                 }}
               >
                 <StepItem
-                  label="اختر"
+                  label={t.connectionStepChooseLabel}
                   iconName="bluetooth"
                   active={currentStep === 3}
                   completed={false}
@@ -675,7 +670,7 @@ export default function ConnectionIntroScreen() {
                 }}
               >
                 <StepItem
-                  label="جهّز"
+                  label={t.connectionStepPrepareLabel}
                   iconName="car-outline"
                   active={currentStep === 2}
                   completed={currentStep > 2}
@@ -706,7 +701,7 @@ export default function ConnectionIntroScreen() {
                 }}
               >
                 <StepItem
-                  label="إبدأ"
+                  label={t.connectionStepStartLabel}
                   iconName="cellphone-cog"
                   active={currentStep === 1}
                   completed={currentStep > 1}
@@ -730,7 +725,7 @@ export default function ConnectionIntroScreen() {
               {currentStep === 1 ? (
                 <StepOneContent styles={styles} />
               ) : currentStep === 2 ? (
-                <StepTwoContent styles={styles} />
+                <StepTwoContent styles={styles} t={t} />
               ) : (
                 <BluetoothContent
                   styles={styles}
@@ -746,6 +741,7 @@ export default function ConnectionIntroScreen() {
                   setShowDeviceList={setShowDeviceList}
                   setPassword={setPassword}
                   setErrorMessage={setErrorMessage}
+                  t={t}
                 />
               )}
             </Animated.View>
@@ -769,7 +765,9 @@ export default function ConnectionIntroScreen() {
                   {currentStep === 3 && isConnecting ? (
                     <View style={styles.connectingRow}>
                       <ActivityIndicator color="#FFFFFF" />
-                      <Text style={styles.startButtonText}>جاري الربط...</Text>
+                      <Text style={styles.startButtonText}>
+                        {t.connectionConnecting}
+                      </Text>
                     </View>
                   ) : (
                     <Text style={styles.startButtonText}>
@@ -806,37 +804,43 @@ function StepOneContent({
 
 function StepTwoContent({
   styles,
+  t,
 }: {
   styles: ReturnType<typeof createStyles>;
+  t: any;
 }) {
   return (
     <View style={styles.prepareCard}>
       <View style={styles.stepTwoTopRows}>
-        <InstructionRow number="1" text="شغّل السيارة" styles={styles} />
+        <InstructionRow
+          number="1"
+          text={t.connectionInstructionStartCar}
+          styles={styles}
+        />
 
         <View style={styles.secondInstructionOffset}>
           <InstructionRow
             number="2"
-            text="ركّب القطعة في مدخل OBD"
+            text={t.connectionInstructionPlugObd}
             styles={styles}
           />
         </View>
       </View>
 
       <View style={styles.animationBox}>
-  <LottieView
-    source={require("../assets/animations/connected-car.json")}
-    autoPlay
-    loop
-    resizeMode="contain"
-    style={styles.lottie}
-  />
-</View>
+        <LottieView
+          source={require("../assets/animations/connected-car.json")}
+          autoPlay
+          loop
+          resizeMode="contain"
+          style={styles.lottie}
+        />
+      </View>
 
       <View style={styles.thirdInstructionOffset}>
         <InstructionRow
           number="3"
-          text="انتظر حتى تضيء لمبة القطعة"
+          text={t.connectionInstructionWaitLight}
           styles={styles}
         />
       </View>
@@ -858,6 +862,7 @@ function BluetoothContent({
   setShowDeviceList,
   setPassword,
   setErrorMessage,
+  t,
 }: {
   styles: ReturnType<typeof createStyles>;
   devices: DeviceItem[];
@@ -872,10 +877,11 @@ function BluetoothContent({
   setShowDeviceList: (value: boolean) => void;
   setPassword: (value: string) => void;
   setErrorMessage: (value: string) => void;
+  t: any;
 }) {
   return (
     <View style={styles.bluetoothCard}>
-      <Text style={styles.inputLabel}>الأجهزة المتاحة</Text>
+      <Text style={styles.inputLabel}>{t.connectionAvailableDevices}</Text>
 
       <TouchableOpacity
         style={styles.deviceSelectBox}
@@ -898,10 +904,10 @@ function BluetoothContent({
 
         <Text style={styles.deviceSelectText}>
           {isScanning
-            ? "جاري البحث..."
+            ? t.connectionSearching
             : selectedDevice
             ? selectedDevice.name
-            : "اضغط لاختيار جهاز OBD"}
+            : t.connectionSelectObdDevice}
         </Text>
       </TouchableOpacity>
 
@@ -910,8 +916,8 @@ function BluetoothContent({
           <View style={styles.dropdownHeader}>
             <Text style={styles.dropdownTitle}>
               {devices.length > 0
-                ? `الأجهزة المكتشفة (${devices.length})`
-                : "قائمة الأجهزة"}
+                ? `${t.connectionDiscoveredDevices} (${devices.length})`
+                : t.connectionDeviceList}
             </Text>
 
             <TouchableOpacity
@@ -927,7 +933,9 @@ function BluetoothContent({
               )}
 
               <Text style={styles.refreshText}>
-                {isScanning ? "بحث..." : "تحديث"}
+                {isScanning
+                  ? t.connectionRefreshSearching
+                  : t.connectionRefresh}
               </Text>
             </TouchableOpacity>
           </View>
@@ -935,7 +943,9 @@ function BluetoothContent({
           {isScanning && devices.length === 0 ? (
             <View style={styles.loadingRow}>
               <ActivityIndicator color={COLORS.primary} />
-              <Text style={styles.loadingText}>نبحث عن أجهزة قريبة...</Text>
+              <Text style={styles.loadingText}>
+                {t.connectionSearchingNearby}
+              </Text>
             </View>
           ) : null}
 
@@ -945,10 +955,7 @@ function BluetoothContent({
               onPress={startScan}
               activeOpacity={0.8}
             >
-              <Text style={styles.emptyText}>
-                ما ظهرت أجهزة. تأكد أن قطعة OBD مركبة وقريبة من الجوال، ثم اضغط
-                هنا لإعادة البحث.
-              </Text>
+              <Text style={styles.emptyText}>{t.connectionNoDevicesFound}</Text>
             </TouchableOpacity>
           ) : (
             <FlatList
@@ -994,7 +1001,9 @@ function BluetoothContent({
                         <Text style={styles.deviceName}>{item.name}</Text>
                       </View>
 
-                      <Text style={styles.deviceId}>ID: {item.id}</Text>
+                      <Text style={styles.deviceId}>
+                        {t.connectionDeviceId}: {item.id}
+                      </Text>
                     </View>
                   </TouchableOpacity>
                 );
@@ -1004,14 +1013,14 @@ function BluetoothContent({
         </View>
       ) : null}
 
-      <Text style={styles.inputLabel}>كلمة مرور القطعة</Text>
+      <Text style={styles.inputLabel}>{t.connectionObdPassword}</Text>
 
       <View style={styles.passwordBox}>
         <Feather name="lock" size={20} color={COLORS.grayText} />
 
         <TextInput
           style={styles.passwordInput}
-          placeholder="اختياري: 0000 أو 1234"
+          placeholder={t.connectionObdPasswordPlaceholder}
           placeholderTextColor="#B6B6B6"
           value={password}
           onChangeText={setPassword}
@@ -1022,10 +1031,7 @@ function BluetoothContent({
         />
       </View>
 
-      <Text style={styles.noteText}>
-        أدخل كلمة مرور قطعة OBD نفسها. غالبًا تكون مكتوبة على القطعة أو في
-        كتيّبها، مثل 0000 أو 1234.
-      </Text>
+      <Text style={styles.noteText}>{t.connectionObdPasswordNote}</Text>
 
       {!!errorMessage ? (
         <View style={styles.messageBox}>
@@ -1052,7 +1058,6 @@ function StepItem({
   completed: boolean;
   styles: ReturnType<typeof createStyles>;
 }) {
-
   return (
     <View style={styles.stepItem}>
       <View
@@ -1114,6 +1119,7 @@ function createStyles({
   isVerySmallScreen,
   isTablet,
   currentStep,
+  isArabic,
 }: {
   width: number;
   height: number;
@@ -1126,6 +1132,7 @@ function createStyles({
   isVerySmallScreen: boolean;
   isTablet: boolean;
   currentStep: StepNumber;
+  isArabic: boolean;
 }) {
   const stepSize = isVerySmallScreen ? 35 : 38;
   const stepItemWidth = isVerySmallScreen ? 50 : 54;
@@ -1247,7 +1254,6 @@ function createStyles({
       borderColor: COLORS.borderGray,
     },
 
-    
     stepCircleActive: {
       backgroundColor: COLORS.primary,
       borderColor: COLORS.primary,
@@ -1376,7 +1382,7 @@ function createStyles({
 
     instructionRow: {
       width: "100%",
-      flexDirection: "row-reverse",
+      flexDirection: isArabic ? "row-reverse" : "row",
       alignItems: "center",
       justifyContent: "flex-start",
     },
@@ -1387,7 +1393,8 @@ function createStyles({
       borderRadius: isVerySmallScreen ? 16.5 : 18,
       justifyContent: "center",
       alignItems: "center",
-      marginLeft: 10,
+      marginLeft: isArabic ? 10 : 0,
+      marginRight: isArabic ? 0 : 10,
       backgroundColor: COLORS.softGray,
       borderWidth: 1,
       borderColor: COLORS.borderGray,
@@ -1405,7 +1412,7 @@ function createStyles({
       fontSize: isVerySmallScreen ? 15 : isTablet ? 18 : 16,
       fontWeight: "900",
       color: COLORS.textDark,
-      textAlign: "right",
+      textAlign: isArabic ? "right" : "left",
       lineHeight: isVerySmallScreen ? 23 : 25,
       includeFontPadding: false,
     },
@@ -1418,15 +1425,9 @@ function createStyles({
       marginVertical: isVerySmallScreen ? 4 : 8,
     },
 
-    carIconCircle: {
-      width: isVerySmallScreen ? 145 : 165,
-      height: isVerySmallScreen ? 145 : 165,
-      borderRadius: isVerySmallScreen ? 72.5 : 82.5,
-      backgroundColor: "rgba(154,33,28,0.06)",
-      borderWidth: 1,
-      borderColor: "rgba(154,33,28,0.12)",
-      justifyContent: "center",
-      alignItems: "center",
+    lottie: {
+      width: isVerySmallScreen ? 195 : isTablet ? 265 : 240,
+      height: isVerySmallScreen ? 195 : isTablet ? 265 : 240,
     },
 
     bluetoothCard: {
@@ -1450,7 +1451,7 @@ function createStyles({
       fontSize: isVerySmallScreen ? 13 : 13.5,
       color: COLORS.grayText,
       fontWeight: "800",
-      textAlign: "right",
+      textAlign: isArabic ? "right" : "left",
       marginBottom: 8,
       includeFontPadding: false,
     },
@@ -1463,7 +1464,7 @@ function createStyles({
       borderWidth: 1,
       borderColor: COLORS.borderGray,
       paddingHorizontal: 16,
-      flexDirection: "row",
+      flexDirection: isArabic ? "row" : "row-reverse",
       alignItems: "center",
       justifyContent: "space-between",
       marginBottom: 12,
@@ -1474,7 +1475,7 @@ function createStyles({
       fontSize: isVerySmallScreen ? 14.5 : 15.5,
       color: COLORS.textDark,
       fontWeight: "900",
-      textAlign: "right",
+      textAlign: isArabic ? "right" : "left",
       marginHorizontal: 8,
       includeFontPadding: false,
     },
@@ -1495,7 +1496,7 @@ function createStyles({
       paddingHorizontal: 12,
       borderBottomWidth: 1,
       borderBottomColor: "#F0F0F0",
-      flexDirection: "row-reverse",
+      flexDirection: isArabic ? "row-reverse" : "row",
       alignItems: "center",
       justifyContent: "space-between",
       backgroundColor: "#FFFFFF",
@@ -1505,7 +1506,7 @@ function createStyles({
       color: COLORS.textDark,
       fontSize: 13,
       fontWeight: "900",
-      textAlign: "right",
+      textAlign: isArabic ? "right" : "left",
       includeFontPadding: false,
     },
 
@@ -1514,7 +1515,7 @@ function createStyles({
       borderRadius: 15,
       paddingHorizontal: 10,
       backgroundColor: "rgba(154,33,28,0.06)",
-      flexDirection: "row-reverse",
+      flexDirection: isArabic ? "row-reverse" : "row",
       alignItems: "center",
       justifyContent: "center",
       gap: 5,
@@ -1529,16 +1530,13 @@ function createStyles({
 
     loadingRow: {
       minHeight: 54,
-      flexDirection: "row-reverse",
+      flexDirection: isArabic ? "row-reverse" : "row",
       alignItems: "center",
       justifyContent: "center",
       gap: 8,
       paddingHorizontal: 12,
     },
-lottie: {
-  width: isVerySmallScreen ? 195 : isTablet ? 265 : 240,
-  height: isVerySmallScreen ? 195 : isTablet ? 265 : 240,
-},
+
     loadingText: {
       color: COLORS.grayText,
       fontSize: 13,
@@ -1576,7 +1574,7 @@ lottie: {
       paddingVertical: 9,
       borderBottomWidth: 1,
       borderBottomColor: "#F0F0F0",
-      flexDirection: "row-reverse",
+      flexDirection: isArabic ? "row-reverse" : "row",
       alignItems: "center",
       gap: 10,
     },
@@ -1598,14 +1596,14 @@ lottie: {
 
     deviceInfo: {
       flex: 1,
-      alignItems: "flex-end",
+      alignItems: isArabic ? "flex-end" : "flex-start",
     },
 
     deviceNameRow: {
       width: "100%",
-      flexDirection: "row",
+      flexDirection: isArabic ? "row" : "row-reverse",
       alignItems: "center",
-      justifyContent: "flex-end",
+      justifyContent: isArabic ? "flex-end" : "flex-start",
       gap: 8,
     },
 
@@ -1614,7 +1612,7 @@ lottie: {
       fontSize: 14.5,
       color: COLORS.textDark,
       fontWeight: "900",
-      textAlign: "right",
+      textAlign: isArabic ? "right" : "left",
       includeFontPadding: false,
     },
 
@@ -1638,7 +1636,7 @@ lottie: {
       marginTop: 4,
       fontSize: 10.5,
       color: "#A0A0A0",
-      textAlign: "right",
+      textAlign: isArabic ? "right" : "left",
       includeFontPadding: false,
     },
 
@@ -1650,7 +1648,7 @@ lottie: {
       borderColor: COLORS.borderGray,
       backgroundColor: "#FFFFFF",
       paddingHorizontal: 16,
-      flexDirection: "row-reverse",
+      flexDirection: isArabic ? "row-reverse" : "row",
       alignItems: "center",
       marginBottom: 8,
     },
@@ -1661,14 +1659,15 @@ lottie: {
       color: COLORS.textDark,
       fontWeight: "700",
       paddingVertical: 0,
-      marginRight: 10,
+      marginRight: isArabic ? 10 : 0,
+      marginLeft: isArabic ? 0 : 10,
       includeFontPadding: false,
     },
 
     noteText: {
       color: "#777777",
       fontSize: isVerySmallScreen ? 11.8 : 12.2,
-      textAlign: "right",
+      textAlign: isArabic ? "right" : "left",
       lineHeight: isVerySmallScreen ? 18 : 19,
       marginBottom: 7,
       fontWeight: "700",
@@ -1678,7 +1677,7 @@ lottie: {
     messageBox: {
       width: "100%",
       minHeight: isVerySmallScreen ? 40 : 44,
-      flexDirection: "row-reverse",
+      flexDirection: isArabic ? "row-reverse" : "row",
       alignItems: "center",
       justifyContent: "flex-start",
       paddingHorizontal: 14,
@@ -1694,7 +1693,7 @@ lottie: {
       flex: 1,
       color: COLORS.primary,
       fontSize: isVerySmallScreen ? 12.5 : 13,
-      textAlign: "right",
+      textAlign: isArabic ? "right" : "left",
       lineHeight: isVerySmallScreen ? 18 : 20,
       fontWeight: "800",
       includeFontPadding: false,
@@ -1735,7 +1734,7 @@ lottie: {
     },
 
     connectingRow: {
-      flexDirection: "row-reverse",
+      flexDirection: isArabic ? "row-reverse" : "row",
       alignItems: "center",
       justifyContent: "center",
       gap: 10,

@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "../providers/AuthProvider";
+import { useLanguage } from "../providers/LanguageProvider";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
@@ -51,14 +52,15 @@ const clamp = (value: number, min: number, max: number) =>
 export default function StartScreen() {
   const router = useRouter();
   const { session, loading } = useAuth();
+  const { t, isArabic, language, changeLanguage } = useLanguage();
+  
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
-  const [language, setLanguage] = useState<"ar" | "en">("ar");
+  
   const [isNavigating, setIsNavigating] = useState(false);
 
-  const isArabic = language === "ar";
   const isSmallScreen = height < 720;
   const isVerySmallScreen = height < 650;
 
@@ -197,10 +199,7 @@ export default function StartScreen() {
     }
   };
 
-  const toggleLanguage = () => {
-    if (isNavigating) return;
-    setLanguage((prev) => (prev === "ar" ? "en" : "ar"));
-  };
+ 
 
   useEffect(() => {
     if (!loading && session) {
@@ -344,7 +343,11 @@ export default function StartScreen() {
             <TouchableOpacity
               style={styles.langButtonWrapper}
               activeOpacity={0.78}
-              onPress={toggleLanguage}
+              onPress={() => {
+  const nextLanguage = language === "AR" ? "EN" : "AR";
+  console.log("START CHANGE LANGUAGE TO:", nextLanguage);
+  changeLanguage(nextLanguage);
+}}
               disabled={isNavigating}
             >
               <LinearGradient
@@ -358,8 +361,8 @@ export default function StartScreen() {
                 <View style={styles.langDivider} />
 
                 <Text style={styles.langText}>
-                  {isArabic ? "En" : "عربي"}
-                </Text>
+  {t.languageButton}
+</Text>
               </LinearGradient>
             </TouchableOpacity>
 
@@ -368,26 +371,25 @@ export default function StartScreen() {
 
           <View style={styles.centerContent}>
             <View style={styles.textGroup}>
+
               {isArabic ? (
-                <Text style={styles.title}>
-                  مرحباً بك في <Text style={styles.titleBrand}>تنبه</Text>
-                </Text>
-              ) : (
-                <Text
-                  style={[styles.title, styles.englishTitle]}
-                  numberOfLines={1}
-                >
-                  Welcome to <Text style={styles.titleBrand}>Tnabbah</Text>
-                </Text>
-              )}
+  <Text style={styles.title}>
+    {t.startWelcome} <Text style={styles.titleBrand}>{t.startBrand}</Text>
+  </Text>
+) : (
+  <Text
+    style={[styles.title, styles.englishTitle]}
+    numberOfLines={1}
+  >
+    {t.startWelcome} <Text style={styles.titleBrand}>{t.startBrand}</Text>
+  </Text>
+)}
 
               <View style={styles.titleUnderline} />
 
               <Text style={styles.subtitle}>
-                {isArabic
-                  ? "لأن سيارتك تحتاج من ينتبه لها"
-                  : "Because your car needs someone to watch over it"}
-              </Text>
+  {t.startSubtitle}
+</Text>
             </View>
           </View>
 
@@ -407,8 +409,8 @@ export default function StartScreen() {
                 <View style={styles.loginShine} />
 
                 <Text style={styles.loginText}>
-                  {isArabic ? "تسجيل الدخول" : "Login"}
-                </Text>
+  {t.login}
+</Text>
               </LinearGradient>
             </TouchableOpacity>
 
@@ -424,9 +426,9 @@ export default function StartScreen() {
                 end={{ x: 1, y: 1 }}
                 style={styles.registerGradient}
               >
-                <Text style={styles.registerText}>
-                  {isArabic ? "إنشاء حساب جديد" : "Create Account"}
-                </Text>
+               <Text style={styles.registerText}>
+  {t.createAccount}
+</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>

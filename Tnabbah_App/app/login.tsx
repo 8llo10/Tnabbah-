@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
 import {
   View,
@@ -6,19 +6,21 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
   Platform,
   useWindowDimensions,
   ActivityIndicator,
   Animated,
   Easing,
   StatusBar,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { supabase } from "../lib/supabase";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 
 import { LinearGradient } from "expo-linear-gradient";
+import { useLanguage } from "../providers/LanguageProvider";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -48,8 +50,16 @@ const clamp = (value: number, min: number, max: number) =>
 
 type LoginRoute = "/register" | "/forgot-password" | "/connection-intro";
 
+type FieldErrors = {
+  email?: string;
+  password?: string;
+};
+
 export default function LoginScreen() {
   const router = useRouter();
+  const { t, isArabic } = useLanguage();
+
+  const textAlign = isArabic ? "right" : "left";
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -58,7 +68,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
 
   const [showPassword, setShowPassword] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [loading, setLoading] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -66,6 +76,9 @@ export default function LoginScreen() {
   const screenOpacity = useRef(new Animated.Value(0)).current;
   const screenTranslateY = useRef(new Animated.Value(10)).current;
   const transitionAnim = useRef(new Animated.Value(0)).current;
+  const keyboardTranslateY = useRef(new Animated.Value(0)).current;
+
+  const passwordInputRef = useRef<TextInput>(null);
 
   const isSmallScreen = height < 720;
   const isVerySmallScreen = height < 650;
@@ -75,16 +88,16 @@ export default function LoginScreen() {
     ? 24
     : clamp(width * 0.055, 18, 24);
 
-  const backButtonSize = isVerySmallScreen ? 44 : 48;
+  const backButtonSize = isVerySmallScreen ? 42 : 46;
   const backButtonRadius = backButtonSize / 2;
 
-  const topSpacing = clamp(height * 0.012, 6, 12);
-  const bottomSpacing = clamp(height * 0.026, 16, 24);
+  const topSpacing = clamp(height * 0.01, 5, 10);
+  const bottomSpacing = clamp(height * 0.018, 10, 18);
 
-  const inputHeight = isVerySmallScreen ? 58 : 62;
+  const inputHeight = isVerySmallScreen ? 53 : 57;
   const inputRadius = inputHeight / 2;
 
-  const buttonHeight = isVerySmallScreen ? 56 : 60;
+  const buttonHeight = isVerySmallScreen ? 52 : 56;
   const buttonRadius = 30;
 
   const styles = useMemo(
@@ -125,6 +138,38 @@ export default function LoginScreen() {
     ]
   );
 
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const keyboardShift = isVerySmallScreen ? -90 : isSmallScreen ? -75 : -60;
+
+    const showSubscription = Keyboard.addListener(showEvent, () => {
+      Animated.timing(keyboardTranslateY, {
+        toValue: keyboardShift,
+        duration: 180,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+    });
+
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      Animated.timing(keyboardTranslateY, {
+        toValue: 0,
+        duration: 180,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [keyboardTranslateY, isSmallScreen, isVerySmallScreen]);
+
   useFocusEffect(
     useCallback(() => {
       setIsNavigating(false);
@@ -132,6 +177,7 @@ export default function LoginScreen() {
       transitionAnim.setValue(0);
       screenOpacity.setValue(0);
       screenTranslateY.setValue(10);
+      keyboardTranslateY.setValue(0);
 
       Animated.parallel([
         Animated.timing(screenOpacity, {
@@ -149,7 +195,7 @@ export default function LoginScreen() {
       ]).start();
 
       return () => {};
-    }, [screenOpacity, screenTranslateY, transitionAnim])
+    }, [screenOpacity, screenTranslateY, transitionAnim, keyboardTranslateY])
   );
 
   const smoothPush = (path: LoginRoute) => {
@@ -207,15 +253,32 @@ export default function LoginScreen() {
     });
   };
 
+  const clearFieldError = (field: keyof FieldErrors) => {
+    setFieldErrors((prev) => ({
+      ...prev,
+      [field]: undefined,
+    }));
+  };
+
+  const validateForm = () => {
+    const errors: FieldErrors = {};
+
+    if (!email.trim()) {
+      errors.email = t.enterEmail;
+    }
+
+    if (!password.trim()) {
+      errors.password = t.enterPassword;
+    }
+
+    setFieldErrors(errors);
+
+    return Object.keys(errors).length === 0;
+  };
+
   const handleLogin = async () => {
     try {
-      if (!email.trim()) {
-        setErrorMessage("أدخلي البريد الإلكتروني");
-        return;
-      }
-
-      if (!password.trim()) {
-        setErrorMessage("أدخلي كلمة المرور");
+      if (!validateForm()) {
         return;
       }
 
@@ -273,7 +336,10 @@ export default function LoginScreen() {
           return;
         }
 
-        setErrorMessage("البريد أو كلمة المرور غير صحيحة");
+        setFieldErrors({
+          password: t.wrongEmailOrPassword,
+        });
+
         return;
       }
 
@@ -284,7 +350,9 @@ export default function LoginScreen() {
 
       if (userError || !user) {
         await supabase.auth.signOut();
-        setErrorMessage("تعذر التحقق من الحساب، حاولي مرة أخرى");
+        setFieldErrors({
+          password: t.verifyError,
+        });
         return;
       }
 
@@ -308,7 +376,7 @@ export default function LoginScreen() {
         return;
       }
 
-      setErrorMessage("");
+      setFieldErrors({});
 
       if (data.session) {
         try {
@@ -345,173 +413,210 @@ export default function LoginScreen() {
       }
     } catch (err) {
       console.log("Login Error:", err);
-      setErrorMessage("صار خطأ غير متوقع، حاولي مرة أخرى");
+      setFieldErrors({
+        password: t.unexpectedError,
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ gestureEnabled: false }} />
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.container}>
+        <Stack.Screen options={{ gestureEnabled: false }} />
 
-      <StatusBar
-        translucent
-        backgroundColor="transparent"
-        barStyle="dark-content"
-      />
+        <StatusBar
+          translucent
+          backgroundColor="transparent"
+          barStyle="dark-content"
+        />
 
-      <Animated.View
-        style={[
-          styles.animatedScreen,
-          {
-            opacity: screenOpacity,
-            transform: [{ translateY: screenTranslateY }],
-          },
-        ]}
-      >
-        <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-          <KeyboardAvoidingView
-            style={styles.keyboardAvoidingView}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-          >
+        <Animated.View
+          style={[
+            styles.animatedScreen,
+            {
+              opacity: screenOpacity,
+              transform: [{ translateY: screenTranslateY }],
+            },
+          ]}
+        >
+          <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
             <View style={styles.screenContent}>
               <View style={styles.innerContent}>
-                <View style={styles.backArea}>
-                  <TouchableOpacity
-                    style={styles.backButtonWrapper}
-                    activeOpacity={0.85}
-                    onPress={smoothBack}
-                    disabled={isNavigating || loading}
-                  >
-                    <Ionicons
-                      name="arrow-back-outline"
-                      size={isVerySmallScreen ? 23 : 25}
-                      color={COLORS.textDark}
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.titleArea}>
-                  <Text style={styles.title}>تسجيل الدخول</Text>
-
-                  <Text style={styles.subtitle}>مرحباً بعودتك إلى تنبّه</Text>
-                </View>
-
-                <View style={styles.formArea}>
-                  <View style={styles.fieldGroup}>
-                    <Text style={styles.inputLabel}>البريد الإلكتروني</Text>
-
-                    <View
-                      style={[
-                        styles.inputWrapper,
-                        errorMessage.includes("البريد") &&
-                          styles.inputWrapperError,
-                      ]}
+                <Animated.View
+                  style={[
+                    styles.topArea,
+                    {
+                      transform: [{ translateY: keyboardTranslateY }],
+                    },
+                  ]}
+                >
+                  <View style={styles.backArea}>
+                    <TouchableOpacity
+                      style={styles.backButtonWrapper}
+                      activeOpacity={0.85}
+                      onPress={smoothBack}
+                      disabled={isNavigating || loading}
                     >
-                      <Feather
-                        name="mail"
-                        size={isVerySmallScreen ? 20 : 21}
-                        color={COLORS.primary}
-                        style={styles.inputIcon}
-                      />
-
-                      <TextInput
-                        style={styles.input}
-                        placeholder="example@email.com"
-                        placeholderTextColor={COLORS.placeholder}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        value={email}
-                        onChangeText={(text) => {
-                          setEmail(text);
-                          setErrorMessage("");
-                        }}
-                        textAlign="right"
-                        returnKeyType="next"
-                        editable={!loading && !isNavigating}
-                        selectionColor={COLORS.primary}
-                      />
-                    </View>
-                  </View>
-
-                  <View style={styles.fieldGroup}>
-                    <Text style={styles.inputLabel}>كلمة المرور</Text>
-
-                    <View
-                      style={[
-                        styles.inputWrapper,
-                        errorMessage.includes("كلمة المرور") &&
-                          styles.inputWrapperError,
-                      ]}
-                    >
-                      <Feather
-                        name="lock"
-                        size={isVerySmallScreen ? 21 : 22}
-                        color={COLORS.primary}
-                        style={styles.inputIcon}
-                      />
-
-                      <TextInput
-                        style={styles.input}
-                        placeholder="••••••••"
-                        placeholderTextColor={COLORS.placeholder}
-                        secureTextEntry={!showPassword}
-                        value={password}
-                        onChangeText={(text) => {
-                          setPassword(text);
-                          setErrorMessage("");
-                        }}
-                        textAlign="right"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        returnKeyType="done"
-                        editable={!loading && !isNavigating}
-                        selectionColor={COLORS.primary}
-                      />
-
-                      <TouchableOpacity
-                        style={styles.eyeButton}
-                        activeOpacity={0.7}
-                        onPress={() => setShowPassword(!showPassword)}
-                        disabled={loading || isNavigating}
-                      >
-                        <Ionicons
-                          name={
-                            showPassword ? "eye-outline" : "eye-off-outline"
-                          }
-                          size={isVerySmallScreen ? 21 : 22}
-                          color={COLORS.primary}
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    style={styles.forgotPasswordButton}
-                    onPress={() => smoothPush("/forgot-password")}
-                    disabled={isNavigating || loading}
-                  >
-                    <Text style={styles.forgotPasswordText}>
-                      نسيت كلمة المرور؟
-                    </Text>
-                  </TouchableOpacity>
-
-                  {errorMessage ? (
-                    <View style={styles.errorBox}>
                       <Ionicons
-                        name="alert-circle"
-                        size={isVerySmallScreen ? 18 : 19}
-                        color={COLORS.primary}
+                        name="arrow-back-outline"
+                        size={isVerySmallScreen ? 23 : 25}
+                        color={COLORS.textDark}
                       />
+                    </TouchableOpacity>
+                  </View>
 
-                      <Text style={styles.errorText}>{errorMessage}</Text>
+                  <View style={styles.titleArea}>
+                    <Text style={styles.title}>{t.login}</Text>
+
+                    <Text style={styles.subtitle}>{t.welcomeBack}</Text>
+                  </View>
+
+                  <View style={styles.formArea}>
+                    <View style={styles.fieldGroup}>
+                      <Text style={[styles.inputLabel, { textAlign }]}>
+                        {t.email}
+                      </Text>
+
+                      <View
+                        style={[
+                          styles.inputWrapper,
+                          fieldErrors.email && styles.inputWrapperError,
+                        ]}
+                      >
+                        <Feather
+                          name="mail"
+                          size={isVerySmallScreen ? 19 : 20}
+                          color={COLORS.primary}
+                          style={styles.inputIcon}
+                        />
+
+                        <TextInput
+                          style={styles.input}
+                          placeholder="example@email.com"
+                          placeholderTextColor={COLORS.placeholder}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          value={email}
+                          onChangeText={(text) => {
+                            setEmail(text);
+                            clearFieldError("email");
+                          }}
+                          textAlign={textAlign}
+                          returnKeyType="next"
+                          blurOnSubmit={false}
+                          onSubmitEditing={() =>
+                            passwordInputRef.current?.focus()
+                          }
+                          editable={!loading && !isNavigating}
+                          selectionColor={COLORS.primary}
+                        />
+                      </View>
+
+                      {fieldErrors.email ? (
+                        <View style={styles.fieldErrorRow}>
+                          <Ionicons
+                            name="alert-circle"
+                            size={14}
+                            color={COLORS.primary}
+                          />
+                          <Text style={[styles.fieldErrorText, { textAlign }]}>
+                            {fieldErrors.email}
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
-                  ) : null}
-                </View>
+
+                    <View style={styles.fieldGroup}>
+                      <Text style={[styles.inputLabel, { textAlign }]}>
+                        {t.password}
+                      </Text>
+
+                      <View
+                        style={[
+                          styles.inputWrapper,
+                          fieldErrors.password && styles.inputWrapperError,
+                        ]}
+                      >
+                        <Feather
+                          name="lock"
+                          size={isVerySmallScreen ? 20 : 21}
+                          color={COLORS.primary}
+                          style={styles.inputIcon}
+                        />
+
+                        <TextInput
+                          ref={passwordInputRef}
+                          style={styles.input}
+                          placeholder="••••••••"
+                          placeholderTextColor={COLORS.placeholder}
+                          secureTextEntry={!showPassword}
+                          value={password}
+                          onChangeText={(text) => {
+                            setPassword(text);
+                            clearFieldError("password");
+                          }}
+                          textAlign={textAlign}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          returnKeyType="done"
+                          editable={!loading && !isNavigating}
+                          selectionColor={COLORS.primary}
+                        />
+
+                        <TouchableOpacity
+                          style={styles.eyeButton}
+                          activeOpacity={0.7}
+                          onPress={() => setShowPassword(!showPassword)}
+                          disabled={loading || isNavigating}
+                        >
+                          <Ionicons
+                            name={
+                              showPassword
+                                ? "eye-outline"
+                                : "eye-off-outline"
+                            }
+                            size={isVerySmallScreen ? 20 : 21}
+                            color={COLORS.primary}
+                          />
+                        </TouchableOpacity>
+                      </View>
+
+                      {fieldErrors.password ? (
+                        <View style={styles.fieldErrorRow}>
+                          <Ionicons
+                            name="alert-circle"
+                            size={14}
+                            color={COLORS.primary}
+                          />
+                          <Text style={[styles.fieldErrorText, { textAlign }]}>
+                            {fieldErrors.password}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      style={[
+                        styles.forgotPasswordButton,
+                        {
+                          alignSelf: isArabic ? "flex-end" : "flex-start",
+                          marginRight: isArabic ? 8 : 0,
+                          marginLeft: isArabic ? 0 : 8,
+                        },
+                      ]}
+                      onPress={() => smoothPush("/forgot-password")}
+                      disabled={isNavigating || loading}
+                    >
+                      <Text style={[styles.forgotPasswordText, { textAlign }]}>
+                        {t.forgotPassword}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </Animated.View>
 
                 <View style={styles.bottomArea}>
                   <TouchableOpacity
@@ -544,9 +649,7 @@ export default function LoginScreen() {
                         ) : null}
 
                         <Text style={styles.loginText}>
-                          {loading
-                            ? "جاري تسجيل الدخول..."
-                            : "تسجيل الدخول"}
+                          {loading ? t.loggingIn : t.login}
                         </Text>
                       </View>
                     </LinearGradient>
@@ -554,12 +657,17 @@ export default function LoginScreen() {
 
                   <View style={styles.orArea}>
                     <View style={styles.orLine} />
-                    <Text style={styles.orText}>أو</Text>
+                    <Text style={styles.orText}>{t.or}</Text>
                     <View style={styles.orLine} />
                   </View>
 
-                  <View style={styles.registerTextArea}>
-                    <Text style={styles.registerText}>ليس لديك حساب؟ </Text>
+                  <View
+                    style={[
+                      styles.registerTextArea,
+                      { flexDirection: isArabic ? "row-reverse" : "row" },
+                    ]}
+                  >
+                    <Text style={styles.registerText}>{t.noAccount} </Text>
 
                     <TouchableOpacity
                       activeOpacity={0.7}
@@ -567,27 +675,27 @@ export default function LoginScreen() {
                       disabled={isNavigating || loading}
                     >
                       <Text style={styles.registerTextBold}>
-                        إنشاء حساب جديد
+                        {t.createAccount}
                       </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               </View>
             </View>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </Animated.View>
+          </SafeAreaView>
+        </Animated.View>
 
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.transitionOverlay,
-          {
-            opacity: transitionAnim,
-          },
-        ]}
-      />
-    </View>
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.transitionOverlay,
+            {
+              opacity: transitionAnim,
+            },
+          ]}
+        />
+      </View>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -641,11 +749,6 @@ function createStyles({
       backgroundColor: COLORS.screenBackground,
     },
 
-    keyboardAvoidingView: {
-      flex: 1,
-      backgroundColor: COLORS.screenBackground,
-    },
-
     screenContent: {
       flex: 1,
       paddingHorizontal: horizontalPadding,
@@ -660,6 +763,12 @@ function createStyles({
       width: "100%",
       maxWidth: 430,
       alignSelf: "center",
+      justifyContent: "space-between",
+    },
+
+    topArea: {
+      width: "100%",
+      flexShrink: 1,
     },
 
     backArea: {
@@ -667,7 +776,7 @@ function createStyles({
       paddingTop: safeTop + 2,
       alignItems: "flex-start",
       justifyContent: "center",
-      marginBottom: isVerySmallScreen ? 16 : isTabletLike ? 24 : 22,
+      marginBottom: isVerySmallScreen ? 8 : 12,
     },
 
     backButtonWrapper: {
@@ -687,31 +796,31 @@ function createStyles({
       alignItems: "center",
       justifyContent: "center",
       marginBottom: isVerySmallScreen
-        ? 30
+        ? 18
         : isSmallScreen
-        ? 38
+        ? 22
         : isTabletLike
-        ? 46
-        : 44,
+        ? 34
+        : 28,
       paddingHorizontal: clamp(width * 0.02, 8, 14),
     },
 
     title: {
-      fontSize: isVerySmallScreen ? 23 : isSmallScreen ? 25 : 26,
+      fontSize: isVerySmallScreen ? 21 : isSmallScreen ? 23 : 24,
       fontWeight: "900",
       color: COLORS.title,
       textAlign: "center",
       letterSpacing: -0.4,
-      lineHeight: isVerySmallScreen ? 33 : 36,
+      lineHeight: isVerySmallScreen ? 29 : 32,
       textShadowColor: "rgba(255,255,255,0.95)",
       textShadowOffset: { width: 0, height: 2 },
       textShadowRadius: 12,
     },
 
     subtitle: {
-      marginTop: isVerySmallScreen ? 8 : 10,
-      fontSize: isVerySmallScreen ? 15.5 : 16.5,
-      lineHeight: isVerySmallScreen ? 24 : 27,
+      marginTop: isVerySmallScreen ? 5 : 7,
+      fontSize: isVerySmallScreen ? 14.5 : 15.5,
+      lineHeight: isVerySmallScreen ? 21 : 23,
       color: COLORS.placeholder,
       fontWeight: "800",
       textAlign: "center",
@@ -727,15 +836,15 @@ function createStyles({
 
     fieldGroup: {
       width: "100%",
-      marginBottom: isVerySmallScreen ? 18 : 20,
+      marginBottom: isVerySmallScreen ? 8 : 10,
     },
 
     inputLabel: {
       color: COLORS.label,
-      fontSize: isVerySmallScreen ? 14.5 : 15.5,
+      fontSize: isVerySmallScreen ? 13.5 : 14.5,
       fontWeight: "800",
       textAlign: "right",
-      marginBottom: 10,
+      marginBottom: 6,
     },
 
     inputWrapper: {
@@ -745,7 +854,7 @@ function createStyles({
       backgroundColor: COLORS.white,
       borderWidth: 1.7,
       borderColor: COLORS.border,
-      paddingHorizontal: isVerySmallScreen ? 16 : 18,
+      paddingHorizontal: isVerySmallScreen ? 15 : 17,
       flexDirection: "row-reverse",
       alignItems: "center",
       shadowColor: COLORS.shadowGray,
@@ -756,17 +865,17 @@ function createStyles({
     },
 
     inputWrapperError: {
-      borderColor: "rgba(154,33,28,0.35)",
+      borderColor: "rgba(154,33,28,0.45)",
       backgroundColor: "rgba(154,33,28,0.015)",
     },
 
     inputIcon: {
-      marginLeft: isVerySmallScreen ? 11 : 13,
+      marginLeft: isVerySmallScreen ? 10 : 12,
     },
 
     input: {
       flex: 1,
-      fontSize: isVerySmallScreen ? 16.2 : 17,
+      fontSize: isVerySmallScreen ? 15.5 : 16.5,
       color: COLORS.inputText,
       fontWeight: "700",
       paddingVertical: 0,
@@ -774,66 +883,51 @@ function createStyles({
     },
 
     eyeButton: {
-      width: isVerySmallScreen ? 32 : 34,
-      height: isVerySmallScreen ? 32 : 34,
-      borderRadius: isVerySmallScreen ? 16 : 17,
+      width: isVerySmallScreen ? 30 : 32,
+      height: isVerySmallScreen ? 30 : 32,
+      borderRadius: isVerySmallScreen ? 15 : 16,
       justifyContent: "center",
       alignItems: "center",
       marginRight: 8,
     },
 
     forgotPasswordButton: {
-      alignSelf: "flex-end",
-      marginRight: 12,
-      marginTop: isVerySmallScreen ? -5 : -6,
-      marginBottom: isVerySmallScreen ? 10 : 12,
-      paddingVertical: 6,
+      marginTop: isVerySmallScreen ? 2 : 4,
+      marginBottom: isVerySmallScreen ? 8 : 10,
+      paddingVertical: 4,
       zIndex: 20,
       elevation: 20,
     },
 
     forgotPasswordText: {
       color: COLORS.primary,
-      fontSize: isVerySmallScreen ? 14.5 : 15.2,
-      textAlign: "right",
+      fontSize: isVerySmallScreen ? 13.8 : 14.7,
       fontWeight: "900",
     },
 
-    errorBox: {
-      width: "100%",
+    fieldErrorRow: {
+      marginTop: 6,
       flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "flex-start",
-      marginTop: isVerySmallScreen ? 0 : 2,
-      marginBottom: isVerySmallScreen ? 8 : 10,
-      paddingHorizontal: isVerySmallScreen ? 14 : 16,
-      paddingVertical: isVerySmallScreen ? 10 : 12,
-      borderRadius: 22,
-      backgroundColor: "rgba(154,33,28,0.07)",
-      borderWidth: 1.2,
-      borderColor: "rgba(154,33,28,0.16)",
-      shadowColor: COLORS.shadowGray,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: Platform.OS === "android" ? 0.08 : 0.1,
-      shadowRadius: 4,
-      elevation: 2,
-      gap: 8,
+      paddingHorizontal: 8,
+      gap: 5,
     },
 
-    errorText: {
+    fieldErrorText: {
       flex: 1,
       color: COLORS.primary,
-      fontSize: isVerySmallScreen ? 13.2 : 14,
+      fontSize: isVerySmallScreen ? 12.2 : 13,
       fontWeight: "800",
       textAlign: "right",
-      lineHeight: isVerySmallScreen ? 20 : 22,
+      lineHeight: isVerySmallScreen ? 17 : 19,
     },
 
     bottomArea: {
-      marginTop: "auto",
+      marginTop: isVerySmallScreen ? 6 : 10,
       width: "100%",
-      paddingTop: isVerySmallScreen ? 18 : isTabletLike ? 34 : 30,
-      paddingBottom: isVerySmallScreen ? 2 : 6,
+      paddingTop: isVerySmallScreen ? 6 : 8,
+      paddingBottom: isVerySmallScreen ? 18 : 24,
     },
 
     loginButtonWrapper: {
@@ -841,11 +935,13 @@ function createStyles({
       height: buttonHeight,
       borderRadius: buttonRadius,
       overflow: "hidden",
+
       shadowColor: "#6E1411",
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
       shadowRadius: 14,
       elevation: 6,
+
       backgroundColor: COLORS.primary,
     },
 
@@ -859,17 +955,6 @@ function createStyles({
       justifyContent: "center",
       alignItems: "center",
       overflow: "hidden",
-    },
-
-    loginShine: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      height: "48%",
-      backgroundColor: "rgba(255,255,255,0.10)",
-      borderTopLeftRadius: buttonRadius,
-      borderTopRightRadius: buttonRadius,
     },
 
     loadingContent: {
@@ -886,13 +971,24 @@ function createStyles({
 
     loginText: {
       color: COLORS.white,
-      fontSize: isVerySmallScreen ? 19 : 21,
+      fontSize: isVerySmallScreen ? 18 : 19.5,
       fontWeight: "900",
       textAlign: "center",
     },
 
+    loginShine: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      height: "48%",
+      backgroundColor: "rgba(255,255,255,0.10)",
+      borderTopLeftRadius: buttonRadius,
+      borderTopRightRadius: buttonRadius,
+    },
+
     orArea: {
-      marginTop: isVerySmallScreen ? 24 : 30,
+      marginTop: isVerySmallScreen ? 8 : 11,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
@@ -902,18 +998,18 @@ function createStyles({
     orLine: {
       flex: 1,
       height: 1,
-      backgroundColor: "rgba(154,33,28,0.22)",
+      backgroundColor: "rgba(150, 150, 150, 1)",
     },
 
     orText: {
-      marginHorizontal: 16,
-      color: COLORS.label,
+      marginHorizontal: 14,
+      color: "rgba(113, 113, 113, 1)",
       fontSize: isVerySmallScreen ? 15.5 : 16.5,
-      fontWeight: "800",
+      fontWeight: "900",
     },
 
     registerTextArea: {
-      marginTop: isVerySmallScreen ? 14 : 16,
+      marginTop: isVerySmallScreen ? 12 : 16,
       flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "center",
@@ -929,7 +1025,7 @@ function createStyles({
 
     registerTextBold: {
       color: COLORS.primary,
-      fontSize: isVerySmallScreen ? 15 : 16,
+      fontSize: isVerySmallScreen ? 13.8 : 14.7,
       fontWeight: "900",
       textAlign: "center",
     },
