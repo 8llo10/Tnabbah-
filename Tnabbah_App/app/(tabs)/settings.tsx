@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+
 import {
     View,
     Text,
@@ -13,16 +14,18 @@ import {
     Linking,
     TextInput,
 } from "react-native";
+import { supabase } from "../../lib/supabase";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../../providers/AuthProvider";
-import { useRouter } from "expo-router";
+
 import { useCars, UserCar } from "../../providers/CarsProvider";
 import { useAppSettings } from "../../providers/AppSettingsProvider";
 import { useNotifications } from "../../providers/NotificationsProvider";
 import { useAccountSettings } from "../../providers/AccountSettingsProvider";
+import { useLanguage } from "../../providers/LanguageProvider";
 
 
 import {
@@ -34,9 +37,7 @@ import {
 import { EditCarNameModal } from "../../components/settings/CarModals";
 import {
     ConfirmModal,
-    MessageModal,
 } from "../../components/settings/CommonModals";
-import { HelpModal } from "../../components/settings/HelpModal";
 
 
 
@@ -51,9 +52,11 @@ const COLORS = {
     // خليته غامق بدل الأحمر الفاتح
     danger: "#871B17",
 
-    success: "#1F8A4C",
+    success: "#2E7D32",
     white: "#FFFFFF",
 };
+
+const MAX_NAME_LENGTH = 20;
 
 
 
@@ -70,7 +73,7 @@ const lightTheme = {
     headerDivider: "#F2F2F2",
     cardPressed: "#FAFAFA",
     dangerBg: "#FFF1F1",
-    successBg: "#EFFAF3",
+    successBg: "rgba(46,125,50,0.10)",
     modalOverlay: "rgba(0,0,0,0.32)",
 };
 
@@ -82,14 +85,14 @@ const darkTheme = {
     textPrimary: "#FFFFFF",
     textSecondary: "#B8B8B8",
 
-    iconBg: "rgba(135,27,23,0.20)",
-    iconColor: "#D04740",
+    iconBg: "#E8E8EA",
+    iconColor: COLORS.primary,
 
     subtle: "#2C2C2C",
     headerDivider: "#343434",
     cardPressed: "#2B2B2B",
     dangerBg: "rgba(135,27,23,0.18)",
-    successBg: "rgba(31,138,76,0.16)",
+    successBg: "rgba(46,125,50,0.18)",
     modalOverlay: "rgba(0,0,0,0.58)",
 };
 
@@ -113,18 +116,20 @@ const translations = {
         darkModeDesc: "تفعيل المظهر الداكن للتطبيق",
 
         helpSupport: "المساعدة والدعم",
-        help: "المساعدة",
-        helpDesc: "الأسئلة الشائعة وطريقة التواصل مع الدعم",
+        help: "تواصل مع الدعم",
+        helpDesc: "للاستفسارات أو الإبلاغ عن مشكلة في التطبيق",
+        supportEmailButton: "مراسلة الدعم",
+        helpIntro: "إذا واجهت مشكلة أو عندك استفسار، أرسلي لنا التفاصيل وسنساعدك في أقرب وقت.",
 
         vehicleConnection: "اتصال السيارة",
-        bluetoothSettings: "إعدادات البلوتوث",
-        bluetoothSettingsDesc: "ربط أو تغيير جهاز السيارة",
-        deviceStatus: "حالة الجهاز",
-        scanStatus: "حالة المتابعة",
+        bluetoothSettings: "ربط قطعة السيارة",
+        bluetoothSettingsDesc: "ربط قطعة OBD أو تغييرها",
+        deviceStatus: "حالة الاتصال",
+        scanStatus: "قراءة بيانات السيارة",
         connected: "متصل",
         disconnected: "غير متصل",
-        scannerOn: "المتابعة تعمل",
-        scannerOff: "المتابعة متوقفة",
+        scannerOn: "تعمل الآن",
+        scannerOff: "متوقفة",
 
         pauseMonitoring: "إيقاف المتابعة مؤقتًا",
         pauseMonitoringDesc: "إيقاف قراءة بيانات السيارة مؤقتًا",
@@ -148,6 +153,7 @@ const translations = {
         disconnectMessage: "هل تريد إنهاء اتصال السيارة الآن؟",
         disconnectedDone: "تم إنهاء اتصال السيارة.",
         errorTitle: "حدث خطأ",
+        nameLimitError: "الاسم يجب ألا يتجاوز 20 حرفًا.",
 
 
         totalCars: "عدد السيارات",
@@ -178,18 +184,20 @@ const translations = {
         darkModeDesc: "Enable dark theme for the app",
 
         helpSupport: "Help & Support",
-        help: "Help",
-        helpDesc: "FAQs and contact support",
+        help: "Contact Support",
+        helpDesc: "For questions or reporting an app issue",
+        supportEmailButton: "Email Support",
+        helpIntro: "If you have a question or an issue, send us the details and we will help you as soon as possible.",
 
-        vehicleConnection: "Vehicle Connection",
-        bluetoothSettings: "Bluetooth Settings",
-        bluetoothSettingsDesc: "Pair or change the vehicle device",
-        deviceStatus: "Device Status",
-        scanStatus: "Monitoring Status",
+        vehicleConnection: "Car Connection",
+        bluetoothSettings: "Connect Car Device",
+        bluetoothSettingsDesc: "Connect or change the OBD device",
+        deviceStatus: "Connection Status",
+        scanStatus: "Car Data Reading",
         connected: "Connected",
         disconnected: "Disconnected",
-        scannerOn: "Monitoring active",
-        scannerOff: "Monitoring stopped",
+        scannerOn: "Running",
+        scannerOff: "Stopped",
 
         pauseMonitoring: "Pause monitoring",
         pauseMonitoringDesc: "Temporarily stop reading vehicle data",
@@ -213,6 +221,7 @@ const translations = {
         disconnectMessage: "Do you want to end the vehicle connection now?",
         disconnectedDone: "Vehicle connection has been ended.",
         errorTitle: "Error",
+        nameLimitError: "Name must be 20 characters or less.",
 
 
         totalCars: "Total Cars",
@@ -278,15 +287,116 @@ function AppSwitch({
     );
 }
 
+function AppMessageModal({
+    visible,
+    title,
+    message,
+    icon,
+    buttonText,
+    theme,
+    isRTL,
+    onClose,
+}: {
+    visible: boolean;
+    title: string;
+    message?: string;
+    icon: keyof typeof Feather.glyphMap;
+    buttonText: string;
+    theme: typeof lightTheme;
+    isRTL: boolean;
+    onClose: () => void;
+}) {
+    const isSuccess = icon === "check-circle";
+    const isError = icon === "alert-circle";
+    const iconColor = isError ? COLORS.danger : COLORS.primary;
+    const iconBackground = isError ? "rgba(135,27,23,0.12)" : theme.iconBg;
+
+    return (
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+            <View style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}>
+                <View
+                    style={[
+                        styles.confirmModal,
+                        {
+                            backgroundColor: theme.surface,
+                            borderColor: theme.cardBorder,
+                        },
+                    ]}
+                >
+                    <View
+                        style={[
+                            styles.appMessageIconCircle,
+                            isSuccess
+                                ? styles.appMessageSuccessIconCircle
+                                : { backgroundColor: iconBackground },
+                        ]}
+                    >
+                        {isSuccess ? (
+                            <Ionicons
+                                name="checkmark-circle"
+                                size={58}
+                                color={COLORS.success}
+                            />
+                        ) : (
+                            <Feather
+                                name={icon}
+                                size={28}
+                                color={iconColor}
+                            />
+                        )}
+                    </View>
+
+                    <Text
+                        style={[
+                            styles.confirmTitle,
+                            { color: theme.textPrimary },
+                        ]}
+                    >
+                        {title}
+                    </Text>
+
+                    {!!message?.trim() && (
+                        <Text
+                            style={[
+                                styles.confirmMessage,
+                                {
+                                    color: theme.textSecondary,
+                                    textAlign: isRTL ? "right" : "left",
+                                },
+                            ]}
+                        >
+                            {message}
+                        </Text>
+                    )}
+
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.singleModalButton,
+                            {
+                                backgroundColor: COLORS.primary,
+                                opacity: pressed ? 0.9 : 1,
+                                marginTop: message?.trim() ? 0 : 10,
+                            },
+                        ]}
+                        onPress={onClose}
+                    >
+                        <Text style={styles.confirmPrimaryText}>{buttonText}</Text>
+                    </Pressable>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
 export default function Settings() {
     const { profile, session } = useAuth();
     const router = useRouter();
+    const { language, changeLanguage } = useLanguage();
 
 
     const {
         obdConnected,
         scannerRunning,
-        mqttConnected,
         lastConnectionTime,
         selectedCarId,
         connectedCarId,
@@ -302,10 +412,9 @@ export default function Settings() {
     const {
         settingsLoading,
         savingSettings,
-        selectedLanguage,
         darkModeEnabled,
         notificationsEnabled,
-        handleLanguageChange,
+        handleLanguageChange: saveAppLanguageChange,
         handleDarkModeChange,
     } = useAppSettings();
 
@@ -356,9 +465,20 @@ export default function Settings() {
     const [carToDelete, setCarToDelete] = useState<UserCar | null>(null);
 
 
+    const selectedLanguage = language;
     const t = translations[selectedLanguage];
     const isRTL = selectedLanguage === "AR";
     const theme = darkModeEnabled ? darkTheme : lightTheme;
+
+    const handleSettingsLanguageChange = async (lang: "AR" | "EN") => {
+        await changeLanguage(lang);
+
+        try {
+            await saveAppLanguageChange(lang);
+        } catch (error) {
+            console.log("Save language settings error:", error);
+        }
+    };
 
     const activeSelectedCarId = optimisticSelectedCarId || selectedCarId;
 
@@ -434,11 +554,8 @@ export default function Settings() {
             setCarNameInput("");
 
             showMessage({
-                title: t.done,
-                body:
-                    selectedLanguage === "AR"
-                        ? "تم تحديث اسم السيارة."
-                        : "Car name updated.",
+                title: selectedLanguage === "AR" ? "تم تحديث اسم السيارة" : "Car name updated",
+                body: "",
                 icon: "check-circle",
             });
         } catch (error) {
@@ -462,11 +579,8 @@ export default function Settings() {
             await deleteCar(car);
 
             showMessage({
-                title: t.done,
-                body:
-                    selectedLanguage === "AR"
-                        ? "تم حذف السيارة من القائمة."
-                        : "Car removed from list.",
+                title: selectedLanguage === "AR" ? "تم حذف السيارة من القائمة" : "Car removed from list",
+                body: "",
                 icon: "check-circle",
             });
         } catch (error) {
@@ -508,24 +622,9 @@ export default function Settings() {
     const openSupportEmail = () => {
         const subject = encodeURIComponent("Tnabbah Support Request");
         const body = encodeURIComponent(
-            `User ID: ${userId}\nEmail: ${userEmail}\nCurrent Car: ${selectedCarId || "—"}\n\nاكتبي مشكلتك هنا:\n`
-        );
-
-        Linking.openURL(`mailto:tanbbahteem@gmail.com?subject=${subject}&body=${body}`);
-    };
-
-    const openWhatsAppSupport = () => {
-        const message = encodeURIComponent(
-            `مرحبا، أحتاج مساعدة في تطبيق تنبّه.\nUser ID: ${userId}\nCurrent Car: ${selectedCarId || "—"}`
-        );
-
-        Linking.openURL(`https://wa.me/966560602239?text=${message}`);
-    };
-
-    const sendIssueReport = () => {
-        const subject = encodeURIComponent("Tnabbah Issue Report");
-        const body = encodeURIComponent(
-            `Issue Report\n\nUser ID: ${userId}\nEmail: ${userEmail}\nCurrent Car: ${connectedCarId || "—"}\nOBD Connected: ${obdConnected}\nScanner Running: ${scannerRunning}\nMQTT Connected: ${mqttConnected}\nLast Connection: ${lastConnectionTime || "—"}\n\nDescribe the issue:\n`
+            selectedLanguage === "AR"
+                ? `مرحبًا فريق تنبّه،\n\nأحتاج مساعدة بخصوص التطبيق.\n\nبيانات الحساب:\nUser ID: ${userId}\nEmail: ${userEmail}\nCurrent Car: ${selectedCarId || "—"}\nConnected Car: ${connectedCarId || "—"}\nCar Connection: ${obdConnected ? "Connected" : "Disconnected"}\nData Reading: ${scannerRunning ? "Running" : "Stopped"}\nLast Connection: ${lastConnectionTime || "—"}\n\nاكتبي تفاصيل الاستفسار أو المشكلة هنا:\n`
+                : `Hello Tnabbah Support,\n\nI need help with the app.\n\nAccount details:\nUser ID: ${userId}\nEmail: ${userEmail}\nCurrent Car: ${selectedCarId || "—"}\nConnected Car: ${connectedCarId || "—"}\nCar Connection: ${obdConnected ? "Connected" : "Disconnected"}\nData Reading: ${scannerRunning ? "Running" : "Stopped"}\nLast Connection: ${lastConnectionTime || "—"}\n\nDescribe your question or issue here:\n`
         );
 
         Linking.openURL(`mailto:tanbbahteem@gmail.com?subject=${subject}&body=${body}`);
@@ -536,8 +635,8 @@ export default function Settings() {
             await stopScanner();
 
             showMessage({
-                title: t.done,
-                body: t.monitoringPaused,
+                title: t.monitoringPaused,
+                body: "",
                 icon: "pause-circle",
             });
         } catch (error) {
@@ -561,8 +660,8 @@ export default function Settings() {
             await disconnectObd();
 
             showMessage({
-                title: t.done,
-                body: t.disconnectedDone,
+                title: t.disconnectedDone,
+                body: "",
                 icon: "check-circle",
             });
         } catch (error) {
@@ -585,19 +684,72 @@ export default function Settings() {
 
         if (!realUserId || !cleanName) return;
 
+        if (cleanName.length > MAX_NAME_LENGTH) {
+            showMessage({
+                title: t.errorTitle,
+                body: t.nameLimitError,
+                icon: "alert-circle",
+            });
+            return;
+        }
+
         setSavingName(true);
 
         try {
+            /**
+             * نحدث الاسم في كل مكان بدون نقل المستخدم للهوم:
+             * 1) Provider الخاص بالحساب
+             * 2) جدول profiles في Supabase
+             * 3) user_metadata في Supabase Auth
+             * 4) نعمل refresh للجلسة عشان الواجهات الثانية مثل Home تقرأ الاسم الجديد أسرع
+             */
             await updateName(cleanName);
+
+            const { error: profileUpdateError } = await supabase
+                .from("profiles")
+                .update({
+                    full_name: cleanName,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", realUserId);
+
+            if (profileUpdateError) {
+                throw profileUpdateError;
+            }
+
+            const { error: authUpdateError } = await supabase.auth.updateUser({
+                data: { full_name: cleanName },
+            });
+
+            if (authUpdateError) {
+                throw authUpdateError;
+            }
+
+            /**
+             * هذا يساعد AuthProvider والهوم يستقبلون بيانات الجلسة الجديدة أسرع.
+             * لو فشل refresh ما نوقف العملية لأن الاسم تم حفظه في profiles و metadata.
+             */
+            const { error: refreshError } = await supabase.auth.refreshSession();
+
+            if (refreshError) {
+                console.log("Refresh session after name update error:", refreshError.message);
+            }
+
+            await supabase.auth.getUser();
 
             setEditNameVisible(false);
             setDisplayName(cleanName);
 
             showMessage({
-                title: t.done,
-                body: selectedLanguage === "AR" ? "تم تحديث الاسم." : "Name updated.",
+                title: selectedLanguage === "AR" ? "تم تحديث الاسم" : "Name updated",
+                body: "",
                 icon: "check-circle",
             });
+
+            /**
+             * لا يوجد router.replace هنا.
+             * المستخدم يبقى في الإعدادات، ولما يروح للهوم يلقى الاسم الجديد.
+             */
         } catch (error) {
             console.log("Update name error:", error);
 
@@ -636,11 +788,11 @@ export default function Settings() {
             setEditEmailVisible(false);
 
             showMessage({
-                title: t.done,
-                body:
+                title:
                     selectedLanguage === "AR"
-                        ? "تم إرسال رابط تأكيد إلى الإيميل الجديد."
-                        : "A confirmation link was sent to the new email.",
+                        ? "تم إرسال رابط تأكيد إلى الإيميل الجديد"
+                        : "A confirmation link was sent to the new email",
+                body: "",
                 icon: "check-circle",
             });
         } catch (error) {
@@ -688,12 +840,9 @@ export default function Settings() {
             showMessage({
                 title:
                     selectedLanguage === "AR"
-                        ? "تم حذف الحساب"
-                        : "Account deleted",
-                body:
-                    selectedLanguage === "AR"
-                        ? "تم حذف الحساب نهائيًا."
-                        : "Your account has been permanently deleted.",
+                        ? "تم حذف الحساب نهائيًا"
+                        : "Account deleted permanently",
+                body: "",
                 icon: "check-circle",
             });
 
@@ -814,7 +963,7 @@ export default function Settings() {
                 <Pressable
                     style={styles.accountCard}
                     onPress={() => {
-                        setFullNameInput(displayName === "مستخدم" ? "" : displayName);
+                        setFullNameInput((displayName === "مستخدم" ? "" : displayName).slice(0, MAX_NAME_LENGTH));
                         setEditNameVisible(true);
                     }}
                 >
@@ -830,12 +979,23 @@ export default function Settings() {
                             </View>
 
                             <View style={[styles.userInfo, { alignItems }]}>
-                                <Text
-                                    numberOfLines={1}
-                                    style={[styles.userName, { color: "#FFFFFF", textAlign }]}
+                                <View
+                                    style={[
+                                        styles.accountNameRow,
+                                        {
+                                            flexDirection: rowDirection,
+                                            alignSelf: isRTL ? "flex-end" : "flex-start",
+                                        },
+                                    ]}
                                 >
-                                    {displayName || userName}
-                                </Text>
+                                    <Text
+                                        numberOfLines={1}
+                                        style={[styles.userName, { color: "#FFFFFF", textAlign }]}
+                                    >
+                                        {displayName || userName}
+                                    </Text>
+
+                                </View>
 
                                 <Text
                                     numberOfLines={1}
@@ -852,6 +1012,12 @@ export default function Settings() {
                                 </Text>
                             </View>
                         </View>
+
+                        <Feather
+                            name={isRTL ? "chevron-left" : "chevron-right"}
+                            size={18}
+                            color="rgba(255,255,255,0.78)"
+                        />
                     </View>
                 </Pressable>
 
@@ -865,11 +1031,14 @@ export default function Settings() {
                         pressed && { backgroundColor: theme.cardPressed },
                     ]}
                     onPress={() =>
-                        router.push({
-                            pathname: "/forgot-password",
-                            params: { email: userEmail !== "—" ? userEmail : "" },
-                        } as any)
-                    }
+    router.push({
+        pathname: "/forgot-password",
+        params: {
+            email: userEmail !== "—" ? userEmail : "",
+            from: "settings",
+        },
+    } as any)
+}
                 >
                     <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
                         <View style={[styles.settingLabelContainer, { flexDirection: rowDirection }]}>
@@ -941,6 +1110,216 @@ export default function Settings() {
                             name={isRTL ? "chevron-left" : "chevron-right"}
                             size={18}
                             color={theme.textSecondary}
+                        />
+                    </View>
+                </Pressable>
+
+                <Text
+                    style={[
+                        styles.sectionTitle,
+                        { color: theme.textSecondary, textAlign },
+                    ]}
+                >
+                    {t.appSettings}
+                </Text>
+
+                <Pressable
+                    style={({ pressed }) => [
+                        styles.card,
+                        {
+                            backgroundColor: theme.surface,
+                            borderColor: theme.cardBorder,
+                        },
+                        pressed && { backgroundColor: theme.cardPressed },
+                    ]}
+                    onPress={() => handleNotificationsChange(!notificationsEnabled)}
+                >
+                    <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+                        <View
+                            style={[
+                                styles.settingLabelContainer,
+                                { flexDirection: rowDirection },
+                            ]}
+                        >
+                            <View
+                                style={[
+                                    styles.iconWrapper,
+                                    iconMargin,
+                                    { backgroundColor: theme.iconBg },
+                                ]}
+                            >
+                                <Feather name="bell" size={20} color={theme.iconColor} />
+                            </View>
+
+                            <View style={[styles.labelBlock, { alignItems }]}>
+                                <Text
+                                    style={[
+                                        styles.settingLabel,
+                                        { color: theme.textPrimary, textAlign },
+                                    ]}
+                                >
+                                    {t.notifications}
+                                </Text>
+
+                                <Text
+                                    style={[
+                                        styles.settingHint,
+                                        { color: theme.textSecondary, textAlign },
+                                    ]}
+                                >
+                                    {t.notificationsDesc}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <AppSwitch
+                            value={notificationsEnabled}
+                            onValueChange={handleNotificationsChange}
+                            trackOffColor={theme.border}
+                        />
+                    </View>
+                </Pressable>
+
+                <View
+                    style={[
+                        styles.card,
+                        {
+                            backgroundColor: theme.surface,
+                            borderColor: theme.cardBorder,
+                        },
+                    ]}
+                >
+                    <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+                        <View
+                            style={[
+                                styles.settingLabelContainer,
+                                { flexDirection: rowDirection },
+                            ]}
+                        >
+                            <View
+                                style={[
+                                    styles.iconWrapper,
+                                    iconMargin,
+                                    { backgroundColor: theme.iconBg },
+                                ]}
+                            >
+                                <Feather name="globe" size={20} color={theme.iconColor} />
+                            </View>
+
+                            <View style={[styles.labelBlock, { alignItems }]}>
+                                <Text
+                                    style={[
+                                        styles.settingLabel,
+                                        { color: theme.textPrimary, textAlign },
+                                    ]}
+                                >
+                                    {t.language}
+                                </Text>
+
+                                <Text
+                                    style={[
+                                        styles.settingHint,
+                                        { color: theme.textSecondary, textAlign },
+                                    ]}
+                                >
+                                    {t.languageDesc}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={[styles.segment, { backgroundColor: theme.subtle }]}>
+                            <Pressable
+                                style={[
+                                    styles.segmentItem,
+                                    selectedLanguage === "AR" && styles.segmentItemActive,
+                                ]}
+                                onPress={() => handleSettingsLanguageChange("AR")}
+                            >
+                                <Text
+                                    style={[
+                                        styles.segmentText,
+                                        { color: theme.textSecondary },
+                                        selectedLanguage === "AR" && styles.segmentTextActive,
+                                    ]}
+                                >
+                                    AR
+                                </Text>
+                            </Pressable>
+
+                            <Pressable
+                                style={[
+                                    styles.segmentItem,
+                                    selectedLanguage === "EN" && styles.segmentItemActive,
+                                ]}
+                                onPress={() => handleSettingsLanguageChange("EN")}
+                            >
+                                <Text
+                                    style={[
+                                        styles.segmentText,
+                                        { color: theme.textSecondary },
+                                        selectedLanguage === "EN" && styles.segmentTextActive,
+                                    ]}
+                                >
+                                    EN
+                                </Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+
+                <Pressable
+                    style={({ pressed }) => [
+                        styles.card,
+                        {
+                            backgroundColor: theme.surface,
+                            borderColor: theme.cardBorder,
+                        },
+                        pressed && { backgroundColor: theme.cardPressed },
+                    ]}
+                    onPress={() => handleDarkModeChange(!darkModeEnabled)}
+                >
+                    <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+                        <View
+                            style={[
+                                styles.settingLabelContainer,
+                                { flexDirection: rowDirection },
+                            ]}
+                        >
+                            <View
+                                style={[
+                                    styles.iconWrapper,
+                                    iconMargin,
+                                    { backgroundColor: theme.iconBg },
+                                ]}
+                            >
+                                <Feather name="moon" size={20} color={theme.iconColor} />
+                            </View>
+
+                            <View style={[styles.labelBlock, { alignItems }]}>
+                                <Text
+                                    style={[
+                                        styles.settingLabel,
+                                        { color: theme.textPrimary, textAlign },
+                                    ]}
+                                >
+                                    {t.darkMode}
+                                </Text>
+
+                                <Text
+                                    style={[
+                                        styles.settingHint,
+                                        { color: theme.textSecondary, textAlign },
+                                    ]}
+                                >
+                                    {t.darkModeDesc}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <AppSwitch
+                            value={darkModeEnabled}
+                            onValueChange={handleDarkModeChange}
+                            trackOffColor={theme.border}
                         />
                     </View>
                 </Pressable>
@@ -1335,286 +1714,6 @@ export default function Settings() {
                         { color: theme.textSecondary, textAlign },
                     ]}
                 >
-                    {t.appSettings}
-                </Text>
-
-                <Pressable
-                    style={({ pressed }) => [
-                        styles.card,
-                        {
-                            backgroundColor: theme.surface,
-                            borderColor: theme.cardBorder,
-                        },
-                        pressed && { backgroundColor: theme.cardPressed },
-                    ]}
-                    onPress={() => handleNotificationsChange(!notificationsEnabled)}
-                >
-                    <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
-                        <View
-                            style={[
-                                styles.settingLabelContainer,
-                                { flexDirection: rowDirection },
-                            ]}
-                        >
-                            <View
-                                style={[
-                                    styles.iconWrapper,
-                                    iconMargin,
-                                    { backgroundColor: theme.iconBg },
-                                ]}
-                            >
-                                <Feather name="bell" size={20} color={theme.iconColor} />
-                            </View>
-
-                            <View style={[styles.labelBlock, { alignItems }]}>
-                                <Text
-                                    style={[
-                                        styles.settingLabel,
-                                        { color: theme.textPrimary, textAlign },
-                                    ]}
-                                >
-                                    {t.notifications}
-                                </Text>
-
-                                <Text
-                                    style={[
-                                        styles.settingHint,
-                                        { color: theme.textSecondary, textAlign },
-                                    ]}
-                                >
-                                    {t.notificationsDesc}
-                                </Text>
-                            </View>
-                        </View>
-
-                        <AppSwitch
-                            value={notificationsEnabled}
-                            onValueChange={handleNotificationsChange}
-                            trackOffColor={theme.border}
-                        />
-                    </View>
-                </Pressable>
-
-                <View
-                    style={[
-                        styles.card,
-                        {
-                            backgroundColor: theme.surface,
-                            borderColor: theme.cardBorder,
-                        },
-                    ]}
-                >
-                    <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
-                        <View
-                            style={[
-                                styles.settingLabelContainer,
-                                { flexDirection: rowDirection },
-                            ]}
-                        >
-                            <View
-                                style={[
-                                    styles.iconWrapper,
-                                    iconMargin,
-                                    { backgroundColor: theme.iconBg },
-                                ]}
-                            >
-                                <Feather name="globe" size={20} color={theme.iconColor} />
-                            </View>
-
-                            <View style={[styles.labelBlock, { alignItems }]}>
-                                <Text
-                                    style={[
-                                        styles.settingLabel,
-                                        { color: theme.textPrimary, textAlign },
-                                    ]}
-                                >
-                                    {t.language}
-                                </Text>
-
-                                <Text
-                                    style={[
-                                        styles.settingHint,
-                                        { color: theme.textSecondary, textAlign },
-                                    ]}
-                                >
-                                    {t.languageDesc}
-                                </Text>
-                            </View>
-                        </View>
-
-                        <View style={[styles.segment, { backgroundColor: theme.subtle }]}>
-                            <Pressable
-                                style={[
-                                    styles.segmentItem,
-                                    selectedLanguage === "AR" && styles.segmentItemActive,
-                                ]}
-                                onPress={() => handleLanguageChange("AR")}
-                            >
-                                <Text
-                                    style={[
-                                        styles.segmentText,
-                                        { color: theme.textSecondary },
-                                        selectedLanguage === "AR" && styles.segmentTextActive,
-                                    ]}
-                                >
-                                    AR
-                                </Text>
-                            </Pressable>
-
-                            <Pressable
-                                style={[
-                                    styles.segmentItem,
-                                    selectedLanguage === "EN" && styles.segmentItemActive,
-                                ]}
-                                onPress={() => handleLanguageChange("EN")}
-                            >
-                                <Text
-                                    style={[
-                                        styles.segmentText,
-                                        { color: theme.textSecondary },
-                                        selectedLanguage === "EN" && styles.segmentTextActive,
-                                    ]}
-                                >
-                                    EN
-                                </Text>
-                            </Pressable>
-                        </View>
-                    </View>
-                </View>
-
-                <Pressable
-                    style={({ pressed }) => [
-                        styles.card,
-                        {
-                            backgroundColor: theme.surface,
-                            borderColor: theme.cardBorder,
-                        },
-                        pressed && { backgroundColor: theme.cardPressed },
-                    ]}
-                    onPress={() => handleDarkModeChange(!darkModeEnabled)}
-                >
-                    <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
-                        <View
-                            style={[
-                                styles.settingLabelContainer,
-                                { flexDirection: rowDirection },
-                            ]}
-                        >
-                            <View
-                                style={[
-                                    styles.iconWrapper,
-                                    iconMargin,
-                                    { backgroundColor: theme.iconBg },
-                                ]}
-                            >
-                                <Feather name="moon" size={20} color={theme.iconColor} />
-                            </View>
-
-                            <View style={[styles.labelBlock, { alignItems }]}>
-                                <Text
-                                    style={[
-                                        styles.settingLabel,
-                                        { color: theme.textPrimary, textAlign },
-                                    ]}
-                                >
-                                    {t.darkMode}
-                                </Text>
-
-                                <Text
-                                    style={[
-                                        styles.settingHint,
-                                        { color: theme.textSecondary, textAlign },
-                                    ]}
-                                >
-                                    {t.darkModeDesc}
-                                </Text>
-                            </View>
-                        </View>
-
-                        <AppSwitch
-                            value={darkModeEnabled}
-                            onValueChange={handleDarkModeChange}
-                            trackOffColor={theme.border}
-                        />
-                    </View>
-                </Pressable>
-
-                <Text
-                    style={[
-                        styles.sectionTitle,
-                        { color: theme.textSecondary, textAlign },
-                    ]}
-                >
-                    {t.helpSupport}
-                </Text>
-
-                <Pressable
-                    style={({ pressed }) => [
-                        styles.card,
-                        {
-                            backgroundColor: theme.surface,
-                            borderColor: theme.cardBorder,
-                        },
-                        pressed && { backgroundColor: theme.cardPressed },
-                    ]}
-                    onPress={() => setHelpVisible(true)}
-                >
-                    <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
-                        <View
-                            style={[
-                                styles.settingLabelContainer,
-                                { flexDirection: rowDirection },
-                            ]}
-                        >
-                            <View
-                                style={[
-                                    styles.iconWrapper,
-                                    iconMargin,
-                                    { backgroundColor: theme.iconBg },
-                                ]}
-                            >
-                                <Feather
-                                    name="help-circle"
-                                    size={20}
-                                    color={theme.iconColor}
-                                />
-                            </View>
-
-                            <View style={[styles.labelBlock, { alignItems }]}>
-                                <Text
-                                    style={[
-                                        styles.settingLabel,
-                                        { color: theme.textPrimary, textAlign },
-                                    ]}
-                                >
-                                    {t.help}
-                                </Text>
-
-                                <Text
-                                    style={[
-                                        styles.settingHint,
-                                        { color: theme.textSecondary, textAlign },
-                                    ]}
-                                >
-                                    {t.helpDesc}
-                                </Text>
-                            </View>
-                        </View>
-
-                        <Feather
-                            name={isRTL ? "chevron-left" : "chevron-right"}
-                            size={18}
-                            color={theme.textSecondary}
-                        />
-                    </View>
-                </Pressable>
-
-                <Text
-                    style={[
-                        styles.sectionTitle,
-                        { color: theme.textSecondary, textAlign },
-                    ]}
-                >
                     {t.vehicleConnection}
                 </Text>
 
@@ -1706,34 +1805,7 @@ export default function Settings() {
                             </Text>
                         </View>
 
-                        <View
-                            style={[
-                                styles.miniStatusCard,
-                                {
-                                    backgroundColor: mqttConnected ? theme.successBg : theme.dangerBg,
-                                    borderColor: theme.cardBorder,
-                                },
-                            ]}
-                        >
-                            <Feather
-                                name="wifi"
-                                size={17}
-                                color={mqttConnected ? COLORS.success : COLORS.danger}
-                            />
 
-                            <Text style={[styles.miniStatusTitle, { color: theme.textSecondary }]}>
-                                MQTT
-                            </Text>
-
-                            <Text
-                                style={[
-                                    styles.miniStatusText,
-                                    { color: mqttConnected ? COLORS.success : COLORS.danger },
-                                ]}
-                            >
-                                {mqttConnected ? t.connected : t.disconnected}
-                            </Text>
-                        </View>
 
                     </View>
 
@@ -1850,7 +1922,7 @@ export default function Settings() {
                                     style={[
                                         styles.smallIconWrapper,
                                         iconMargin,
-                                        { backgroundColor: theme.surface },
+                                        { backgroundColor: theme.iconBg },
                                     ]}
                                 >
                                     <Feather
@@ -1918,7 +1990,7 @@ export default function Settings() {
                                     style={[
                                         styles.smallIconWrapper,
                                         iconMargin,
-                                        { backgroundColor: theme.surface },
+                                        { backgroundColor: theme.iconBg },
                                     ]}
                                 >
                                     <Feather name="power" size={18} color={theme.iconColor} />
@@ -1954,6 +2026,76 @@ export default function Settings() {
                     </Pressable>
                 </View>
 
+                <Text
+                    style={[
+                        styles.sectionTitle,
+                        { color: theme.textSecondary, textAlign },
+                    ]}
+                >
+                    {t.helpSupport}
+                </Text>
+
+                <Pressable
+                    style={({ pressed }) => [
+                        styles.card,
+                        {
+                            backgroundColor: theme.surface,
+                            borderColor: theme.cardBorder,
+                        },
+                        pressed && { backgroundColor: theme.cardPressed },
+                    ]}
+                    onPress={() => setHelpVisible(true)}
+                >
+                    <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+                        <View
+                            style={[
+                                styles.settingLabelContainer,
+                                { flexDirection: rowDirection },
+                            ]}
+                        >
+                            <View
+                                style={[
+                                    styles.iconWrapper,
+                                    iconMargin,
+                                    { backgroundColor: theme.iconBg },
+                                ]}
+                            >
+                                <Feather
+                                    name="help-circle"
+                                    size={20}
+                                    color={theme.iconColor}
+                                />
+                            </View>
+
+                            <View style={[styles.labelBlock, { alignItems }]}>
+                                <Text
+                                    style={[
+                                        styles.settingLabel,
+                                        { color: theme.textPrimary, textAlign },
+                                    ]}
+                                >
+                                    {t.help}
+                                </Text>
+
+                                <Text
+                                    style={[
+                                        styles.settingHint,
+                                        { color: theme.textSecondary, textAlign },
+                                    ]}
+                                >
+                                    {t.helpDesc}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <Feather
+                            name={isRTL ? "chevron-left" : "chevron-right"}
+                            size={18}
+                            color={theme.textSecondary}
+                        />
+                    </View>
+                </Pressable>
+
                 <Pressable
                     style={({ pressed }) => [
                         styles.card,
@@ -1976,9 +2118,7 @@ export default function Settings() {
                                 style={[
                                     styles.iconWrapper,
                                     iconMargin,
-                                    {
-                                        backgroundColor: "rgba(135,27,23,0.12)",
-                                    },
+                                    { backgroundColor: theme.iconBg },
                                 ]}
                             >
                                 <Feather
@@ -2038,7 +2178,7 @@ export default function Settings() {
                         disabled={loggingOut}
                     >
                         <LinearGradient
-                            colors={["rgba(154,33,28,0.98)", "rgba(118,23,19,0.98)"]}
+                            colors={[COLORS.primary, COLORS.primaryPressed]}
                             start={{ x: 0.15, y: 0 }}
                             end={{ x: 0.9, y: 1 }}
                             style={styles.logoutGradient}
@@ -2091,17 +2231,77 @@ export default function Settings() {
                 </View>
             )}
 
-            <HelpModal
+            <Modal
                 visible={helpVisible}
-                onClose={() => setHelpVisible(false)}
-                t={t}
-                theme={theme}
-                isRTL={isRTL}
-                onEmail={openSupportEmail}
-                onWhatsApp={openWhatsAppSupport}
-                onIssue={sendIssueReport}
-                styles={styles}
-            />
+                transparent
+                animationType="fade"
+                onRequestClose={() => setHelpVisible(false)}
+            >
+                <View
+                    style={[
+                        styles.modalOverlay,
+                        { backgroundColor: theme.modalOverlay },
+                    ]}
+                >
+                    <View
+                        style={[
+                            styles.helpModal,
+                            {
+                                backgroundColor: theme.surface,
+                                borderColor: theme.cardBorder,
+                            },
+                        ]}
+                    >
+                        <Pressable
+                            onPress={() => setHelpVisible(false)}
+                            style={({ pressed }) => [
+                                styles.helpCloseCircle,
+                                {
+                                    backgroundColor: darkModeEnabled
+                                        ? "rgba(135,27,23,0.20)"
+                                        : "rgba(135,27,23,0.08)",
+                                    opacity: pressed ? 0.75 : 1,
+                                },
+                            ]}
+                        >
+                            <Feather name="x" size={20} color={COLORS.primary} />
+                        </Pressable>
+
+                        <Text
+                            style={[
+                                styles.helpTitle,
+                                { color: theme.textPrimary, textAlign },
+                            ]}
+                        >
+                            {t.helpSupport}
+                        </Text>
+
+                        <Text
+                            style={[
+                                styles.helpIntroText,
+                                { color: theme.textSecondary, textAlign },
+                            ]}
+                        >
+                            {t.helpIntro}
+                        </Text>
+
+                        <Pressable
+                            onPress={openSupportEmail}
+                            style={({ pressed }) => [
+                                styles.supportButton,
+                                {
+                                    backgroundColor: COLORS.primary,
+                                    opacity: pressed ? 0.88 : 1,
+                                },
+                            ]}
+                        >
+                            <Text style={styles.supportButtonText}>
+                                {t.supportEmailButton}
+                            </Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </Modal>
 
             <ConfirmModal
                 visible={confirmLogoutVisible}
@@ -2159,7 +2359,7 @@ export default function Settings() {
                 }}
             />
 
-            <MessageModal
+            <AppMessageModal
                 visible={messageVisible}
                 title={messageTitle}
                 message={messageBody}
@@ -2167,14 +2367,15 @@ export default function Settings() {
                 buttonText={t.ok}
                 theme={theme}
                 isRTL={isRTL}
-                styles={styles}
                 onClose={() => setMessageVisible(false)}
             />
 
             <EditNameModal
                 visible={editNameVisible}
                 value={fullNameInput}
-                onChangeText={setFullNameInput}
+                onChangeText={(text: string) =>
+  setFullNameInput(text.slice(0, MAX_NAME_LENGTH))
+}
                 onCancel={() => setEditNameVisible(false)}
                 onSave={handleUpdateName}
                 saving={savingName}
@@ -2389,6 +2590,31 @@ const styles = StyleSheet.create({
     userName: {
         fontSize: 17,
         fontWeight: "900",
+        flexShrink: 1,
+    },
+
+    accountNameRow: {
+        alignItems: "center",
+        gap: 8,
+        maxWidth: "100%",
+    },
+
+    accountEditPill: {
+        borderRadius: 999,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        backgroundColor: "rgba(255,255,255,0.16)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.18)",
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+    },
+
+    accountEditText: {
+        color: "#FFFFFF",
+        fontSize: 10.5,
+        fontWeight: "900",
     },
 
     userEmail: {
@@ -2496,8 +2722,8 @@ const styles = StyleSheet.create({
 
     logoutButtonWrapper: {
         width: "100%",
-        height: 64,
-        borderRadius: 30,
+        height: 56,
+        borderRadius: 28,
         overflow: "hidden",
         shadowColor: "#6E1411",
         shadowOffset: { width: 0, height: 8 },
@@ -2513,7 +2739,7 @@ const styles = StyleSheet.create({
 
     logoutGradient: {
         flex: 1,
-        borderRadius: 30,
+        borderRadius: 28,
         justifyContent: "center",
         alignItems: "center",
         overflow: "hidden",
@@ -2526,8 +2752,8 @@ const styles = StyleSheet.create({
         right: 0,
         height: "48%",
         backgroundColor: "rgba(255,255,255,0.10)",
-        borderTopLeftRadius: 30,
-        borderTopRightRadius: 30,
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
     },
 
     logoutInner: {
@@ -2544,7 +2770,7 @@ const styles = StyleSheet.create({
     logoutText: {
         color: "#FFFFFF",
         fontWeight: "900",
-        fontSize: 20,
+        fontSize: 18,
         textAlign: "center",
     },
 
@@ -2668,6 +2894,25 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
         marginBottom: 14,
+    },
+
+    appMessageIconCircle: {
+        width: 62,
+        height: 62,
+        borderRadius: 31,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 14,
+    },
+
+    appMessageSuccessIconCircle: {
+        width: 62,
+        height: 62,
+        borderRadius: 31,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 14,
+        backgroundColor: "transparent",
     },
 
     confirmTitle: {
@@ -2812,10 +3057,35 @@ const styles = StyleSheet.create({
 
     helpModal: {
         width: "90%",
-        maxHeight: "82%",
+        maxWidth: 420,
         borderRadius: 28,
-        padding: 20,
+        paddingHorizontal: 20,
+        paddingTop: 22,
+        paddingBottom: 20,
         borderWidth: 1,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.18,
+        shadowRadius: 18,
+        elevation: 8,
+    },
+
+    helpCloseCircle: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        alignItems: "center",
+        justifyContent: "center",
+        alignSelf: "flex-start",
+        marginBottom: 12,
+    },
+
+    helpIntroText: {
+        fontSize: 13.5,
+        lineHeight: 22,
+        fontWeight: "700",
+        marginTop: 10,
+        marginBottom: 4,
     },
 
     helpCard: {
