@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../providers/AuthProvider";
 import { useWallet } from "../../providers/WalletProvider";
+import { useLanguage } from "../../providers/LanguageProvider";
 
 const COLORS = {
   primary: "#871B17",
@@ -66,6 +67,11 @@ export default function Wallet() {
 
   const { session } = useAuth();
   const userId = session?.user?.id;
+  const { t, isArabic, language } = useLanguage();
+
+  const rowDirection = isArabic ? "row-reverse" : "row";
+  const textAlign = isArabic ? "right" : "left";
+  const alignItems = isArabic ? "flex-end" : "flex-start";
 
   const [savingId, setSavingId] = useState<number | null>(null);
   const [reportFilter, setReportFilter] = useState<"all" | "saved" | "pending">(
@@ -76,6 +82,42 @@ export default function Wallet() {
   const [currentEditingItem, setCurrentEditingItem] =
     useState<MaintenanceItem | null>(null);
 
+
+  const translateMaintenanceTitle = (title: string) => {
+    const normalizedTitle = title.toLowerCase();
+
+    if (normalizedTitle.includes("زيت المحرك") || normalizedTitle.includes("engine oil")) {
+      return t.walletEngineOil;
+    }
+
+    if (
+      normalizedTitle.includes("الكفرات") ||
+      normalizedTitle.includes("كفر") ||
+      normalizedTitle.includes("tires") ||
+      normalizedTitle.includes("tyres")
+    ) {
+      return t.walletTires;
+    }
+
+    if (
+      normalizedTitle.includes("الفرامل") ||
+      normalizedTitle.includes("فحم") ||
+      normalizedTitle.includes("brake")
+    ) {
+      return t.walletBrakes;
+    }
+
+    if (normalizedTitle.includes("فلتر الهواء") || normalizedTitle.includes("air filter")) {
+      return t.walletAirFilter;
+    }
+
+    if (normalizedTitle.includes("بطارية") || normalizedTitle.includes("البطارية") || normalizedTitle.includes("battery")) {
+      return t.walletBattery;
+    }
+
+    return title;
+  };
+
   // دالة مساعدة لاختيار أيقونة الصيانة بناءً على الكلمات المفتاحية بالاسم لمظهر احترافي
 
   const getMaintenanceIcon = (
@@ -83,11 +125,11 @@ export default function Wallet() {
   ): React.ComponentProps<typeof MaterialCommunityIcons>["name"] => {
     const t = title.toLowerCase();
 
-    if (t.includes("زيت المحرك")) return "oil";
-    if (t.includes("الكفرات") || t.includes("كفر")) return "car-tire-alert";
-    if (t.includes("الفرامل") || t.includes("فحم")) return "car-brake-alert";
-    if (t.includes("فلتر الهواء")) return "air-filter";
-    if (t.includes("بطارية") || t.includes("البطارية")) return "battery"; // إيقونة البطارية المضافة هنا
+    if (t.includes("زيت المحرك") || t.includes("engine oil")) return "oil";
+    if (t.includes("الكفرات") || t.includes("كفر") || t.includes("tires") || t.includes("tyres")) return "car-tire-alert";
+    if (t.includes("الفرامل") || t.includes("فحم") || t.includes("brake")) return "car-brake-alert";
+    if (t.includes("فلتر الهواء") || t.includes("air filter")) return "air-filter";
+    if (t.includes("بطارية") || t.includes("البطارية") || t.includes("battery")) return "battery"; // إيقونة البطارية المضافة هنا
 
     return "car-cog"; // الأيقونة الافتراضية لأي صيانة أخرى ثابتة
   };
@@ -115,7 +157,7 @@ export default function Wallet() {
     } catch (err: any) {
       console.error("Save report failed:", err?.message || err);
       setReports(prev);
-      Alert.alert("خطأ", "فشل حفظ التقرير");
+      Alert.alert(t.walletErrorTitle, t.walletSaveReportError);
     }
   };
 
@@ -133,7 +175,7 @@ export default function Wallet() {
     } catch (err: any) {
       console.error("Reject report failed:", err?.message || err);
       setReports(prev);
-      Alert.alert("خطأ", "تعذر تجاهل التقرير");
+      Alert.alert(t.walletErrorTitle, t.walletRejectReportError);
     }
   };
 
@@ -185,10 +227,10 @@ export default function Wallet() {
         console.log("Check notifications now error:", error);
       }
 
-      Alert.alert("تم", `تم تحديث صيانة (${currentEditingItem.title}) بنجاح`);
+      Alert.alert(t.walletDoneTitle, `${t.walletMaintenanceUpdated} (${translateMaintenanceTitle(currentEditingItem.title)})`);
     } catch (err: any) {
       console.error("Save maintenance failed:", err);
-      Alert.alert("خطأ", err?.message || "تعذر حفظ التعديل");
+      Alert.alert(t.walletErrorTitle, err?.message || t.walletSaveMaintenanceError);
     } finally {
       setSavingId(null);
       setCurrentEditingItem(null);
@@ -215,9 +257,9 @@ export default function Wallet() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
 
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: rowDirection }]}>
         <View style={styles.headerSide} />
-        <Text style={styles.headerTitle}>المحفظة</Text>
+        <Text style={styles.headerTitle}>{t.walletTitle}</Text>
         <View style={styles.headerSide} />
       </View>
 
@@ -228,23 +270,23 @@ export default function Wallet() {
         contentContainerStyle={styles.scrollContent}
       >
         {/* ─── قسم التقارير ─── */}
-        <View style={styles.sectionHeader}>
+        <View style={[styles.sectionHeader, { flexDirection: rowDirection }]}>
           <View style={styles.sectionIconCircle}>
             <Feather name="file-text" size={18} color={COLORS.primary} />
           </View>
-          <View style={styles.sectionTextBox}>
-            <Text style={styles.sectionTitle}>التقارير</Text>
-            <Text style={styles.sectionSubtitle}>
-              تقارير الفحص المحفوظة وغير المحفوظة
+          <View style={[styles.sectionTextBox, { alignItems }]}>
+            <Text style={[styles.sectionTitle, { textAlign }]}>{t.walletReportsTitle}</Text>
+            <Text style={[styles.sectionSubtitle, { textAlign }]}>
+              {t.walletReportsSubtitle}
             </Text>
           </View>
         </View>
 
-        <View style={styles.filterRow}>
+        <View style={[styles.filterRow, { flexDirection: rowDirection }]}>
           {[
-            { key: "all", label: "الكل" },
-            { key: "saved", label: "المحفوظة" },
-            { key: "pending", label: "غير المحفوظة" },
+            { key: "all", label: t.walletFilterAll },
+            { key: "saved", label: t.walletFilterSaved },
+            { key: "pending", label: t.walletFilterPending },
           ].map((f) => {
             const key = f.key as "all" | "saved" | "pending";
             const active = reportFilter === key;
@@ -271,12 +313,12 @@ export default function Wallet() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalScroll}
+          contentContainerStyle={[styles.horizontalScroll, { flexDirection: rowDirection }]}
         >
           {reportsLoading && reports.length === 0 && (
             <View style={styles.emptyCard}>
               <ActivityIndicator color={COLORS.primary} />
-              <Text style={styles.emptyText}>جاري تحميل التقارير...</Text>
+              <Text style={styles.emptyText}>{t.walletLoadingReports}</Text>
             </View>
           )}
 
@@ -286,7 +328,7 @@ export default function Wallet() {
                 <Feather name="folder" size={22} color={COLORS.primary} />
               </View>
               <Text style={styles.emptyText}>
-                {!userId ? "يجب تسجيل الدخول" : "لا توجد تقارير"}
+                {!userId ? t.walletLoginRequired : t.walletNoReports}
               </Text>
             </View>
           )}
@@ -297,7 +339,7 @@ export default function Wallet() {
 
             return (
               <View key={report.id} style={styles.reportCard}>
-                <View style={styles.cardTopRow}>
+                <View style={[styles.cardTopRow, { flexDirection: rowDirection }]}>
                   <View
                     style={[
                       styles.statusDot,
@@ -335,8 +377,8 @@ export default function Wallet() {
                   />
                 </View>
 
-                <Text style={styles.cardTitle}>{report.title}</Text>
-                <Text style={styles.cardDate}>{report.date}</Text>
+                <Text style={[styles.cardTitle, { textAlign }]}>{report.title}</Text>
+                <Text style={[styles.cardDate, { textAlign }]}>{report.date}</Text>
 
                 <View
                   style={[
@@ -354,25 +396,25 @@ export default function Wallet() {
                         : styles.statusPillTextSaved,
                     ]}
                   >
-                    {isPending ? "غير محفوظ" : "محفوظ"}
+                    {isPending ? t.walletPending : t.walletSaved}
                   </Text>
                 </View>
 
                 {isPending ? (
-                  <View style={styles.actionsRow}>
+                  <View style={[styles.actionsRow, { flexDirection: rowDirection }]}>
                     <TouchableOpacity
                       style={styles.saveReportBtn}
                       activeOpacity={0.85}
                       onPress={() => handleSaveReport(report.id)}
                     >
-                      <Text style={styles.saveReportText}>حفظ التقرير</Text>
+                      <Text style={styles.saveReportText}>{t.walletSaveReport}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.rejectBtn}
                       activeOpacity={0.85}
                       onPress={() => handleRejectReport(report.id)}
                     >
-                      <Text style={styles.rejectBtnText}>تجاهل</Text>
+                      <Text style={styles.rejectBtnText}>{t.walletIgnore}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -381,7 +423,7 @@ export default function Wallet() {
                     activeOpacity={0.85}
                     onPress={() => openReport(report.id)}
                   >
-                    <Text style={styles.openReportText}>فتح التقرير</Text>
+                    <Text style={styles.openReportText}>{t.walletOpenReport}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -390,7 +432,7 @@ export default function Wallet() {
         </ScrollView>
 
         {/* ─── قسم الصيانات الدورية (المحسن بالكامل لـ UX) ─── */}
-        <View style={styles.sectionHeader}>
+        <View style={[styles.sectionHeader, { flexDirection: rowDirection }]}>
           <View style={styles.sectionIconCircle}>
             <MaterialCommunityIcons
               name="wrench-clock"
@@ -398,10 +440,10 @@ export default function Wallet() {
               color={COLORS.primary}
             />
           </View>
-          <View style={styles.sectionTextBox}>
-            <Text style={styles.sectionTitle}>الصيانات الدورية</Text>
-            <Text style={styles.sectionSubtitle}>
-              اضغط على أي بطاقة لتحديث تاريخ الصيانة فوراً
+          <View style={[styles.sectionTextBox, { alignItems }]}>
+            <Text style={[styles.sectionTitle, { textAlign }]}>{t.walletMaintenanceTitle}</Text>
+            <Text style={[styles.sectionSubtitle, { textAlign }]}>
+              {t.walletMaintenanceSubtitle}
             </Text>
           </View>
         </View>
@@ -409,7 +451,7 @@ export default function Wallet() {
         {maintenanceLoading ? (
           <View style={styles.maintenanceLoadingBox}>
             <ActivityIndicator color={COLORS.primary} />
-            <Text style={styles.emptyText}>جاري تحميل الصيانات...</Text>
+            <Text style={styles.emptyText}>{t.walletLoadingMaintenance}</Text>
           </View>
         ) : (
           maintenance.map((item: MaintenanceItem) => {
@@ -446,14 +488,14 @@ export default function Wallet() {
             // تحديد نص الشارة بناءً على الشروط الجديدة المطلوبة
             let badgeText = "";
             if (!hasData) {
-              badgeText = "لم يُسجَّل";
+              badgeText = t.walletNotRegistered;
             } else if (isOverdue) {
               const absDays = Math.abs(item.remainingDays ?? 0);
-              badgeText = `${absDays} يوم متأخر`;
+              badgeText = `${absDays} ${t.walletDaysLate}`;
             } else if (isSoon) {
-              badgeText = `متبقي ${item.remainingDays} يوم`;
+              badgeText = `${t.walletRemaining} ${item.remainingDays} ${t.walletDay}`;
             } else {
-              badgeText = `متبقي ${item.remainingDays} يوم`;
+              badgeText = `${t.walletRemaining} ${item.remainingDays} ${t.walletDay}`;
             }
 
             // تلوين نص التاريخ بناءً على الحالة (أخضر للمستقبل البعيد)
@@ -477,7 +519,7 @@ export default function Wallet() {
                 }}
               >
                 {/* الجزء العلوي: العنوان والأيقونة والـ Badge */}
-                <View style={styles.uxCardTopElement}>
+                <View style={[styles.uxCardTopElement, { flexDirection: rowDirection }]}>
                   <View
                     style={[
                       styles.uxStatusBadge,
@@ -498,13 +540,13 @@ export default function Wallet() {
                     )}
                   </View>
 
-                  <View style={styles.uxTitleRow}>
-                    <View style={styles.uxTextGroup}>
-                      <Text style={styles.uxMaintenanceTitle}>
-                        {item.title}
+                  <View style={[styles.uxTitleRow, { flexDirection: rowDirection }]}>
+                    <View style={[styles.uxTextGroup, { alignItems }]}>
+                      <Text style={[styles.uxMaintenanceTitle, { textAlign }]}>
+                        {translateMaintenanceTitle(item.title)}
                       </Text>
                       <Text style={styles.uxMaintenanceSub}>
-                        كل {item.intervalDays} يوم
+                        {t.walletEvery} {item.intervalDays} {t.walletDay}
                       </Text>
                     </View>
                     <View style={styles.uxIconContainer}>
@@ -518,10 +560,10 @@ export default function Wallet() {
                 </View>
 
                 {/* جزء التواريخ: متناسق تماماً مع القراءة العربية من اليمين (الماضي) إلى اليسار (المستقبل) */}
-                <View style={styles.uxGridContainer}>
+                <View style={[styles.uxGridContainer, { flexDirection: rowDirection }]}>
                   {/* اليمين: آخر صيانة تمت */}
                   <View style={styles.uxGridItem}>
-                    <Text style={styles.uxGridLabel}>آخر صيانة</Text>
+                    <Text style={styles.uxGridLabel}>{t.walletLastMaintenance}</Text>
                     <Text style={styles.uxGridValue}>
                       {item.lastDate || "—"}
                     </Text>
@@ -531,7 +573,7 @@ export default function Wallet() {
 
                   {/* اليسار: الموعد القادم المستحق */}
                   <View style={styles.uxGridItem}>
-                    <Text style={styles.uxGridLabel}>الموعد القادم</Text>
+                    <Text style={styles.uxGridLabel}>{t.walletNextDate}</Text>
                     <Text
                       style={[styles.uxGridValue, { color: valueDateColor }]}
                     >
@@ -541,16 +583,16 @@ export default function Wallet() {
                 </View>
 
                 {/* شريط التقدم السفلي ومؤشر التفاعل */}
-                <View style={styles.uxFooterRow}>
-                  <View style={styles.uxActionIndicator}>
+                <View style={[styles.uxFooterRow, { flexDirection: rowDirection }]}>
+                  <View style={[styles.uxActionIndicator, { flexDirection: rowDirection }]}>
                     <Feather
                       name="calendar"
                       size={13}
                       color={COLORS.mutedLight}
                     />
-                    <Text style={styles.uxActionText}>تحديث</Text>
+                    <Text style={styles.uxActionText}>{t.walletUpdate}</Text>
                   </View>
-                  <View style={styles.uxProgressWrapper}>
+                  <View style={[styles.uxProgressWrapper, { flexDirection: rowDirection }]}>
                     <View
                       style={[
                         styles.uxProgressBar,
@@ -575,7 +617,7 @@ export default function Wallet() {
           }
           mode="date"
           display="default"
-          locale="ar"
+          locale={language === "AR" ? "ar" : "en"}
           onChange={(event, selectedDate) => {
             setDatePickerVisible(false);
             if (event.type === "dismissed") {

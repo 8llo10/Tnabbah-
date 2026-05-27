@@ -13,8 +13,7 @@ import {
   Easing,
   StatusBar,
   Keyboard,
-TouchableWithoutFeedback,
-
+  TouchableWithoutFeedback,
 } from "react-native";
 import { supabase } from "../lib/supabase";
 import { LinearGradient } from "expo-linear-gradient";
@@ -64,6 +63,10 @@ export default function RegisterScreen() {
   const { t, isArabic } = useLanguage();
 
   const textAlign = isArabic ? "right" : "left";
+  const rowDirection = isArabic ? "row-reverse" : "row";
+  const iconMargin = isArabic ? { marginLeft: 10 } : { marginRight: 10 };
+  const eyeMargin = isArabic ? { marginRight: 8 } : { marginLeft: 8 };
+  const ruleIconMargin = isArabic ? { marginLeft: 7 } : { marginRight: 7 };
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -150,7 +153,7 @@ export default function RegisterScreen() {
     const hideEvent =
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
 
-   const keyboardShift = isVerySmallScreen ? -125 : isSmallScreen ? -108 : -90;
+    const keyboardShift = isVerySmallScreen ? -125 : isSmallScreen ? -108 : -90;
 
     const showSubscription = Keyboard.addListener(showEvent, () => {
       Animated.timing(keyboardTranslateY, {
@@ -394,345 +397,369 @@ export default function RegisterScreen() {
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-    <View style={styles.container}>
-      <Stack.Screen options={{ gestureEnabled: false }} />
+      <View style={styles.container}>
+        <Stack.Screen options={{ gestureEnabled: false }} />
 
-      <StatusBar
-        translucent
-        backgroundColor="transparent"
-        barStyle="dark-content"
-      />
+        <StatusBar
+          translucent
+          backgroundColor="transparent"
+          barStyle="dark-content"
+        />
 
-      <Animated.View
-        style={[
-          styles.animatedScreen,
-          {
-            opacity: screenOpacity,
-            transform: [{ translateY: screenTranslateY }],
-          },
-        ]}
-      >
-        <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-          <View style={styles.screenContent}>
-            <View style={styles.innerContent}>
-              <Animated.View
-                style={[
-                  styles.topArea,
-                  {
-                    transform: [{ translateY: keyboardTranslateY }],
-                  },
-                ]}
-              >
-                <View style={styles.backArea}>
-                  <TouchableOpacity
-                    style={styles.backButtonWrapper}
-                    activeOpacity={0.85}
-                    onPress={smoothBack}
-                    disabled={isNavigating || loading}
-                  >
-                    <Ionicons
-                      name="arrow-back-outline"
-                      size={isVerySmallScreen ? 23 : 25}
-                      color={COLORS.textDark}
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.titleArea}>
-                  <Text style={styles.title}>{t.registerTitle}</Text>
-
-                  <Text style={styles.subtitle}>{t.registerSubtitle}</Text>
-                </View>
-
-                <View style={styles.formArea}>
-                  <View style={styles.fieldGroup}>
-                    <Text style={[styles.inputLabel, { textAlign }]}>
-                      {t.fullName}
-                    </Text>
-
-                    <View
-                      style={[
-                        styles.inputWrapper,
-                        fieldErrors.fullName && styles.inputWrapperError,
-                      ]}
+        <Animated.View
+          style={[
+            styles.animatedScreen,
+            {
+              opacity: screenOpacity,
+              transform: [{ translateY: screenTranslateY }],
+            },
+          ]}
+        >
+          <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+            <View style={styles.screenContent}>
+              <View style={styles.innerContent}>
+                <Animated.View
+                  style={[
+                    styles.topArea,
+                    {
+                      transform: [{ translateY: keyboardTranslateY }],
+                    },
+                  ]}
+                >
+                  <View style={styles.backArea}>
+                    <TouchableOpacity
+                      style={styles.backButtonWrapper}
+                      activeOpacity={0.85}
+                      onPress={smoothBack}
+                      disabled={isNavigating || loading}
                     >
-                      <Feather
-                        name="user"
-                        size={isVerySmallScreen ? 19 : 20}
-                        color={COLORS.primary}
-                        style={styles.inputIcon}
+                      <Ionicons
+                        name="arrow-back-outline"
+                        size={isVerySmallScreen ? 23 : 25}
+                        color={COLORS.textDark}
                       />
-
-                      <TextInput
-                        style={styles.input}
-                        placeholder={t.fullNamePlaceholder}
-                        placeholderTextColor={COLORS.placeholder}
-                        value={fullName}
-                        onChangeText={(text) => {
-                          setFullName(text);
-                          clearFieldError("fullName");
-                        }}
-                        textAlign={textAlign}
-                        returnKeyType="done"
-                        editable={!loading && !isNavigating}
-                        selectionColor={COLORS.primary}
-                      />
-                    </View>
-
-                    {fieldErrors.fullName ? (
-                      <View style={styles.fieldErrorRow}>
-                        <Ionicons
-                          name="alert-circle"
-                          size={14}
-                          color={COLORS.primary}
-                        />
-                        <Text style={[styles.fieldErrorText, { textAlign }]}>
-                          {fieldErrors.fullName}
-                        </Text>
-                      </View>
-                    ) : null}
+                    </TouchableOpacity>
                   </View>
 
-                  <View style={styles.fieldGroup}>
-                    <Text style={[styles.inputLabel, { textAlign }]}>
-                      {t.email}
-                    </Text>
+                  <View style={styles.titleArea}>
+                    <Text style={styles.title}>{t.registerTitle}</Text>
 
-                    <View
-                      style={[
-                        styles.inputWrapper,
-                        fieldErrors.email && styles.inputWrapperError,
-                      ]}
-                    >
-                      <Feather
-                        name="mail"
-                        size={isVerySmallScreen ? 19 : 20}
-                        color={COLORS.primary}
-                        style={styles.inputIcon}
-                      />
-
-                      <TextInput
-                        ref={emailInputRef}
-                        style={styles.input}
-                        placeholder="example@email.com"
-                        placeholderTextColor={COLORS.placeholder}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        value={email}
-                        onChangeText={(text) => {
-                          setEmail(text);
-                          clearFieldError("email");
-                        }}
-                        textAlign={textAlign}
-                        returnKeyType="next"
-                        blurOnSubmit={false}
-                        onSubmitEditing={() =>
-                          passwordInputRef.current?.focus()
-                        }
-                        editable={!loading && !isNavigating}
-                        selectionColor={COLORS.primary}
-                      />
-                    </View>
-
-                    {fieldErrors.email ? (
-                      <View style={styles.fieldErrorRow}>
-                        <Ionicons
-                          name="alert-circle"
-                          size={14}
-                          color={COLORS.primary}
-                        />
-                        <Text style={[styles.fieldErrorText, { textAlign }]}>
-                          {fieldErrors.email}
-                        </Text>
-                      </View>
-                    ) : null}
+                    <Text style={styles.subtitle}>{t.registerSubtitle}</Text>
                   </View>
 
-                  <View style={styles.passwordSection}>
-                    <Text style={[styles.inputLabel, { textAlign }]}>
-                      {t.password}
-                    </Text>
-
-                    <View
-                      style={[
-                        styles.inputWrapper,
-                        fieldErrors.password && styles.inputWrapperError,
-                      ]}
-                    >
-                      <Feather
-                        name="lock"
-                        size={isVerySmallScreen ? 20 : 21}
-                        color={COLORS.primary}
-                        style={styles.inputIcon}
-                      />
-
-                      <TextInput
-                        ref={passwordInputRef}
-                        style={styles.input}
-                        placeholder="••••••••"
-                        placeholderTextColor={COLORS.placeholder}
-                        secureTextEntry={!showPassword}
-                        value={password}
-                        onChangeText={(text) => {
-                          setPassword(text);
-                          clearFieldError("password");
-                        }}
-                        textAlign={textAlign}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        returnKeyType="done"
-                        editable={!loading && !isNavigating}
-                        selectionColor={COLORS.primary}
-                      />
-
-                      <TouchableOpacity
-                        style={styles.eyeButton}
-                        activeOpacity={0.7}
-                        onPress={() => setShowPassword(!showPassword)}
-                        disabled={loading || isNavigating}
-                      >
-                        <Ionicons
-                          name={
-                            showPassword ? "eye-outline" : "eye-off-outline"
-                          }
-                          size={isVerySmallScreen ? 20 : 21}
-                          color={COLORS.primary}
-                        />
-                      </TouchableOpacity>
-                    </View>
-
-                    {fieldErrors.password ? (
-                      <View style={styles.fieldErrorRow}>
-                        <Ionicons
-                          name="alert-circle"
-                          size={14}
-                          color={COLORS.primary}
-                        />
-                        <Text style={[styles.fieldErrorText, { textAlign }]}>
-                          {fieldErrors.password}
-                        </Text>
-                      </View>
-                    ) : null}
-
-                    <View
-                      style={[
-                        styles.passwordRulesBox,
-                        !showPasswordRules && styles.passwordRulesBoxHidden,
-                      ]}
-                      pointerEvents={showPasswordRules ? "auto" : "none"}
-                    >
-                      <Text style={[styles.passwordRulesTitle, { textAlign }]}>
-                        {t.passwordRulesTitle}
+                  <View style={styles.formArea}>
+                    <View style={styles.fieldGroup}>
+                      <Text style={[styles.inputLabel, { textAlign }]}>
+                        {t.fullName}
                       </Text>
 
-                      {passwordRules.map((rule) => (
-                        <View key={rule.key} style={styles.passwordRuleRow}>
-                          <Ionicons
-                            name={
-                              rule.valid
-                                ? "checkmark-circle"
-                                : "close-circle-outline"
-                            }
-                            size={isVerySmallScreen ? 15 : 16}
-                            color={
-                              rule.valid ? COLORS.success : COLORS.rulesText
-                            }
-                            style={styles.passwordRuleIcon}
-                          />
+                      <View
+                        style={[
+                          styles.inputWrapper,
+                          { flexDirection: rowDirection },
+                          fieldErrors.fullName && styles.inputWrapperError,
+                        ]}
+                      >
+                        <Feather
+                          name="user"
+                          size={isVerySmallScreen ? 19 : 20}
+                          color={COLORS.primary}
+                          style={[styles.inputIcon, iconMargin]}
+                        />
 
-                          <Text
-                            style={[
-                              styles.passwordRuleText,
-                              { textAlign },
-                              rule.valid && styles.passwordRuleTextValid,
-                            ]}
-                          >
-                            {rule.label}
+                        <TextInput
+                          style={[styles.input, { textAlign }]}
+                          placeholder={t.fullNamePlaceholder}
+                          placeholderTextColor={COLORS.placeholder}
+                          value={fullName}
+                          onChangeText={(text) => {
+                            setFullName(text);
+                            clearFieldError("fullName");
+                          }}
+                          returnKeyType="done"
+                          editable={!loading && !isNavigating}
+                          selectionColor={COLORS.primary}
+                        />
+                      </View>
+
+                      {fieldErrors.fullName ? (
+                        <View
+                          style={[
+                            styles.fieldErrorRow,
+                            { flexDirection: rowDirection },
+                          ]}
+                        >
+                          <Ionicons
+                            name="alert-circle"
+                            size={14}
+                            color={COLORS.primary}
+                            style={iconMargin}
+                          />
+                          <Text style={[styles.fieldErrorText, { textAlign }]}>
+                            {fieldErrors.fullName}
                           </Text>
                         </View>
-                      ))}
+                      ) : null}
                     </View>
-                  </View>
-                </View>
-              </Animated.View>
 
-              <View style={styles.bottomArea}>
-                <TouchableOpacity
-                  style={[
-                    styles.registerButtonWrapper,
-                    loading && styles.registerButtonDisabled,
-                  ]}
-                  onPress={handleRegister}
-                  disabled={loading || isNavigating}
-                  activeOpacity={0.9}
-                >
-                  <LinearGradient
-                    colors={[
-                      "rgba(154,33,28,0.98)",
-                      "rgba(118,23,19,0.98)",
-                    ]}
-                    start={{ x: 0.15, y: 0 }}
-                    end={{ x: 0.9, y: 1 }}
-                    style={styles.registerGradient}
-                  >
-                    <View style={styles.loginShine} />
-                    <View style={styles.loadingContent}>
-                      {loading ? (
-                        <ActivityIndicator
-                          size="small"
-                          color={COLORS.white}
-                          style={styles.loadingSpinner}
+                    <View style={styles.fieldGroup}>
+                      <Text style={[styles.inputLabel, { textAlign }]}>
+                        {t.email}
+                      </Text>
+
+                      <View
+                        style={[
+                          styles.inputWrapper,
+                          { flexDirection: rowDirection },
+                          fieldErrors.email && styles.inputWrapperError,
+                        ]}
+                      >
+                        <Feather
+                          name="mail"
+                          size={isVerySmallScreen ? 19 : 20}
+                          color={COLORS.primary}
+                          style={[styles.inputIcon, iconMargin]}
                         />
+
+                        <TextInput
+                          ref={emailInputRef}
+                          style={[styles.input, { textAlign }]}
+                          placeholder="example@email.com"
+                          placeholderTextColor={COLORS.placeholder}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          value={email}
+                          onChangeText={(text) => {
+                            setEmail(text);
+                            clearFieldError("email");
+                          }}
+                          returnKeyType="next"
+                          blurOnSubmit={false}
+                          onSubmitEditing={() =>
+                            passwordInputRef.current?.focus()
+                          }
+                          editable={!loading && !isNavigating}
+                          selectionColor={COLORS.primary}
+                        />
+                      </View>
+
+                      {fieldErrors.email ? (
+                        <View
+                          style={[
+                            styles.fieldErrorRow,
+                            { flexDirection: rowDirection },
+                          ]}
+                        >
+                          <Ionicons
+                            name="alert-circle"
+                            size={14}
+                            color={COLORS.primary}
+                            style={iconMargin}
+                          />
+                          <Text style={[styles.fieldErrorText, { textAlign }]}>
+                            {fieldErrors.email}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    <View style={styles.passwordSection}>
+                      <Text style={[styles.inputLabel, { textAlign }]}>
+                        {t.password}
+                      </Text>
+
+                      <View
+                        style={[
+                          styles.inputWrapper,
+                          { flexDirection: rowDirection },
+                          fieldErrors.password && styles.inputWrapperError,
+                        ]}
+                      >
+                        <Feather
+                          name="lock"
+                          size={isVerySmallScreen ? 20 : 21}
+                          color={COLORS.primary}
+                          style={[styles.inputIcon, iconMargin]}
+                        />
+
+                        <TextInput
+                          ref={passwordInputRef}
+                          style={[styles.input, { textAlign }]}
+                          placeholder="••••••••"
+                          placeholderTextColor={COLORS.placeholder}
+                          secureTextEntry={!showPassword}
+                          value={password}
+                          onChangeText={(text) => {
+                            setPassword(text);
+                            clearFieldError("password");
+                          }}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          returnKeyType="done"
+                          editable={!loading && !isNavigating}
+                          selectionColor={COLORS.primary}
+                        />
+
+                        <TouchableOpacity
+                          style={[styles.eyeButton, eyeMargin]}
+                          activeOpacity={0.7}
+                          onPress={() => setShowPassword(!showPassword)}
+                          disabled={loading || isNavigating}
+                        >
+                          <Ionicons
+                            name={
+                              showPassword ? "eye-outline" : "eye-off-outline"
+                            }
+                            size={isVerySmallScreen ? 20 : 21}
+                            color={COLORS.primary}
+                          />
+                        </TouchableOpacity>
+                      </View>
+
+                      {fieldErrors.password ? (
+                        <View
+                          style={[
+                            styles.fieldErrorRow,
+                            { flexDirection: rowDirection },
+                          ]}
+                        >
+                          <Ionicons
+                            name="alert-circle"
+                            size={14}
+                            color={COLORS.primary}
+                            style={iconMargin}
+                          />
+                          <Text style={[styles.fieldErrorText, { textAlign }]}>
+                            {fieldErrors.password}
+                          </Text>
+                        </View>
                       ) : null}
 
-                      <Text style={styles.registerButtonText}>
-                        {loading ? t.registering : t.registerButton}
-                      </Text>
+                      <View
+                        style={[
+                          styles.passwordRulesBox,
+                          !showPasswordRules && styles.passwordRulesBoxHidden,
+                        ]}
+                        pointerEvents={showPasswordRules ? "auto" : "none"}
+                      >
+                        <Text style={[styles.passwordRulesTitle, { textAlign }]}>
+                          {t.passwordRulesTitle}
+                        </Text>
+
+                        {passwordRules.map((rule) => (
+                          <View
+                            key={rule.key}
+                            style={[
+                              styles.passwordRuleRow,
+                              { flexDirection: rowDirection },
+                            ]}
+                          >
+                            <Ionicons
+                              name={
+                                rule.valid
+                                  ? "checkmark-circle"
+                                  : "close-circle-outline"
+                              }
+                              size={isVerySmallScreen ? 15 : 16}
+                              color={
+                                rule.valid ? COLORS.success : COLORS.rulesText
+                              }
+                              style={ruleIconMargin}
+                            />
+
+                            <Text
+                              style={[
+                                styles.passwordRuleText,
+                                { textAlign },
+                                rule.valid && styles.passwordRuleTextValid,
+                              ]}
+                            >
+                              {rule.label}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
                     </View>
-                  </LinearGradient>
-                </TouchableOpacity>
+                  </View>
+                </Animated.View>
 
-                <View style={styles.orArea}>
-                  <View style={styles.orLine} />
-                  <Text style={styles.orText}>{t.or}</Text>
-                  <View style={styles.orLine} />
-                </View>
-
-                <View
-                  style={[
-                    styles.loginTextArea,
-                    { flexDirection: isArabic ? "row-reverse" : "row" },
-                  ]}
-                >
-                  <Text style={styles.loginLightText}>
-                    {t.alreadyHaveAccount}{" "}
-                  </Text>
-
+                <View style={styles.bottomArea}>
                   <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={() => smoothPush("/login")}
-                    disabled={isNavigating || loading}
+                    style={[
+                      styles.registerButtonWrapper,
+                      loading && styles.registerButtonDisabled,
+                    ]}
+                    onPress={handleRegister}
+                    disabled={loading || isNavigating}
+                    activeOpacity={0.9}
                   >
-                    <Text style={styles.loginBoldText}>{t.login}</Text>
+                    <LinearGradient
+                      colors={[
+                        "rgba(154,33,28,0.98)",
+                        "rgba(118,23,19,0.98)",
+                      ]}
+                      start={{ x: 0.15, y: 0 }}
+                      end={{ x: 0.9, y: 1 }}
+                      style={styles.registerGradient}
+                    >
+                      <View style={styles.loginShine} />
+                      <View style={styles.loadingContent}>
+                        {loading ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={COLORS.white}
+                            style={styles.loadingSpinner}
+                          />
+                        ) : null}
+
+                        <Text style={styles.registerButtonText}>
+                          {loading ? t.registering : t.registerButton}
+                        </Text>
+                      </View>
+                    </LinearGradient>
                   </TouchableOpacity>
+
+                  <View style={styles.orArea}>
+                    <View style={styles.orLine} />
+                    <Text style={styles.orText}>{t.or}</Text>
+                    <View style={styles.orLine} />
+                  </View>
+
+                  <View
+                    style={[
+                      styles.loginTextArea,
+                      { flexDirection: isArabic ? "row-reverse" : "row" },
+                    ]}
+                  >
+                    <Text style={styles.loginLightText}>
+                      {t.alreadyHaveAccount}{" "}
+                    </Text>
+
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => smoothPush("/login")}
+                      disabled={isNavigating || loading}
+                    >
+                      <Text style={styles.loginBoldText}>{t.login}</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             </View>
-          </View>
-        </SafeAreaView>
-      </Animated.View>
+          </SafeAreaView>
+        </Animated.View>
 
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.transitionOverlay,
-          {
-            opacity: transitionAnim,
-          },
-        ]}
-      />
-    </View>
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.transitionOverlay,
+            {
+              opacity: transitionAnim,
+            },
+          ]}
+        />
+      </View>
     </TouchableWithoutFeedback>
   );
 }
@@ -893,7 +920,6 @@ function createStyles({
       borderWidth: 1.7,
       borderColor: COLORS.border,
       paddingHorizontal: isVerySmallScreen ? 15 : 17,
-      flexDirection: "row-reverse",
       alignItems: "center",
       shadowColor: COLORS.shadowGray,
       shadowOffset: { width: 0, height: 2 },
@@ -908,7 +934,8 @@ function createStyles({
     },
 
     inputIcon: {
-      marginLeft: isVerySmallScreen ? 10 : 12,
+      marginLeft: 0,
+      marginRight: 0,
     },
 
     input: {
@@ -926,16 +953,13 @@ function createStyles({
       borderRadius: isVerySmallScreen ? 15 : 16,
       justifyContent: "center",
       alignItems: "center",
-      marginRight: 8,
     },
 
     fieldErrorRow: {
       marginTop: 6,
-      flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "flex-start",
       paddingHorizontal: 8,
-      gap: 5,
     },
 
     fieldErrorText: {
@@ -979,14 +1003,9 @@ function createStyles({
     },
 
     passwordRuleRow: {
-      flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "flex-start",
       marginTop: 4,
-    },
-
-    passwordRuleIcon: {
-      marginLeft: 7,
     },
 
     passwordRuleText: {
@@ -1014,13 +1033,11 @@ function createStyles({
       height: buttonHeight,
       borderRadius: buttonRadius,
       overflow: "hidden",
-
       shadowColor: "#6E1411",
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
       shadowRadius: 14,
       elevation: 6,
-
       backgroundColor: COLORS.primary,
     },
 

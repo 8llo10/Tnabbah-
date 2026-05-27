@@ -60,6 +60,9 @@ export default function LoginScreen() {
   const { t, isArabic } = useLanguage();
 
   const textAlign = isArabic ? "right" : "left";
+  const rowDirection = isArabic ? "row-reverse" : "row";
+  const iconMargin = isArabic ? { marginLeft: 10 } : { marginRight: 10 };
+  const eyeMargin = isArabic ? { marginRight: 8 } : { marginLeft: 8 };
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -482,6 +485,7 @@ export default function LoginScreen() {
                       <View
                         style={[
                           styles.inputWrapper,
+                          { flexDirection: rowDirection },
                           fieldErrors.email && styles.inputWrapperError,
                         ]}
                       >
@@ -489,11 +493,11 @@ export default function LoginScreen() {
                           name="mail"
                           size={isVerySmallScreen ? 19 : 20}
                           color={COLORS.primary}
-                          style={styles.inputIcon}
+                          style={[styles.inputIcon, iconMargin]}
                         />
 
                         <TextInput
-                          style={styles.input}
+                          style={[styles.input, { textAlign }]}
                           placeholder="example@email.com"
                           placeholderTextColor={COLORS.placeholder}
                           keyboardType="email-address"
@@ -504,7 +508,6 @@ export default function LoginScreen() {
                             setEmail(text);
                             clearFieldError("email");
                           }}
-                          textAlign={textAlign}
                           returnKeyType="next"
                           blurOnSubmit={false}
                           onSubmitEditing={() =>
@@ -516,12 +519,19 @@ export default function LoginScreen() {
                       </View>
 
                       {fieldErrors.email ? (
-                        <View style={styles.fieldErrorRow}>
+                        <View
+                          style={[
+                            styles.fieldErrorRow,
+                            { flexDirection: rowDirection },
+                          ]}
+                        >
                           <Ionicons
                             name="alert-circle"
                             size={14}
                             color={COLORS.primary}
+                            style={iconMargin}
                           />
+
                           <Text style={[styles.fieldErrorText, { textAlign }]}>
                             {fieldErrors.email}
                           </Text>
@@ -537,6 +547,7 @@ export default function LoginScreen() {
                       <View
                         style={[
                           styles.inputWrapper,
+                          { flexDirection: rowDirection },
                           fieldErrors.password && styles.inputWrapperError,
                         ]}
                       >
@@ -544,12 +555,12 @@ export default function LoginScreen() {
                           name="lock"
                           size={isVerySmallScreen ? 20 : 21}
                           color={COLORS.primary}
-                          style={styles.inputIcon}
+                          style={[styles.inputIcon, iconMargin]}
                         />
 
                         <TextInput
                           ref={passwordInputRef}
-                          style={styles.input}
+                          style={[styles.input, { textAlign }]}
                           placeholder="••••••••"
                           placeholderTextColor={COLORS.placeholder}
                           secureTextEntry={!showPassword}
@@ -558,7 +569,6 @@ export default function LoginScreen() {
                             setPassword(text);
                             clearFieldError("password");
                           }}
-                          textAlign={textAlign}
                           autoCapitalize="none"
                           autoCorrect={false}
                           returnKeyType="done"
@@ -567,7 +577,7 @@ export default function LoginScreen() {
                         />
 
                         <TouchableOpacity
-                          style={styles.eyeButton}
+                          style={[styles.eyeButton, eyeMargin]}
                           activeOpacity={0.7}
                           onPress={() => setShowPassword(!showPassword)}
                           disabled={loading || isNavigating}
@@ -585,12 +595,19 @@ export default function LoginScreen() {
                       </View>
 
                       {fieldErrors.password ? (
-                        <View style={styles.fieldErrorRow}>
+                        <View
+                          style={[
+                            styles.fieldErrorRow,
+                            { flexDirection: rowDirection },
+                          ]}
+                        >
                           <Ionicons
                             name="alert-circle"
                             size={14}
                             color={COLORS.primary}
+                            style={iconMargin}
                           />
+
                           <Text style={[styles.fieldErrorText, { textAlign }]}>
                             {fieldErrors.password}
                           </Text>
@@ -855,7 +872,6 @@ function createStyles({
       borderWidth: 1.7,
       borderColor: COLORS.border,
       paddingHorizontal: isVerySmallScreen ? 15 : 17,
-      flexDirection: "row-reverse",
       alignItems: "center",
       shadowColor: COLORS.shadowGray,
       shadowOffset: { width: 0, height: 2 },
@@ -870,7 +886,8 @@ function createStyles({
     },
 
     inputIcon: {
-      marginLeft: isVerySmallScreen ? 10 : 12,
+      marginLeft: 0,
+      marginRight: 0,
     },
 
     input: {
@@ -888,7 +905,6 @@ function createStyles({
       borderRadius: isVerySmallScreen ? 15 : 16,
       justifyContent: "center",
       alignItems: "center",
-      marginRight: 8,
     },
 
     forgotPasswordButton: {
@@ -907,11 +923,9 @@ function createStyles({
 
     fieldErrorRow: {
       marginTop: 6,
-      flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "flex-start",
       paddingHorizontal: 8,
-      gap: 5,
     },
 
     fieldErrorText: {

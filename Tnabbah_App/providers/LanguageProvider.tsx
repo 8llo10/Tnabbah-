@@ -15,6 +15,59 @@ const LANGUAGE_STORAGE_KEY = "app_language";
 
 const translations = {
   AR: {
+    chatTitle: "المساعد",
+    chatWelcome: "مرحبًا بك، كيف أقدر أساعدك اليوم؟",
+    chatInputPlaceholder: "اكتبي رسالتك...",
+    chatLoginRequired: "لازم تسجلين دخول أولًا عشان أقدر أقرأ بيانات سيارتك.",
+    chatNoAssistantReply:
+      'ما وصلني رد من المساعد. تأكدي إن الـ workflow في n8n يرجّع رد عبر "Respond to Webhook".',
+    chatTimeout:
+      "انتهت مدة الانتظار. تأكدي إن الـ workflow في n8n شغّال Active.",
+    chatNetworkError:
+      "فشل الاتصال بالشبكة. تأكدي من:\n• إن الـ Workflow في n8n مفعّل Active\n• إن الرابط صحيح webhook وليس webhook-test",
+    chatConnectionError: "تعذّر الاتصال بالمساعد.",
+
+    walletTitle: "المحفظة",
+
+    walletReportsTitle: "التقارير",
+    walletReportsSubtitle: "تقارير الفحص المحفوظة وغير المحفوظة",
+    walletFilterAll: "الكل",
+    walletFilterSaved: "المحفوظة",
+    walletFilterPending: "غير المحفوظة",
+    walletLoadingReports: "جاري تحميل التقارير...",
+    walletLoginRequired: "يجب تسجيل الدخول",
+    walletNoReports: "لا توجد تقارير",
+    walletPending: "غير محفوظ",
+    walletSaved: "محفوظ",
+    walletSaveReport: "حفظ التقرير",
+    walletIgnore: "تجاهل",
+    walletOpenReport: "فتح التقرير",
+
+    walletMaintenanceTitle: "الصيانات الدورية",
+    walletMaintenanceSubtitle: "اضغط على أي بطاقة لتحديث تاريخ الصيانة فوراً",
+    walletLoadingMaintenance: "جاري تحميل الصيانات...",
+    walletNotRegistered: "لم يُسجَّل",
+    walletDaysLate: "يوم متأخر",
+    walletRemaining: "متبقي",
+    walletDay: "يوم",
+    walletEvery: "كل",
+    walletLastMaintenance: "آخر صيانة",
+    walletNextDate: "الموعد القادم",
+    walletUpdate: "تحديث",
+
+    walletEngineOil: "زيت المحرك",
+    walletTires: "الكفرات",
+    walletBrakes: "الفرامل",
+    walletAirFilter: "فلتر الهواء",
+    walletBattery: "البطارية",
+
+    walletDoneTitle: "تم",
+    walletErrorTitle: "خطأ",
+    walletSaveReportError: "فشل حفظ التقرير",
+    walletRejectReportError: "تعذر تجاهل التقرير",
+    walletMaintenanceUpdated: "تم تحديث الصيانة بنجاح",
+    walletSaveMaintenanceError: "تعذر حفظ التعديل",
+
     connectionStepStartLabel: "إبدأ",
     connectionStepPrepareLabel: "جهّز",
     connectionStepChooseLabel: "اختر",
@@ -156,8 +209,7 @@ const translations = {
     enterForgotEmail: "الرجاء إدخال البريد الإلكتروني",
     enterValidForgotEmail: "الرجاء إدخال بريد إلكتروني صحيح",
     forgotEmailNotRegistered: "هذا البريد غير مسجل في التطبيق",
-    forgotRateLimit:
-      "تم إرسال محاولات كثيرة. انتظر قليلًا ثم حاول مرة أخرى",
+    forgotRateLimit: "تم إرسال محاولات كثيرة. انتظر قليلًا ثم حاول مرة أخرى",
     forgotSendError:
       "تعذر إرسال الكود الآن. تحقق من اتصالك بالإنترنت أو حاول بعد قليل",
     forgotUnexpectedError: "حدث خطأ غير متوقع. حاول مرة أخرى بعد قليل",
@@ -212,71 +264,123 @@ const translations = {
   },
 
   EN: {
+    chatTitle: "Assistant",
+    chatWelcome: "Welcome! How can I help you today?",
+    chatInputPlaceholder: "Type your message...",
+    chatLoginRequired: "Please log in first so I can read your car data.",
+    chatNoAssistantReply:
+      'I did not receive a reply from the assistant. Make sure the n8n workflow returns a response using "Respond to Webhook".',
+    chatTimeout: "The request timed out. Make sure the n8n workflow is active.",
+    chatNetworkError:
+      "Network connection failed. Make sure:\n• The n8n workflow is active\n• The URL is a webhook URL, not webhook-test",
+    chatConnectionError: "Could not connect to the assistant.",
+
+    walletTitle: "Wallet",
+
+    walletReportsTitle: "Reports",
+    walletReportsSubtitle: "Saved and unsaved inspection reports",
+    walletFilterAll: "All",
+    walletFilterSaved: "Saved",
+    walletFilterPending: "Unsaved",
+    walletLoadingReports: "Loading reports...",
+    walletLoginRequired: "Login is required",
+    walletNoReports: "No reports found",
+    walletPending: "Unsaved",
+    walletSaved: "Saved",
+    walletSaveReport: "Save Report",
+    walletIgnore: "Ignore",
+    walletOpenReport: "Open Report",
+
+    walletMaintenanceTitle: "Periodic Maintenance",
+    walletMaintenanceSubtitle: "Tap any card to update the maintenance date",
+    walletLoadingMaintenance: "Loading maintenance...",
+    walletNotRegistered: "Not registered",
+    walletDaysLate: "day late",
+    walletRemaining: "Remaining",
+    walletDay: "day",
+    walletEvery: "Every",
+    walletLastMaintenance: "Last maintenance",
+    walletNextDate: "Next date",
+    walletUpdate: "Update",
+
+    walletEngineOil: "Engine Oil",
+    walletTires: "Tires",
+    walletBrakes: "Brakes",
+    walletAirFilter: "Air Filter",
+    walletBattery: "Battery",
+
+    walletDoneTitle: "Done",
+    walletErrorTitle: "Error",
+    walletSaveReportError: "Failed to save the report",
+    walletRejectReportError: "Could not ignore the report",
+    walletMaintenanceUpdated: "Maintenance updated successfully",
+    walletSaveMaintenanceError: "Could not save the change",
+
     connectionStepStartLabel: "Start",
     connectionStepPrepareLabel: "Prepare",
     connectionStepChooseLabel: "Choose",
 
     connectionStep1Title: "Start Connecting the Device",
     connectionStep1Subtitle:
-      "Follow the steps to prepare your OBD device and connect it to the app easily and safely.",
+      "Follow the next steps to prepare the OBD device and connect it to the app easily and safely.",
     connectionStep1Button: "Start Now",
 
     connectionStep2Title: "Prepare the Device",
     connectionStep2Subtitle:
-      "Prepare your car and OBD device so the app can detect it before choosing the connection method.",
+      "Start by preparing the car and the device so the app can recognize it before choosing the connection method.",
     connectionStep2Button: "Device Connected",
 
     connectionStep3Title: "Choose Bluetooth Connection",
     connectionStep3Subtitle:
-      "Tap Choose OBD Device to show nearby devices, then select the correct device.",
+      "Tap Choose OBD Device to show nearby devices, then choose the suitable device.",
     connectionStep3Button: "Connect Device",
 
     connectionSkip: "Skip",
     connectionConnecting: "Connecting...",
 
     connectionInstructionStartCar: "Start the car",
-    connectionInstructionPlugObd: "Plug the device into the OBD port",
+    connectionInstructionPlugObd: "Place the device in the OBD port",
     connectionInstructionWaitLight: "Wait until the device light turns on",
 
     connectionBluetoothOff:
-      "Bluetooth is turned off. Enable it from your phone settings, then try again.",
+      "Bluetooth is off. Turn it on from your phone settings, then try again.",
     connectionBluetoothUnauthorized:
-      "The app does not have Bluetooth permission. Enable Bluetooth permission for the app.",
+      "The app does not have Bluetooth permission. Turn on Bluetooth permission for the app.",
     connectionBluetoothUnsupported:
       "This device does not support the required Bluetooth type.",
     connectionBluetoothResetting:
-      "Bluetooth is restarting. Wait a few seconds, then try again.",
+      "Bluetooth is restarting now. Wait a few seconds, then try again.",
     connectionBluetoothNotReady:
-      "Bluetooth is not ready right now. Wait a few seconds, then try again.",
+      "Bluetooth is not ready now. Wait a few seconds, then try again.",
 
     connectionNoBluetoothDevices:
-      "No nearby Bluetooth devices appeared. Make sure the device is plugged in and its light is on, then search again.",
+      "No nearby Bluetooth devices appeared. Make sure the device is connected and its light is on, then search again.",
     connectionBluetoothPermission:
-      "Enable Bluetooth permission for the app so we can search for the device.",
-    connectionScanError: "An error occurred while searching for Bluetooth devices.",
-    connectionScanStartError: "Could not start Bluetooth scanning.",
+      "Turn on Bluetooth permission for the app so we can search for the device.",
+    connectionScanError: "An error happened while searching for Bluetooth devices.",
+    connectionScanStartError: "Could not start the Bluetooth search.",
     connectionBluetoothDeviceFallback: "Bluetooth Device",
 
     connectionSelectDeviceFirst: "Choose a Bluetooth device first",
     connectionConnectError:
-      "Could not connect to the device. Move your phone closer, make sure the device is on, then try again.",
+      "Could not connect to the device. Move your phone closer to the device, make sure it is on, then try again.",
 
     connectionAvailableDevices: "Available Devices",
     connectionSearching: "Searching...",
     connectionSelectObdDevice: "Tap to choose an OBD device",
-    connectionDiscoveredDevices: "Discovered Devices",
+    connectionDiscoveredDevices: "Found Devices",
     connectionDeviceList: "Device List",
     connectionRefreshSearching: "Searching...",
     connectionRefresh: "Refresh",
     connectionSearchingNearby: "Searching for nearby devices...",
     connectionNoDevicesFound:
-      "No devices appeared. Make sure the OBD device is plugged in and close to your phone, then tap here to search again.",
+      "No devices appeared. Make sure the OBD device is connected and close to your phone, then tap here to search again.",
     connectionDeviceId: "ID",
 
     connectionObdPassword: "Device Password",
     connectionObdPasswordPlaceholder: "Optional: 0000 or 1234",
     connectionObdPasswordNote:
-      "Enter the OBD device password. It is usually written on the device or in its manual, such as 0000 or 1234.",
+      "Enter the password for the OBD device itself. It is usually written on the device or in its booklet, such as 0000 or 1234.",
 
     newPasswordTitle: "Set New Password",
     newPasswordSubtitle: "Enter a strong password, then retype it to confirm",
@@ -317,8 +421,7 @@ const translations = {
     resetOtpEmailMissing: "Email is missing",
     resetOtpResendFailedLater:
       "Could not resend the code right now. Check your internet connection or try again later",
-    resetOtpResentMessage:
-      "The verification code has been resent to your email",
+    resetOtpResentMessage: "The verification code has been resent to your email",
     resetOtpResendError: "An error occurred while resending the code",
     resetOtpResendAfter: "You can resend after",
     resetOtpSeconds: "seconds",
@@ -326,11 +429,12 @@ const translations = {
     resetOtpResendCode: "Resend Verification Code",
     resetOtpSending: "Sending...",
 
-    verifyEmailTitle: "Verification Code",
-    verifyEmailSubtitle: "We sent a verification code to your email",
+    verifyEmailTitle: "Verify Your Email",
+    verifyEmailSubtitle:
+      "Enter the code sent to your email\nto complete account creation",
     emailFallback: "Email",
     enterCode: "Enter the code",
-    verifyCode: "Confirm Code",
+    verifyCode: "Verify Code",
     verifying: "Verifying...",
     emailMissingRegisterAgain:
       "Email is missing. Please go back and register again",
@@ -356,8 +460,7 @@ const translations = {
     enterForgotEmail: "Please enter your email",
     enterValidForgotEmail: "Please enter a valid email",
     forgotEmailNotRegistered: "This email is not registered in the app",
-    forgotRateLimit:
-      "Too many attempts. Please wait a moment and try again",
+    forgotRateLimit: "Too many attempts. Please wait a moment and try again",
     forgotSendError:
       "Could not send the code right now. Check your internet connection or try again later",
     forgotUnexpectedError: "Something went wrong. Please try again later",
@@ -383,7 +486,7 @@ const translations = {
     passwordRulesTitle: "Password must contain:",
     passwordRuleUppercase: "At least one uppercase letter A-Z",
     passwordRuleLowercase: "At least one lowercase letter a-z",
-    passwordRuleSixDigits: "At least 6 digits from 0-9",
+    passwordRuleSixDigits: "6 digits at least from 0-9",
     passwordRuleSpecial: "At least one special character such as @ # ! %",
 
     login: "Login",

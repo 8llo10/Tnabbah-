@@ -757,11 +757,16 @@ export default function ConnectionIntroScreen() {
                 disabled={isButtonDisabled}
               >
                 <LinearGradient
-                  colors={["#9A211C", "#8F1D1D"]}
+                  colors={[
+                    "rgba(154,33,28,0.98)",
+                    "rgba(118,23,19,0.98)",
+                  ]}
                   start={{ x: 0.15, y: 0 }}
                   end={{ x: 0.9, y: 1 }}
                   style={styles.startGradient}
                 >
+                  <View style={styles.startButtonShine} />
+
                   {currentStep === 3 && isConnecting ? (
                     <View style={styles.connectingRow}>
                       <ActivityIndicator color="#FFFFFF" />
@@ -1733,11 +1738,24 @@ function createStyles({
       overflow: "hidden",
     },
 
+    startButtonShine: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      height: "48%",
+      borderTopLeftRadius: buttonRadius,
+      borderTopRightRadius: buttonRadius,
+      backgroundColor: "rgba(255,255,255,0.10)",
+      zIndex: 1,
+    },
+
     connectingRow: {
       flexDirection: isArabic ? "row-reverse" : "row",
       alignItems: "center",
       justifyContent: "center",
       gap: 10,
+      zIndex: 5,
     },
 
     startButtonText: {
@@ -1746,6 +1764,7 @@ function createStyles({
       fontSize: isVerySmallScreen ? 18 : 19.5,
       fontWeight: "900",
       includeFontPadding: false,
+      zIndex: 5,
     },
   });
 }
