@@ -3,6 +3,7 @@ import React, {
     useContext,
     useEffect,
     useState,
+    useRef,
 } from "react";
 
 import { supabase } from "../lib/supabase";
@@ -10,6 +11,10 @@ import { useAuth } from "./AuthProvider";
 import { elmBluetoothService } from "../services/elmBluetoothService";
 import { vehicleScannerService } from "../services/vehicleScannerService";
 import { mqttService } from "../services/mqttService";
+
+
+import { activeVehicleRuntime } from "../services/activeVehicleRuntime";
+
 
 export type UserCar = {
     id: string;
@@ -65,7 +70,6 @@ export function CarsProvider({
 
     const [selectedCarId, setSelectedCarId] = useState<string | null>(null);
     const [connectedCarId, setConnectedCarId] = useState<string | null>(null);
-    const [manualSelectedCarId, setManualSelectedCarId] = useState<string | null>(null);
     const [knownCarIds, setKnownCarIds] = useState<string[]>([]);
 
     const [userCars, setUserCars] = useState<UserCar[]>([]);
@@ -77,9 +81,14 @@ export function CarsProvider({
         selectedCarId ||
         null; */
 
+    /*  const activeCarId =
+         connectedCarId ||
+         manualSelectedCarId ||
+         selectedCarId ||
+         null; */
+
     const activeCarId =
         connectedCarId ||
-        manualSelectedCarId ||
         selectedCarId ||
         null;
 
@@ -87,8 +96,9 @@ export function CarsProvider({
     const saveSelectedCarId = async (carId: string | null) => {
         const realUserId = session?.user?.id;
 
-        setManualSelectedCarId(carId);
+        // setManualSelectedCarId(carId);
         setSelectedCarId(carId);
+        activeVehicleRuntime.setSelectedCarId(carId);
 
         if (!realUserId) return;
 
@@ -123,6 +133,7 @@ export function CarsProvider({
 
             if (data?.last_car_id) {
                 setSelectedCarId(data.last_car_id);
+                activeVehicleRuntime.setSelectedCarId(data.last_car_id);
             }
         } catch (error) {
             console.log("Load selected car id error:", error);
@@ -151,6 +162,18 @@ export function CarsProvider({
             if (error) throw error;
 
             setUserCars(data || []);
+
+            const latestCar = data?.[0];
+
+            if (
+                latestCar?.car_id &&
+                !connectedCarIdRef.current &&
+                !selectedCarId
+            ) {
+                await saveSelectedCarId(latestCar.car_id);
+            }
+
+
         } catch (error) {
             console.log("Load user cars error:", error);
         } finally {
@@ -168,29 +191,22 @@ export function CarsProvider({
         setObdConnected(!!connected);
         setScannerRunning(vehicleScannerService.isAutoScanRunning());
 
-        const cachedCarId = vehicleScannerService.getCachedCarId();
+        /*  const cachedCarId = vehicleScannerService.getCachedCarId();
+ 
+         if (connected && cachedCarId) {
+             setConnectedCarId(cachedCarId);
+         } else {
+             setConnectedCarId(null);
+         } */
 
-        if (connected && cachedCarId) {
-            setConnectedCarId(cachedCarId);
-        } else {
+        if (!connected) {
             setConnectedCarId(null);
+            activeVehicleRuntime.setConnectedCarId(null);
         }
+
     };
 
     const selectDefaultCar = async (carId: string) => {
-        const switchingAwayFromConnectedCar =
-            connectedCarId && connectedCarId !== carId;
-
-        if (switchingAwayFromConnectedCar) {
-            await vehicleScannerService.stopAutoScan();
-            await elmBluetoothService.disconnect();
-            setConnectedCarId(null);
-
-            setObdConnected(false);
-            setScannerRunning(false);
-            setConnectedCarId(null);
-        }
-
         await saveSelectedCarId(carId);
     };
 
@@ -227,10 +243,13 @@ export function CarsProvider({
             setObdConnected(false);
             setScannerRunning(false);
             setConnectedCarId(null);
+            activeVehicleRuntime.setConnectedCarId(null);
         }
 
         const { error } = await supabase
             .from("user_cars")
+
+
             .update({
                 is_deleted: true,
                 updated_at: new Date().toISOString(),
@@ -255,7 +274,14 @@ export function CarsProvider({
         await vehicleScannerService.stopAutoScan();
         await elmBluetoothService.disconnect();
         await refreshObdState();
+        activeVehicleRuntime.setConnectedCarId(null);
     };
+
+    const connectedCarIdRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        connectedCarIdRef.current = connectedCarId;
+    }, [connectedCarId]);
 
     useEffect(() => {
         if (!session?.user?.id) return;
@@ -289,14 +315,10 @@ export function CarsProvider({
 
                 setMqttConnected(true);
 
-                const topics = [
-                    `Tnabbah/${realUserId}/+/identity`,
-                    `Tnabbah/${realUserId}/+/status`,
-                ];
+                const identityTopic = `Tnabbah/${realUserId}/+/identity`;
+                const statusTopic = `Tnabbah/${realUserId}/+/status`;
 
-                client.subscribe(topics);
-
-                const onMessage = (topic: string, message: Buffer) => {
+                const handleMessage = (payload: any, raw: string, topic: string) => {
                     if (!mounted) return;
 
                     const parts = topic.split("/");
@@ -304,23 +326,41 @@ export function CarsProvider({
 
                     if (incomingCarId) {
                         setKnownCarIds((prev) =>
-                            prev.includes(incomingCarId)
-                                ? prev
-                                : [...prev, incomingCarId]
+                            prev.includes(incomingCarId) ? prev : [...prev, incomingCarId]
                         );
                     }
 
                     try {
-                        const parsed = JSON.parse(message.toString());
-                        const data = parsed?.data ?? parsed;
+                        const data = payload?.data ?? payload;
 
                         if (incomingCarId && realUserId) {
                             const now = new Date().toISOString();
 
-                            supabase
-                                .from("user_cars")
-                                .upsert(
-                                    {
+                            void (async () => {
+                                const { data: existing } = await supabase
+                                    .from("user_cars")
+                                    .select("id, is_deleted")
+                                    .eq("user_id", realUserId)
+                                    .eq("car_id", incomingCarId)
+                                    .maybeSingle();
+
+                                if (existing?.is_deleted && data?.obdConnected !== true) {
+                                    return;
+                                }
+
+                                if (existing?.id) {
+                                    await supabase
+                                        .from("user_cars")
+                                        .update({
+                                            is_deleted: false,
+                                            updated_at: now,
+                                            ...(data?.obdConnected === true
+                                                ? { last_connected_at: now }
+                                                : {}),
+                                        })
+                                        .eq("id", existing.id);
+                                } else {
+                                    await supabase.from("user_cars").insert({
                                         user_id: realUserId,
                                         car_id: incomingCarId,
                                         is_deleted: false,
@@ -328,21 +368,33 @@ export function CarsProvider({
                                         ...(data?.obdConnected === true
                                             ? { last_connected_at: now }
                                             : {}),
-                                    },
-                                    { onConflict: "user_id,car_id" }
-                                )
-                                .then(() => loadUserCars(false));
+                                    });
+                                }
+
+                                if (data?.obdConnected === true) {
+                                    await loadUserCars(false);
+                                }
+                            })();
                         }
 
                         if (data?.obdConnected === true && incomingCarId) {
                             setConnectedCarId(incomingCarId);
+                            activeVehicleRuntime.setConnectedCarId(incomingCarId);
+
                             setObdConnected(true);
                             setScannerRunning(vehicleScannerService.isAutoScanRunning());
                             setLastConnectionTime(new Date().toISOString());
                         }
 
                         if (data?.obdConnected === false && incomingCarId) {
-                            setConnectedCarId(null);
+                            if (
+                                connectedCarIdRef.current &&
+                                incomingCarId === connectedCarIdRef.current
+                            ) {
+                                setConnectedCarId(null);
+                                activeVehicleRuntime.setConnectedCarId(null);
+                            }
+
                             setObdConnected(false);
                             setScannerRunning(false);
                         }
@@ -351,15 +403,12 @@ export function CarsProvider({
                     }
                 };
 
-                client.on("message", onMessage);
+                await mqttService.subscribeAsync(identityTopic, handleMessage);
+                await mqttService.subscribeAsync(statusTopic, handleMessage);
 
                 cleanup = () => {
-                    try {
-                        client.off?.("message", onMessage);
-                        client.unsubscribe?.(topics);
-                    } catch (error) {
-                        console.log("CarsProvider MQTT cleanup error:", error);
-                    }
+                    mqttService.unsubscribeAsync(identityTopic, handleMessage);
+                    mqttService.unsubscribeAsync(statusTopic, handleMessage);
                 };
             } catch (error) {
                 console.log("CarsProvider MQTT listener error:", error);

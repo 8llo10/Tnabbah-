@@ -5,7 +5,12 @@ const MQTT_URL = "ws://207.180.244.27:9001";
 let client: MqttClient | null = null;
 let connectingPromise: Promise<MqttClient> | null = null;
 
-const subscriptions = new Set<string>();
+type Listener = (payload: any, raw: string, topic: string) => void;
+
+const listenersByTopic = new Map<string, Set<Listener>>();
+const subscribedTopics = new Set<string>();
+
+let globalMessageHandlerAttached = false;
 
 type PublishOptions = {
   retain?: boolean;
@@ -24,9 +29,49 @@ function safeStringify(payload: unknown) {
   }
 }
 
+function topicMatches(filter: string, topic: string) {
+  const filterParts = filter.split("/");
+  const topicParts = topic.split("/");
+
+  for (let i = 0; i < filterParts.length; i++) {
+    if (filterParts[i] === "#") return true;
+    if (filterParts[i] === "+") {
+      if (topicParts[i] === undefined) return false;
+      continue;
+    }
+    if (filterParts[i] !== topicParts[i]) return false;
+  }
+
+  return filterParts.length === topicParts.length;
+}
+
+function attachGlobalMessageHandler(c: MqttClient) {
+  if (globalMessageHandlerAttached) return;
+
+  globalMessageHandlerAttached = true;
+
+  c.on("message", (incomingTopic, buffer) => {
+    const raw = buffer.toString();
+
+    let payload: any = raw;
+    try {
+      payload = JSON.parse(raw);
+    } catch { }
+
+    listenersByTopic.forEach((listeners, filter) => {
+      if (!topicMatches(filter, incomingTopic)) return;
+
+      listeners.forEach((listener) => {
+        listener(payload, raw, incomingTopic);
+      });
+    });
+  });
+}
+
 export const mqttService = {
   async connectAsync(): Promise<MqttClient> {
     if (client?.connected) {
+      attachGlobalMessageHandler(client);
       return client;
     }
 
@@ -39,7 +84,7 @@ export const mqttService = {
 
       client = mqtt.connect(MQTT_URL, {
         clientId: `tnabbah_mobile_${Date.now()}`,
-        clean: true,
+        clean: false,
 
         reconnectPeriod: 2500,
         connectTimeout: 10000,
@@ -60,6 +105,8 @@ export const mqttService = {
         clearTimeout(timeout);
 
         connectingPromise = null;
+
+        attachGlobalMessageHandler(client as MqttClient);
 
         resolve(client as MqttClient);
       });
@@ -143,50 +190,56 @@ export const mqttService = {
 
   async subscribeAsync(
     topic: string,
-    onMessage: (payload: any, raw: string, topic: string) => void
+    onMessage: Listener
   ) {
     const c = await this.connectAsync();
 
-    if (subscriptions.has(topic)) {
+    let listeners = listenersByTopic.get(topic);
+
+    if (!listeners) {
+      listeners = new Set<Listener>();
+      listenersByTopic.set(topic, listeners);
+    }
+
+    listeners.add(onMessage);
+
+    if (subscribedTopics.has(topic)) {
       return;
     }
 
-    subscriptions.add(topic);
+    subscribedTopics.add(topic);
 
     return new Promise<void>((resolve, reject) => {
       c.subscribe(topic, { qos: 0 }, (error) => {
         if (error) {
-          console.log("❌ MQTT subscribe failed:", topic, error);
-
+          subscribedTopics.delete(topic);
           reject(error);
           return;
         }
 
         console.log("✅ MQTT subscribed:", topic);
-
         resolve();
-      });
-
-      c.on("message", (incomingTopic, buffer) => {
-        if (incomingTopic !== topic) return;
-
-        const raw = buffer.toString();
-
-        try {
-          const parsed = JSON.parse(raw);
-
-          onMessage(parsed, raw, incomingTopic);
-        } catch {
-          onMessage(raw, raw, incomingTopic);
-        }
       });
     });
   },
 
-  async unsubscribeAsync(topic: string) {
+  async unsubscribeAsync(topic: string, onMessage?: Listener) {
     if (!client) return;
 
-    subscriptions.delete(topic);
+    const listeners = listenersByTopic.get(topic);
+
+    if (listeners && onMessage) {
+      listeners.delete(onMessage);
+    } else {
+      listenersByTopic.delete(topic);
+    }
+
+    if (listenersByTopic.get(topic)?.size) {
+      return;
+    }
+
+    listenersByTopic.delete(topic);
+    subscribedTopics.delete(topic);
 
     return new Promise<void>((resolve, reject) => {
       client?.unsubscribe(topic, (error) => {
@@ -196,12 +249,10 @@ export const mqttService = {
         }
 
         console.log("MQTT unsubscribed:", topic);
-
         resolve();
       });
     });
   },
-
   isConnected() {
     return !!client?.connected;
   },
@@ -213,11 +264,13 @@ export const mqttService = {
   disconnect() {
     try {
       client?.end(true);
-    } catch {}
+    } catch { }
 
     client = null;
     connectingPromise = null;
 
-    subscriptions.clear();
+    globalMessageHandlerAttached = false;
+    listenersByTopic.clear();
+    subscribedTopics.clear();
   },
 };

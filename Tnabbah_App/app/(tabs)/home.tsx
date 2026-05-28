@@ -20,9 +20,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
-import { elmBluetoothService } from "../../services/elmBluetoothService";
-import { mqttService } from "../../services/mqttService";
-import { vehicleScannerService } from "../../services/vehicleScannerService";
+import { useCars } from "../../providers/CarsProvider";
+import { useVehicleRealtime } from "../../providers/VehicleRealtimeProvider";
 
 const API_URL =
     process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://207.180.244.27:8001";
@@ -46,13 +45,13 @@ const COLORS = {
     success: "#1F8A4C",
 };
 
-type MetricState = {
+/* type MetricState = {
     rpm: number | string | null;
     speed: number | string | null;
     voltage: number | string | null;
     coolant: number | string | null;
 };
-
+ */
 type HomeAiState = {
     status: "safe" | "watch" | "urgent";
     title: string;
@@ -73,22 +72,22 @@ function safeValue(value: any) {
     return String(value);
 }
 
-function prettyJson(value: unknown) {
+/* function prettyJson(value: unknown) {
     try {
         return JSON.stringify(value, null, 2);
     } catch {
         return String(value);
     }
-}
+} */
 
-function getPayloadData(message: Buffer) {
+/* function getPayloadData(message: Buffer) {
     try {
         const parsed = JSON.parse(message.toString());
         return parsed?.data ?? parsed;
     } catch {
         return null;
     }
-}
+} */
 
 function getUserDisplayName(user: any) {
     const metadata = user?.user_metadata || {};
@@ -104,6 +103,19 @@ function getUserDisplayName(user: any) {
 }
 
 export default function HomeScreen() {
+    const { activeCarId } = useCars();
+
+    const {
+        metrics,
+        vin,
+        dtcCount,
+        supportedCount,
+        lastRaw,
+        statusText,
+        isConnected,
+        isAutoRunning,
+    } = useVehicleRealtime();
+
     const { width, height } = useWindowDimensions();
 
     const isLandscape = width > height;
@@ -113,23 +125,8 @@ export default function HomeScreen() {
     const [userName, setUserName] = useState("");
     const [homeAi, setHomeAi] = useState<HomeAiState>(null);
     const [isChecking, setIsChecking] = useState(false);
-    const [isConnected, setIsConnected] = useState(false);
-    const [isAutoRunning, setIsAutoRunning] = useState(false);
-
-    const [metrics, setMetrics] = useState<MetricState>({
-        rpm: null,
-        speed: null,
-        voltage: null,
-        coolant: null,
-    });
-
-    const [vin, setVin] = useState<string | null>(null);
     const [carId, setCarId] = useState<string | null>(null);
-    const [supportedCount, setSupportedCount] = useState<number>(0);
-    const [dtcCount, setDtcCount] = useState<number>(0);
 
-    const [lastRaw, setLastRaw] = useState("");
-    const [statusText, setStatusText] = useState("جاهز للفحص");
     const [debugText, setDebugText] = useState("");
     const [notificationsCount, setNotificationsCount] = useState(0);
     const [notificationsList, setNotificationsList] = useState<
@@ -148,6 +145,12 @@ export default function HomeScreen() {
     const seenNotificationIdsRef = useRef<Set<string>>(new Set());
     const firstNotificationsLoadRef = useRef(true);
 
+    const activeCarIdRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        activeCarIdRef.current = activeCarId || null;
+    }, [activeCarId]);
+
     const metricWidth = useMemo(() => {
         const pagePadding = isWide ? 52 : 36;
         const totalGap = 10 * (columns - 1);
@@ -165,6 +168,23 @@ export default function HomeScreen() {
     }, []);
 
     useEffect(() => {
+        setCarId(activeCarId || null);
+        /* 
+                setMetrics({
+                    rpm: null,
+                    speed: null,
+                    voltage: null,
+                    coolant: null,
+                });
+        
+                setVin(null);
+                setSupportedCount(0);
+                setDtcCount(0);
+                setLastRaw("");
+                setHomeAi(null); */
+    }, [activeCarId]);
+
+    /* useEffect(() => {
         const update = async () => {
             const connected = await elmBluetoothService
                 .isActuallyConnected?.()
@@ -172,9 +192,6 @@ export default function HomeScreen() {
 
             setIsConnected(!!connected);
             setIsAutoRunning(vehicleScannerService.isAutoScanRunning());
-
-            const cachedCarId = vehicleScannerService.getCachedCarId();
-            if (cachedCarId) setCarId(cachedCarId);
 
             if (!connected) {
                 setStatusText("غير متصل بالقطعة");
@@ -189,9 +206,9 @@ export default function HomeScreen() {
 
         const interval = setInterval(update, 1500);
         return () => clearInterval(interval);
-    }, []);
+    }, []); */
 
-    useEffect(() => {
+    /* useEffect(() => {
         let mounted = true;
         let client: any = null;
 
@@ -229,7 +246,20 @@ export default function HomeScreen() {
                     const section = parts[3];
                     const sub = parts[4];
 
-                    if (incomingCarId) setCarId(incomingCarId);
+                    setDebugText(`MQTT وصل: ${topic}`);
+
+
+                    if (!incomingCarId) return;
+
+                    const currentActiveCarId = activeCarIdRef.current;
+
+                    if (
+                        currentActiveCarId &&
+                        incomingCarId &&
+                        incomingCarId !== currentActiveCarId
+                    ) {
+                        return;
+                    }
 
                     if (section === "status") {
                         setStatusText(
@@ -316,7 +346,7 @@ export default function HomeScreen() {
             if (cleanup) cleanup();
         };
     }, []);
-
+ */
     useEffect(() => {
         let mounted = true;
 
@@ -474,10 +504,14 @@ export default function HomeScreen() {
                 return;
             }
 
-            const scannedCarId =
-                carId || vehicleScannerService.getCachedCarId() || "car_a521e25";
+            const scannedCarId = activeCarId;
 
-            setStatusText("جاري التقاط لقطة من بيانات السيارة وتشغيل التحليل...");
+            if (!scannedCarId) {
+                Alert.alert("تنبيه", "اختاري سيارة أولًا أو وصلي قطعة السيارة.");
+                setIsChecking(false);
+                return;
+            }
+
 
             const response = await fetch(`${API_URL}/api/scan-from-mqtt`, {
                 method: "POST",
@@ -510,7 +544,6 @@ export default function HomeScreen() {
             }
 
             const report = await response.json();
-            setStatusText("تم إنشاء التقرير بنجاح");
 
             router.push({
                 pathname: "/report",
@@ -522,7 +555,6 @@ export default function HomeScreen() {
                     ? e.message
                     : JSON.stringify(e?.message || e || "خطأ غير متوقع");
 
-            setStatusText("فشل تشغيل التحليل");
             setDebugText(errorMsg);
             Alert.alert("خطأ", errorMsg);
         } finally {
@@ -911,12 +943,16 @@ export default function HomeScreen() {
             </ScrollView>
 
             <TouchableOpacity
-    style={styles.aiFloatingButton}
-    activeOpacity={0.85}
-    onPress={() => router.push("/chatbot")}
->
-    <Feather name="message-circle" size={29} color="#5F5F5F" />
-</TouchableOpacity>
+                style={styles.aiFloatingButton}
+                activeOpacity={0.85}
+                onPress={() =>
+                    router.push({
+                        pathname: "/chatbot",
+                    })
+                }
+            >
+                <Feather name="message-circle" size={29} color="#5F5F5F" />
+            </TouchableOpacity>
         </SafeAreaView>
     );
 }
@@ -1641,24 +1677,24 @@ const styles = StyleSheet.create({
     },
 
     aiFloatingButton: {
-    position: "absolute",
-    right: 24,
-    bottom: Platform.OS === "ios" ? 10 : 10,
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    backgroundColor: "#EBEBEB",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 800,
-    elevation: 14,
+        position: "absolute",
+        right: 24,
+        bottom: Platform.OS === "ios" ? 10 : 10,
+        width: 62,
+        height: 62,
+        borderRadius: 31,
+        backgroundColor: "#EBEBEB",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 800,
+        elevation: 14,
 
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 7 },
-    shadowOpacity: 0.20,
-    shadowRadius: 12,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 7 },
+        shadowOpacity: 0.20,
+        shadowRadius: 12,
 
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.35)",
-},
+        borderWidth: 1,
+        borderColor: "rgba(255, 255, 255, 0.35)",
+    },
 });

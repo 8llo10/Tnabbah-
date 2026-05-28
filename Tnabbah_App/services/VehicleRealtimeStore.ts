@@ -1,0 +1,187 @@
+export type VehicleMetrics = {
+    rpm: number | string | null;
+    speed: number | string | null;
+    voltage: number | string | null;
+    coolant: number | string | null;
+};
+
+export type VehicleSnapshot = {
+    carId: string;
+    metrics: VehicleMetrics;
+    vin: string | null;
+    dtcCount: number;
+    supportedCount: number;
+    lastRaw: string;
+    statusText: string;
+    isConnected: boolean;
+    isAutoRunning: boolean;
+    updatedAt: number;
+};
+
+type Listener = () => void;
+
+const emptyMetrics: VehicleMetrics = {
+    rpm: null,
+    speed: null,
+    voltage: null,
+    coolant: null,
+};
+
+const snapshotsByCarId: Record<string, VehicleSnapshot> = {};
+const listeners = new Set<Listener>();
+
+function emit() {
+    listeners.forEach((listener) => listener());
+}
+
+function createEmptySnapshot(carId: string): VehicleSnapshot {
+    return {
+        carId,
+        metrics: { ...emptyMetrics },
+        vin: null,
+        dtcCount: 0,
+        supportedCount: 0,
+        lastRaw: "",
+        statusText: "جاهز للفحص",
+        isConnected: false,
+        isAutoRunning: false,
+        updatedAt: Date.now(),
+    };
+}
+
+export const vehicleRealtimeStore = {
+    subscribe(listener: Listener) {
+        listeners.add(listener);
+        return () => {
+            listeners.delete(listener);
+        };
+    },
+
+    getSnapshot(carId: string | null) {
+        if (!carId) return null;
+        return snapshotsByCarId[carId] || null;
+    },
+
+    getOrCreateSnapshot(carId: string) {
+        if (!snapshotsByCarId[carId]) {
+            snapshotsByCarId[carId] = createEmptySnapshot(carId);
+        }
+
+        return snapshotsByCarId[carId];
+    },
+
+    getAllSnapshots() {
+        return snapshotsByCarId;
+    },
+
+    updateSnapshot(
+        carId: string,
+        updater: (snapshot: VehicleSnapshot) => VehicleSnapshot
+    ) {
+        const current =
+            snapshotsByCarId[carId] || createEmptySnapshot(carId);
+
+        snapshotsByCarId[carId] = {
+            ...updater(current),
+            carId,
+            updatedAt: Date.now(),
+        };
+
+        emit();
+    },
+
+    updateStatus(carId: string, data: any) {
+        this.updateSnapshot(carId, (snapshot) => ({
+            ...snapshot,
+
+            // لا نمسح آخر قراءات عند الفصل
+            metrics: snapshot.metrics,
+            vin: snapshot.vin,
+            dtcCount: snapshot.dtcCount,
+            supportedCount: snapshot.supportedCount,
+            lastRaw: snapshot.lastRaw,
+
+            statusText:
+                data?.status === "disconnected" || data?.obdConnected === false
+                    ? "القطعة غير متصلة"
+                    : data?.status || "تم تحديث الحالة",
+
+            isConnected: data?.obdConnected === true,
+            isAutoRunning: data?.streaming === true,
+        }));
+    },
+
+    updateIdentity(carId: string, data: any) {
+        this.updateSnapshot(carId, (snapshot) => ({
+            ...snapshot,
+            vin: data?.vin || data?.fingerprints?.vin || snapshot.vin || null,
+            lastRaw: JSON.stringify(data, null, 2),
+        }));
+    },
+
+    updateMode09(carId: string, data: any) {
+        this.updateSnapshot(carId, (snapshot) => ({
+            ...snapshot,
+            vin: data?.vin || snapshot.vin || null,
+            lastRaw: JSON.stringify(data, null, 2),
+        }));
+    },
+
+    updateSupportedPids(carId: string, data: any) {
+        this.updateSnapshot(carId, (snapshot) => ({
+            ...snapshot,
+            supportedCount: Array.isArray(data?.supportedPids)
+                ? data.supportedPids.length
+                : snapshot.supportedCount,
+            lastRaw: JSON.stringify(data, null, 2),
+        }));
+    },
+
+    updatePidValue(carId: string, pid: string, data: any) {
+        this.updateSnapshot(carId, (snapshot) => {
+            const value = data?.value;
+
+            if (value === null || value === undefined || value === "") {
+                return snapshot;
+            }
+
+            return {
+                ...snapshot,
+                metrics: {
+                    ...snapshot.metrics,
+                    rpm: pid === "010C" ? value : snapshot.metrics.rpm,
+                    speed: pid === "010D" ? value : snapshot.metrics.speed,
+                    voltage: pid === "0142" ? value : snapshot.metrics.voltage,
+                    coolant: pid === "0105" ? value : snapshot.metrics.coolant,
+                },
+            };
+        });
+    },
+
+    updateDtc(carId: string, data: any) {
+        this.updateSnapshot(carId, (snapshot) => {
+            const stored = data?.stored?.dtcs?.length || 0;
+            const pending = data?.pending?.dtcs?.length || 0;
+            const permanent = data?.permanent?.dtcs?.length || 0;
+
+            return {
+                ...snapshot,
+                dtcCount: stored + pending + permanent,
+                lastRaw: JSON.stringify(data, null, 2),
+            };
+        });
+    },
+
+    resetCar(carId: string) {
+        snapshotsByCarId[carId] = createEmptySnapshot(carId);
+        emit();
+    },
+
+    clearAll() {
+        Object.keys(snapshotsByCarId).forEach((carId) => {
+            delete snapshotsByCarId[carId];
+        });
+
+        emit();
+    },
+};

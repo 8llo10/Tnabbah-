@@ -23,7 +23,8 @@ let lastSupportedPids: string[] = [];
 
 let scannerQueue: Promise<unknown> = Promise.resolve();
 
-const LIVE_LOOP_DELAY_MS = 50;
+/* const LIVE_LOOP_DELAY_MS = 50; */
+const LIVE_LOOP_DELAY_MS = 1200;
 const SLOW_SCAN_INTERVAL_MS = 5 * 60 * 1000;
 const DISCONNECT_CHECK_MS = 1200;
 
@@ -61,7 +62,7 @@ function wrapPayload(userId: string, carId: string, path: string, payload: unkno
 
 async function runExclusive<T>(task: () => Promise<T>): Promise<T> {
   const run = scannerQueue.then(task, task);
-  scannerQueue = run.catch(() => {});
+  scannerQueue = run.catch(() => { });
   return run;
 }
 
@@ -79,7 +80,7 @@ async function getUserId() {
 }
 
 async function getIdentity(forceRefresh = false) {
-  if (!forceRefresh && cachedCarId && cachedIdentity) {
+  if (cachedCarId && cachedIdentity) {
     return {
       userId: await getUserId(),
       carId: cachedCarId,
@@ -89,9 +90,7 @@ async function getIdentity(forceRefresh = false) {
 
   const userId = await getUserId();
 
-  const identity = await carIdentityService.getCarIdentity({
-    forceRefresh,
-  });
+  const identity = await carIdentityService.getCarIdentity();
 
   cachedCarId = identity.carId;
   cachedIdentity = identity;
@@ -102,7 +101,6 @@ async function getIdentity(forceRefresh = false) {
     identity,
   };
 }
-4
 
 
 async function publish(
@@ -375,7 +373,7 @@ async function trySrsReadOnlyScan(userId: string, carId: string) {
   try {
     await elmBluetoothService.send("ATSH7DF", 700);
     await elmBluetoothService.send("ATSP0", 1200);
-  } catch {}
+  } catch { }
 
   const found = results.filter((item) => item.hasResponse);
 
@@ -410,6 +408,10 @@ export const vehicleScannerService = {
   async startAutoScan(options?: { forceFull?: boolean }) {
     if (!elmBluetoothService.isConnected()) {
       throw new Error("قطعة OBD غير متصلة.");
+    }
+
+    if (options?.forceFull) {
+      this.resetCache();
     }
 
     const { userId, carId, identity } = await getIdentity(!!options?.forceFull);
@@ -520,7 +522,7 @@ export const vehicleScannerService = {
           await publishStatus(userId, carId, "live_stream_error", {
             error: error?.message || String(error),
           });
-        } catch {}
+        } catch { }
       }
 
       if (!isRunning || !isLiveLoopRunning) return;
@@ -564,7 +566,7 @@ export const vehicleScannerService = {
           await publishStatus(userId, carId, "slow_scan_error", {
             error: error?.message || String(error),
           });
-        } catch {}
+        } catch { }
       }
 
       if (!isRunning || !isSlowLoopRunning) return;
@@ -634,12 +636,25 @@ export const vehicleScannerService = {
     }
   },
 
+  async restartAutoScan(options?: { forceFull?: boolean }) {
+    await this.stopAutoScan();
+    this.resetCache();
+
+    if (!elmBluetoothService.isConnected()) {
+      throw new Error("قطعة OBD غير متصلة.");
+    }
+
+    return this.startAutoScan(options);
+  },
+
   resetCache() {
     cachedUserId = null;
     cachedCarId = null;
     cachedIdentity = null;
     lastMode09 = null;
     lastSupportedPids = [];
+
+    carIdentityService.resetCache();
   },
 
   isAutoScanRunning() {

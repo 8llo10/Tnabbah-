@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../providers/AuthProvider";
 import { useLanguage } from "../providers/LanguageProvider";
+import { useCars } from "../providers/CarsProvider";
 
 const CHATBOT_API_URL = "http://207.180.244.27:4010/chat";
 
@@ -55,6 +56,7 @@ function getCurrentTime(isArabic: boolean) {
 export default function Chatbot() {
   const { session, profile } = useAuth();
   const { t, isArabic, language } = useLanguage();
+  const { activeCarId } = useCars();
 
   const params = useLocalSearchParams<{ carId?: string }>();
   const incomingCarId = params.carId;
@@ -115,7 +117,7 @@ export default function Chatbot() {
           body: JSON.stringify({
             message: userText,
             userId: session?.user?.id,
-            carId: incomingCarId || null,
+            carId: incomingCarId || activeCarId || null,
             email: session?.user?.email,
             fullName: profile?.full_name ?? null,
             sessionId: SESSION_ID,

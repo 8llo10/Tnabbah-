@@ -71,8 +71,6 @@ function looksLikeElmResponse(text: string) {
     value.includes("OBD") ||
     value.includes("OK") ||
     value.includes(">") ||
-    value.includes("SEARCHING") ||
-    value.includes("NO DATA") ||
     value.includes("41 ") ||
     value.includes("410")
   );
@@ -105,7 +103,10 @@ async function waitForResponse(waitMs: number) {
   const start = Date.now();
 
   while (Date.now() - start < waitMs) {
-    if (hasPrompt(rxBuffer)) break;
+    if (hasPrompt(rxBuffer)) {
+      await sleep(120);
+      break;
+    }
     await sleep(35);
   }
 
@@ -114,7 +115,7 @@ async function waitForResponse(waitMs: number) {
 
 async function runExclusive<T>(task: () => Promise<T>): Promise<T> {
   const run = sendQueue.then(task, task);
-  sendQueue = run.catch(() => {});
+  sendQueue = run.catch(() => { });
   return run;
 }
 
