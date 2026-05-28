@@ -103,7 +103,7 @@ function getUserDisplayName(user: any) {
 }
 
 export default function HomeScreen() {
-    const { activeCarId } = useCars();
+    const { activeCarId, obdConnected } = useCars();
 
     const {
         metrics,
@@ -756,14 +756,14 @@ export default function HomeScreen() {
                         <View
                             style={[
                                 styles.connectionBadge,
-                                isConnected ? styles.connectedBadge : styles.disconnectedBadge,
+                                obdConnected ? styles.connectedBadge : styles.disconnectedBadge,
                             ]}
                         >
                             <View
                                 style={[
                                     styles.connectionDot,
                                     {
-                                        backgroundColor: isConnected
+                                        backgroundColor: obdConnected
                                             ? COLORS.success
                                             : COLORS.danger,
                                     },
@@ -774,11 +774,11 @@ export default function HomeScreen() {
                                 style={[
                                     styles.connectionText,
                                     {
-                                        color: isConnected ? COLORS.success : COLORS.danger,
+                                        color: obdConnected ? COLORS.success : COLORS.danger,
                                     },
                                 ]}
                             >
-                                {isConnected ? "متصل" : "غير متصل"}
+                                {obdConnected ? "متصل" : "غير متصل"}
                             </Text>
                         </View>
                     </View>
@@ -1698,3 +1698,4 @@ const styles = StyleSheet.create({
         borderColor: "rgba(255, 255, 255, 0.35)",
     },
 });
+/* انا */
