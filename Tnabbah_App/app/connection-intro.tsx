@@ -30,7 +30,7 @@ import { elmBluetoothService } from "@/services/elmBluetoothService";
 import { vehicleScannerService } from "@/services/vehicleScannerService";
 import { useLanguage } from "../providers/LanguageProvider";
 
-const START_IMAGE = require("../assets/images/obd-connection-start.png");
+const START_IMAGE = require("../assets/images/obd-connection-start.webp");
 
 const COLORS = {
   screenBackground: "#FFFFFF",

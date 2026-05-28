@@ -36,12 +36,12 @@ const COLORS = {
   textDark: "#2C2C2C",
   inputText: "#2E1D1D",
 
-  label: "#8C7A76",
+  label: "#6C5B58",
   muted: "#6C5B58",
-  placeholder: "#B0A6A4",
-  border: "rgba(205,205,205,0.95)",
+  placeholder: "#A8A8A8",
+  border: "#DCDCDC",
 
-  shadowGray: "#8E8E8E",
+  shadowGray: "#000000",
   white: "#FFFFFF",
 };
 
@@ -867,22 +867,22 @@ function createStyles({
     inputWrapper: {
       width: "100%",
       height: inputHeight,
-      borderRadius: inputRadius,
+      borderRadius: 22,
       backgroundColor: COLORS.white,
-      borderWidth: 1.7,
+      borderWidth: 1,
       borderColor: COLORS.border,
-      paddingHorizontal: isVerySmallScreen ? 15 : 17,
+      paddingHorizontal: isVerySmallScreen ? 14 : 16,
       alignItems: "center",
       shadowColor: COLORS.shadowGray,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: Platform.OS === "android" ? 0.14 : 0.2,
-      shadowRadius: 4,
-      elevation: 3,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: Platform.OS === "android" ? 0.05 : 0.035,
+      shadowRadius: 6,
+      elevation: 1,
     },
 
     inputWrapperError: {
-      borderColor: "rgba(154,33,28,0.45)",
-      backgroundColor: "rgba(154,33,28,0.015)",
+      borderColor: "rgba(135,27,23,0.42)",
+      backgroundColor: "rgba(135,27,23,0.025)",
     },
 
     inputIcon: {

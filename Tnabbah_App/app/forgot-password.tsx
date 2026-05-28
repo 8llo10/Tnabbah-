@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-
+import { Stack, useFocusEffect, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+
 import {
   StyleSheet,
   Text,
@@ -36,12 +36,12 @@ const COLORS = {
   textDark: "#2C2C2C",
   inputText: "#2E1D1D",
 
-  label: "#8C7A76",
+  label: "#6C5B58",
   muted: "#6C5B58",
-  placeholder: "#B0A6A4",
-  border: "rgba(205,205,205,0.95)",
+  placeholder: "#A8A8A8",
+  border: "#DCDCDC",
 
-  shadowGray: "#8E8E8E",
+  shadowGray: "#000000",
   white: "#FFFFFF",
 };
 
@@ -50,11 +50,7 @@ const clamp = (value: number, min: number, max: number) =>
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams();
   const { t, isArabic } = useLanguage();
-
-  const from = String(params.from || "");
-  const initialEmail = String(params.email || "");
 
   const textAlign = isArabic ? "right" : "left";
   const rowDirection = isArabic ? "row-reverse" : "row";
@@ -62,7 +58,7 @@ export default function ForgotPasswordScreen() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
-  const [email, setEmail] = useState(initialEmail);
+  const [email, setEmail] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -192,11 +188,6 @@ export default function ForgotPasswordScreen() {
       useNativeDriver: true,
     }).start(() => {
       requestAnimationFrame(() => {
-        if (from === "settings") {
-          router.replace("/(tabs)/settings" as any);
-          return;
-        }
-
         router.replace("/login" as any);
       });
     });
@@ -254,10 +245,7 @@ export default function ForgotPasswordScreen() {
         return;
       }
 
-      smoothReplace("/auth/reset-password", {
-        email: cleanEmail,
-        ...(from === "settings" ? { from: "settings" } : {}),
-      });
+      smoothReplace("/auth/reset-password", { email: cleanEmail });
     } catch (err) {
       console.log("Forgot password unexpected error:", err);
       setErrorMessage(t.forgotUnexpectedError);
@@ -341,9 +329,6 @@ export default function ForgotPasswordScreen() {
                     <View
                       style={[
                         styles.inputWrapper,
-                        {
-                          flexDirection: rowDirection,
-                        },
                         errorMessage && styles.inputWrapperError,
                       ]}
                     >
@@ -351,12 +336,7 @@ export default function ForgotPasswordScreen() {
                         name="mail"
                         size={isVerySmallScreen ? 20 : 21}
                         color={COLORS.primary}
-                        style={[
-                          styles.inputIcon,
-                          isArabic
-                            ? { marginLeft: isVerySmallScreen ? 11 : 13, marginRight: 0 }
-                            : { marginRight: isVerySmallScreen ? 11 : 13, marginLeft: 0 },
-                        ]}
+                        style={styles.inputIcon}
                       />
 
                       <TextInput
@@ -404,24 +384,12 @@ export default function ForgotPasswordScreen() {
                     >
                       <View style={styles.resetGlassTop} />
 
-                      <View
-                        style={[
-                          styles.loadingRow,
-                          {
-                            flexDirection: rowDirection,
-                          },
-                        ]}
-                      >
+                      <View style={styles.loadingRow}>
                         {loading ? (
                           <ActivityIndicator
                             size="small"
                             color={COLORS.white}
-                            style={[
-                              styles.loadingSpinner,
-                              isArabic
-                                ? { marginLeft: 8, marginRight: 0 }
-                                : { marginRight: 8, marginLeft: 0 },
-                            ]}
+                            style={styles.loadingSpinner}
                           />
                         ) : null}
 
@@ -580,6 +548,7 @@ function createStyles({
       color: COLORS.label,
       fontSize: isVerySmallScreen ? 14.5 : 15.5,
       fontWeight: "800",
+      textAlign: "right",
       marginBottom: 10,
       includeFontPadding: false,
     },
@@ -587,25 +556,28 @@ function createStyles({
     inputWrapper: {
       width: "100%",
       height: inputHeight,
-      borderRadius: inputRadius,
+      borderRadius: 24,
       backgroundColor: COLORS.white,
-      borderWidth: 1.7,
+      borderWidth: 1,
       borderColor: COLORS.border,
-      paddingHorizontal: isVerySmallScreen ? 16 : 18,
+      paddingHorizontal: isVerySmallScreen ? 14 : 16,
+      flexDirection: "row-reverse",
       alignItems: "center",
       shadowColor: COLORS.shadowGray,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: Platform.OS === "android" ? 0.14 : 0.2,
-      shadowRadius: 4,
-      elevation: 3,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: Platform.OS === "android" ? 0.05 : 0.035,
+      shadowRadius: 6,
+      elevation: 1,
     },
 
     inputWrapperError: {
-      borderColor: "rgba(154,33,28,0.45)",
-      backgroundColor: "rgba(154,33,28,0.015)",
+      borderColor: "rgba(135,27,23,0.42)",
+      backgroundColor: "rgba(135,27,23,0.025)",
     },
 
-    inputIcon: {},
+    inputIcon: {
+      marginLeft: isVerySmallScreen ? 10 : 12,
+    },
 
     input: {
       flex: 1,
@@ -642,6 +614,7 @@ function createStyles({
       color: COLORS.primary,
       fontSize: isVerySmallScreen ? 12.8 : 13.5,
       fontWeight: "800",
+      textAlign: "right",
       lineHeight: isVerySmallScreen ? 18 : 20,
       includeFontPadding: false,
     },
@@ -691,12 +664,14 @@ function createStyles({
     },
 
     loadingRow: {
+      flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
       zIndex: 5,
     },
 
     loadingSpinner: {
+      marginRight: 8,
       transform: [{ scale: isVerySmallScreen ? 0.85 : 0.95 }],
     },
 

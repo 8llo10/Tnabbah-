@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useMemo, useRef } from "react";
+import { useLanguage } from "../../providers/LanguageProvider";
 
 const ACTIVE = "#871B17";
 const ACTIVE_DARK = "#5F130F";
@@ -81,16 +82,29 @@ function getIconData(
   }
 }
 
-function getLabel(routeName: string): string {
+function getLabel(routeName: string, language: "AR" | "EN"): string {
+  const labels = {
+    AR: {
+      home: "الرئيسية",
+      wallet: "المحفظة",
+      settings: "الإعدادات",
+    },
+    EN: {
+      home: "Home",
+      wallet: "Wallet",
+      settings: "Settings",
+    },
+  };
+
   switch (routeName) {
     case "home":
-      return "الرئيسية";
+      return labels[language].home;
 
     case "wallet":
-      return "المحفظة";
+      return labels[language].wallet;
 
     case "settings":
-      return "الإعدادات";
+      return labels[language].settings;
 
     default:
       return "";
@@ -99,6 +113,7 @@ function getLabel(routeName: string): string {
 
 function CustomTabBar({ state, navigation }: any) {
   const { width } = useWindowDimensions();
+  const { language } = useLanguage();
 
   const barWidth = width;
   const tabSlotWidth = barWidth / TAB_COUNT;
@@ -107,7 +122,7 @@ function CustomTabBar({ state, navigation }: any) {
   const activeRoute = state.routes[activeIndex];
 
   const activeIcon = getIconData(activeRoute.name, true);
-  const activeLabel = getLabel(activeRoute.name);
+  const activeLabel = getLabel(activeRoute.name, language);
 
   const activePillLeft = useMemo(() => {
     return activeIndex * tabSlotWidth + tabSlotWidth / 2 - ACTIVE_PILL_WIDTH / 2;
@@ -204,7 +219,7 @@ function CustomTabBar({ state, navigation }: any) {
           {state.routes.map((route: any) => {
             const isFocused = state.routes[state.index].key === route.key;
             const iconData = getIconData(route.name, false);
-            const label = getLabel(route.name);
+            const label = getLabel(route.name, language);
 
             return (
               <TouchableOpacity
@@ -244,6 +259,9 @@ function CustomTabBar({ state, navigation }: any) {
 }
 
 export default function TabsLayout() {
+  const { language } = useLanguage();
+  const isArabic = language === "AR";
+
   return (
     <Tabs
       initialRouteName="home"
@@ -256,9 +274,9 @@ export default function TabsLayout() {
         },
       }}
     >
-      <Tabs.Screen name="wallet" options={{ title: "المحفظة" }} />
-      <Tabs.Screen name="home" options={{ title: "الرئيسية" }} />
-      <Tabs.Screen name="settings" options={{ title: "الإعدادات" }} />
+      <Tabs.Screen name="wallet" options={{ title: isArabic ? "المحفظة" : "Wallet" }} />
+      <Tabs.Screen name="home" options={{ title: isArabic ? "الرئيسية" : "Home" }} />
+      <Tabs.Screen name="settings" options={{ title: isArabic ? "الإعدادات" : "Settings" }} />
     </Tabs>
   );
 }

@@ -344,10 +344,9 @@ export default function StartScreen() {
               style={styles.langButtonWrapper}
               activeOpacity={0.78}
               onPress={() => {
-  const nextLanguage = language === "AR" ? "EN" : "AR";
-  console.log("START CHANGE LANGUAGE TO:", nextLanguage);
-  changeLanguage(nextLanguage);
-}}
+                const nextLanguage = language === "AR" ? "EN" : "AR";
+                changeLanguage(nextLanguage);
+              }}
               disabled={isNavigating}
             >
               <LinearGradient
@@ -360,9 +359,7 @@ export default function StartScreen() {
 
                 <View style={styles.langDivider} />
 
-                <Text style={styles.langText}>
-  {t.languageButton}
-</Text>
+                <Text style={styles.langText}>{t.languageButton}</Text>
               </LinearGradient>
             </TouchableOpacity>
 
@@ -373,23 +370,23 @@ export default function StartScreen() {
             <View style={styles.textGroup}>
 
               {isArabic ? (
-  <Text style={styles.title}>
-    {t.startWelcome} <Text style={styles.titleBrand}>{t.startBrand}</Text>
-  </Text>
-) : (
-  <Text
-    style={[styles.title, styles.englishTitle]}
-    numberOfLines={1}
-  >
-    {t.startWelcome} <Text style={styles.titleBrand}>{t.startBrand}</Text>
-  </Text>
-)}
+                <Text style={styles.title}>
+                  {t.startWelcome}{" "}
+                  <Text style={styles.titleBrand}>{t.startBrand}</Text>
+                </Text>
+              ) : (
+                <Text
+                  style={[styles.title, styles.englishTitle]}
+                  numberOfLines={1}
+                >
+                  {t.startWelcome}{" "}
+                  <Text style={styles.titleBrand}>{t.startBrand}</Text>
+                </Text>
+              )}
 
               <View style={styles.titleUnderline} />
 
-              <Text style={styles.subtitle}>
-  {t.startSubtitle}
-</Text>
+              <Text style={styles.subtitle}>{t.startSubtitle}</Text>
             </View>
           </View>
 
@@ -408,9 +405,7 @@ export default function StartScreen() {
               >
                 <View style={styles.loginShine} />
 
-                <Text style={styles.loginText}>
-  {t.login}
-</Text>
+                <Text style={styles.loginText}>{t.login}</Text>
               </LinearGradient>
             </TouchableOpacity>
 
@@ -426,9 +421,7 @@ export default function StartScreen() {
                 end={{ x: 1, y: 1 }}
                 style={styles.registerGradient}
               >
-               <Text style={styles.registerText}>
-  {t.createAccount}
-</Text>
+                <Text style={styles.registerText}>{t.createAccount}</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
