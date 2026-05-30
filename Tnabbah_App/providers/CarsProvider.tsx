@@ -41,6 +41,10 @@ type CarsContextType = {
     userCars: UserCar[];
     carsLoading: boolean;
 
+    detectingCar: boolean;
+    beginDetectingCar: () => void;
+    finishDetectingCar: () => void;
+
     refreshObdState: () => Promise<void>;
     loadUserCars: () => Promise<void>;
     saveSelectedCarId: (carId: string | null) => Promise<void>;
@@ -74,6 +78,11 @@ export function CarsProvider({
 
     const [userCars, setUserCars] = useState<UserCar[]>([]);
     const [carsLoading, setCarsLoading] = useState(false);
+
+    const [detectingCar, setDetectingCar] = useState(false);
+
+    const beginDetectingCar = () => setDetectingCar(true);
+    const finishDetectingCar = () => setDetectingCar(false);
 
     /* const activeCarId =
         manualSelectedCarId ||
@@ -200,8 +209,10 @@ export function CarsProvider({
          } */
 
         if (!connected) {
+            setDetectingCar(false);
             setConnectedCarId(null);
             activeVehicleRuntime.setConnectedCarId(null);
+            setScannerRunning(false);
         }
 
     };
@@ -224,11 +235,37 @@ export function CarsProvider({
         if (error) throw error;
 
         await loadUserCars();
+
+        if (error) throw error;
+
+        await loadUserCars();
+
+        console.log("AFTER RENAME CHECK:", {
+            renamedRowId: carRowId,
+            newName: cleanName,
+            connectedCarId,
+            selectedCarId,
+            activeCarId,
+        });
     };
 
     const deleteCar = async (car: UserCar) => {
         const isConnectedCar = connectedCarId === car.car_id;
         const isSelectedCar = selectedCarId === car.car_id;
+
+        const deletedIndex = userCars.findIndex(
+            (item) => item.id === car.id
+        );
+
+        const remainingCars = userCars.filter(
+            (item) => item.id !== car.id
+        );
+
+        const fallbackCar =
+            remainingCars[deletedIndex - 1] ||
+            remainingCars[deletedIndex] ||
+            remainingCars[0] ||
+            null;
 
         if (isConnectedCar) {
             await vehicleScannerService.stopAutoScan();
@@ -240,26 +277,59 @@ export function CarsProvider({
                 console.log("MQTT disconnect while deleting car error:", error);
             }
 
+            setDetectingCar(false);
             setObdConnected(false);
             setScannerRunning(false);
             setConnectedCarId(null);
             activeVehicleRuntime.setConnectedCarId(null);
+
         }
+
+        const userId = session?.user?.id;
+
+        if (!userId) {
+            throw new Error("USER_NOT_FOUND");
+        }
+
+        const mqttResponse = await fetch(
+            `http://207.180.244.27:3300/car/${userId}/${car.car_id}`,
+            {
+                method: "DELETE",
+                headers: {
+                    "x-api-token": "tnabbah-delete-secret-2026",
+                },
+            }
+        );
+
+        const mqttText = await mqttResponse.text();
+
+        console.log("MQTT DELETE STATUS:", mqttResponse.status);
+        console.log("MQTT DELETE RESPONSE:", mqttText);
+
+        if (!mqttResponse.ok && mqttResponse.status !== 404) {
+            throw new Error("MQTT_DELETE_FAILED");
+        }
+
+        if (!mqttResponse.ok) {
+            console.log("MQTT delete warning");
+        }
+
+        const shouldMoveSelection =
+            selectedCarId === car.car_id ||
+            connectedCarId === car.car_id ||
+            activeCarId === car.car_id;
 
         const { error } = await supabase
             .from("user_cars")
-
-
-            .update({
-                is_deleted: true,
-                updated_at: new Date().toISOString(),
-            })
+            .delete()
             .eq("id", car.id);
 
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
 
-        if (isSelectedCar) {
-            await saveSelectedCarId(null);
+        if (shouldMoveSelection) {
+            await saveSelectedCarId(fallbackCar?.car_id || null);
         }
 
         await loadUserCars();
@@ -274,6 +344,7 @@ export function CarsProvider({
         await vehicleScannerService.stopAutoScan();
         await elmBluetoothService.disconnect();
         await refreshObdState();
+        setDetectingCar(false);
         activeVehicleRuntime.setConnectedCarId(null);
     };
 
@@ -333,6 +404,13 @@ export function CarsProvider({
                     try {
                         const data = payload?.data ?? payload;
 
+                        if (
+                            data?.status === "starting" ||
+                            data?.status === "full_discovery_started"
+                        ) {
+                            setDetectingCar(true);
+                        }
+
                         if (incomingCarId && realUserId) {
                             const now = new Date().toISOString();
 
@@ -344,7 +422,18 @@ export function CarsProvider({
                                     .eq("car_id", incomingCarId)
                                     .maybeSingle();
 
-                                if (existing?.is_deleted && data?.obdConnected !== true) {
+                                console.log("MQTT CAR:", incomingCarId);
+                                console.log("EXISTING:", existing);
+
+                                console.log("MQTT CAR AFTER RECONNECT:", incomingCarId);
+                                console.log("STATE AFTER RECONNECT:", {
+                                    connectedCarId: connectedCarIdRef.current,
+                                    selectedCarId,
+                                    activeCarId,
+                                });
+                                console.log("EXISTING ROW FOUND:", existing);
+
+                                /* if (existing?.is_deleted && data?.obdConnected !== true) {
                                     return;
                                 }
 
@@ -371,13 +460,60 @@ export function CarsProvider({
                                     });
                                 }
 
-                                if (data?.obdConnected === true) {
+                                if (
+                                    data?.obdConnected === true &&
+                                    incomingCarId !== connectedCarIdRef.current
+                                ) {
                                     await loadUserCars(false);
+                                }يرئر */
+
+                                if (existing?.is_deleted) {
+                                    return;
                                 }
+
+                                if (existing?.id) {
+                                    await supabase
+                                        .from("user_cars")
+                                        .update({
+                                            updated_at: now,
+                                            ...(data?.obdConnected === true
+                                                ? { last_connected_at: now }
+                                                : {}),
+                                        })
+                                        .eq("id", existing.id);
+
+                                    if (data?.obdConnected === true) {
+                                        await loadUserCars(false);
+                                        console.log("RELOADED CARS");
+                                    }
+                                } else {
+                                    await supabase.from("user_cars").insert({
+                                        user_id: realUserId,
+                                        car_id: incomingCarId,
+                                        is_deleted: false,
+                                        updated_at: now,
+                                        ...(data?.obdConnected === true
+                                            ? { last_connected_at: now }
+                                            : {}),
+                                    });
+
+                                    console.log("INSERTED:", incomingCarId);
+
+                                    if (data?.obdConnected === true) {
+                                        await loadUserCars(false);
+                                        console.log("RELOADED CARS");
+                                    }
+                                }
+
+
                             })();
                         }
 
-                        if (data?.obdConnected === true && incomingCarId) {
+                        if (
+                            data?.obdConnected === true &&
+                            incomingCarId
+                        ) {
+                            /* setDetectingCar(false); */
                             setConnectedCarId(incomingCarId);
                             activeVehicleRuntime.setConnectedCarId(incomingCarId);
 
@@ -387,16 +523,17 @@ export function CarsProvider({
                         }
 
                         if (data?.obdConnected === false && incomingCarId) {
+                            setDetectingCar(false);
                             if (
                                 connectedCarIdRef.current &&
                                 incomingCarId === connectedCarIdRef.current
                             ) {
                                 setConnectedCarId(null);
                                 activeVehicleRuntime.setConnectedCarId(null);
-                            }
 
-                            setObdConnected(false);
-                            setScannerRunning(false);
+                                setObdConnected(false);
+                                setScannerRunning(false);
+                            }
                         }
                     } catch (error) {
                         console.log("CarsProvider MQTT message parse error:", error);
@@ -452,6 +589,9 @@ export function CarsProvider({
 
                 stopScanner,
                 disconnectObd,
+                detectingCar,
+                beginDetectingCar,
+                finishDetectingCar,
             }}
         >
             {children}

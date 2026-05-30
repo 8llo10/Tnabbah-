@@ -32,7 +32,7 @@ export const activeVehicleRuntime = {
     setConnectedCarId(carId: string | null) {
         connectedCarId = carId;
 
-        if (carId) {
+        if (carId && selectedCarId !== carId) {
             selectedCarId = carId;
         }
 
