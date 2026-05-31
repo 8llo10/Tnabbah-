@@ -1,0 +1,8 @@
+node_modules/
+venv/
+.venv/
+.env
+*.log
+__pycache__/
+*.pyc
+passwd
