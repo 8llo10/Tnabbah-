@@ -1,0 +1,16 @@
+{
+  "name": "tnabbah-cortex",
+  "version": "1.0.0",
+  "description": "Tnabbah Cortex AI vehicle analyzer",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "mqtt": "^5.15.1"
+  }
+}
