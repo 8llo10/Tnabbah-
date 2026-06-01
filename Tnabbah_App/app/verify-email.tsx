@@ -15,24 +15,38 @@ import {
   Animated,
   Easing,
   StatusBar,
+  ScrollView,
+  PermissionsAndroid,
 } from "react-native";
 import { supabase } from "../lib/supabase";
+import * as Notifications from "expo-notifications";
+import { elmBluetoothService } from "@/services/elmBluetoothService";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import LottieView from "lottie-react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  Alexandria_400Regular,
+  Alexandria_600SemiBold,
+  Alexandria_700Bold,
+  Alexandria_800ExtraBold,
+  useFonts,
+} from "@expo-google-fonts/alexandria";
 import { useLanguage } from "../providers/LanguageProvider";
+import { useAppSettings } from "../providers/AppSettingsProvider";
 
 const OTP_DIGITS = 8;
 const RESEND_COOLDOWN = 60;
 
-const COLORS = {
+const LIGHT_COLORS = {
   screenBackground: "#FFFFFF",
+  nextScreenBackground: "#FFFFFF",
 
   primary: "#9A211C",
   primaryDark: "#761713",
-  primaryText: "#871B17",
+  primaryText: "#9A211C",
 
-  title: "#7B1714",
+  title: "#202020",
   textDark: "#2C2C2C",
   inputText: "#2E1D1D",
 
@@ -44,19 +58,107 @@ const COLORS = {
   shadowGray: "#8E8E8E",
   white: "#FFFFFF",
 
+  error: "#D32F2F",
+  errorSoft: "rgba(211,47,47,0.075)",
+  errorBorder: "rgba(211,47,47,0.68)",
+
   success: "#2E7D32",
+
+  inputBackground: "#FFFFFF",
+  otpBackground: "#FFFFFF",
+  otpFilledBackground: "rgba(154,33,28,0.055)",
+  otpFocusedBackground: "rgba(154,33,28,0.08)",
+  otpFilledBorder: "rgba(154,33,28,0.48)",
+
+  timerBackground: "#F5F5F5",
+  timerBorder: "rgba(170,170,170,0.45)",
+  timerText: "#6C5B58",
+
+  resendQuestion: "rgba(87, 87, 87, 1)",
+
+  overlayBackground: "rgba(0,0,0,0.30)",
+  successBoxBackground: "rgba(255,255,255,0.96)",
+  successBoxBorder: "rgba(154,33,28,0.16)",
+  blurTint: "light" as const,
+
+  titleShadow: "rgba(255,255,255,0.95)",
+  subtitleShadow: "rgba(255,255,255,0.90)",
 };
+
+const DARK_COLORS = {
+  screenBackground: "#151515",
+  nextScreenBackground: "#151515",
+
+  primary: "#B63A34",
+  primaryDark: "#871B17",
+  primaryText: "#C8564E",
+
+  title: "#FFFFFF",
+  textDark: "#FFFFFF",
+  inputText: "#FFFFFF",
+
+  label: "#D6C7C3",
+  muted: "#C7C7C7",
+  placeholder: "#8E8E8E",
+  border: "#383838",
+
+  shadowGray: "#000000",
+  white: "#FFFFFF",
+
+  error: "#EF7676",
+  errorSoft: "rgba(239,118,118,0.10)",
+  errorBorder: "rgba(239,118,118,0.45)",
+
+  success: "#66BB6A",
+
+  inputBackground: "#202020",
+  otpBackground: "#202020",
+  otpFilledBackground: "rgba(182,58,52,0.14)",
+  otpFocusedBackground: "rgba(182,58,52,0.20)",
+  otpFilledBorder: "rgba(182,58,52,0.46)",
+
+  timerBackground: "#202020",
+  timerBorder: "#383838",
+  timerText: "#D6C7C3",
+
+  resendQuestion: "#C7C7C7",
+
+  overlayBackground: "rgba(0,0,0,0.58)",
+  successBoxBackground: "rgba(32,32,32,0.96)",
+  successBoxBorder: "rgba(182,58,52,0.20)",
+  blurTint: "dark" as const,
+
+  titleShadow: "rgba(0,0,0,0)",
+  subtitleShadow: "rgba(0,0,0,0)",
+};
+
+type AppColors = typeof LIGHT_COLORS | typeof DARK_COLORS;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
+
+const FONT_REGULAR = "Alexandria_400Regular";
+const FONT_SEMIBOLD = "Alexandria_600SemiBold";
+const FONT_BOLD = "Alexandria_700Bold";
+const FONT_EXTRABOLD = "Alexandria_800ExtraBold";
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { t, isArabic } = useLanguage();
+  const { darkModeEnabled } = useAppSettings();
+  const [fontsLoaded] = useFonts({
+    Alexandria_400Regular,
+    Alexandria_600SemiBold,
+    Alexandria_700Bold,
+    Alexandria_800ExtraBold,
+  });
+
+  const COLORS = darkModeEnabled ? DARK_COLORS : LIGHT_COLORS;
 
   const textAlign = isArabic ? "right" : "left";
   const rowDirection = isArabic ? "row-reverse" : "row";
+  const iconMargin = isArabic ? { marginLeft: 10 } : { marginRight: 10 };
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -86,11 +188,18 @@ export default function VerifyEmailScreen() {
   const [resendTimer, setResendTimer] = useState(RESEND_COOLDOWN);
 
   const transitionAnim = useRef(new Animated.Value(0)).current;
+  const emailSentLottieRef = useRef<LottieView>(null);
+
+  const successCardScale = useRef(new Animated.Value(0.88)).current;
+  const successCardOpacity = useRef(new Animated.Value(0)).current;
+  const successIconScale = useRef(new Animated.Value(0.35)).current;
+  const successIconOpacity = useRef(new Animated.Value(0)).current;
 
   const isSmallScreen = height < 720;
   const isVerySmallScreen = height < 650;
+  const isTabletLike = width >= 768;
 
-  const horizontalPadding = clamp(width * 0.055, 18, 24);
+  const horizontalPadding = isTabletLike ? 24 : clamp(width * 0.055, 18, 24);
 
   const backButtonSize = isVerySmallScreen ? 42 : 46;
   const backButtonRadius = backButtonSize / 2;
@@ -107,6 +216,8 @@ export default function VerifyEmailScreen() {
   const styles = useMemo(
     () =>
       createStyles({
+        COLORS,
+        darkModeEnabled,
         horizontalPadding,
         backButtonSize,
         backButtonRadius,
@@ -121,8 +232,11 @@ export default function VerifyEmailScreen() {
         safeTop: insets.top,
         width,
         height,
+        isArabic,
       }),
     [
+      COLORS,
+      darkModeEnabled,
       horizontalPadding,
       backButtonSize,
       backButtonRadius,
@@ -137,6 +251,7 @@ export default function VerifyEmailScreen() {
       insets.top,
       width,
       height,
+      isArabic,
     ]
   );
 
@@ -154,6 +269,63 @@ export default function VerifyEmailScreen() {
 
     return () => clearInterval(interval);
   }, [resendTimer]);
+
+  useEffect(() => {
+    if (!showVerifySuccess) return;
+
+    successCardScale.setValue(0.88);
+    successCardOpacity.setValue(0);
+    successIconScale.setValue(0.35);
+    successIconOpacity.setValue(0);
+
+    Animated.parallel([
+      Animated.timing(successCardOpacity, {
+        toValue: 1,
+        duration: 160,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.spring(successCardScale, {
+        toValue: 1,
+        friction: 7,
+        tension: 90,
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.delay(90),
+        Animated.parallel([
+          Animated.timing(successIconOpacity, {
+            toValue: 1,
+            duration: 120,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.spring(successIconScale, {
+            toValue: 1,
+            friction: 5,
+            tension: 115,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+    ]).start();
+  }, [
+    showVerifySuccess,
+    successCardScale,
+    successCardOpacity,
+    successIconScale,
+    successIconOpacity,
+  ]);
+
+  useEffect(() => {
+    emailSentLottieRef.current?.reset();
+
+    const playTimer = setTimeout(() => {
+      emailSentLottieRef.current?.play();
+    }, 120);
+
+    return () => clearTimeout(playTimer);
+  }, []);
 
   const smoothReplace = (path: string) => {
     Animated.timing(transitionAnim, {
@@ -263,6 +435,48 @@ export default function VerifyEmailScreen() {
     animateBox(index, 1);
   };
 
+  const requestAndroidBluetoothPermissions = async () => {
+    if (Platform.OS !== "android") return;
+
+    try {
+      if (Number(Platform.Version) >= 31) {
+        await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        ]);
+
+        return;
+      }
+
+      await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+      );
+    } catch (permissionError) {
+      console.log("Android Bluetooth permission error:", permissionError);
+    }
+  };
+
+  const requestPostVerifyPermissions = async () => {
+    try {
+      await Notifications.requestPermissionsAsync();
+    } catch (notificationError) {
+      console.log("Notification permission error:", notificationError);
+    }
+
+    try {
+      if (Platform.OS === "android") {
+        await requestAndroidBluetoothPermissions();
+      }
+
+      if (Platform.OS === "ios") {
+        await elmBluetoothService.manager.state();
+      }
+    } catch (bluetoothError) {
+      console.log("Bluetooth permission check error:", bluetoothError);
+    }
+  };
+
   const handleVerifyCode = async () => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanCode = otpCode.trim();
@@ -311,13 +525,15 @@ export default function VerifyEmailScreen() {
       setFocusedIndex(null);
       setShowVerifySuccess(true);
 
-      setTimeout(() => {
+      setTimeout(async () => {
         if (source === "forgot-password") {
           smoothReplace("/forgot-password");
-        } else {
-          smoothReplace("/login");
+          return;
         }
-      }, 2000);
+
+        await requestPostVerifyPermissions();
+        smoothReplace("/connection-intro");
+      }, 1400);
     } catch (err) {
       console.log(err);
       setErrorMessage(t.verifyUnexpectedError);
@@ -379,8 +595,13 @@ export default function VerifyEmailScreen() {
     if (errorMessage) {
       return (
         <View style={[styles.messageBoxError, { flexDirection: rowDirection }]}>
-          <Ionicons name="alert-circle" size={24} color={COLORS.primaryText} />
-          <Text style={[styles.messageTextError, { textAlign }]}>
+          <Ionicons
+            name="alert-circle"
+            size={14}
+            color={COLORS.error}
+            style={iconMargin}
+          />
+          <Text style={[styles.messageTextError, { textAlign }]} allowFontScaling={false}>
             {errorMessage}
           </Text>
         </View>
@@ -390,8 +611,13 @@ export default function VerifyEmailScreen() {
     if (infoMessage) {
       return (
         <View style={[styles.messageBoxInfo, { flexDirection: rowDirection }]}>
-          <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
-          <Text style={[styles.messageTextInfo, { textAlign }]}>
+          <Ionicons
+            name="checkmark-circle"
+            size={14}
+            color={COLORS.success}
+            style={iconMargin}
+          />
+          <Text style={[styles.messageTextInfo, { textAlign }]} allowFontScaling={false}>
             {infoMessage}
           </Text>
         </View>
@@ -406,7 +632,7 @@ export default function VerifyEmailScreen() {
       return (
         <View style={[styles.timerBox, { flexDirection: rowDirection }]}>
           <Ionicons name="time-outline" size={24} color={COLORS.primary} />
-          <Text style={styles.timerText}>
+          <Text style={styles.timerText} allowFontScaling={false}>
             {t.resendAfter} {resendTimer} {t.seconds}
           </Text>
         </View>
@@ -415,20 +641,24 @@ export default function VerifyEmailScreen() {
 
     return (
       <View style={[styles.resendRow, { flexDirection: rowDirection }]}>
-        <Text style={styles.resendQuestion}>{t.didNotReceiveCode}</Text>
+        <Text style={styles.resendQuestion} allowFontScaling={false}>{t.didNotReceiveCode}</Text>
 
         <TouchableOpacity
           activeOpacity={0.75}
           onPress={handleResendCode}
           disabled={loading || resending}
         >
-          <Text style={styles.resendText}>
+          <Text style={styles.resendText} allowFontScaling={false}>
             {resending ? t.resendingCode : t.resendCode}
           </Text>
         </TouchableOpacity>
       </View>
     );
   };
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   return (
     <View style={styles.container}>
@@ -437,7 +667,7 @@ export default function VerifyEmailScreen() {
       <StatusBar
         translucent
         backgroundColor="transparent"
-        barStyle="dark-content"
+        barStyle={darkModeEnabled ? "light-content" : "dark-content"}
       />
 
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
@@ -447,150 +677,188 @@ export default function VerifyEmailScreen() {
           keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 16}
         >
           <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}>
-            <View style={styles.screenContent}>
-              <View style={styles.backArea}>
-                <TouchableOpacity
-                  style={styles.backButtonWrapper}
-                  activeOpacity={0.85}
-                  onPress={() => router.back()}
-                  disabled={loading || resending}
-                >
-                  <Ionicons
-                    name="arrow-back-outline"
-                    size={isVerySmallScreen ? 23 : 25}
-                    color={COLORS.textDark}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.titleArea}>
-                <Text style={styles.title}>{t.verifyEmailTitle}</Text>
-
-                <Text style={styles.subtitle}>{t.verifyEmailSubtitle}</Text>
-
-                <Text style={styles.emailText}>{email || t.emailFallback}</Text>
-              </View>
-
-              <View style={styles.otpArea}>
-                <Text style={[styles.inputLabel, { textAlign }]}>
-                  {t.enterCode}
-                </Text>
-
-                <View style={styles.otpRow}>
-                  {otpValues.map((digit, index) => {
-                    const isFocused = focusedIndex === index;
-                    const isFilled = !!digit;
-                    const hasError = !!errorMessage;
-
-                    return (
-                      <Animated.View
-                        key={index}
-                        style={[
-                          styles.otpBoxWrapper,
-                          {
-                            transform: [{ scale: boxScales[index] }],
-                          },
-                          isFilled && styles.otpBoxFilled,
-                          isFocused && styles.otpBoxFocused,
-                          hasError && styles.otpBoxError,
-                        ]}
-                      >
-                        <TextInput
-                          ref={(ref) => {
-                            otpRefs.current[index] = ref;
-                          }}
-                          style={[
-                            styles.otpInput,
-                            isFilled && styles.otpInputFilled,
-                          ]}
-                          value={digit}
-                          onChangeText={(text) => handleOtpChange(text, index)}
-                          onKeyPress={({ nativeEvent }) =>
-                            handleOtpKeyPress(nativeEvent.key, index)
-                          }
-                          onFocus={() => handleFocus(index)}
-                          onBlur={() => handleBlur(index)}
-                          keyboardType="number-pad"
-                          maxLength={index === 0 ? OTP_DIGITS : 1}
-                          textAlign="center"
-                          autoCorrect={false}
-                          autoCapitalize="none"
-                          selectionColor={COLORS.primaryDark}
-                          editable={!loading && !resending}
-                        />
-                      </Animated.View>
-                    );
-                  })}
+            <ScrollView
+              style={styles.screenScroll}
+              contentContainerStyle={styles.screenScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
+              <View style={styles.innerContent}>
+                <View style={styles.backArea}>
+                  <TouchableOpacity
+                    style={styles.backButtonWrapper}
+                    activeOpacity={0.85}
+                    onPress={() => router.back()}
+                    disabled={loading || resending}
+                  >
+                    <Ionicons
+                      name={isArabic ? "arrow-forward-outline" : "arrow-back-outline"}
+                      size={isVerySmallScreen ? 23 : 25}
+                      color={COLORS.textDark}
+                    />
+                  </TouchableOpacity>
                 </View>
 
-                {renderMessage()}
-              </View>
+                <View style={styles.emailSentAnimationWrapper}>
+                  <LottieView
+                    ref={emailSentLottieRef}
+                    source={require("../assets/animations/email-sent.json")}
+                    autoPlay
+                    loop
+                    style={styles.emailSentAnimation}
+                  />
+                </View>
 
-              <View style={styles.bottomArea}>
-                <TouchableOpacity
-                  style={[
-                    styles.mainButtonWrapper,
-                    loading && styles.mainButtonDisabled,
-                  ]}
-                  onPress={handleVerifyCode}
-                  disabled={loading || resending || showVerifySuccess}
-                  activeOpacity={0.9}
-                >
-                  <LinearGradient
-                    colors={[
-                      "rgba(154,33,28,0.98)",
-                      "rgba(118,23,19,0.98)",
+                <View style={styles.titleArea}>
+                  <Text style={styles.title} allowFontScaling={false}>{t.verifyEmailTitle}</Text>
+
+                  <Text style={styles.subtitle} allowFontScaling={false}>{t.verifyEmailSubtitle}</Text>
+
+                  <Text style={styles.emailText} allowFontScaling={false}>{email || t.emailFallback}</Text>
+                </View>
+
+                <View style={styles.otpArea}>
+                  <Text style={[styles.inputLabel, { textAlign }]} allowFontScaling={false}>
+                    {t.enterCode}
+                  </Text>
+
+                  <View style={styles.otpRow}>
+                    {otpValues.map((digit, index) => {
+                      const isFocused = focusedIndex === index;
+                      const isFilled = !!digit;
+                      const hasError = !!errorMessage;
+
+                      return (
+                        <Animated.View
+                          key={index}
+                          style={[
+                            styles.otpBoxWrapper,
+                            {
+                              transform: [{ scale: boxScales[index] }],
+                            },
+                            isFilled && styles.otpBoxFilled,
+                            isFocused && styles.otpBoxFocused,
+                            hasError && styles.otpBoxError,
+                          ]}
+                        >
+                          <TextInput
+                            allowFontScaling={false}
+                            ref={(ref) => {
+                              otpRefs.current[index] = ref;
+                            }}
+                            style={[
+                              styles.otpInput,
+                              isFilled && styles.otpInputFilled,
+                              hasError && styles.otpInputError,
+                            ]}
+                            value={digit}
+                            onChangeText={(text) => handleOtpChange(text, index)}
+                            onKeyPress={({ nativeEvent }) =>
+                              handleOtpKeyPress(nativeEvent.key, index)
+                            }
+                            onFocus={() => handleFocus(index)}
+                            onBlur={() => handleBlur(index)}
+                            keyboardType="number-pad"
+                            maxLength={index === 0 ? OTP_DIGITS : 1}
+                            textAlign="center"
+                            autoCorrect={false}
+                            autoCapitalize="none"
+                            selectionColor={COLORS.primary}
+                            editable={!loading && !resending}
+                          />
+                        </Animated.View>
+                      );
+                    })}
+                  </View>
+
+                  {renderMessage()}
+                </View>
+
+                <View style={styles.bottomArea}>
+                  <TouchableOpacity
+                    style={[
+                      styles.mainButtonWrapper,
+                      loading && styles.mainButtonDisabled,
                     ]}
-                    start={{ x: 0.15, y: 0 }}
-                    end={{ x: 0.9, y: 1 }}
-                    style={styles.buttonGradient}
+                    onPress={handleVerifyCode}
+                    disabled={loading || resending || showVerifySuccess}
+                    activeOpacity={0.9}
                   >
-                    <View style={styles.buttonGlassTop} />
+                    <LinearGradient
+                      colors={[
+                        COLORS.primary,
+                        COLORS.primaryDark,
+                      ]}
+                      start={{ x: 0.15, y: 0 }}
+                      end={{ x: 0.9, y: 1 }}
+                      style={styles.buttonGradient}
+                    >
+                      <View style={styles.buttonGlassTop} />
 
-                    <View style={styles.loadingRow}>
-                      {loading ? (
-                        <ActivityIndicator
-                          size="small"
-                          color={COLORS.white}
-                          style={styles.loadingSpinner}
-                        />
-                      ) : null}
+                      <View style={styles.loadingRow}>
+                        {loading ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={COLORS.white}
+                            style={styles.loadingSpinner}
+                          />
+                        ) : null}
 
-                      <Text style={styles.buttonText}>
-                        {loading ? t.verifying : t.verifyCode}
-                      </Text>
-                    </View>
-                  </LinearGradient>
-                </TouchableOpacity>
+                        <Text style={styles.buttonText} allowFontScaling={false}>
+                          {loading ? t.verifying : t.verifyCode}
+                        </Text>
+                      </View>
+                    </LinearGradient>
+                  </TouchableOpacity>
 
-                {renderResendArea()}
+                  {renderResendArea()}
+                </View>
               </View>
-            </View>
+            </ScrollView>
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </SafeAreaView>
 
       {showVerifySuccess ? (
         <View style={styles.verifySuccessOverlay} pointerEvents="none">
-          <View style={styles.verifySuccessBox}>
-            <Ionicons
-              name="checkmark-circle"
-              size={58}
-              color={COLORS.success}
-            />
+          <Animated.View
+            style={[
+              styles.verifySuccessBox,
+              {
+                opacity: successCardOpacity,
+                transform: [{ scale: successCardScale }],
+              },
+            ]}
+          >
+            <Animated.View
+              style={[
+                styles.verifySuccessIconWrap,
+                {
+                  opacity: successIconOpacity,
+                  transform: [{ scale: successIconScale }],
+                },
+              ]}
+            >
+              <Ionicons
+                name="checkmark-circle"
+                size={74}
+                color={COLORS.success}
+              />
+            </Animated.View>
 
-            <Text style={styles.verifySuccessTitle}>
+            <Text style={styles.verifySuccessTitle} allowFontScaling={false}>
               {source === "forgot-password"
-                ? "تم التحقق من الرمز بنجاح"
-                : "تم التحقق من بريدك الإلكتروني بنجاح"}
+                ? "تم التحقق بنجاح"
+                : "تم التحقق من بريدك"}
             </Text>
 
-            <Text style={styles.verifySuccessSubtitle}>
+            <Text style={styles.verifySuccessSubtitle} allowFontScaling={false}>
               {source === "forgot-password"
-                ? "سيتم توجيهك لإعادة تعيين كلمة المرور"
-                : "سيتم توجيهك لتسجيل الدخول"}
+                ? "سيتم نقلك لإعادة تعيين كلمة المرور"
+                : "سيتم نقلك للخطوة التالية الآن"}
             </Text>
-          </View>
+          </Animated.View>
         </View>
       ) : null}
 
@@ -608,6 +876,8 @@ export default function VerifyEmailScreen() {
 }
 
 function createStyles({
+  COLORS,
+  darkModeEnabled,
   horizontalPadding,
   backButtonSize,
   backButtonRadius,
@@ -622,7 +892,10 @@ function createStyles({
   safeTop,
   width,
   height,
+  isArabic,
 }: {
+  COLORS: AppColors;
+  darkModeEnabled: boolean;
   horizontalPadding: number;
   backButtonSize: number;
   backButtonRadius: number;
@@ -637,6 +910,7 @@ function createStyles({
   safeTop: number;
   width: number;
   height: number;
+  isArabic: boolean;
 }) {
   return StyleSheet.create({
     container: {
@@ -655,20 +929,33 @@ function createStyles({
       backgroundColor: COLORS.screenBackground,
     },
 
-    screenContent: {
+    screenScroll: {
       flex: 1,
-      paddingHorizontal: horizontalPadding,
-      paddingTop: topSpacing,
-      paddingBottom: bottomSpacing,
       backgroundColor: COLORS.screenBackground,
+    },
+
+    screenScrollContent: {
+      flexGrow: 1,
+      paddingHorizontal: horizontalPadding,
+      paddingTop: isVerySmallScreen ? 0 : 2,
+      paddingBottom: bottomSpacing + 8,
+      backgroundColor: COLORS.screenBackground,
+      alignItems: "center",
+    },
+
+    innerContent: {
+      flexGrow: 1,
+      width: "100%",
+      maxWidth: 430,
+      alignSelf: "center",
     },
 
     backArea: {
       width: "100%",
-      paddingTop: safeTop + 2,
-      alignItems: "flex-start",
+      paddingTop: safeTop,
+      alignItems: isArabic ? "flex-end" : "flex-start",
       justifyContent: "center",
-      marginBottom: isVerySmallScreen ? 18 : 22,
+      marginBottom: isVerySmallScreen ? -8 : -12,
     },
 
     backButtonWrapper: {
@@ -683,58 +970,77 @@ function createStyles({
       elevation: 0,
     },
 
+    emailSentAnimationWrapper: {
+      width: "100%",
+      height: isVerySmallScreen ? 104 : 118,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: isVerySmallScreen ? -10 : -16,
+      marginBottom: isVerySmallScreen ? -6 : -8,
+    },
+
+    emailSentAnimation: {
+      width: isVerySmallScreen ? 138 : 160,
+      height: isVerySmallScreen ? 138 : 160,
+    },
+
     titleArea: {
       width: "100%",
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: isVerySmallScreen ? 24 : isSmallScreen ? 30 : 34,
+      marginTop: isVerySmallScreen ? -2 : -4,
+      marginBottom: isVerySmallScreen ? 10 : isSmallScreen ? 13 : 15,
       paddingHorizontal: clamp(width * 0.02, 8, 14),
     },
 
     title: {
-      fontSize: isVerySmallScreen ? 24 : isSmallScreen ? 26 : 27,
-      fontWeight: "900",
+      fontFamily: FONT_EXTRABOLD,
+      fontSize: isVerySmallScreen ? 23 : isSmallScreen ? 25 : 27,
       color: COLORS.title,
+      
       textAlign: "center",
-      letterSpacing: -0.4,
-      lineHeight: isVerySmallScreen ? 33 : 37,
-      textShadowColor: "rgba(255,255,255,0.95)",
-      textShadowOffset: { width: 0, height: 2 },
-      textShadowRadius: 12,
+      letterSpacing: -0.35,
+      lineHeight: isVerySmallScreen ? 32 : isSmallScreen ? 35 : 38,
+      textShadowColor: COLORS.titleShadow,
+      textShadowOffset: { width: 0, height: darkModeEnabled ? 0 : 2 },
+      textShadowRadius: darkModeEnabled ? 0 : 12,
     },
 
     subtitle: {
-      marginTop: isVerySmallScreen ? 9 : 12,
-      fontSize: isVerySmallScreen ? 14.5 : 15.5,
-      lineHeight: isVerySmallScreen ? 22 : 25,
-      color: "#6C5B58",
-      fontWeight: "800",
+      fontFamily: FONT_SEMIBOLD,
+      marginTop: isVerySmallScreen ? 7 : 9,
+      fontSize: isVerySmallScreen ? 12.2 : 13.2,
+      lineHeight: isVerySmallScreen ? 20 : 22,
+      color: COLORS.placeholder,
       textAlign: "center",
       maxWidth: clamp(width * 0.9, 300, 360),
-      textShadowColor: "rgba(255,255,255,0.90)",
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 10,
+      textShadowColor: COLORS.subtitleShadow,
+      textShadowOffset: { width: 0, height: darkModeEnabled ? 0 : 1 },
+      textShadowRadius: darkModeEnabled ? 0 : 10,
     },
 
     emailText: {
-      marginTop: 8,
-      fontSize: isVerySmallScreen ? 14 : 15,
-      color: COLORS.primaryText,
-      fontWeight: "900",
+      fontFamily: FONT_BOLD,
+      marginTop: 6,
+      fontSize: isVerySmallScreen ? 13 : 14,
+      color: COLORS.primary,
       textAlign: "center",
+      lineHeight: isVerySmallScreen ? 20 : 22,
     },
 
     otpArea: {
       width: "100%",
       paddingHorizontal: 2,
+      marginTop: isVerySmallScreen ? -4 : -8,
     },
 
     inputLabel: {
+      fontFamily: FONT_BOLD,
       color: COLORS.label,
-      fontSize: isVerySmallScreen ? 14 : 15,
-      fontWeight: "800",
+      fontSize: isVerySmallScreen ? 12.6 : 13.6,
       textAlign: "right",
       marginBottom: 9,
+      lineHeight: isVerySmallScreen ? 20 : 22,
     },
 
     otpRow: {
@@ -749,103 +1055,103 @@ function createStyles({
       width: otpBoxSize,
       height: otpBoxHeight,
       borderRadius: 16,
-      backgroundColor: COLORS.white,
+      backgroundColor: COLORS.otpBackground,
       borderWidth: 1.7,
       borderColor: COLORS.border,
       justifyContent: "center",
       alignItems: "center",
       shadowColor: COLORS.shadowGray,
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: Platform.OS === "android" ? 0.14 : 0.2,
+      shadowOpacity: darkModeEnabled ? 0.1 : Platform.OS === "android" ? 0.14 : 0.2,
       shadowRadius: 4,
-      elevation: 3,
+      elevation: darkModeEnabled ? 1 : 3,
     },
 
     otpBoxFilled: {
-      borderColor: "rgba(154,33,28,0.48)",
-      backgroundColor: "rgba(154,33,28,0.055)",
+      borderColor: COLORS.otpFilledBorder,
+      backgroundColor: COLORS.otpFilledBackground,
     },
 
     otpBoxFocused: {
       borderColor: COLORS.primary,
-      backgroundColor: "rgba(154,33,28,0.08)",
+      backgroundColor: COLORS.otpFocusedBackground,
       shadowColor: COLORS.primaryDark,
       shadowOffset: { width: 0, height: 5 },
-      shadowOpacity: Platform.OS === "android" ? 0.2 : 0.25,
+      shadowOpacity: darkModeEnabled ? 0.14 : Platform.OS === "android" ? 0.2 : 0.25,
       shadowRadius: 10,
       elevation: 6,
     },
 
     otpBoxError: {
-      borderColor: "rgba(154,33,28,0.62)",
-      backgroundColor: "rgba(154,33,28,0.055)",
+      borderColor: COLORS.errorBorder,
+      backgroundColor: COLORS.errorSoft,
+      shadowColor: COLORS.error,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: darkModeEnabled ? 0.1 : Platform.OS === "android" ? 0.13 : 0.16,
+      shadowRadius: 8,
+      elevation: 4,
     },
 
     otpInput: {
+      fontFamily: FONT_EXTRABOLD,
       width: "100%",
       height: "100%",
-      fontSize: isVerySmallScreen ? 22 : 25,
-      fontWeight: "900",
-      color: COLORS.inputText,
+      fontSize: isVerySmallScreen ? 21 : 23,
+      color: COLORS.primary,
       textAlign: "center",
       paddingVertical: 0,
       backgroundColor: "transparent",
+      letterSpacing: -0.2,
     },
 
     otpInputFilled: {
-      color: COLORS.primaryText,
+      color: COLORS.primary,
+    },
+
+    otpInputError: {
+      color: COLORS.error,
     },
 
     messagePlaceholder: {
-      height: isVerySmallScreen ? 42 : 46,
+      minHeight: isVerySmallScreen ? 28 : 32,
     },
 
     messageBoxError: {
       width: "100%",
-      minHeight: isVerySmallScreen ? 48 : 52,
-      flexDirection: "row-reverse",
+      minHeight: isVerySmallScreen ? 28 : 32,
       alignItems: "center",
+      justifyContent: "flex-start",
       marginTop: 0,
-      paddingHorizontal: isVerySmallScreen ? 14 : 16,
-      paddingVertical: isVerySmallScreen ? 9 : 10,
-      borderRadius: 22,
-      backgroundColor: "#F5F5F5",
-      borderWidth: 1.1,
-      borderColor: "rgba(170,170,170,0.45)",
-      gap: 7,
+      paddingHorizontal: 8,
     },
 
     messageBoxInfo: {
       width: "100%",
-      minHeight: isVerySmallScreen ? 48 : 52,
-      flexDirection: "row-reverse",
+      minHeight: isVerySmallScreen ? 28 : 32,
       alignItems: "center",
+      justifyContent: "flex-start",
       marginTop: 0,
-      paddingHorizontal: isVerySmallScreen ? 14 : 16,
-      paddingVertical: isVerySmallScreen ? 9 : 10,
-      borderRadius: 22,
-      backgroundColor: "#F5F5F5",
-      borderWidth: 1.1,
-      borderColor: "rgba(170,170,170,0.45)",
-      gap: 7,
+      paddingHorizontal: 8,
     },
 
     messageTextInfo: {
-      color: "#6C5B58",
-      fontSize: isVerySmallScreen ? 13.8 : 15,
-      fontWeight: "900",
-      textAlign: "right",
-      flex: 1,
-      lineHeight: isVerySmallScreen ? 19 : 21,
-    },
-
-    messageTextError: {
-      color: COLORS.primary,
-      fontSize: isVerySmallScreen ? 12.8 : 13.5,
-      fontWeight: "800",
+      fontFamily: FONT_SEMIBOLD,
+      color: COLORS.success,
+      fontSize: isVerySmallScreen ? 12.2 : 13,
       textAlign: "right",
       flex: 1,
       lineHeight: isVerySmallScreen ? 18 : 20,
+      includeFontPadding: false,
+    },
+
+    messageTextError: {
+      fontFamily: FONT_SEMIBOLD,
+      color: COLORS.error,
+      fontSize: isVerySmallScreen ? 12.2 : 13,
+      textAlign: "right",
+      flex: 1,
+      lineHeight: isVerySmallScreen ? 18 : 20,
+      includeFontPadding: false,
     },
 
     bottomArea: {
@@ -860,9 +1166,9 @@ function createStyles({
       height: buttonHeight,
       borderRadius: buttonRadius,
       overflow: "hidden",
-      shadowColor: "#6E1411",
+      shadowColor: COLORS.primaryDark,
       shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
+      shadowOpacity: darkModeEnabled ? 0.14 : Platform.OS === "android" ? 0.18 : 0.24,
       shadowRadius: 14,
       elevation: 6,
       backgroundColor: COLORS.primary,
@@ -905,11 +1211,16 @@ function createStyles({
     },
 
     buttonText: {
+      fontFamily: FONT_EXTRABOLD,
       color: COLORS.white,
       textAlign: "center",
-      fontSize: isVerySmallScreen ? 18.5 : 20,
-      fontWeight: "900",
+      fontSize: isVerySmallScreen ? 17.4 : 18.4,
       zIndex: 5,
+      lineHeight: isVerySmallScreen ? 28 : 30,
+      letterSpacing: -0.15,
+      textAlignVertical: "center",
+      paddingTop: Platform.OS === "ios" ? 1 : 0,
+      paddingBottom: Platform.OS === "ios" ? 1 : 0,
     },
 
     timerBox: {
@@ -919,9 +1230,9 @@ function createStyles({
       paddingHorizontal: isVerySmallScreen ? 14 : 16,
       paddingVertical: isVerySmallScreen ? 9 : 10,
       borderRadius: 22,
-      backgroundColor: "#F5F5F5",
+      backgroundColor: COLORS.timerBackground,
       borderWidth: 1.1,
-      borderColor: "rgba(170,170,170,0.45)",
+      borderColor: COLORS.timerBorder,
       flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "center",
@@ -929,10 +1240,10 @@ function createStyles({
     },
 
     timerText: {
+      fontFamily: FONT_SEMIBOLD,
       flexShrink: 1,
-      color: "#6C5B58",
-      fontSize: isVerySmallScreen ? 13.8 : 15,
-      fontWeight: "900",
+      color: COLORS.timerText,
+      fontSize: isVerySmallScreen ? 12.8 : 14,
       textAlign: "center",
       lineHeight: isVerySmallScreen ? 19 : 21,
     },
@@ -947,22 +1258,26 @@ function createStyles({
     },
 
     resendQuestion: {
-      color: "rgba(87, 87, 87, 1)",
-      fontSize: isVerySmallScreen ? 16 : 17,
-      fontWeight: "700",
+      fontFamily: FONT_REGULAR,
+      color: COLORS.resendQuestion,
+      fontSize: isVerySmallScreen ? 14.2 : 15.2,
+      lineHeight: isVerySmallScreen ? 22 : 24,
     },
 
     resendText: {
-      color: COLORS.primaryText,
-      fontSize: isVerySmallScreen ? 16 : 17,
-      fontWeight: "900",
+      fontFamily: FONT_BOLD,
+      color: COLORS.primary,
+      fontSize: isVerySmallScreen ? 14.2 : 15.2,
       textDecorationLine: "none",
+      lineHeight: isVerySmallScreen ? 22 : 24,
     },
 
     verifySuccessOverlay: {
       ...StyleSheet.absoluteFillObject,
       zIndex: 90,
-      backgroundColor: "rgba(255,255,255,0.72)",
+      backgroundColor: darkModeEnabled
+        ? "rgba(0,0,0,0.55)"
+        : "rgba(255,255,255,0.70)",
       alignItems: "center",
       justifyContent: "center",
       paddingHorizontal: 28,
@@ -970,38 +1285,57 @@ function createStyles({
 
     verifySuccessBox: {
       width: "100%",
-      maxWidth: 330,
+      maxWidth: 335,
+      minHeight: 188,
       alignItems: "center",
       justifyContent: "center",
       paddingHorizontal: 22,
-      paddingVertical: 24,
-      borderRadius: 24,
-      backgroundColor: "#F5F5F5",
-      borderWidth: 1.1,
-      borderColor: "rgba(170,170,170,0.45)",
-      shadowColor: COLORS.shadowGray,
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: Platform.OS === "android" ? 0.12 : 0.18,
-      shadowRadius: 16,
-      elevation: 8,
+      paddingTop: 26,
+      paddingBottom: 24,
+      borderRadius: 26,
+      backgroundColor: darkModeEnabled ? "#242424" : "#F7F7F7",
+      borderWidth: 1.2,
+      borderColor: darkModeEnabled
+        ? "rgba(255,255,255,0.18)"
+        : "rgba(170,170,170,0.42)",
+      shadowColor: "#000000",
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: Platform.OS === "android" ? 0.22 : 0.28,
+      shadowRadius: 22,
+      elevation: 10,
+      overflow: "visible",
+    },
+
+    verifySuccessIconWrap: {
+      width: 86,
+      height: 86,
+      borderRadius: 43,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: darkModeEnabled
+        ? "rgba(102,187,106,0.12)"
+        : "rgba(46,125,50,0.08)",
+      overflow: "visible",
     },
 
     verifySuccessTitle: {
-      marginTop: 12,
-      color: COLORS.primaryText,
-      fontSize: isVerySmallScreen ? 16 : 17,
-      fontWeight: "900",
+      fontFamily: FONT_EXTRABOLD,
+      marginTop: 14,
+      color: darkModeEnabled ? "#F6F6F6" : COLORS.primaryText,
+      fontSize: isVerySmallScreen ? 16.5 : 17.5,
       textAlign: "center",
-      lineHeight: isVerySmallScreen ? 22 : 24,
+      lineHeight: isVerySmallScreen ? 23 : 25,
+      includeFontPadding: false,
     },
 
     verifySuccessSubtitle: {
-      marginTop: 6,
-      color: "#6C5B58",
-      fontSize: isVerySmallScreen ? 13.2 : 14,
-      fontWeight: "800",
+      fontFamily: FONT_SEMIBOLD,
+      marginTop: 8,
+      color: darkModeEnabled ? "#D7D7D7" : COLORS.muted,
+      fontSize: isVerySmallScreen ? 13.5 : 14.5,
       textAlign: "center",
-      lineHeight: isVerySmallScreen ? 19 : 21,
+      lineHeight: isVerySmallScreen ? 20 : 22,
+      includeFontPadding: false,
     },
 
     transitionOverlay: {

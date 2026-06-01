@@ -31,7 +31,6 @@
         "ACCESS_FINE_LOCATION",
         "POST_NOTIFICATIONS"
       ],
-      
       "adaptiveIcon": {
         "backgroundColor": "#EFE7DE",
         "foregroundImage": "./assets/images/logoG.png"
@@ -78,7 +77,8 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-asset"
+      "expo-asset",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,

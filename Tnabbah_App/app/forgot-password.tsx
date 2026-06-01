@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Stack, useFocusEffect, useRouter } from "expo-router";
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
 
 import {
@@ -22,9 +22,17 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  Alexandria_400Regular,
+  Alexandria_600SemiBold,
+  Alexandria_700Bold,
+  Alexandria_800ExtraBold,
+  useFonts,
+} from "@expo-google-fonts/alexandria";
 import { useLanguage } from "../providers/LanguageProvider";
+import { useAppSettings } from "../providers/AppSettingsProvider";
 
-const COLORS = {
+const LIGHT_COLORS = {
   screenBackground: "#FFFFFF",
   nextScreenBackground: "#FFFFFF",
 
@@ -32,7 +40,7 @@ const COLORS = {
   primaryDark: "#761713",
   primaryText: "#871B17",
 
-  title: "#7B1714",
+  title: "#202020",
   textDark: "#2C2C2C",
   inputText: "#2E1D1D",
 
@@ -43,22 +51,84 @@ const COLORS = {
 
   shadowGray: "#000000",
   white: "#FFFFFF",
+
+  error: "#D32F2F",
+  errorSoft: "rgba(211,47,47,0.045)",
+  errorBorder: "rgba(211,47,47,0.55)",
+
+  inputBackground: "#FFFFFF",
+  inputErrorBackground: "rgba(211,47,47,0.045)",
+  titleShadow: "rgba(255,255,255,0.95)",
+  subtitleShadow: "rgba(255,255,255,0.90)",
+  overlayShadow: "#6E1411",
 };
+
+const DARK_COLORS = {
+  screenBackground: "#151515",
+  nextScreenBackground: "#151515",
+
+  primary: "#B63A34",
+  primaryDark: "#871B17",
+  primaryText: "#C8564E",
+
+  title: "#FFFFFF",
+  textDark: "#FFFFFF",
+  inputText: "#FFFFFF",
+
+  label: "#D6D6D6",
+  muted: "#C7C7C7",
+  placeholder: "#8E8E8E",
+  border: "#383838",
+
+  shadowGray: "#000000",
+  white: "#FFFFFF",
+
+  error: "#EF7676",
+  errorSoft: "rgba(239,118,118,0.10)",
+  errorBorder: "rgba(239,118,118,0.45)",
+
+  inputBackground: "#202020",
+  inputErrorBackground: "rgba(239,118,118,0.10)",
+  titleShadow: "transparent",
+  subtitleShadow: "transparent",
+  overlayShadow: "#000000",
+};
+
+type AppColors = typeof LIGHT_COLORS | typeof DARK_COLORS;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
+const FONT_REGULAR = "Alexandria_400Regular";
+const FONT_SEMIBOLD = "Alexandria_600SemiBold";
+const FONT_BOLD = "Alexandria_700Bold";
+const FONT_EXTRABOLD = "Alexandria_800ExtraBold";
+
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ email?: string; from?: string }>();
   const { t, isArabic } = useLanguage();
+  const { darkModeEnabled } = useAppSettings();
+  const [fontsLoaded] = useFonts({
+    Alexandria_400Regular,
+    Alexandria_600SemiBold,
+    Alexandria_700Bold,
+    Alexandria_800ExtraBold,
+  });
+
+  const COLORS = darkModeEnabled ? DARK_COLORS : LIGHT_COLORS;
 
   const textAlign = isArabic ? "right" : "left";
   const rowDirection = isArabic ? "row-reverse" : "row";
+  const iconMargin = isArabic ? { marginLeft: 10 } : { marginRight: 10 };
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
-  const [email, setEmail] = useState("");
+  const initialEmail = String(params.email || "").trim().toLowerCase();
+  const from = String(params.from || "");
+
+  const [email, setEmail] = useState(initialEmail);
   const [errorMessage, setErrorMessage] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -70,8 +140,9 @@ export default function ForgotPasswordScreen() {
 
   const isSmallScreen = height < 720;
   const isVerySmallScreen = height < 650;
+  const isTabletLike = width >= 768;
 
-  const horizontalPadding = clamp(width * 0.055, 18, 24);
+  const horizontalPadding = isTabletLike ? 24 : clamp(width * 0.055, 18, 24);
 
   const backButtonSize = isVerySmallScreen ? 42 : 46;
   const backButtonRadius = backButtonSize / 2;
@@ -79,8 +150,8 @@ export default function ForgotPasswordScreen() {
   const topSpacing = clamp(height * 0.008, 4, 8);
   const bottomSpacing = clamp(height * 0.014, 8, 14);
 
-  const inputHeight = isVerySmallScreen ? 58 : 62;
-  const inputRadius = inputHeight / 2;
+  const inputHeight = isVerySmallScreen ? 53 : 57;
+  const inputRadius = 22;
 
   const buttonHeight = isVerySmallScreen ? 54 : 58;
   const buttonRadius = 30;
@@ -88,6 +159,7 @@ export default function ForgotPasswordScreen() {
   const styles = useMemo(
     () =>
       createStyles({
+        COLORS,
         horizontalPadding,
         backButtonSize,
         backButtonRadius,
@@ -102,8 +174,10 @@ export default function ForgotPasswordScreen() {
         safeTop: insets.top,
         width,
         height,
+        isArabic,
       }),
     [
+      COLORS,
       horizontalPadding,
       backButtonSize,
       backButtonRadius,
@@ -118,6 +192,7 @@ export default function ForgotPasswordScreen() {
       insets.top,
       width,
       height,
+      isArabic,
     ]
   );
 
@@ -188,6 +263,11 @@ export default function ForgotPasswordScreen() {
       useNativeDriver: true,
     }).start(() => {
       requestAnimationFrame(() => {
+        if (from === "settings") {
+          router.replace("/(tabs)/settings" as any);
+          return;
+        }
+
         router.replace("/login" as any);
       });
     });
@@ -217,7 +297,6 @@ export default function ForgotPasswordScreen() {
         .select("id")
         .eq("username", cleanEmail)
         .maybeSingle();
-
       if (profileError) {
         console.log("Check email profile error:", profileError.message);
         setErrorMessage(t.forgotSendError);
@@ -245,7 +324,10 @@ export default function ForgotPasswordScreen() {
         return;
       }
 
-      smoothReplace("/auth/reset-password", { email: cleanEmail });
+      smoothReplace("/auth/reset-password", {
+        email: cleanEmail,
+        from,
+      });
     } catch (err) {
       console.log("Forgot password unexpected error:", err);
       setErrorMessage(t.forgotUnexpectedError);
@@ -258,9 +340,14 @@ export default function ForgotPasswordScreen() {
     if (errorMessage) {
       return (
         <View style={[styles.messageBox, { flexDirection: rowDirection }]}>
-          <Ionicons name="alert-circle" size={18} color={COLORS.primaryText} />
+          <Ionicons
+            name="alert-circle"
+            size={14}
+            color={COLORS.error}
+            style={iconMargin}
+          />
 
-          <Text style={[styles.messageTextError, { textAlign }]}>
+          <Text style={[styles.messageTextError, { textAlign }]} allowFontScaling={false}>
             {errorMessage}
           </Text>
         </View>
@@ -270,6 +357,10 @@ export default function ForgotPasswordScreen() {
     return <View style={styles.messagePlaceholder} />;
   };
 
+  if (!fontsLoaded) {
+    return null;
+  }
+
   return (
     <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}>
       <View style={styles.container}>
@@ -278,7 +369,7 @@ export default function ForgotPasswordScreen() {
         <StatusBar
           translucent
           backgroundColor="transparent"
-          barStyle="dark-content"
+          barStyle={darkModeEnabled ? "light-content" : "dark-content"}
         />
 
         <Animated.View
@@ -305,7 +396,7 @@ export default function ForgotPasswordScreen() {
                     disabled={isNavigating || loading}
                   >
                     <Ionicons
-                      name="arrow-back-outline"
+                      name={isArabic ? "arrow-forward-outline" : "arrow-back-outline"}
                       size={isVerySmallScreen ? 23 : 25}
                       color={COLORS.textDark}
                     />
@@ -313,22 +404,23 @@ export default function ForgotPasswordScreen() {
                 </View>
 
                 <View style={styles.titleArea}>
-                  <Text style={styles.title}>{t.forgotPasswordTitle}</Text>
+                  <Text style={styles.title} allowFontScaling={false}>{t.forgotPasswordTitle}</Text>
 
-                  <Text style={styles.subtitle}>
+                  <Text style={styles.subtitle} allowFontScaling={false}>
                     {t.forgotPasswordSubtitle}
                   </Text>
                 </View>
 
                 <View style={styles.formArea}>
                   <View style={styles.fieldGroup}>
-                    <Text style={[styles.inputLabel, { textAlign }]}>
+                    <Text style={[styles.inputLabel, { textAlign }]} allowFontScaling={false}>
                       {t.email}
                     </Text>
 
                     <View
                       style={[
                         styles.inputWrapper,
+                        { flexDirection: rowDirection },
                         errorMessage && styles.inputWrapperError,
                       ]}
                     >
@@ -336,10 +428,11 @@ export default function ForgotPasswordScreen() {
                         name="mail"
                         size={isVerySmallScreen ? 20 : 21}
                         color={COLORS.primary}
-                        style={styles.inputIcon}
+                        style={[styles.inputIcon, iconMargin]}
                       />
 
                       <TextInput
+                        allowFontScaling={false}
                         style={styles.input}
                         placeholder="example@email.com"
                         placeholderTextColor={COLORS.placeholder}
@@ -374,10 +467,7 @@ export default function ForgotPasswordScreen() {
                     activeOpacity={0.9}
                   >
                     <LinearGradient
-                      colors={[
-                        "rgba(154,33,28,0.98)",
-                        "rgba(118,23,19,0.98)",
-                      ]}
+                      colors={[COLORS.primary, COLORS.primaryDark]}
                       start={{ x: 0.15, y: 0 }}
                       end={{ x: 0.9, y: 1 }}
                       style={styles.resetGradient}
@@ -393,7 +483,7 @@ export default function ForgotPasswordScreen() {
                           />
                         ) : null}
 
-                        <Text style={styles.resetText}>
+                        <Text style={styles.resetText} allowFontScaling={false}>
                           {loading ? t.sending : t.sendCode}
                         </Text>
                       </View>
@@ -420,6 +510,7 @@ export default function ForgotPasswordScreen() {
 }
 
 function createStyles({
+  COLORS,
   horizontalPadding,
   backButtonSize,
   backButtonRadius,
@@ -434,7 +525,9 @@ function createStyles({
   safeTop,
   width,
   height,
+  isArabic,
 }: {
+  COLORS: AppColors;
   horizontalPadding: number;
   backButtonSize: number;
   backButtonRadius: number;
@@ -449,6 +542,7 @@ function createStyles({
   safeTop: number;
   width: number;
   height: number;
+  isArabic: boolean;
 }) {
   return StyleSheet.create({
     container: {
@@ -478,12 +572,15 @@ function createStyles({
       paddingTop: topSpacing,
       paddingBottom: bottomSpacing,
       backgroundColor: COLORS.screenBackground,
+      width: "100%",
+      maxWidth: 430,
+      alignSelf: "center",
     },
 
     backArea: {
       width: "100%",
       paddingTop: safeTop + 2,
-      alignItems: "flex-start",
+      alignItems: isArabic ? "flex-end" : "flex-start",
       justifyContent: "center",
       marginBottom: isVerySmallScreen ? 18 : 22,
     },
@@ -509,27 +606,27 @@ function createStyles({
     },
 
     title: {
-      fontSize: isVerySmallScreen ? 22 : isSmallScreen ? 24 : 25,
-      fontWeight: "900",
+      fontFamily: FONT_EXTRABOLD,
+      fontSize: isVerySmallScreen ? 23 : isSmallScreen ? 25 : 27,
       color: COLORS.title,
       textAlign: "center",
-      letterSpacing: -0.4,
-      lineHeight: isVerySmallScreen ? 32 : 35,
-      textShadowColor: "rgba(255,255,255,0.95)",
+      letterSpacing: -0.35,
+      lineHeight: isVerySmallScreen ? 32 : isSmallScreen ? 35 : 38,
+      textShadowColor: COLORS.titleShadow,
       textShadowOffset: { width: 0, height: 2 },
       textShadowRadius: 12,
       includeFontPadding: false,
     },
 
     subtitle: {
+      fontFamily: FONT_SEMIBOLD,
       marginTop: isVerySmallScreen ? 12 : 15,
-      fontSize: isVerySmallScreen ? 15 : 16.5,
-      lineHeight: isVerySmallScreen ? 23 : 27,
-      color: "#6C5B58",
-      fontWeight: "800",
+      fontSize: isVerySmallScreen ? 12.2 : 13.2,
+      lineHeight: isVerySmallScreen ? 20 : 22,
+      color: COLORS.placeholder,
       textAlign: "center",
       maxWidth: clamp(width * 0.9, 300, 360),
-      textShadowColor: "rgba(255,255,255,0.90)",
+      textShadowColor: COLORS.subtitleShadow,
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 10,
       includeFontPadding: false,
@@ -545,23 +642,23 @@ function createStyles({
     },
 
     inputLabel: {
+      fontFamily: FONT_BOLD,
       color: COLORS.label,
-      fontSize: isVerySmallScreen ? 14.5 : 15.5,
-      fontWeight: "800",
+      fontSize: isVerySmallScreen ? 12.6 : 13.6,
       textAlign: "right",
       marginBottom: 10,
       includeFontPadding: false,
+      lineHeight: isVerySmallScreen ? 20 : 22,
     },
 
     inputWrapper: {
       width: "100%",
       height: inputHeight,
-      borderRadius: 24,
-      backgroundColor: COLORS.white,
+      borderRadius: inputRadius,
+      backgroundColor: COLORS.inputBackground,
       borderWidth: 1,
       borderColor: COLORS.border,
       paddingHorizontal: isVerySmallScreen ? 14 : 16,
-      flexDirection: "row-reverse",
       alignItems: "center",
       shadowColor: COLORS.shadowGray,
       shadowOffset: { width: 0, height: 1 },
@@ -571,19 +668,20 @@ function createStyles({
     },
 
     inputWrapperError: {
-      borderColor: "rgba(135,27,23,0.42)",
-      backgroundColor: "rgba(135,27,23,0.025)",
+      borderColor: COLORS.errorBorder,
+      backgroundColor: COLORS.inputErrorBackground,
     },
 
     inputIcon: {
-      marginLeft: isVerySmallScreen ? 10 : 12,
+      marginLeft: 0,
+      marginRight: 0,
     },
 
     input: {
+      fontFamily: FONT_SEMIBOLD,
       flex: 1,
-      fontSize: isVerySmallScreen ? 16 : 17,
+      fontSize: isVerySmallScreen ? 14.4 : 15.4,
       color: COLORS.inputText,
-      fontWeight: "700",
       paddingVertical: 0,
       minHeight: inputHeight - 8,
       textAlignVertical: "center",
@@ -591,29 +689,24 @@ function createStyles({
     },
 
     messagePlaceholder: {
-      height: isVerySmallScreen ? 42 : 46,
-      marginTop: 8,
+      minHeight: isVerySmallScreen ? 28 : 32,
+      marginTop: 6,
     },
 
     messageBox: {
       width: "100%",
-      minHeight: isVerySmallScreen ? 48 : 52,
-      marginTop: 8,
+      minHeight: isVerySmallScreen ? 28 : 32,
+      marginTop: 6,
       alignItems: "center",
-      paddingHorizontal: isVerySmallScreen ? 14 : 16,
-      paddingVertical: isVerySmallScreen ? 9 : 10,
-      borderRadius: 22,
-      backgroundColor: "#F5F5F5",
-      borderWidth: 1.1,
-      borderColor: "rgba(170,170,170,0.45)",
-      gap: 7,
+      justifyContent: "flex-start",
+      paddingHorizontal: 8,
     },
 
     messageTextError: {
+      fontFamily: FONT_SEMIBOLD,
       flex: 1,
-      color: COLORS.primary,
-      fontSize: isVerySmallScreen ? 12.8 : 13.5,
-      fontWeight: "800",
+      color: COLORS.error,
+      fontSize: isVerySmallScreen ? 12.2 : 13,
       textAlign: "right",
       lineHeight: isVerySmallScreen ? 18 : 20,
       includeFontPadding: false,
@@ -631,7 +724,7 @@ function createStyles({
       height: buttonHeight,
       borderRadius: buttonRadius,
       overflow: "hidden",
-      shadowColor: "#6E1411",
+      shadowColor: COLORS.overlayShadow,
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
       shadowRadius: 14,
@@ -676,12 +769,17 @@ function createStyles({
     },
 
     resetText: {
+      fontFamily: FONT_EXTRABOLD,
       color: COLORS.white,
       textAlign: "center",
-      fontSize: isVerySmallScreen ? 18.5 : 20,
-      fontWeight: "900",
+      fontSize: isVerySmallScreen ? 17.4 : 18.4,
       zIndex: 5,
       includeFontPadding: false,
+      lineHeight: isVerySmallScreen ? 28 : 30,
+      letterSpacing: -0.15,
+      textAlignVertical: "center",
+      paddingTop: Platform.OS === "ios" ? 1 : 0,
+      paddingBottom: Platform.OS === "ios" ? 1 : 0,
     },
 
     transitionOverlay: {

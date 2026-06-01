@@ -1,13 +1,12 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Notifications from "expo-notifications";
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     TouchableOpacity,
     Alert,
-    Image,
     Modal,
     Platform,
     Pressable,
@@ -17,11 +16,21 @@ import {
     Text,
     useWindowDimensions,
     View,
+    Animated,
+    PanResponder,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../lib/supabase";
 import { useCars } from "../../providers/CarsProvider";
 import { useVehicleRealtime } from "../../providers/VehicleRealtimeProvider";
+import { useAppSettings } from "../../providers/AppSettingsProvider";
+import { useLanguage } from "../../providers/LanguageProvider";
+
+const FONT_REGULAR = "Alexandria-Regular";
+const FONT_SEMIBOLD = "Alexandria-SemiBold";
+const FONT_BOLD = "Alexandria-Bold";
+const FONT_EXTRABOLD = "Alexandria-Bold";
 
 const API_URL =
     process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://207.180.244.27:8001";
@@ -29,10 +38,17 @@ const API_URL =
 const CORTEX_URL =
     process.env.EXPO_PUBLIC_CORTEX_API || "http://207.180.244.27:3101";
 
-const COLORS = {
+const FLOATING_ASSISTANT_POSITION_KEY = "home_ai_assistant_position";
+const FLOATING_ASSISTANT_WIDTH = 76;
+const FLOATING_ASSISTANT_HEIGHT = 76;
+const FLOATING_ASSISTANT_MARGIN = 18;
+
+const LIGHT_COLORS = {
     primary: "#871B17",
-    primaryLight: "#9A3A33",
-    primaryDark: "#5F130F",
+    primaryLight: "#9A211C",
+    primaryDark: "#761713",
+    buttonGradientStart: "#9A211C",
+    buttonGradientEnd: "#761713",
     bg: "#FFFFFF",
     surface: "#FFFFFF",
     soft: "#F8F8F8",
@@ -43,6 +59,62 @@ const COLORS = {
     danger: "#C62828",
     warning: "#B7791F",
     success: "#1F8A4C",
+    modalOverlay: "rgba(0, 0, 0, 0.40)",
+    notificationUnreadBg: "#FFF8F8",
+    floatingBg: "#871B17",
+    floatingIcon: "#FFFFFF",
+    floatingBorder: "rgba(255,255,255,0.82)",
+    floatingTitle: "#FFFFFF",
+    floatingSubtitle: "rgba(255,255,255,0.86)",
+    floatingIconBg: "rgba(255,255,255,0.18)",
+    floatingGlow: "rgba(135,27,23,0.24)",
+    floatingGlowBorder: "rgba(135,27,23,0.32)",
+    floatingMarkBg: "rgba(255,255,255,0.18)",
+    floatingTypingBg: "#FFFFFF",
+    floatingTypingBorder: "rgba(135,27,23,0.24)",
+    floatingTypingDot: "#871B17",
+    connectedBg: "#EFFAF3",
+    connectedBorder: "#D6F0DF",
+    disconnectedBg: "#FFF1F1",
+    disconnectedBorder: "#FFD9D9",
+    rawText: "#555555",
+};
+
+const DARK_COLORS = {
+    primary: "#B63A34",
+    primaryLight: "#B63A34",
+    primaryDark: "#871B17",
+    buttonGradientStart: "#B63A34",
+    buttonGradientEnd: "#871B17",
+    bg: "#151515",
+    surface: "#202020",
+    soft: "#292929",
+    softRed: "rgba(182,58,52,0.16)",
+    border: "#383838",
+    text: "#FFFFFF",
+    muted: "#C7C7C7",
+    danger: "#B63A34",
+    warning: "#F0B45B",
+    success: "#66BB6A",
+    modalOverlay: "rgba(0, 0, 0, 0.62)",
+    notificationUnreadBg: "rgba(182,58,52,0.14)",
+    floatingBg: "#B63A34",
+    floatingIcon: "#FFFFFF",
+    floatingBorder: "rgba(255,255,255,0.30)",
+    floatingTitle: "#FFFFFF",
+    floatingSubtitle: "rgba(255,255,255,0.90)",
+    floatingIconBg: "rgba(255,255,255,0.20)",
+    floatingGlow: "rgba(182,58,52,0.30)",
+    floatingGlowBorder: "rgba(182,58,52,0.34)",
+    floatingMarkBg: "rgba(255,255,255,0.18)",
+    floatingTypingBg: "#2A2A2A",
+    floatingTypingBorder: "rgba(182,58,52,0.40)",
+    floatingTypingDot: "#B63A34",
+    connectedBg: "rgba(46,125,50,0.18)",
+    connectedBorder: "rgba(102,187,106,0.22)",
+    disconnectedBg: "rgba(182,58,52,0.12)",
+    disconnectedBorder: "rgba(182,58,52,0.32)",
+    rawText: "#D7D7D7",
 };
 
 /* type MetricState = {
@@ -104,6 +176,11 @@ function getUserDisplayName(user: any) {
 
 export default function HomeScreen() {
     const { activeCarId, obdConnected } = useCars();
+    const { darkModeEnabled } = useAppSettings();
+    const { t, isArabic } = useLanguage();
+
+    const COLORS = darkModeEnabled ? DARK_COLORS : LIGHT_COLORS;
+    const styles = useMemo(() => createStyles(COLORS, isArabic), [COLORS, isArabic]);
 
     const {
         metrics,
@@ -117,6 +194,42 @@ export default function HomeScreen() {
     } = useVehicleRealtime();
 
     const { width, height } = useWindowDimensions();
+
+    const clampFloatingPosition = (x: number, y: number) => {
+        const minX = FLOATING_ASSISTANT_MARGIN;
+        const maxX = Math.max(
+            FLOATING_ASSISTANT_MARGIN,
+            width - FLOATING_ASSISTANT_WIDTH - FLOATING_ASSISTANT_MARGIN,
+        );
+
+        const minY = Platform.OS === "ios" ? 82 : 72;
+        const bottomSafe = Platform.OS === "ios" ? 106 : 96;
+        const maxY = Math.max(
+            minY,
+            height - FLOATING_ASSISTANT_HEIGHT - bottomSafe,
+        );
+
+        return {
+            x: Math.min(Math.max(x, minX), maxX),
+            y: Math.min(Math.max(y, minY), maxY),
+        };
+    };
+
+    const defaultFloatingPosition = clampFloatingPosition(
+        width - FLOATING_ASSISTANT_WIDTH - FLOATING_ASSISTANT_MARGIN,
+        height - FLOATING_ASSISTANT_HEIGHT - (Platform.OS === "ios" ? 116 : 104),
+    );
+
+    const floatingPosition = useRef(
+        new Animated.ValueXY(defaultFloatingPosition),
+    ).current;
+
+    const floatingLastPositionRef = useRef(defaultFloatingPosition);
+    const floatingMovedRef = useRef(false);
+
+    const typingDotOne = useRef(new Animated.Value(0.35)).current;
+    const typingDotTwo = useRef(new Animated.Value(0.35)).current;
+    const typingDotThree = useRef(new Animated.Value(0.35)).current;
 
     const isLandscape = width > height;
     const isWide = width >= 760 || isLandscape;
@@ -134,10 +247,17 @@ export default function HomeScreen() {
             id: string;
             title: string;
             body: string;
+            title_ar?: string | null;
+            body_ar?: string | null;
+            title_en?: string | null;
+            body_en?: string | null;
             is_read: boolean;
             created_at: string;
         }[]
     >([]);
+    const [pendingNotificationActionIds, setPendingNotificationActionIds] = useState<
+        Set<string>
+    >(new Set());
     const [showNotifications, setShowNotifications] = useState(false);
     const [inAppNotification, setInAppNotification] =
         useState<InAppNotificationState>(null);
@@ -156,6 +276,169 @@ export default function HomeScreen() {
         const totalGap = 10 * (columns - 1);
         return (width - pagePadding - totalGap) / columns;
     }, [width, columns, isWide]);
+
+    useEffect(() => {
+        const createDotAnimation = (dot: Animated.Value, delay: number) =>
+            Animated.loop(
+                Animated.sequence([
+                    Animated.delay(delay),
+                    Animated.timing(dot, {
+                        toValue: 1,
+                        duration: 260,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(dot, {
+                        toValue: 0.35,
+                        duration: 260,
+                        useNativeDriver: true,
+                    }),
+                    Animated.delay(420),
+                ]),
+            );
+
+        const dotOneAnimation = createDotAnimation(typingDotOne, 0);
+        const dotTwoAnimation = createDotAnimation(typingDotTwo, 120);
+        const dotThreeAnimation = createDotAnimation(typingDotThree, 240);
+
+        dotOneAnimation.start();
+        dotTwoAnimation.start();
+        dotThreeAnimation.start();
+
+        return () => {
+            dotOneAnimation.stop();
+            dotTwoAnimation.stop();
+            dotThreeAnimation.stop();
+        };
+    }, [typingDotOne, typingDotTwo, typingDotThree]);
+
+    useEffect(() => {
+        let mounted = true;
+
+        const loadFloatingAssistantPosition = async () => {
+            try {
+                const savedPosition = await AsyncStorage.getItem(
+                    FLOATING_ASSISTANT_POSITION_KEY,
+                );
+
+                if (!mounted || !savedPosition) return;
+
+                const parsed = JSON.parse(savedPosition);
+                const nextPosition = clampFloatingPosition(
+                    Number(parsed?.x) || defaultFloatingPosition.x,
+                    Number(parsed?.y) || defaultFloatingPosition.y,
+                );
+
+                floatingLastPositionRef.current = nextPosition;
+                floatingPosition.setValue(nextPosition);
+            } catch (error) {
+                console.log("Load assistant position error:", error);
+                floatingLastPositionRef.current = defaultFloatingPosition;
+                floatingPosition.setValue(defaultFloatingPosition);
+            }
+        };
+
+        loadFloatingAssistantPosition();
+
+        return () => {
+            mounted = false;
+        };
+    }, [width, height]);
+
+    useEffect(() => {
+        floatingPosition.stopAnimation((currentPosition: any) => {
+            const nextPosition = clampFloatingPosition(
+                currentPosition?.x ?? defaultFloatingPosition.x,
+                currentPosition?.y ?? defaultFloatingPosition.y,
+            );
+
+            floatingLastPositionRef.current = nextPosition;
+            floatingPosition.setValue(nextPosition);
+        });
+    }, [width, height]);
+
+    const assistantPanResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => false,
+            onStartShouldSetPanResponderCapture: () => false,
+            onMoveShouldSetPanResponder: (_, gestureState) =>
+                Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5,
+            onMoveShouldSetPanResponderCapture: (_, gestureState) =>
+                Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5,
+            onPanResponderGrant: () => {
+                floatingMovedRef.current = false;
+
+                floatingPosition.stopAnimation((currentPosition: any) => {
+                    floatingLastPositionRef.current = {
+                        x: currentPosition?.x ?? defaultFloatingPosition.x,
+                        y: currentPosition?.y ?? defaultFloatingPosition.y,
+                    };
+                });
+            },
+            onPanResponderMove: (_, gestureState) => {
+                floatingMovedRef.current = true;
+
+                const nextPosition = clampFloatingPosition(
+                    floatingLastPositionRef.current.x + gestureState.dx,
+                    floatingLastPositionRef.current.y + gestureState.dy,
+                );
+
+                floatingPosition.setValue(nextPosition);
+            },
+            onPanResponderRelease: async (_, gestureState) => {
+                const nextPosition = clampFloatingPosition(
+                    floatingLastPositionRef.current.x + gestureState.dx,
+                    floatingLastPositionRef.current.y + gestureState.dy,
+                );
+
+                floatingLastPositionRef.current = nextPosition;
+
+                Animated.spring(floatingPosition, {
+                    toValue: nextPosition,
+                    useNativeDriver: false,
+                    friction: 8,
+                    tension: 80,
+                }).start();
+
+                try {
+                    await AsyncStorage.setItem(
+                        FLOATING_ASSISTANT_POSITION_KEY,
+                        JSON.stringify(nextPosition),
+                    );
+                } catch (error) {
+                    console.log("Save assistant position error:", error);
+                }
+
+                setTimeout(() => {
+                    floatingMovedRef.current = false;
+                }, 80);
+            },
+            onPanResponderTerminate: () => {
+                Animated.spring(floatingPosition, {
+                    toValue: floatingLastPositionRef.current,
+                    useNativeDriver: false,
+                    friction: 8,
+                    tension: 80,
+                }).start();
+            },
+        }),
+    ).current;
+
+    const blockHorizontalSwipeResponder = useRef(
+        PanResponder.create({
+            // يمنع سحب الصفحة يمين/يسار حتى لا ينتقل المستخدم لتاب أو شاشة سابقة بالغلط
+            onStartShouldSetPanResponderCapture: (_, gestureState) =>
+                Math.abs(gestureState.dx) > 2 &&
+                Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+            onMoveShouldSetPanResponderCapture: (_, gestureState) =>
+                Math.abs(gestureState.dx) > 8 &&
+                Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.05,
+            onShouldBlockNativeResponder: () => true,
+            onPanResponderTerminationRequest: () => false,
+            onPanResponderMove: () => {},
+            onPanResponderRelease: () => {},
+            onPanResponderTerminate: () => {},
+        }),
+    ).current;
 
     useEffect(() => {
         const loadUserName = async () => {
@@ -383,6 +666,30 @@ export default function HomeScreen() {
         };
     }, [carId]);
 
+    const getNotificationTitle = (item: {
+        title?: string | null;
+        title_ar?: string | null;
+        title_en?: string | null;
+    }) => {
+        if (isArabic) {
+            return item.title_ar || item.title || item.title_en || "";
+        }
+
+        return item.title_en || item.title || item.title_ar || "";
+    };
+
+    const getNotificationBody = (item: {
+        body?: string | null;
+        body_ar?: string | null;
+        body_en?: string | null;
+    }) => {
+        if (isArabic) {
+            return item.body_ar || item.body || item.body_en || "";
+        }
+
+        return item.body_en || item.body || item.body_ar || "";
+    };
+
     const showAppleInAppNotification = (notification: {
         id: string;
         title: string;
@@ -427,21 +734,38 @@ export default function HomeScreen() {
 
                 if (!userId) return;
 
-                const { data, error } = await supabase
+                let { data, error } = await supabase
                     .from("notifications")
-                    .select("id, title, body, is_read, created_at")
+                    .select("*")
                     .eq("user_id", userId)
                     .order("created_at", { ascending: false })
                     .limit(20);
+
+                // احتياط: لو الأعمدة الجديدة ما انضافت في Supabase لسه، لا يتعطل الهوم.
+                if (error) {
+                    const fallback = await supabase
+                        .from("notifications")
+                        .select("id, title, body, is_read, created_at")
+                        .eq("user_id", userId)
+                        .order("created_at", { ascending: false })
+                        .limit(20);
+
+                    data = fallback.data;
+                    error = fallback.error;
+                }
 
                 if (error) throw error;
 
                 if (!mounted) return;
 
-                const mapped = (data || []).map((item) => ({
+                const mapped = (data || []).map((item: any) => ({
                     id: item.id,
                     title: item.title,
                     body: item.body,
+                    title_ar: item.title_ar ?? null,
+                    body_ar: item.body_ar ?? null,
+                    title_en: item.title_en ?? null,
+                    body_en: item.body_en ?? null,
                     is_read: item.is_read,
                     created_at: item.created_at,
                 }));
@@ -466,13 +790,13 @@ export default function HomeScreen() {
                 if (newestUnread) {
                     showAppleInAppNotification({
                         id: newestUnread.id,
-                        title: newestUnread.title,
-                        body: newestUnread.body,
+                        title: getNotificationTitle(newestUnread),
+                        body: getNotificationBody(newestUnread),
                     });
 
                     showDeviceNotificationForAndroid({
-                        title: newestUnread.title,
-                        body: newestUnread.body,
+                        title: getNotificationTitle(newestUnread),
+                        body: getNotificationBody(newestUnread),
                     });
                 }
             } catch (error) {
@@ -499,7 +823,7 @@ export default function HomeScreen() {
             const userId = authData.user?.id;
 
             if (!userId) {
-                Alert.alert("خطأ", "يجب تسجيل الدخول قبل التحليل.");
+                Alert.alert(t.errorTitle, t.homeLoginRequiredScan);
                 setIsChecking(false);
                 return;
             }
@@ -507,7 +831,7 @@ export default function HomeScreen() {
             const scannedCarId = activeCarId;
 
             if (!scannedCarId) {
-                Alert.alert("تنبيه", "اختاري سيارة أولًا أو وصلي قطعة السيارة.");
+                Alert.alert(t.homeAlertTitle, t.homeSelectCarFirst);
                 setIsChecking(false);
                 return;
             }
@@ -526,7 +850,7 @@ export default function HomeScreen() {
             });
 
             if (!response.ok) {
-                let detail = "فشل تشغيل التحليل";
+                let detail = t.homeScanFailed;
 
                 try {
                     const errBody = await response.json();
@@ -556,13 +880,42 @@ export default function HomeScreen() {
                     : JSON.stringify(e?.message || e || "خطأ غير متوقع");
 
             setDebugText(errorMsg);
-            Alert.alert("خطأ", errorMsg);
+            Alert.alert(t.errorTitle, errorMsg);
         } finally {
             setIsChecking(false);
         }
     };
 
+    const setNotificationActionPending = (id: string, pending: boolean) => {
+        setPendingNotificationActionIds((prev) => {
+            const next = new Set(prev);
+
+            if (pending) {
+                next.add(id);
+            } else {
+                next.delete(id);
+            }
+
+            return next;
+        });
+    };
+
     const markNotificationAsRead = async (id: string) => {
+        const currentItem = notificationsList.find((item) => item.id === id);
+
+        if (!currentItem || currentItem.is_read || pendingNotificationActionIds.has(id)) {
+            return;
+        }
+
+        // تحديث فوري للواجهة قبل انتظار Supabase عشان ما يحس المستخدم بتأخير.
+        setNotificationActionPending(id, true);
+        setNotificationsList((prev) =>
+            prev.map((item) =>
+                item.id === id ? { ...item, is_read: true } : item,
+            ),
+        );
+        setNotificationsCount((prev) => Math.max(prev - 1, 0));
+
         try {
             const { error } = await supabase
                 .from("notifications")
@@ -570,20 +923,36 @@ export default function HomeScreen() {
                 .eq("id", id);
 
             if (error) throw error;
-
-            setNotificationsList((prev) =>
-                prev.map((item) =>
-                    item.id === id ? { ...item, is_read: true } : item
-                )
-            );
-
-            setNotificationsCount((prev) => Math.max(prev - 1, 0));
         } catch (error) {
             console.log("Mark notification read error:", error);
+
+            // لو فشل الحفظ في قاعدة البيانات نرجع الحالة مثل قبل.
+            setNotificationsList((prev) =>
+                prev.map((item) =>
+                    item.id === id ? { ...item, is_read: false } : item,
+                ),
+            );
+            setNotificationsCount((prev) => prev + 1);
+        } finally {
+            setNotificationActionPending(id, false);
         }
     };
 
     const deleteNotification = async (id: string) => {
+        const currentItem = notificationsList.find((item) => item.id === id);
+
+        if (!currentItem || pendingNotificationActionIds.has(id)) {
+            return;
+        }
+
+        // حذف فوري من الواجهة قبل انتظار Supabase.
+        setNotificationActionPending(id, true);
+        setNotificationsList((prev) => prev.filter((item) => item.id !== id));
+
+        if (!currentItem.is_read) {
+            setNotificationsCount((prev) => Math.max(prev - 1, 0));
+        }
+
         try {
             const { error } = await supabase
                 .from("notifications")
@@ -591,24 +960,44 @@ export default function HomeScreen() {
                 .eq("id", id);
 
             if (error) throw error;
-
-            setNotificationsList((prev) => {
-                const deleted = prev.find((item) => item.id === id);
-
-                if (deleted && !deleted.is_read) {
-                    setNotificationsCount((count) => Math.max(count - 1, 0));
-                }
-
-                return prev.filter((item) => item.id !== id);
-            });
         } catch (error) {
             console.log("Delete notification error:", error);
+
+            // لو فشل الحذف نرجع الإشعار مكانه.
+            setNotificationsList((prev) => {
+                const exists = prev.some((item) => item.id === id);
+                if (exists) return prev;
+
+                return [currentItem, ...prev].sort(
+                    (a, b) =>
+                        new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
+                );
+            });
+
+            if (!currentItem.is_read) {
+                setNotificationsCount((prev) => prev + 1);
+            }
+        } finally {
+            setNotificationActionPending(id, false);
         }
     };
 
+
     return (
-        <SafeAreaView style={styles.safeArea} edges={["top"]}>
-            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <SafeAreaView
+            style={styles.safeArea}
+            edges={["top"]}
+            {...blockHorizontalSwipeResponder.panHandlers}
+        >
+            <Stack.Screen
+                options={{
+                    gestureEnabled: false,
+                    fullScreenGestureEnabled: false,
+                    animation: "none",
+                }}
+            />
+            <StatusBar barStyle={darkModeEnabled ? "light-content" : "dark-content"} backgroundColor={COLORS.bg} />
 
             {inAppNotification && (
                 <Pressable
@@ -648,17 +1037,23 @@ export default function HomeScreen() {
                     isWide && styles.scrollContentWide,
                 ]}
                 showsVerticalScrollIndicator={false}
+                bounces={false}
+                alwaysBounceVertical={false}
+                overScrollMode="never"
+                directionalLockEnabled
+                keyboardShouldPersistTaps="handled"
+                {...blockHorizontalSwipeResponder.panHandlers}
             >
                 <View style={[styles.header, isWide && styles.headerWide]}>
                     <View style={styles.headerTextBox}>
-                        <Text style={styles.helloText}>
+                        <Text style={styles.helloText} numberOfLines={2}>
                             {userName
-                                ? `أهلًا بك في تنبّهـ ${userName}`
-                                : "أهلًا بك في تنبّهـ"}
+                                ? `${t.homeGreeting}${isArabic ? " " : ", "}${userName}`
+                                : t.homeGreeting}
                         </Text>
 
-                        <Text style={styles.headerTitle}>
-                            سيارتك تتكلم، ونحن نترجمها لك
+                        <Text style={styles.headerTitle} numberOfLines={2}>
+                            {t.homeSubtitle}
                         </Text>
                     </View>
 
@@ -678,22 +1073,22 @@ export default function HomeScreen() {
                             <Modal
                                 visible={showNotifications}
                                 transparent={true}
-                                animationType="fade"
+                                animationType="none"
+                                statusBarTranslucent
                                 onRequestClose={() => setShowNotifications(false)}
                             >
-                                <Pressable
-                                    style={styles.modalOverlay}
-                                    onPress={() => setShowNotifications(false)}
-                                >
-                                    <Pressable style={styles.modalContainer} pointerEvents="auto">
+                                <View style={styles.modalOverlay}>
+                                    <View style={styles.modalContainer}>
                                         <View style={styles.modalHeader}>
+                                            <Text style={styles.notificationsTitle}>{t.homeNotificationsTitle}</Text>
+
                                             <Pressable
                                                 style={styles.closeButton}
+                                                hitSlop={10}
                                                 onPress={() => setShowNotifications(false)}
                                             >
                                                 <Feather name="x" size={20} color={COLORS.text} />
                                             </Pressable>
-                                            <Text style={styles.notificationsTitle}>الإشعارات</Text>
                                         </View>
 
                                         <ScrollView
@@ -701,10 +1096,16 @@ export default function HomeScreen() {
                                             style={styles.modalScroll}
                                             contentContainerStyle={styles.modalScrollContent}
                                             nestedScrollEnabled
+                                            keyboardShouldPersistTaps="always"
+                                            scrollEventThrottle={16}
+                                            decelerationRate="fast"
+                                            bounces={false}
+                                            overScrollMode="never"
+                                            directionalLockEnabled
                                         >
                                             {notificationsList.length === 0 ? (
                                                 <Text style={styles.emptyNotificationText}>
-                                                    لا توجد إشعارات جديدة حالياً
+                                                    {t.homeNoNotifications}
                                                 </Text>
                                             ) : (
                                                 notificationsList.map((item) => (
@@ -718,38 +1119,52 @@ export default function HomeScreen() {
                                                         <View style={styles.notificationTopRow}>
                                                             {!item.is_read && <View style={styles.unreadDot} />}
 
-                                                            <Text style={styles.notificationTitleText}>
-                                                                {item.title}
+                                                            <Text style={styles.notificationTitleText} numberOfLines={2}>
+                                                                {getNotificationTitle(item)}
                                                             </Text>
                                                         </View>
 
-                                                        <Text style={styles.notificationText}>
-                                                            {item.body}
+                                                        <Text style={styles.notificationText} numberOfLines={3}>
+                                                            {getNotificationBody(item)}
                                                         </Text>
 
                                                         <View style={styles.notificationActions}>
                                                             {!item.is_read && (
                                                                 <Pressable
-                                                                    style={styles.readButton}
+                                                                    style={({ pressed }) => [
+                                                                        styles.readButton,
+                                                                        (pressed || pendingNotificationActionIds.has(item.id)) &&
+                                                                            styles.notificationActionPressed,
+                                                                    ]}
+                                                                    hitSlop={12}
+                                                                    android_ripple={{ color: COLORS.soft }}
+                                                                    disabled={pendingNotificationActionIds.has(item.id)}
                                                                     onPress={() => markNotificationAsRead(item.id)}
                                                                 >
-                                                                    <Text style={styles.readButtonText}>تمت القراءة</Text>
+                                                                    <Text style={styles.readButtonText}>{t.homeMarkAsRead}</Text>
                                                                 </Pressable>
                                                             )}
 
                                                             <Pressable
-                                                                style={styles.deleteButton}
+                                                                style={({ pressed }) => [
+                                                                    styles.deleteButton,
+                                                                    (pressed || pendingNotificationActionIds.has(item.id)) &&
+                                                                        styles.notificationActionPressed,
+                                                                ]}
+                                                                hitSlop={12}
+                                                                android_ripple={{ color: COLORS.soft }}
+                                                                disabled={pendingNotificationActionIds.has(item.id)}
                                                                 onPress={() => deleteNotification(item.id)}
                                                             >
-                                                                <Text style={styles.deleteButtonText}>حذف</Text>
+                                                                <Text style={styles.deleteButtonText}>{t.homeDeleteNotification}</Text>
                                                             </Pressable>
                                                         </View>
                                                     </View>
                                                 ))
                                             )}
                                         </ScrollView>
-                                    </Pressable>
-                                </Pressable>
+                                    </View>
+                                </View>
                             </Modal>
                         </View>
 
@@ -778,23 +1193,15 @@ export default function HomeScreen() {
                                     },
                                 ]}
                             >
-                                {obdConnected ? "متصل" : "غير متصل"}
+                                {obdConnected ? t.connected : t.disconnected}
                             </Text>
                         </View>
                     </View>
                 </View>
 
-                <View style={[styles.carImageArea, isWide && styles.carImageAreaWide]}>
-                    <Image
-                        source={require("../../assets/images/car-card.png")}
-                        style={styles.carImage}
-                        resizeMode="cover"
-                    />
-                </View>
-
                 <View style={[styles.heroCard, isWide && styles.heroCardWide]}>
                     <View style={styles.heroContent}>
-                        <Text style={styles.heroTitle}>فحص تنبّه</Text>
+                        <Text style={styles.heroTitle}>{t.homeScanTitle}</Text>
                     </View>
 
                     {homeAi && (
@@ -814,7 +1221,7 @@ export default function HomeScreen() {
                             disabled={isChecking}
                         >
                             <LinearGradient
-                                colors={[COLORS.primaryLight, COLORS.primaryDark]}
+                                colors={[COLORS.buttonGradientStart, COLORS.buttonGradientEnd]}
                                 start={{ x: 0.5, y: 0 }}
                                 end={{ x: 0.5, y: 1 }}
                                 style={styles.mainButtonGradient}
@@ -824,7 +1231,7 @@ export default function HomeScreen() {
                                 ) : (
                                     <>
                                         <Feather name="file-text" size={18} color="#FFFFFF" />
-                                        <Text style={styles.mainButtonText}>إنشاء تقرير</Text>
+                                        <Text style={styles.mainButtonText}>{t.homeCreateReport}</Text>
                                     </>
                                 )}
                             </LinearGradient>
@@ -832,75 +1239,123 @@ export default function HomeScreen() {
                     </View>
                 </View>
 
-                <Text style={styles.sectionTitle}>قراءات السيارة من MQTT</Text>
+                <View style={[styles.quickSummaryRow, isWide && styles.quickSummaryRowWide]}>
+                    <QuickSummaryCard
+                        styles={styles}
+                        COLORS={COLORS}
+                        iconPack="material"
+                        icon="car-info"
+                        title={t.homeVehicleStatus}
+                        value="—"
+                        subtitle={t.homeVehicleStatusPlaceholder}
+                    />
+
+                    <QuickSummaryCard
+                        styles={styles}
+                        COLORS={COLORS}
+                        iconPack="material"
+                        icon="clipboard-clock-outline"
+                        title={t.homeLastScan}
+                        value="—"
+                        subtitle={t.homeNoScanYet}
+                    />
+
+                    <QuickSummaryCard
+                        styles={styles}
+                        COLORS={COLORS}
+                        iconPack="feather"
+                        icon="alert-triangle"
+                        title={t.homeFaults}
+                        value={String(dtcCount)}
+                        subtitle={t.homeCurrentFaults}
+                    />
+                </View>
+
+                <Text style={styles.sectionTitle}>{t.homeVehicleReadings}</Text>
 
                 <View style={styles.metricsGrid}>
                     <MetricCard
+                        styles={styles}
+                        COLORS={COLORS}
                         width={metricWidth}
                         icon="activity"
-                        label="RPM"
+                        label={t.homeRpmLabel}
                         value={safeValue(metrics.rpm)}
-                        unit="دورة/دقيقة"
+                        unit={t.homeRpmUnit}
                     />
 
                     <MetricCard
+                        styles={styles}
+                        COLORS={COLORS}
                         width={metricWidth}
                         icon="navigation"
-                        label="السرعة"
+                        label={t.homeSpeed}
                         value={safeValue(metrics.speed)}
-                        unit="كم/س"
+                        unit={t.homeSpeedUnit}
                     />
 
                     <MetricCard
+                        styles={styles}
+                        COLORS={COLORS}
                         width={metricWidth}
                         icon="battery"
-                        label="الفولت"
+                        label={t.homeVoltage}
                         value={safeValue(metrics.voltage)}
                         unit="V"
                     />
 
                     <MetricCard
+                        styles={styles}
+                        COLORS={COLORS}
                         width={metricWidth}
                         icon="thermometer"
-                        label="حرارة المحرك"
+                        label={t.homeCoolantTemp}
                         value={safeValue(metrics.coolant)}
                         unit="°C"
                     />
                 </View>
 
-                <Text style={styles.sectionTitle}>ملخص السيارة</Text>
+                <Text style={styles.sectionTitle}>{t.homeVehicleInfo}</Text>
 
                 <View style={styles.metricsGrid}>
                     <MetricCard
+                        styles={styles}
+                        COLORS={COLORS}
                         width={metricWidth}
                         icon="hash"
-                        label="Car ID"
-                        value={carId ? "موجود" : "--"}
-                        unit={carId || "بانتظار MQTT"}
+                        label={t.homeCarIdLabel}
+                        value={carId ? t.homeAvailable : "--"}
+                        unit={carId || t.homeWaitingConnection}
                     />
 
                     <MetricCard
+                        styles={styles}
+                        COLORS={COLORS}
                         width={metricWidth}
                         icon="file-text"
-                        label="VIN"
-                        value={vin ? "موجود" : "--"}
-                        unit={vin || "Mode 09"}
+                        label={t.homeVinLabel}
+                        value={vin ? t.homeAvailable : "--"}
+                        unit={vin || t.homeMode09}
                     />
 
                     <MetricCard
+                        styles={styles}
+                        COLORS={COLORS}
                         width={metricWidth}
                         icon="list"
-                        label="Supported"
+                        label={t.homeSupportedLabel}
                         value={String(supportedCount)}
-                        unit="PID"
+                        unit={t.homePidUnit}
                     />
 
                     <MetricCard
+                        styles={styles}
+                        COLORS={COLORS}
                         width={metricWidth}
                         icon="alert-triangle"
-                        label="DTC"
+                        label={t.homeDtcLabel}
                         value={String(dtcCount)}
-                        unit="أعطال"
+                        unit={t.homeFaultsUnit}
                     />
                 </View>
 
@@ -910,7 +1365,7 @@ export default function HomeScreen() {
                             <Feather name="info" size={18} color={COLORS.primary} />
                         </View>
 
-                        <Text style={styles.statusTitle}>حالة الفحص</Text>
+                        <Text style={styles.statusTitle}>{t.homeScanStatus}</Text>
                     </View>
 
                     <Text style={styles.statusDescription}>{statusText}</Text>
@@ -919,7 +1374,7 @@ export default function HomeScreen() {
 
                     {!!lastRaw && (
                         <View style={styles.rawBox}>
-                            <Text style={styles.rawTitle}>MQTT / Scanner Response</Text>
+                            <Text style={styles.rawTitle}>{t.homeScanResponse}</Text>
                             <Text selectable style={styles.rawText}>
                                 {lastRaw}
                             </Text>
@@ -933,27 +1388,147 @@ export default function HomeScreen() {
                     </View>
 
                     <View style={styles.tipTextBox}>
-                        <Text style={styles.tipTitle}>MQTT Live View</Text>
+                        <Text style={styles.tipTitle}>{t.homeLiveUpdate}</Text>
                         <Text style={styles.tipText}>
-                            القيم المعروضة هنا تنعكس من MQTT. آخر قيمة تبقى ظاهرة حتى لو
-                            انقطعت القطعة، والحالة فقط تتحول إلى غير متصل.
+                            {t.homeLiveUpdateDesc}
                         </Text>
                     </View>
                 </View>
             </ScrollView>
 
-            <TouchableOpacity
-                style={styles.aiFloatingButton}
-                activeOpacity={0.85}
-                onPress={() =>
-                    router.push({
-                        pathname: "/chatbot",
-                    })
-                }
+            <Animated.View
+                style={[
+                    styles.aiFloatingButtonWrapper,
+                    {
+                        transform: [
+                            { translateX: floatingPosition.x },
+                            { translateY: floatingPosition.y },
+                        ],
+                    },
+                ]}
+                {...assistantPanResponder.panHandlers}
             >
-                <Feather name="message-circle" size={29} color="#5F5F5F" />
-            </TouchableOpacity>
+                <View pointerEvents="none" style={styles.aiFloatingGlow} />
+
+                <Pressable
+                    style={({ pressed }) => [
+                        styles.aiFloatingButton,
+                        pressed && styles.aiFloatingButtonPressed,
+                    ]}
+                    onPress={() => {
+                        if (floatingMovedRef.current) return;
+
+                        router.push({
+                            pathname: "/chatbot",
+                        });
+                    }}
+                >
+                    <View pointerEvents="none" style={styles.aiTypingBubble}>
+                        <Animated.View
+                            style={[
+                                styles.aiTypingDot,
+                                {
+                                    opacity: typingDotOne,
+                                    transform: [
+                                        {
+                                            translateY: typingDotOne.interpolate({
+                                                inputRange: [0.35, 1],
+                                                outputRange: [1, -2],
+                                            }),
+                                        },
+                                    ],
+                                },
+                            ]}
+                        />
+                        <Animated.View
+                            style={[
+                                styles.aiTypingDot,
+                                {
+                                    opacity: typingDotTwo,
+                                    transform: [
+                                        {
+                                            translateY: typingDotTwo.interpolate({
+                                                inputRange: [0.35, 1],
+                                                outputRange: [1, -2],
+                                            }),
+                                        },
+                                    ],
+                                },
+                            ]}
+                        />
+                        <Animated.View
+                            style={[
+                                styles.aiTypingDot,
+                                {
+                                    opacity: typingDotThree,
+                                    transform: [
+                                        {
+                                            translateY: typingDotThree.interpolate({
+                                                inputRange: [0.35, 1],
+                                                outputRange: [1, -2],
+                                            }),
+                                        },
+                                    ],
+                                },
+                            ]}
+                        />
+                    </View>
+
+                    <Ionicons
+                        name="chatbubble-ellipses-outline"
+                        size={31}
+                        color={COLORS.floatingIcon}
+                        style={styles.aiFloatingMainIcon}
+                    />
+
+                    <Text style={styles.aiFloatingQuestion} numberOfLines={2}>
+                        {t.homeNeedHelp}
+                    </Text>
+                </Pressable>
+            </Animated.View>
         </SafeAreaView>
+    );
+}
+
+function QuickSummaryCard({
+    iconPack = "feather",
+    icon,
+    title,
+    value,
+    subtitle,
+    styles,
+    COLORS,
+}: {
+    iconPack?: "feather" | "material";
+    icon: keyof typeof Feather.glyphMap | React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+    title: string;
+    value: string;
+    subtitle: string;
+    styles: ReturnType<typeof createStyles>;
+    COLORS: typeof LIGHT_COLORS;
+}) {
+    return (
+        <View style={styles.quickSummaryCard}>
+            <View style={styles.quickSummaryIconCircle}>
+                {iconPack === "material" ? (
+                    <MaterialCommunityIcons name={icon as any} size={19} color={COLORS.primary} />
+                ) : (
+                    <Feather name={icon as keyof typeof Feather.glyphMap} size={18} color={COLORS.primary} />
+                )}
+            </View>
+
+            <Text style={styles.quickSummaryTitle} numberOfLines={1}>
+                {title}
+            </Text>
+
+            <Text style={styles.quickSummaryValue} numberOfLines={1}>
+                {value}
+            </Text>
+
+            <Text style={styles.quickSummarySubtitle} numberOfLines={2}>
+                {subtitle}
+            </Text>
+        </View>
     );
 }
 
@@ -963,12 +1538,16 @@ function MetricCard({
     label,
     value,
     unit,
+    styles,
+    COLORS,
 }: {
     width: number;
     icon: keyof typeof Feather.glyphMap;
     label: string;
     value: string;
     unit: string;
+    styles: ReturnType<typeof createStyles>;
+    COLORS: typeof LIGHT_COLORS;
 }) {
     return (
         <View style={[styles.metricCard, { width }]}>
@@ -991,7 +1570,13 @@ function MetricCard({
     );
 }
 
-const styles = StyleSheet.create({
+function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
+    const rowDirection = isArabic ? "row-reverse" : "row";
+    const textAlign = isArabic ? "right" : "left";
+    const alignItems = isArabic ? "flex-end" : "flex-start";
+    const alignSelf = isArabic ? "flex-end" : "flex-start";
+
+    return StyleSheet.create({
     inAppNotificationCard: {
         position: "absolute",
         top: 58,
@@ -1000,11 +1585,11 @@ const styles = StyleSheet.create({
         zIndex: 100,
         elevation: 12,
         borderRadius: 20,
-        backgroundColor: "#FFFFFF",
+        backgroundColor: COLORS.surface,
         borderWidth: 1,
-        borderColor: "#F1E0E0",
+        borderColor: COLORS.border,
         padding: 12,
-        flexDirection: "row-reverse",
+        flexDirection: rowDirection,
         alignItems: "center",
         gap: 10,
         shadowColor: "#000",
@@ -1024,14 +1609,15 @@ const styles = StyleSheet.create({
 
     inAppNotificationTextBox: {
         flex: 1,
-        alignItems: "flex-end",
+        alignItems,
     },
 
     inAppNotificationTitle: {
         fontSize: 13,
         fontWeight: "900",
         color: COLORS.text,
-        textAlign: "right",
+        textAlign,
+        fontFamily: FONT_BOLD,
     },
 
     inAppNotificationBody: {
@@ -1039,8 +1625,9 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: "700",
         color: COLORS.muted,
-        textAlign: "right",
+        textAlign,
         lineHeight: 18,
+        fontFamily: FONT_SEMIBOLD,
     },
 
     inAppNotificationClose: {
@@ -1064,21 +1651,22 @@ const styles = StyleSheet.create({
 
     scrollContent: {
         paddingHorizontal: 18,
-        paddingTop: 14,
+        paddingTop: 32,
         paddingBottom: 130,
     },
 
     scrollContentWide: {
         paddingHorizontal: 26,
+        paddingTop: 40,
     },
 
     header: {
         width: "100%",
-        flexDirection: "row-reverse",
+        flexDirection: rowDirection,
         justifyContent: "space-between",
-        alignItems: "center",
-        gap: 12,
-        marginBottom: 12,
+        alignItems: "flex-start",
+        gap: 10,
+        marginBottom: 24,
     },
 
     headerWide: {
@@ -1088,7 +1676,9 @@ const styles = StyleSheet.create({
 
     headerTextBox: {
         flex: 1,
-        alignItems: "flex-end",
+        minWidth: 0,
+        alignItems,
+        paddingTop: 1,
     },
 
     headerRightArea: {
@@ -1096,9 +1686,9 @@ const styles = StyleSheet.create({
     },
 
     notificationButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         backgroundColor: COLORS.soft,
         justifyContent: "center",
         alignItems: "center",
@@ -1108,29 +1698,34 @@ const styles = StyleSheet.create({
 
     notificationDot: {
         position: "absolute",
-        top: 12,
-        right: 12,
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: "#D32F2F",
+        top: 6,
+        right: 6,
+        width: 13,
+        height: 13,
+        borderRadius: 6.5,
+        backgroundColor: COLORS.danger,
+        borderWidth: 2,
+        borderColor: COLORS.surface,
+        zIndex: 5,
+        elevation: 5,
     },
 
     modalOverlay: {
         flex: 1,
-        backgroundColor: "rgba(0, 0, 0, 0.4)",
+        backgroundColor: COLORS.modalOverlay,
         justifyContent: "center",
         alignItems: "center",
-        padding: 24,
+        paddingHorizontal: 20,
+        paddingVertical: 24,
     },
 
     modalContainer: {
         width: "100%",
-        maxWidth: 340,
-        backgroundColor: "#FFFFFF",
+        maxWidth: 380,
+        backgroundColor: COLORS.surface,
         borderRadius: 24,
         padding: 20,
-        maxHeight: "70%",
+        maxHeight: "78%",
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.15,
@@ -1139,31 +1734,33 @@ const styles = StyleSheet.create({
     },
 
     modalHeader: {
-        flexDirection: "row",
+        flexDirection: rowDirection,
         justifyContent: "space-between",
         alignItems: "center",
         borderBottomWidth: 1,
-        borderBottomColor: "#F5F5F5",
+        borderBottomColor: COLORS.border,
         paddingBottom: 12,
         marginBottom: 10,
     },
 
     closeButton: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: COLORS.soft,
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: "transparent",
         justifyContent: "center",
         alignItems: "center",
-        borderWidth: 1,
-        borderColor: COLORS.border,
+        borderWidth: 0,
     },
 
     notificationsTitle: {
+        flex: 1,
         fontSize: 16,
         fontWeight: "900",
         color: COLORS.text,
-        textAlign: "right",
+        textAlign,
+        fontFamily: FONT_BOLD,
+        includeFontPadding: true,
     },
 
     emptyNotificationText: {
@@ -1172,51 +1769,62 @@ const styles = StyleSheet.create({
         textAlign: "center",
         fontWeight: "700",
         paddingVertical: 30,
+        fontFamily: FONT_SEMIBOLD,
     },
 
     notificationItem: {
         paddingVertical: 12,
+        paddingHorizontal: 2,
         borderBottomWidth: 1,
-        borderBottomColor: "#FBFBFB",
+        borderBottomColor: COLORS.border,
     },
 
     notificationText: {
         fontSize: 13,
         color: COLORS.text,
-        textAlign: "right",
+        textAlign,
         lineHeight: 22,
         fontWeight: "700",
+        fontFamily: FONT_SEMIBOLD,
     },
 
     helloText: {
-        fontSize: 17,
+        fontSize: 16.5,
         color: COLORS.text,
         fontWeight: "900",
-        textAlign: "right",
+        textAlign,
         lineHeight: 25,
+        fontFamily: FONT_EXTRABOLD,
+        includeFontPadding: true,
     },
 
     headerTitle: {
-        marginTop: 4,
-        fontSize: 14,
+        marginTop: 3,
+        fontSize: 12.5,
         color: COLORS.muted,
         fontWeight: "700",
-        textAlign: "right",
-        lineHeight: 22,
+        textAlign,
+        lineHeight: 19,
+        fontFamily: FONT_SEMIBOLD,
+        includeFontPadding: true,
     },
 
     headerActions: {
-        flexDirection: "row-reverse",
+        flexDirection: rowDirection,
         alignItems: "center",
+        justifyContent: "flex-start",
         gap: 8,
+        flexShrink: 0,
+        paddingTop: 0,
     },
 
     notificationItemText: {
         flex: 1,
-        textAlign: "right",
+        textAlign,
         fontSize: 13,
         fontWeight: "700",
         color: COLORS.text,
+        fontFamily: FONT_SEMIBOLD,
     },
 
     emptyNotificationsText: {
@@ -1224,6 +1832,7 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: COLORS.muted,
         fontWeight: "700",
+        fontFamily: FONT_SEMIBOLD,
     },
 
     redDot: {
@@ -1250,26 +1859,27 @@ const styles = StyleSheet.create({
         color: "#FFFFFF",
         fontSize: 10,
         fontWeight: "900",
+        fontFamily: FONT_BOLD,
     },
 
     connectionBadge: {
         height: 38,
         borderRadius: 19,
         paddingHorizontal: 13,
-        flexDirection: "row-reverse",
+        flexDirection: rowDirection,
         alignItems: "center",
         gap: 7,
         borderWidth: 1,
     },
 
     connectedBadge: {
-        backgroundColor: "#EFFAF3",
-        borderColor: "#D6F0DF",
+        backgroundColor: COLORS.connectedBg,
+        borderColor: COLORS.connectedBorder,
     },
 
     disconnectedBadge: {
-        backgroundColor: "#FFF1F1",
-        borderColor: "#FFD9D9",
+        backgroundColor: COLORS.disconnectedBg,
+        borderColor: COLORS.disconnectedBorder,
     },
 
     connectionDot: {
@@ -1281,43 +1891,103 @@ const styles = StyleSheet.create({
     connectionText: {
         fontSize: 12,
         fontWeight: "900",
+        fontFamily: FONT_BOLD,
+        includeFontPadding: true,
     },
-
-    carImageArea: {
+    quickSummaryRow: {
         width: "100%",
-        height: 235,
-        marginBottom: 6,
-        alignItems: "center",
-        justifyContent: "center",
-        overflow: "hidden",
-    },
-
-    carImageAreaWide: {
         maxWidth: 980,
         alignSelf: "center",
-        height: 310,
+        flexDirection: rowDirection,
+        alignItems: "stretch",
+        justifyContent: "space-between",
+        gap: 8,
+        marginTop: 12,
+        marginBottom: 4,
     },
 
-    carImage: {
-        width: "100%",
-        height: "100%",
+    quickSummaryRowWide: {
+        maxWidth: 980,
+        alignSelf: "center",
+    },
+
+    quickSummaryCard: {
+        flex: 1,
+        minHeight: 126,
+        borderRadius: 22,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        backgroundColor: COLORS.surface,
+        paddingHorizontal: 10,
+        paddingVertical: 12,
+        alignItems: "center",
+        justifyContent: "flex-start",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.035,
+        shadowRadius: 6,
+        elevation: 1,
+    },
+
+    quickSummaryIconCircle: {
+        width: 36,
+        height: 36,
+        borderRadius: 14,
+        backgroundColor: COLORS.soft,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 8,
+    },
+
+    quickSummaryTitle: {
+        color: COLORS.text,
+        fontSize: 11.2,
+        lineHeight: 17,
+        fontFamily: FONT_BOLD,
+        textAlign: "center",
+        includeFontPadding: true,
+    },
+
+    quickSummaryValue: {
+        marginTop: 4,
+        color: COLORS.primary,
+        fontSize: 18,
+        lineHeight: 24,
+        fontFamily: FONT_EXTRABOLD,
+        textAlign: "center",
+        includeFontPadding: true,
+    },
+
+    quickSummarySubtitle: {
+        marginTop: 2,
+        color: COLORS.muted,
+        fontSize: 9.4,
+        lineHeight: 14,
+        fontFamily: FONT_REGULAR,
+        textAlign: "center",
+        includeFontPadding: true,
     },
 
     heroCard: {
         width: "100%",
+        maxWidth: 980,
+        alignSelf: "center",
         borderRadius: 28,
         borderWidth: 1,
         borderColor: COLORS.border,
         backgroundColor: COLORS.surface,
         paddingHorizontal: 20,
-        paddingVertical: 24,
+        paddingVertical: 18,
         alignItems: "center",
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.03,
         shadowRadius: 6,
         elevation: 1,
-        marginBottom: 4,
+        marginTop: 8,
+        marginBottom: 0,
     },
 
     heroCardWide: {
@@ -1335,6 +2005,7 @@ const styles = StyleSheet.create({
         fontWeight: "900",
         color: COLORS.text,
         textAlign: "center",
+        fontFamily: FONT_EXTRABOLD,
     },
 
     heroSubtitle: {
@@ -1344,6 +2015,7 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         textAlign: "center",
         lineHeight: 24,
+        fontFamily: FONT_REGULAR,
     },
 
     heroButtons: {
@@ -1367,7 +2039,7 @@ const styles = StyleSheet.create({
     mainButtonGradient: {
         flex: 1,
         borderRadius: 28,
-        flexDirection: "row-reverse",
+        flexDirection: rowDirection,
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
@@ -1377,6 +2049,8 @@ const styles = StyleSheet.create({
         color: "#FFFFFF",
         fontSize: 17,
         fontWeight: "900",
+        fontFamily: FONT_BOLD,
+        includeFontPadding: true,
     },
 
     sectionTitle: {
@@ -1385,13 +2059,17 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: "900",
         color: COLORS.text,
-        textAlign: "right",
+        textAlign,
         alignSelf: "stretch",
+        fontFamily: FONT_BOLD,
+        includeFontPadding: true,
     },
 
     metricsGrid: {
         width: "100%",
-        flexDirection: "row-reverse",
+        maxWidth: 980,
+        alignSelf: "center",
+        flexDirection: rowDirection,
         flexWrap: "wrap",
         gap: 10,
         justifyContent: "center",
@@ -1409,7 +2087,7 @@ const styles = StyleSheet.create({
     },
 
     metricHeader: {
-        flexDirection: "row-reverse",
+        flexDirection: rowDirection,
         alignItems: "center",
         justifyContent: "space-between",
         gap: 8,
@@ -1419,7 +2097,7 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 14,
-        backgroundColor: "#FFFFFF",
+        backgroundColor: COLORS.surface,
         alignItems: "center",
         justifyContent: "center",
     },
@@ -1429,7 +2107,8 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: COLORS.muted,
         fontWeight: "800",
-        textAlign: "right",
+        textAlign,
+        fontFamily: FONT_SEMIBOLD,
     },
 
     metricValue: {
@@ -1437,17 +2116,24 @@ const styles = StyleSheet.create({
         fontSize: 30,
         color: COLORS.text,
         fontWeight: "900",
-        textAlign: "right",
+        textAlign,
+        fontFamily: FONT_EXTRABOLD,
+        includeFontPadding: true,
     },
 
     metricUnit: {
         fontSize: 12,
         color: COLORS.muted,
         fontWeight: "700",
-        textAlign: "right",
+        textAlign,
+        fontFamily: FONT_SEMIBOLD,
+        includeFontPadding: true,
     },
 
     statusCard: {
+        width: "100%",
+        maxWidth: 980,
+        alignSelf: "center",
         marginTop: 12,
         borderRadius: 24,
         borderWidth: 1,
@@ -1457,7 +2143,7 @@ const styles = StyleSheet.create({
     },
 
     statusHeader: {
-        flexDirection: "row-reverse",
+        flexDirection: rowDirection,
         alignItems: "center",
         gap: 8,
     },
@@ -1475,6 +2161,7 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: "900",
         color: COLORS.text,
+        fontFamily: FONT_BOLD,
     },
 
     statusDescription: {
@@ -1482,8 +2169,9 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: COLORS.muted,
         fontWeight: "700",
-        textAlign: "right",
+        textAlign,
         lineHeight: 22,
+        fontFamily: FONT_SEMIBOLD,
     },
 
     debugText: {
@@ -1491,8 +2179,9 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: COLORS.warning,
         fontWeight: "800",
-        textAlign: "right",
+        textAlign,
         lineHeight: 20,
+        fontFamily: FONT_SEMIBOLD,
     },
 
     rawBox: {
@@ -1506,26 +2195,31 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: COLORS.primary,
         fontWeight: "900",
-        textAlign: "right",
+        textAlign,
         marginBottom: 6,
+        fontFamily: FONT_BOLD,
     },
 
     rawText: {
-        fontSize: 11,
-        color: "#555555",
+        fontSize: 9.8,
+        color: COLORS.rawText,
         fontWeight: "700",
         textAlign: "left",
         lineHeight: 18,
+        fontFamily: FONT_REGULAR,
     },
 
     tipCard: {
+        width: "100%",
+        maxWidth: 980,
+        alignSelf: "center",
         marginTop: 12,
         borderRadius: 22,
         borderWidth: 1,
-        borderColor: "#F1E0E0",
-        backgroundColor: "#FFF8F8",
+        borderColor: COLORS.border,
+        backgroundColor: COLORS.notificationUnreadBg,
         padding: 14,
-        flexDirection: "row-reverse",
+        flexDirection: rowDirection,
         alignItems: "flex-start",
         gap: 10,
     },
@@ -1541,14 +2235,15 @@ const styles = StyleSheet.create({
 
     tipTextBox: {
         flex: 1,
-        alignItems: "flex-end",
+        alignItems,
     },
 
     tipTitle: {
         fontSize: 14,
         fontWeight: "900",
         color: COLORS.text,
-        textAlign: "right",
+        textAlign,
+        fontFamily: FONT_BOLD,
     },
 
     tipText: {
@@ -1557,16 +2252,17 @@ const styles = StyleSheet.create({
         color: COLORS.muted,
         fontWeight: "600",
         lineHeight: 20,
-        textAlign: "right",
+        textAlign,
+        fontFamily: FONT_REGULAR,
     },
 
     aiHomeBox: {
         width: "100%",
         marginTop: 16,
         borderRadius: 20,
-        backgroundColor: "#FFFFFF",
+        backgroundColor: COLORS.surface,
         borderWidth: 1,
-        borderColor: "#F1E0E0",
+        borderColor: COLORS.border,
         padding: 14,
     },
 
@@ -1574,7 +2270,8 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: "900",
         color: COLORS.text,
-        textAlign: "right",
+        textAlign,
+        fontFamily: FONT_BOLD,
     },
 
     aiHomeMessage: {
@@ -1582,13 +2279,14 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: "700",
         color: COLORS.muted,
-        textAlign: "right",
+        textAlign,
         lineHeight: 22,
+        fontFamily: FONT_SEMIBOLD,
     },
 
     aiHomeFooter: {
         marginTop: 10,
-        flexDirection: "row-reverse",
+        flexDirection: rowDirection,
         justifyContent: "space-between",
         gap: 10,
     },
@@ -1597,6 +2295,7 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: "900",
         color: COLORS.primary,
+        fontFamily: FONT_BOLD,
     },
 
     aiHomeAction: {
@@ -1605,16 +2304,17 @@ const styles = StyleSheet.create({
         fontWeight: "800",
         color: COLORS.success,
         textAlign: "left",
+        fontFamily: FONT_SEMIBOLD,
     },
 
     notificationItemUnread: {
-        backgroundColor: "#FFF8F8",
+        backgroundColor: COLORS.notificationUnreadBg,
         borderRadius: 16,
         paddingHorizontal: 12,
     },
 
     notificationTopRow: {
-        flexDirection: "row-reverse",
+        flexDirection: rowDirection,
         alignItems: "center",
         gap: 8,
         marginBottom: 4,
@@ -1632,70 +2332,234 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: "900",
         color: COLORS.text,
-        textAlign: "right",
+        textAlign,
+        fontFamily: FONT_BOLD,
+        includeFontPadding: true,
     },
 
     notificationActions: {
         marginTop: 10,
-        flexDirection: "row-reverse",
+        flexDirection: rowDirection,
         gap: 8,
+        alignSelf: isArabic ? "flex-end" : "flex-start",
     },
 
     readButton: {
         backgroundColor: COLORS.primary,
-        paddingHorizontal: 10,
-        paddingVertical: 7,
-        borderRadius: 10,
+        minHeight: 38,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
     },
 
     readButtonText: {
         color: "#FFFFFF",
-        fontSize: 11,
+        fontSize: 9.8,
         fontWeight: "900",
+        fontFamily: FONT_BOLD,
+        includeFontPadding: true,
     },
 
     deleteButton: {
-        backgroundColor: "rgba(198,40,40,0.10)",
-        paddingHorizontal: 10,
-        paddingVertical: 7,
-        borderRadius: 10,
+        backgroundColor: COLORS.disconnectedBg,
+        minHeight: 38,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 12,
+        alignItems: "center",
+        justifyContent: "center",
     },
 
     deleteButtonText: {
         color: COLORS.danger,
-        fontSize: 11,
+        fontSize: 9.8,
         fontWeight: "900",
+        fontFamily: FONT_BOLD,
+        includeFontPadding: true,
+    },
+
+    notificationActionPressed: {
+        opacity: 0.62,
+        transform: [{ scale: 0.98 }],
     },
 
     modalScrollContent: {
-        paddingBottom: 12,
+        paddingBottom: 18,
+        flexGrow: 1,
     },
 
     modalScroll: {
-        maxHeight: 350,
+        maxHeight: 430,
         width: "100%",
+        flexGrow: 0,
+    },
+
+    aiFloatingButtonWrapper: {
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: FLOATING_ASSISTANT_WIDTH,
+        height: FLOATING_ASSISTANT_HEIGHT,
+        zIndex: 800,
+        elevation: 14,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
+    aiFloatingGlow: {
+        position: "absolute",
+        width: FLOATING_ASSISTANT_WIDTH + 10,
+        height: FLOATING_ASSISTANT_HEIGHT + 10,
+        borderRadius: (FLOATING_ASSISTANT_HEIGHT + 10) / 2,
+        backgroundColor: COLORS.floatingGlow,
+        borderWidth: 1,
+        borderColor: COLORS.floatingGlowBorder,
+        shadowColor: COLORS.floatingIcon,
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.18,
+        shadowRadius: 10,
+        elevation: 6,
     },
 
     aiFloatingButton: {
-        position: "absolute",
-        right: 24,
-        bottom: Platform.OS === "ios" ? 10 : 10,
-        width: 62,
-        height: 62,
-        borderRadius: 31,
-        backgroundColor: "#EBEBEB",
-        justifyContent: "center",
+        width: FLOATING_ASSISTANT_WIDTH,
+        height: FLOATING_ASSISTANT_HEIGHT,
+        borderRadius: FLOATING_ASSISTANT_HEIGHT / 2,
+        backgroundColor: COLORS.floatingBg,
+        borderWidth: 1.4,
+        borderColor: COLORS.floatingBorder,
         alignItems: "center",
-        zIndex: 800,
-        elevation: 14,
+        justifyContent: "center",
+        paddingHorizontal: 6,
+        paddingTop: 9,
+        paddingBottom: 7,
 
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 7 },
+        shadowColor: COLORS.floatingIcon,
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.20,
-        shadowRadius: 12,
-
-        borderWidth: 1,
-        borderColor: "rgba(255, 255, 255, 0.35)",
+        shadowRadius: 10,
+        elevation: 14,
     },
-});
+
+    aiFloatingButtonPressed: {
+        opacity: 0.94,
+        transform: [{ scale: 0.96 }],
+    },
+
+    aiFloatingMark: {
+        position: "absolute",
+        top: 8,
+        right: 12,
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: COLORS.floatingMarkBg,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1,
+        borderColor: COLORS.floatingBorder,
+    },
+
+    aiTypingBubble: {
+        position: "absolute",
+        top: -6,
+        right: isArabic ? 3 : undefined,
+        left: isArabic ? undefined : 3,
+        minWidth: 31,
+        height: 18,
+        borderRadius: 11,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 3,
+        backgroundColor: COLORS.floatingTypingBg,
+        borderWidth: 1,
+        borderColor: COLORS.floatingTypingBorder,
+        shadowColor: COLORS.floatingBg,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.09,
+        shadowRadius: 4,
+        elevation: 5,
+        zIndex: 4,
+    },
+
+    aiFloatingTopRow: {
+        flexDirection: rowDirection,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 4,
+        marginBottom: 2,
+    },
+
+    aiFloatingIconCircle: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: "transparent",
+        alignItems: "center",
+        justifyContent: "center",
+        marginTop: 2,
+        zIndex: 3,
+    },
+
+    aiFloatingMainIcon: {
+        marginTop: 3,
+        marginBottom: 4,
+        zIndex: 3,
+        textShadowColor: "rgba(0,0,0,0.28)",
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 4,
+        shadowColor: "rgba(0,0,0,0.35)",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+    },
+
+    aiTypingDotsRow: {
+        width: 25,
+        height: 17,
+        borderRadius: 9,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 2.7,
+        backgroundColor: COLORS.floatingIconBg,
+    },
+
+    aiTypingDot: {
+        width: 3.8,
+        height: 3.8,
+        borderRadius: 1.9,
+        backgroundColor: COLORS.floatingTypingDot,
+    },
+
+    aiFloatingQuestion: {
+        color: COLORS.floatingTitle,
+        fontSize: 7.8,
+        lineHeight: 10.2,
+        fontWeight: "900",
+        textAlign: "center",
+        includeFontPadding: false,
+        zIndex: 3,
+        fontFamily: FONT_BOLD,
+        marginTop: -1,
+        maxWidth: 58,
+        alignSelf: "center",
+    },
+
+    aiFloatingSubtitle: {
+        marginTop: 2,
+        color: COLORS.floatingSubtitle,
+        fontSize: 7.5,
+        lineHeight: 9,
+        fontWeight: "900",
+        textAlign: "center",
+        includeFontPadding: false,
+        fontFamily: FONT_BOLD,
+    },
+
+    });
+}
 /* انا */

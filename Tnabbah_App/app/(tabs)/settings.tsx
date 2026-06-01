@@ -8,15 +8,20 @@ import {
   ScrollView,
   StatusBar,
   Animated,
+  Easing,
   Modal,
   ActivityIndicator,
   Platform,
   Linking,
   TextInput,
+  PanResponder,
+  KeyboardAvoidingView,
+  AppState,
 } from "react-native";
 import { supabase } from "../../lib/supabase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -26,22 +31,23 @@ import { useCars, UserCar } from "../../providers/CarsProvider";
 import { useAppSettings } from "../../providers/AppSettingsProvider";
 import { useNotifications } from "../../providers/NotificationsProvider";
 import { useAccountSettings } from "../../providers/AccountSettingsProvider";
+import {
+  Alexandria_400Regular,
+  Alexandria_600SemiBold,
+  Alexandria_700Bold,
+  Alexandria_800ExtraBold,
+  useFonts,
+} from "@expo-google-fonts/alexandria";
 import { useLanguage } from "../../providers/LanguageProvider";
 
-import {
-  EditNameModal,
-  EditEmailModal,
-  DeleteAccountModal,
-  LogoutLoadingModal,
-} from "../../components/settings/AccountModals";
 import { EditCarNameModal } from "../../components/settings/CarModals";
 import { ConfirmModal } from "../../components/settings/CommonModals";
 
 const COLORS = {
   primary: "#871B17",
-  primary2: "#9A211C",
-  primaryPressed: "#6F1512",
-  primaryDark: "#761713",
+  primary2: "#871B17",
+  primaryPressed: "#871B17",
+  primaryDark: "#871B17",
 
   // خليته غامق بدل الأحمر الفاتح
   danger: "#871B17",
@@ -51,6 +57,16 @@ const COLORS = {
 };
 
 const MAX_NAME_LENGTH = 20;
+const EMAIL_CHANGE_RESEND_COOLDOWN = 60;
+const EMAIL_CHANGE_PENDING_KEY = "settings_email_change_pending";
+const EMAIL_CHANGE_TARGET_KEY = "settings_email_change_target_email";
+const EMAIL_CHANGE_SUCCESS_SHOWN_KEY = "settings_email_change_success_shown";
+
+
+const FONT_REGULAR = "Alexandria_400Regular";
+const FONT_SEMIBOLD = "Alexandria_600SemiBold";
+const FONT_BOLD = "Alexandria_700Bold";
+const FONT_EXTRABOLD = "Alexandria_800ExtraBold";
 
 const lightTheme = {
   background: "#FFFFFF",
@@ -67,6 +83,11 @@ const lightTheme = {
   dangerBg: "#FFF1F1",
   successBg: "#EFFAF3",
   modalOverlay: "rgba(0,0,0,0.32)",
+
+  accent: "#871B17",
+  accentPressed: "#871B17",
+  accentBorder: "rgba(135,27,23,0.20)",
+  danger: "#871B17",
 };
 
 const darkTheme = {
@@ -77,16 +98,22 @@ const darkTheme = {
   textPrimary: "#FFFFFF",
   textSecondary: "#C7C7C7",
 
-  // Dark mode icons use the same warm red family as the account card
-  iconBg: "rgba(255,255,255,0.08)",
-  iconColor: "#D04740",
+  // في الدارك مود نخلي خلفية الأيقونات رمادي غامق بدل الأحمر،
+  // والأيقونة نفسها تبقى بلون أحمر التطبيق نفس بوكس الحساب.
+  iconBg: "#2A2A2A",
+  iconColor: "#B63A34",
 
   subtle: "#292929",
   headerDivider: "#343434",
   cardPressed: "#2E2E2E",
-  dangerBg: "rgba(135,27,23,0.18)",
+  dangerBg: "rgba(182,58,52,0.12)",
   successBg: "rgba(46,125,50,0.18)",
   modalOverlay: "rgba(0,0,0,0.62)",
+
+  accent: "#B63A34",
+  accentPressed: "#B63A34",
+  accentBorder: "rgba(182,58,52,0.28)",
+  danger: "#B63A34",
 };
 
 const translations = {
@@ -94,7 +121,7 @@ const translations = {
     settings: "الإعدادات",
 
     account: "الحساب",
-    userId: "معرّف المستخدم",
+    userId: "رقم الحساب",
 
     cars: "سياراتي",
     currentCar: "السيارة الحالية",
@@ -104,25 +131,25 @@ const translations = {
     notifications: "السماح بالإشعارات",
     notificationsDesc: "استلام تنبيهات الفحص والتذكيرات",
     language: "اللغة",
-    languageDesc: "تغيير لغة التطبيق في أي وقت",
+    languageDesc: "لغة التطبيق الحالية: العربية",
     darkMode: "الوضع الداكن",
     darkModeDesc: "تفعيل المظهر الداكن للتطبيق",
 
     helpSupport: "المساعدة والدعم",
     help: "تواصل مع الدعم",
     helpDesc: "للاستفسارات أو الإبلاغ عن مشكلة في التطبيق",
-    supportEmailButton: "إرسال بريد للدعم",
-    supportWhatsAppButton: "التواصل عبر واتساب",
-    reportIssueButton: "الإبلاغ عن مشكلة",
+    supportEmailButton: "البريد الإلكتروني",
+    supportWhatsAppButton: "واتساب",
+    reportIssueButton: "إبلاغ عن مشكلة",
     helpIntro:
-      "إذا واجهت مشكلة أو عندك استفسار، أرسلي لنا التفاصيل وسنساعدك في أقرب وقت.",
+      "إذا ظهرت مشكلة أو كان هناك استفسار، أرسل التفاصيل وسنساعد في أقرب وقت.",
     faqTitle: "الأسئلة الشائعة",
     faqConnectionQuestion: "كيف أوصل قطعة السيارة؟",
     faqConnectionAnswer:
-      "من صفحة الاتصال اختاري البلوتوث ثم اختاري قطعة السيارة وابدئي الفحص.",
+      "من صفحة الاتصال، اختر البلوتوث ثم اختر قطعة السيارة وابدأ الفحص.",
     faqNotificationsQuestion: "لماذا لا تظهر السيارة؟",
     faqNotificationsAnswer:
-      "تأكدي أن القطعة تعمل وأن البلوتوث والصلاحيات مفعلة.",
+      "تأكد من تشغيل القطعة وتفعيل البلوتوث والصلاحيات.",
     faqReportQuestion: "هل التطبيق يحفظ بيانات السيارة؟",
     faqReportAnswer:
       "يتم حفظ البيانات الضرورية فقط لتحسين تجربتك وعرض التقارير.",
@@ -132,7 +159,7 @@ const translations = {
     bluetoothSettingsDesc: "ربط أو تغيير قطعة السيارة",
     deviceStatus: "اتصال القطعة",
     scanStatus: "قراءة بيانات السيارة",
-        dataConnection: "اتصال البيانات",
+    dataConnection: "اتصال البيانات",
     connected: "متصل",
     disconnected: "غير متصل",
     scannerOn: "تعمل الآن",
@@ -161,19 +188,22 @@ const translations = {
     disconnectedDone: "تم إنهاء اتصال السيارة.",
     errorTitle: "حدث خطأ",
     nameLimitError: "الاسم يجب ألا يتجاوز 20 حرفًا.",
-    emailSameError: "اكتبي بريدًا إلكترونيًا مختلفًا عن البريد الحالي.",
+    emailSameError: "أدخل بريدًا إلكترونيًا مختلفًا عن البريد الحالي.",
     emailChangeSentTitle: "تم إرسال رابط التأكيد",
     emailChangeSentBody:
-      "افتحي البريد الإلكتروني الجديد واضغطي على رابط تأكيد تغيير البريد لإكمال العملية.",
+      "افتح البريد الإلكتروني الجديد واضغط على رابط التأكيد لإكمال التغيير.",
+    emailChangeSuccessTitle: "تم تغيير البريد الإلكتروني",
+    emailChangeSuccessBody: "تم تأكيد البريد الإلكتروني الجديد وتحديثه في الحساب.",
+    emailChangeStaySettings: "بعد التأكيد ستعودين إلى الإعدادات ويظهر البريد الجديد في الحساب.",
     emailChangeError:
-      "تعذر إرسال رابط تغيير البريد. تأكدي من البريد أو حاولي مرة أخرى.",
+      "تعذر إرسال رابط التأكيد. تأكد من البريد الإلكتروني أو جرّب مرة أخرى.",
 
     totalCars: "عدد السيارات",
     carConnection: "اتصال السيارة الحالية",
 
     notificationsDeniedTitle: "الإشعارات غير مفعّلة",
     notificationsDeniedBody:
-      "فعّلي الإشعارات من إعدادات الجهاز حتى تصلك التنبيهات.",
+      "فعّل الإشعارات من إعدادات الجهاز حتى تصل التنبيهات.",
     openSettings: "فتح الإعدادات",
   },
 
@@ -191,16 +221,16 @@ const translations = {
     notifications: "Allow Notifications",
     notificationsDesc: "Receive check alerts and reminders",
     language: "Language",
-    languageDesc: "Change app language anytime",
+    languageDesc: "Current app language: English",
     darkMode: "Dark Mode",
     darkModeDesc: "Enable dark theme for the app",
 
     helpSupport: "Help & Support",
     help: "Contact Support",
     helpDesc: "For questions or reporting an app issue",
-    supportEmailButton: "Email Support",
-    supportWhatsAppButton: "Contact via WhatsApp",
-    reportIssueButton: "Report an Issue",
+    supportEmailButton: "Email",
+    supportWhatsAppButton: "WhatsApp",
+    reportIssueButton: "Report a problem",
     helpIntro:
       "If you have a question or an issue, send us the details and we will help you as soon as possible.",
     faqTitle: "FAQs",
@@ -252,8 +282,11 @@ const translations = {
     emailChangeSentTitle: "Confirmation link sent",
     emailChangeSentBody:
       "Open your new email and tap the confirmation link to complete the change.",
+    emailChangeSuccessTitle: "Email changed",
+    emailChangeSuccessBody: "The new email has been confirmed and updated on your account.",
+    emailChangeStaySettings: "After confirmation, you will return to Settings and see the new email on your account.",
     emailChangeError:
-      "Could not send the email change link. Check the email or try again.",
+      "Could not send the confirmation link. Check the email address or try again.",
 
     totalCars: "Total Cars",
     carConnection: "Current Car Connection",
@@ -317,6 +350,30 @@ function AppSwitch({
   );
 }
 
+function EditActionPill({
+  label,
+  theme,
+  isRTL,
+}: {
+  label: string;
+  theme: typeof lightTheme;
+  isRTL: boolean;
+}) {
+  return (
+    <View
+      style={[
+        styles.editActionPlain,
+        {
+          flexDirection: isRTL ? "row-reverse" : "row",
+        },
+      ]}
+    >
+      <Feather name="edit-3" size={15} color={theme.accent} />
+      <Text style={[styles.editActionPlainText, { color: theme.accent }]}>{label}</Text>
+    </View>
+  );
+}
+
 function AppMessageModal({
   visible,
   title,
@@ -339,7 +396,7 @@ function AppMessageModal({
   const isSuccess = icon === "check-circle";
   const isError = icon === "alert-circle";
   const lottieRef = useRef<LottieView>(null);
-  const iconColor = isError ? COLORS.danger : COLORS.primary;
+  const iconColor = isError ? theme.danger : theme.accent;
   const iconBackground = isError ? "rgba(135,27,23,0.12)" : theme.iconBg;
 
   const successScale = useRef(new Animated.Value(0.35)).current;
@@ -420,7 +477,7 @@ function AppMessageModal({
 
     const timer = setTimeout(() => {
       onClose();
-    }, 2300);
+    }, 2000);
 
     return () => {
       clearTimeout(playTimer);
@@ -463,20 +520,18 @@ function AppMessageModal({
                 ref={lottieRef}
                 source={require("../../assets/animations/success-check.json")}
                 loop={false}
-                speed={0.55}
+                speed={1.15}
                 style={styles.successLottie}
               />
             </View>
-          ) : (
-            <View
-              style={[
-                styles.appMessageIconCircle,
-                { backgroundColor: iconBackground },
-              ]}
-            >
-              <Feather name={icon} size={28} color={iconColor} />
-            </View>
-          )}
+          ) : isError ? (
+            <Feather
+              name="alert-circle"
+              size={36}
+              color={theme.danger}
+              style={styles.appMessagePlainErrorIcon}
+            />
+          ) : null}
 
           <Text style={[styles.confirmTitle, { color: theme.textPrimary }]}>
             {title}
@@ -501,7 +556,7 @@ function AppMessageModal({
               style={({ pressed }) => [
                 styles.singleModalButton,
                 {
-                  backgroundColor: COLORS.primary,
+                  backgroundColor: theme.accent,
                   opacity: pressed ? 0.9 : 1,
                   marginTop: message?.trim() ? 0 : 10,
                 },
@@ -517,10 +572,612 @@ function AppMessageModal({
   );
 }
 
+function DeleteAccountModal({
+  visible,
+  password,
+  onChangePassword,
+  onCancel,
+  onConfirm,
+  loading,
+  theme,
+  isRTL,
+}: {
+  visible: boolean;
+  password: string;
+  onChangePassword: (value: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+  loading: boolean;
+  theme: typeof lightTheme;
+  isRTL: boolean;
+}) {
+  const rowDirection = isRTL ? "row-reverse" : "row";
+  const textAlign = isRTL ? "right" : "left";
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={loading ? undefined : onCancel}
+    >
+      <View style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}> 
+        <View
+          style={[
+            styles.confirmModal,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          <Text style={[styles.confirmTitle, { color: theme.danger }]}> 
+            {isRTL ? "حذف الحساب" : "Delete account"}
+          </Text>
+
+          <Text
+            style={[
+              styles.confirmMessage,
+              {
+                color: theme.textSecondary,
+                textAlign,
+              },
+            ]}
+          >
+            {isRTL
+              ? "سيؤدي حذف الحساب إلى إزالة الحساب وبياناته بشكل نهائي. لا يمكن التراجع عن هذه العملية أو استرجاع الحساب بعد الحذف."
+              : "Deleting the account will permanently remove the account and its data. This action cannot be undone and the account cannot be restored after deletion."}
+          </Text>
+
+          <Text style={[styles.deletePasswordLabel, { color: theme.textSecondary, textAlign }]}> 
+            {isRTL ? "أدخل كلمة المرور الحالية للتأكيد" : "Enter the current password to confirm"}
+          </Text>
+
+          <TextInput
+            value={password}
+            onChangeText={onChangePassword}
+            secureTextEntry
+            editable={!loading}
+            placeholder={isRTL ? "كلمة المرور الحالية" : "Current password"}
+            placeholderTextColor="#A9A9A9"
+            selectionColor={theme.accent}
+            textAlign={textAlign}
+            style={[
+              styles.deletePasswordInput,
+              {
+                color: theme.textPrimary,
+                backgroundColor: theme.subtle,
+                borderColor: theme.cardBorder,
+              },
+            ]}
+          />
+
+          <View style={[styles.confirmButtons, { flexDirection: rowDirection }]}> 
+            <Pressable
+              onPress={onCancel}
+              disabled={loading}
+              style={({ pressed }) => [
+                styles.confirmSecondaryButton,
+                {
+                  borderColor: theme.cardBorder,
+                  backgroundColor: theme.subtle,
+                  opacity: pressed ? 0.78 : loading ? 0.6 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.confirmSecondaryText, { color: theme.textPrimary }]}> 
+                {isRTL ? "إلغاء" : "Cancel"}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={onConfirm}
+              disabled={loading}
+              style={({ pressed }) => [
+                styles.confirmPrimaryButton,
+                {
+                  backgroundColor: theme.danger,
+                  opacity: pressed ? 0.9 : loading ? 0.72 : 1,
+                },
+              ]}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.confirmPrimaryText}> 
+                  {isRTL ? "حذف الحساب" : "Delete account"}
+                </Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+
+type BottomEditSheetMode = "form" | "success";
+
+function BottomEditSheet({
+  visible,
+  title,
+  subtitle,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType = "default",
+  maxLength,
+  onClose,
+  onSave,
+  saving,
+  theme,
+  isRTL,
+  confirmText,
+  cancelText,
+  mode,
+  successTitle,
+  successMessage,
+  successActionText,
+  onSuccessAction,
+  successInfoText,
+  successResendQuestion,
+  successResendText,
+  successResendTimer,
+  successResending,
+  onSuccessResend,
+  errorMessage,
+}: {
+  visible: boolean;
+  title: string;
+  subtitle?: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder?: string;
+  keyboardType?: "default" | "email-address";
+  maxLength?: number;
+  onClose: () => void;
+  onSave: () => void;
+  saving: boolean;
+  theme: typeof lightTheme;
+  isRTL: boolean;
+  confirmText: string;
+  cancelText: string;
+  mode: BottomEditSheetMode;
+  successTitle: string;
+  successMessage?: string;
+  successActionText?: string;
+  onSuccessAction?: () => void;
+  successInfoText?: string;
+  successResendQuestion?: string;
+  successResendText?: string;
+  successResendTimer?: number;
+  successResending?: boolean;
+  onSuccessResend?: () => void;
+  errorMessage?: string;
+}) {
+  const sheetAnim = useRef(new Animated.Value(0)).current;
+  const dragY = useRef(new Animated.Value(0)).current;
+  const lottieRef = useRef<LottieView>(null);
+  const [renderModal, setRenderModal] = useState(visible);
+
+  const rowDirection = isRTL ? "row-reverse" : "row";
+  const textAlign = isRTL ? "right" : "left";
+
+  const closeWithAnimation = () => {
+    if (saving) return;
+
+    Animated.timing(sheetAnim, {
+      toValue: 0,
+      duration: 190,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      dragY.setValue(0);
+      setRenderModal(false);
+      onClose();
+    });
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dy) > 3 &&
+        Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onMoveShouldSetPanResponderCapture: (_, gestureState) =>
+        Math.abs(gestureState.dy) > 3 &&
+        Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onPanResponderGrant: () => {
+        dragY.setOffset(0);
+        dragY.setValue(0);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const nextY = Math.max(-16, gestureState.dy);
+        dragY.setValue(nextY);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        dragY.flattenOffset();
+
+        if (gestureState.dy > 80 || gestureState.vy > 0.85) {
+          closeWithAnimation();
+          return;
+        }
+
+        Animated.spring(dragY, {
+          toValue: 0,
+          useNativeDriver: true,
+          friction: 8,
+          tension: 90,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        dragY.flattenOffset();
+        Animated.spring(dragY, {
+          toValue: 0,
+          useNativeDriver: true,
+          friction: 8,
+          tension: 90,
+        }).start();
+      },
+    }),
+  ).current;
+
+  useEffect(() => {
+    if (visible) {
+      setRenderModal(true);
+      dragY.setValue(0);
+      requestAnimationFrame(() => {
+        Animated.timing(sheetAnim, {
+          toValue: 1,
+          duration: 260,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start();
+      });
+    } else if (renderModal) {
+      Animated.timing(sheetAnim, {
+        toValue: 0,
+        duration: 190,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }).start(() => {
+        dragY.setValue(0);
+        setRenderModal(false);
+      });
+    }
+  }, [visible, renderModal, sheetAnim, dragY]);
+
+  useEffect(() => {
+    if (!visible || mode !== "success") return;
+
+    lottieRef.current?.reset();
+
+    const playTimer = setTimeout(() => {
+      lottieRef.current?.play(0);
+    }, 80);
+
+    return () => clearTimeout(playTimer);
+  }, [visible, mode]);
+
+  if (!renderModal) return null;
+
+  const translateY = Animated.add(
+    sheetAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [420, 0],
+    }),
+    dragY,
+  );
+
+  const backdropOpacity = sheetAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  return (
+    <Modal
+      visible={renderModal}
+      transparent
+      animationType="none"
+      onRequestClose={closeWithAnimation}
+    >
+      <View style={styles.bottomSheetRoot}>
+        <Animated.View
+          style={[
+            styles.bottomSheetBackdrop,
+            {
+              backgroundColor: theme.modalOverlay,
+              opacity: backdropOpacity,
+            },
+          ]}
+        >
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={closeWithAnimation}
+          />
+        </Animated.View>
+
+        <KeyboardAvoidingView
+          pointerEvents="box-none"
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+          style={styles.bottomSheetKeyboardAvoider}
+        >
+          <Animated.View
+            style={[
+              styles.bottomSheetContainer,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.cardBorder,
+                transform: [{ translateY }],
+              },
+            ]}
+          >
+          <View style={styles.bottomSheetHandleArea} {...panResponder.panHandlers}>
+            <View
+              style={[
+                styles.bottomSheetHandle,
+                { backgroundColor: theme.border },
+              ]}
+            />
+          </View>
+
+          {mode === "success" ? (
+            <View style={styles.bottomSheetSuccessContent}>
+              <LottieView
+                ref={lottieRef}
+                source={require("../../assets/animations/success-check.json")}
+                loop={false}
+                speed={1.12}
+                style={styles.bottomSheetSuccessLottie}
+              />
+
+              <Text
+                style={[
+                  styles.bottomSheetTitle,
+                  { color: theme.textPrimary, textAlign: "center" },
+                ]}
+              >
+                {successTitle}
+              </Text>
+
+              {!!successMessage?.trim() && (
+                <Text
+                  style={[
+                    styles.bottomSheetSubtitle,
+                    { color: theme.textSecondary, textAlign: "center" },
+                  ]}
+                >
+                  {successMessage}
+                </Text>
+              )}
+
+              {!!successActionText?.trim() && (
+                <Pressable
+                  onPress={onSuccessAction || closeWithAnimation}
+                  style={({ pressed }) => [
+                    styles.bottomSheetSuccessButton,
+                    { opacity: pressed ? 0.86 : 1 },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[theme.accent, theme.accentPressed]}
+                    start={{ x: 0.15, y: 0 }}
+                    end={{ x: 0.9, y: 1 }}
+                    style={styles.bottomSheetSuccessButtonGradient}
+                  >
+                    <Text style={styles.bottomSheetPrimaryText}>
+                      {successActionText}
+                    </Text>
+                  </LinearGradient>
+                </Pressable>
+              )}
+
+              {!!successInfoText?.trim() && (
+                <Text
+                  style={[
+                    styles.bottomSheetSuccessInfoText,
+                    { color: theme.textSecondary, textAlign: "center" },
+                  ]}
+                >
+                  {successInfoText}
+                </Text>
+              )}
+
+              {!!successResendQuestion?.trim() && !!successResendText?.trim() && (
+                <View style={styles.bottomSheetResendArea}>
+                  <Text
+                    style={[
+                      styles.bottomSheetResendQuestion,
+                      { color: theme.textSecondary, textAlign: "center" },
+                    ]}
+                  >
+                    {successResendQuestion}
+                  </Text>
+
+                  {(successResendTimer || 0) > 0 ? (
+                    <Text style={styles.bottomSheetResendTimerText}>
+                      {isRTL
+                        ? `يمكنك إعادة الإرسال بعد ${successResendTimer} ثانية`
+                        : `You can resend after ${successResendTimer} seconds`}
+                    </Text>
+                  ) : (
+                    <Pressable
+                      onPress={onSuccessResend}
+                      disabled={successResending}
+                      style={({ pressed }) => [
+                        styles.bottomSheetResendButton,
+                        {
+                          borderColor: theme.cardBorder,
+                          backgroundColor: theme.subtle,
+                          opacity: pressed ? 0.8 : successResending ? 0.7 : 1,
+                        },
+                      ]}
+                    >
+                      {successResending ? (
+                        <ActivityIndicator size="small" color={theme.accent} />
+                      ) : (
+                        <Text style={styles.bottomSheetResendButtonText}>
+                          {successResendText}
+                        </Text>
+                      )}
+                    </Pressable>
+                  )}
+                </View>
+              )}
+            </View>
+          ) : (
+            <View>
+              <View
+                style={[
+                  styles.bottomSheetHeader,
+                  { flexDirection: rowDirection },
+                ]}
+              >
+                <View style={styles.bottomSheetHeaderTextBlock}>
+                  <Text
+                    style={[
+                      styles.bottomSheetTitle,
+                      { color: theme.textPrimary, textAlign },
+                    ]}
+                  >
+                    {title}
+                  </Text>
+
+                  {!!subtitle?.trim() && (
+                    <Text
+                      style={[
+                        styles.bottomSheetSubtitle,
+                        { color: theme.textSecondary, textAlign },
+                      ]}
+                    >
+                      {subtitle}
+                    </Text>
+                  )}
+                </View>
+
+              </View>
+
+              <TextInput
+                value={value}
+                onChangeText={onChangeText}
+                placeholder={placeholder}
+                placeholderTextColor="#A9A9A9"
+                keyboardType={keyboardType}
+                autoCapitalize={
+                  keyboardType === "email-address" ? "none" : "words"
+                }
+                autoCorrect={keyboardType !== "email-address"}
+                maxLength={maxLength}
+                editable={!saving}
+                selectionColor={theme.accent}
+                textAlign={textAlign}
+                style={[
+                  styles.bottomSheetInput,
+                  {
+                    color: theme.textPrimary,
+                    backgroundColor: theme.subtle,
+                    borderColor: theme.cardBorder,
+                  },
+                ]}
+              />
+
+              {!!errorMessage?.trim() && (
+                <View
+                  style={[
+                    styles.bottomSheetErrorBox,
+                    { flexDirection: rowDirection },
+                  ]}
+                >
+                  <Feather
+                    name="alert-circle"
+                    size={22}
+                    color={theme.danger}
+                  />
+                  <Text
+                    style={[
+                      styles.bottomSheetErrorText,
+                      { textAlign, color: theme.danger },
+                    ]}
+                  >
+                    {errorMessage}
+                  </Text>
+                </View>
+              )}
+
+              <View
+                style={[
+                  styles.bottomSheetActions,
+                  { flexDirection: rowDirection },
+                ]}
+              >
+                <Pressable
+                  onPress={closeWithAnimation}
+                  disabled={saving}
+                  style={({ pressed }) => [
+                    styles.bottomSheetSecondaryButton,
+                    {
+                      borderColor: theme.cardBorder,
+                      backgroundColor: theme.subtle,
+                      opacity: pressed ? 0.78 : 1,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.bottomSheetSecondaryText,
+                      { color: theme.textPrimary },
+                    ]}
+                  >
+                    {cancelText}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={onSave}
+                  disabled={saving}
+                  style={({ pressed }) => [
+                    styles.bottomSheetPrimaryButton,
+                    { opacity: pressed || saving ? 0.78 : 1 },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[theme.accent, theme.accentPressed]}
+                    start={{ x: 0.15, y: 0 }}
+                    end={{ x: 0.9, y: 1 }}
+                    style={styles.bottomSheetPrimaryGradient}
+                  >
+                    {saving ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.bottomSheetPrimaryText}>
+                        {confirmText}
+                      </Text>
+                    )}
+                  </LinearGradient>
+                </Pressable>
+              </View>
+            </View>
+          )}
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
+}
+
 export default function Settings() {
   const { profile, session } = useAuth();
   const router = useRouter();
   const { language, changeLanguage } = useLanguage();
+  const [fontsLoaded] = useFonts({
+    Alexandria_400Regular,
+    Alexandria_600SemiBold,
+    Alexandria_700Bold,
+    Alexandria_800ExtraBold,
+  });
 
   const {
     obdConnected,
@@ -568,13 +1225,16 @@ export default function Settings() {
   >(null);
 
   const [helpVisible, setHelpVisible] = useState(false);
-  const [confirmLogoutVisible, setConfirmLogoutVisible] = useState(false);
+  const helpSheetDragY = useRef(new Animated.Value(0)).current;
   const [confirmDisconnectVisible, setConfirmDisconnectVisible] =
     useState(false);
 
   const [editNameVisible, setEditNameVisible] = useState(false);
   const [fullNameInput, setFullNameInput] = useState("");
   const [savingName, setSavingName] = useState(false);
+  const [nameSheetMode, setNameSheetMode] =
+    useState<BottomEditSheetMode>("form");
+  const [nameSheetError, setNameSheetError] = useState("");
 
   const [messageVisible, setMessageVisible] = useState(false);
   const [messageTitle, setMessageTitle] = useState("");
@@ -585,6 +1245,14 @@ export default function Settings() {
   const [editEmailVisible, setEditEmailVisible] = useState(false);
   const [emailInput, setEmailInput] = useState("");
   const [savingEmail, setSavingEmail] = useState(false);
+  const [emailSheetMode, setEmailSheetMode] =
+    useState<BottomEditSheetMode>("form");
+  const [emailSheetError, setEmailSheetError] = useState("");
+  const [emailResendTimer, setEmailResendTimer] = useState(0);
+  const [resendingEmailLink, setResendingEmailLink] = useState(false);
+  const [emailResendNotice, setEmailResendNotice] = useState("");
+  const [confirmedEmailOverride, setConfirmedEmailOverride] = useState("");
+  const emailChangeHandledRef = useRef(false);
 
   const [deleteAccountVisible, setDeleteAccountVisible] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
@@ -598,6 +1266,253 @@ export default function Settings() {
   const isRTL = selectedLanguage === "AR";
   const theme = darkModeEnabled ? darkTheme : lightTheme;
 
+  const resetEmailEditSheet = () => {
+    setEditEmailVisible(false);
+    setEmailSheetMode("form");
+    setEmailSheetError("");
+    setEmailResendNotice("");
+    setEmailResendTimer(0);
+    setResendingEmailLink(false);
+  };
+
+  const showEmailChangedSuccessImmediately = async () => {
+    setMessageTitle(
+      selectedLanguage === "AR"
+        ? "تم تغيير البريد الإلكتروني بنجاح"
+        : "Email changed successfully",
+    );
+    setMessageBody(
+      selectedLanguage === "AR"
+        ? "تم تأكيد البريد الإلكتروني الجديد وتحديثه في حسابك."
+        : "The new email has been confirmed and updated on your account.",
+    );
+    setMessageIcon("check-circle");
+    setMessageVisible(true);
+
+    try {
+      await AsyncStorage.setItem(EMAIL_CHANGE_SUCCESS_SHOWN_KEY, "true");
+    } catch (error) {
+      console.log("Save email success shown flag error:", error);
+    }
+  };
+
+  const handleConfirmedEmailChangeLink = async (url?: string | null) => {
+    if (!url || emailChangeHandledRef.current) return;
+
+    const lowerUrl = url.toLowerCase();
+
+    let hasPendingEmailChange = false;
+
+    try {
+      hasPendingEmailChange =
+        (await AsyncStorage.getItem(EMAIL_CHANGE_PENDING_KEY)) === "true";
+    } catch (error) {
+      console.log("Read pending email change flag error:", error);
+    }
+
+    const isSettingsDeepLink =
+      lowerUrl.includes("settings") || lowerUrl.includes("email");
+
+    const isConfirmedEmailChange =
+      lowerUrl.includes("email_changed=1") ||
+      lowerUrl.includes("email_change=1") ||
+      lowerUrl.includes("email-change=1") ||
+      lowerUrl.includes("type=email_change") ||
+      lowerUrl.includes("type=email_change_current") ||
+      lowerUrl.includes("type=email_change_new") ||
+      lowerUrl.includes("type=email") ||
+      lowerUrl.includes("email_change_token") ||
+      lowerUrl.includes("email_change_token_new") ||
+      lowerUrl.includes("email_change_token_current") ||
+      (hasPendingEmailChange && isSettingsDeepLink);
+
+    if (!isConfirmedEmailChange) return;
+
+    emailChangeHandledRef.current = true;
+    resetEmailEditSheet();
+
+    /**
+     * نعرض رسالة النجاح فورًا أول ما التطبيق ينفتح من رابط الإيميل.
+     * لا ننتظر refreshSession ولا تحديث profiles عشان ما تتأخر الرسالة.
+     */
+    await showEmailChangedSuccessImmediately();
+
+    try {
+      const { error: refreshError } = await supabase.auth.refreshSession();
+
+      if (refreshError) {
+        console.log(
+          "Refresh session after email change error:",
+          refreshError.message,
+        );
+      }
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        console.log("Get user after email change error:", userError.message);
+      }
+
+      const confirmedEmail = user?.email?.trim().toLowerCase();
+
+      if (user?.id && confirmedEmail) {
+        setConfirmedEmailOverride(confirmedEmail);
+        setEmailInput(confirmedEmail);
+
+        const { error: profileEmailError } = await supabase
+          .from("profiles")
+          .update({
+            username: confirmedEmail,
+            email: confirmedEmail,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", user.id);
+
+        if (profileEmailError) {
+          console.log(
+            "Profile email sync after email change error:",
+            profileEmailError.message,
+          );
+        }
+      }
+
+      await AsyncStorage.multiRemove([
+        EMAIL_CHANGE_PENDING_KEY,
+        EMAIL_CHANGE_TARGET_KEY,
+      ]);
+    } catch (error) {
+      console.log("Email change deep link background sync error:", error);
+    }
+  };
+  useEffect(() => {
+    const checkInitialEmailChangeLink = async () => {
+      try {
+        const initialUrl = await Linking.getInitialURL();
+
+        if (initialUrl) {
+          await handleConfirmedEmailChangeLink(initialUrl);
+          return;
+        }
+
+        const hasPendingEmailChange =
+          (await AsyncStorage.getItem(EMAIL_CHANGE_PENDING_KEY)) === "true";
+        const wasSuccessShown =
+          (await AsyncStorage.getItem(EMAIL_CHANGE_SUCCESS_SHOWN_KEY)) === "true";
+
+        /**
+         * احتياط:
+         * لو رجع التطبيق من المتصفح وما وصل url event لأي سبب،
+         * نعرض النجاح عند وجود pending flag، لكن مرة واحدة فقط.
+         */
+        if (hasPendingEmailChange && !wasSuccessShown) {
+          emailChangeHandledRef.current = true;
+          resetEmailEditSheet();
+          await showEmailChangedSuccessImmediately();
+
+          supabase.auth.refreshSession().catch((error) => {
+            console.log("Refresh session after pending email change error:", error);
+          });
+        }
+      } catch (error) {
+        console.log("Initial email change URL error:", error);
+      }
+    };
+
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      handleConfirmedEmailChangeLink(url);
+    });
+
+    const appStateSubscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        checkInitialEmailChangeLink();
+      }
+    });
+
+    checkInitialEmailChangeLink();
+
+    return () => {
+      subscription.remove();
+      appStateSubscription.remove();
+    };
+  }, [selectedLanguage, darkModeEnabled]);
+  useEffect(() => {
+    if (!editEmailVisible || emailSheetMode !== "success" || emailResendTimer <= 0) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setEmailResendTimer((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [editEmailVisible, emailSheetMode, emailResendTimer]);
+
+  const closeHelpSheet = () => {
+    Animated.timing(helpSheetDragY, {
+      toValue: 420,
+      duration: 170,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      helpSheetDragY.setValue(0);
+      setHelpVisible(false);
+    });
+  };
+
+  const helpSheetPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dy) > 3 &&
+        Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onMoveShouldSetPanResponderCapture: (_, gestureState) =>
+        Math.abs(gestureState.dy) > 3 &&
+        Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onPanResponderGrant: () => {
+        helpSheetDragY.setOffset(0);
+        helpSheetDragY.setValue(0);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const nextY = Math.max(-16, gestureState.dy);
+        helpSheetDragY.setValue(nextY);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        helpSheetDragY.flattenOffset();
+
+        if (gestureState.dy > 80 || gestureState.vy > 0.85) {
+          closeHelpSheet();
+          return;
+        }
+
+        Animated.spring(helpSheetDragY, {
+          toValue: 0,
+          useNativeDriver: true,
+          friction: 8,
+          tension: 85,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        helpSheetDragY.flattenOffset();
+        Animated.spring(helpSheetDragY, {
+          toValue: 0,
+          useNativeDriver: true,
+          friction: 8,
+          tension: 85,
+        }).start();
+      },
+    }),
+  ).current;
+
+  useEffect(() => {
+    if (helpVisible) {
+      helpSheetDragY.setValue(0);
+    }
+  }, [helpVisible, helpSheetDragY]);
+
   const handleSettingsLanguageChange = async (lang: "AR" | "EN") => {
     await changeLanguage(lang);
 
@@ -609,10 +1524,7 @@ export default function Settings() {
   };
 
   const activeSelectedCarId =
-    optimisticSelectedCarId ||
-    connectedCarId ||
-    selectedCarId ||
-    activeCarId;
+    optimisticSelectedCarId || connectedCarId || selectedCarId || activeCarId;
 
   const userName =
     profile?.full_name || session?.user?.user_metadata?.full_name || "مستخدم";
@@ -622,7 +1534,7 @@ export default function Settings() {
   }, [userName]);
 
   const userEmail =
-    session?.user?.email || profile?.email || profile?.username || "—";
+    confirmedEmailOverride || session?.user?.email || profile?.email || profile?.username || "—";
 
   const userId = session?.user?.id || "—";
 
@@ -751,8 +1663,8 @@ export default function Settings() {
     const subject = encodeURIComponent("Tnabbah Support Request");
     const body = encodeURIComponent(
       selectedLanguage === "AR"
-        ? `مرحبًا فريق تنبّه،\n\nأحتاج مساعدة بخصوص التطبيق.\n\nبيانات الحساب:\nUser ID: ${userId}\nEmail: ${userEmail}\nCurrent Car: ${selectedCarId || "—"}\nConnected Car: ${connectedCarId || "—"}\nCar Connection: ${obdConnected ? "Connected" : "Disconnected"}\nData Reading: ${scannerRunning ? "Running" : "Stopped"}\nLast Connection: ${lastConnectionTime || "—"}\n\nاكتبي تفاصيل الاستفسار أو المشكلة هنا:\n`
-        : `Hello Tnabbah Support,\n\nI need help with the app.\n\nAccount details:\nUser ID: ${userId}\nEmail: ${userEmail}\nCurrent Car: ${selectedCarId || "—"}\nConnected Car: ${connectedCarId || "—"}\nCar Connection: ${obdConnected ? "Connected" : "Disconnected"}\nData Reading: ${scannerRunning ? "Running" : "Stopped"}\nLast Connection: ${lastConnectionTime || "—"}\n\nDescribe your question or issue here:\n`,
+        ? `مرحبًا فريق تنبّه،\n\nأحتاج مساعدة بخصوص التطبيق.\n\nمعلومات الحساب:\nUser ID: ${userId}\nEmail: ${userEmail}\nCurrent Vehicle: ${selectedCarId || "—"}\nConnected Vehicle: ${connectedCarId || "—"}\nCar Connection: ${obdConnected ? "Connected" : "Disconnected"}\nData Reading: ${scannerRunning ? "Running" : "Stopped"}\nLast Connection: ${lastConnectionTime || "—"}\n\nاكتبي تفاصيل الاستفسار أو المشكلة هنا:\n`
+        : `Hello Tnabbah Support,\n\nI need help with the app.\n\nAccount details:\nUser ID: ${userId}\nEmail: ${userEmail}\nCurrent Vehicle: ${selectedCarId || "—"}\nConnected Vehicle: ${connectedCarId || "—"}\nCar Connection: ${obdConnected ? "Connected" : "Disconnected"}\nData Reading: ${scannerRunning ? "Running" : "Stopped"}\nLast Connection: ${lastConnectionTime || "—"}\n\nDescribe your question or issue here:\n`,
     );
 
     Linking.openURL(
@@ -766,11 +1678,11 @@ export default function Settings() {
         ? `مرحبًا، أحتاج مساعدة في تطبيق تنبّه.
 User ID: ${userId}
 Email: ${userEmail}
-Current Car: ${selectedCarId || "—"}`
+Current Vehicle: ${selectedCarId || "—"}`
         : `Hello, I need help with Tnabbah app.
 User ID: ${userId}
 Email: ${userEmail}
-Current Car: ${selectedCarId || "—"}`,
+Current Vehicle: ${selectedCarId || "—"}`,
     );
 
     Linking.openURL(`https://wa.me/966560602239?text=${message}`);
@@ -783,8 +1695,8 @@ Current Car: ${selectedCarId || "—"}`,
 
 User ID: ${userId}
 Email: ${userEmail}
-Current Car: ${selectedCarId || "—"}
-Connected Car: ${connectedCarId || "—"}
+Current Vehicle: ${selectedCarId || "—"}
+Connected Vehicle: ${connectedCarId || "—"}
 OBD Connected: ${obdConnected}
 Scanner Running: ${scannerRunning}
 Data Connection: ${mqttConnected}
@@ -854,15 +1766,12 @@ Describe the issue:
     if (!realUserId || !cleanName) return;
 
     if (cleanName.length > MAX_NAME_LENGTH) {
-      showMessage({
-        title: t.errorTitle,
-        body: t.nameLimitError,
-        icon: "alert-circle",
-      });
+      setNameSheetError(t.nameLimitError);
       return;
     }
 
     setSavingName(true);
+    setNameSheetError("");
 
     try {
       /**
@@ -887,7 +1796,11 @@ Describe the issue:
       }
 
       const { error: authUpdateError } = await supabase.auth.updateUser({
-        data: { full_name: cleanName },
+        data: {
+          full_name: cleanName,
+          name: cleanName,
+          display_name: cleanName,
+        },
       });
 
       if (authUpdateError) {
@@ -909,14 +1822,13 @@ Describe the issue:
 
       await supabase.auth.getUser();
 
-      setEditNameVisible(false);
       setDisplayName(cleanName);
+      setNameSheetMode("success");
 
-      showMessage({
-        title: selectedLanguage === "AR" ? "تم تحديث الاسم" : "Name updated",
-        body: "",
-        icon: "check-circle",
-      });
+      setTimeout(() => {
+        setEditNameVisible(false);
+        setNameSheetMode("form");
+      }, 1450);
 
       /**
        * لا يوجد router.replace هنا.
@@ -925,81 +1837,183 @@ Describe the issue:
     } catch (error) {
       console.log("Update name error:", error);
 
-      showMessage({
-        title: t.errorTitle,
-        body:
-          selectedLanguage === "AR"
-            ? "تعذر تحديث الاسم."
-            : "Could not update name.",
-        icon: "alert-circle",
-      });
+      setNameSheetError(
+        selectedLanguage === "AR"
+          ? "تعذر حفظ الاسم."
+          : "Could not save the name.",
+      );
     } finally {
       setSavingName(false);
     }
   };
 
   const handleUpdateEmail = async () => {
-  const cleanEmail = emailInput.trim().toLowerCase();
-  const currentEmail = userEmail !== "—" ? userEmail.trim().toLowerCase() : "";
+    const cleanEmail = emailInput.trim().toLowerCase();
+    const currentEmail =
+      userEmail !== "—" ? userEmail.trim().toLowerCase() : "";
 
-  if (!cleanEmail || !cleanEmail.includes("@")) {
-    showMessage({
-      title: t.errorTitle,
-      body:
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setEmailSheetError(
         selectedLanguage === "AR"
-          ? "اكتبي بريد إلكتروني صحيح."
+          ? "أدخل بريدًا إلكترونيًا صحيحًا."
           : "Enter a valid email.",
-      icon: "alert-circle",
-    });
-    return;
-  }
+      );
+      return;
+    }
 
-  if (cleanEmail === currentEmail) {
-    showMessage({
-      title: t.errorTitle,
-      body: t.emailSameError,
-      icon: "alert-circle",
-    });
-    return;
-  }
+    if (cleanEmail === currentEmail) {
+      setEmailSheetError(t.emailSameError);
+      return;
+    }
 
-  setSavingEmail(true);
+    setSavingEmail(true);
+    setEmailSheetError("");
 
-  try {
-    
+    try {
+      await AsyncStorage.multiSet([
+        [EMAIL_CHANGE_PENDING_KEY, "true"],
+        [EMAIL_CHANGE_TARGET_KEY, cleanEmail],
+        [EMAIL_CHANGE_SUCCESS_SHOWN_KEY, "false"],
+      ]);
 
-    const redirectTo = "tnabbah://auth/callback";
+      await AsyncStorage.multiSet([
+        [EMAIL_CHANGE_PENDING_KEY, "true"],
+        [EMAIL_CHANGE_TARGET_KEY, cleanEmail],
+        [EMAIL_CHANGE_SUCCESS_SHOWN_KEY, "false"],
+      ]);
 
+      const { error } = await supabase.auth.updateUser(
+        { email: cleanEmail },
+        { emailRedirectTo: "tnabbah://settings?email_changed=1" },
+      );
 
+      if (error) {
+        throw error;
+      }
 
-const { error } = await supabase.auth.updateUser(
-  { email: cleanEmail },
-  { emailRedirectTo: "tnabbah://auth/callback" }
-);
+      setEmailResendTimer(EMAIL_CHANGE_RESEND_COOLDOWN);
+      setEmailResendNotice("");
+      setEmailSheetMode("success");
+    } catch (error: any) {
+      await AsyncStorage.multiRemove([
+        EMAIL_CHANGE_PENDING_KEY,
+        EMAIL_CHANGE_TARGET_KEY,
+      ]);
 
-if (error) {
-  throw error;
-}
+      const rawMessage = String(error?.message || "").toLowerCase();
 
-    setEditEmailVisible(false);
-    setEmailInput("");
+      console.log("Update email error:", error?.message ?? error);
 
-    showMessage({
-      title: t.emailChangeSentTitle,
-      body: t.emailChangeSentBody,
-      icon: "check-circle",
-    });
-  } catch (error: any) {
-    console.log("Update email error:", error?.message ?? error);
+      if (
+        rawMessage.includes("already registered") ||
+        rawMessage.includes("already exists") ||
+        rawMessage.includes("user already registered") ||
+        rawMessage.includes("email address has already been registered") ||
+        rawMessage.includes("email already registered") ||
+        rawMessage.includes("email already exists")
+      ) {
+        setEmailSheetError(
+          selectedLanguage === "AR"
+            ? "هذا البريد الإلكتروني مستخدم في حساب آخر."
+            : "This email address is already used by another account.",
+        );
+        return;
+      }
 
-    showMessage({
-      title: t.errorTitle,
-      body: error?.message || t.emailChangeError,
-      icon: "alert-circle",
-    });
-  } finally {
-    setSavingEmail(false);
-  }
+      if (
+        rawMessage.includes("invalid email") ||
+        rawMessage.includes("email address is invalid") ||
+        rawMessage.includes("invalid")
+      ) {
+        setEmailSheetError(
+          selectedLanguage === "AR"
+            ? "أدخل بريدًا إلكترونيًا صحيحًا."
+            : "Enter a valid email address.",
+        );
+        return;
+      }
+
+      if (
+        rawMessage.includes("rate limit") ||
+        rawMessage.includes("too many") ||
+        rawMessage.includes("too many requests")
+      ) {
+        setEmailSheetError(
+          selectedLanguage === "AR"
+            ? "تمت محاولات كثيرة. انتظر قليلًا ثم جرّب مرة أخرى."
+            : "Too many attempts. Please wait a moment and try again.",
+        );
+        return;
+      }
+
+      setEmailSheetError(t.emailChangeError);
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
+  const handleResendEmailChangeLink = async () => {
+    if (emailResendTimer > 0 || resendingEmailLink) return;
+
+    const cleanEmail = emailInput.trim().toLowerCase();
+
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setEmailResendNotice("");
+      setEmailSheetError(
+        selectedLanguage === "AR"
+          ? "أدخل بريدًا إلكترونيًا صحيحًا."
+          : "Enter a valid email address.",
+      );
+      setEmailSheetMode("form");
+      return;
+    }
+
+    setResendingEmailLink(true);
+    setEmailResendNotice("");
+
+    try {
+      const { error } = await supabase.auth.updateUser(
+        { email: cleanEmail },
+        { emailRedirectTo: "tnabbah://settings?email_changed=1" },
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      setEmailResendTimer(EMAIL_CHANGE_RESEND_COOLDOWN);
+      setEmailResendNotice(
+        selectedLanguage === "AR"
+          ? "تم إرسال رابط التأكيد مرة أخرى."
+          : "The confirmation link was sent again.",
+      );
+    } catch (error: any) {
+      const rawMessage = String(error?.message || "").toLowerCase();
+
+      console.log("Resend email change link error:", error?.message ?? error);
+
+      if (
+        rawMessage.includes("rate limit") ||
+        rawMessage.includes("too many") ||
+        rawMessage.includes("too many requests")
+      ) {
+        setEmailResendNotice(
+          selectedLanguage === "AR"
+            ? "تمت محاولات كثيرة. انتظر قليلًا ثم جرّب مرة أخرى."
+            : "Too many attempts. Please wait a moment and try again.",
+        );
+        setEmailResendTimer(EMAIL_CHANGE_RESEND_COOLDOWN);
+        return;
+      }
+
+      setEmailResendNotice(
+        selectedLanguage === "AR"
+          ? "تعذر إعادة إرسال الرابط الآن. جرّب بعد قليل."
+          : "Could not resend the link right now. Please try again later.",
+      );
+    } finally {
+      setResendingEmailLink(false);
+    }
   };
 
   const handleDeleteAccountVerification = async () => {
@@ -1010,7 +2024,7 @@ if (error) {
         title: t.errorTitle,
         body:
           selectedLanguage === "AR"
-            ? "اكتبي كلمة المرور الحالية."
+            ? "أدخل كلمة المرور الحالية."
             : "Enter your current password.",
         icon: "alert-circle",
       });
@@ -1054,29 +2068,24 @@ if (error) {
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     if (loggingOut) return;
 
-    setConfirmLogoutVisible(false);
     setLoggingOut(true);
 
-    try {
-      await logout(disconnectObd);
-
+    // نودّي المستخدم مباشرة لواجهة البداية بدون شاشة تحميل أو تظليل.
+    requestAnimationFrame(() => {
       router.replace("/start" as any);
-    } catch (error) {
-      console.log("Logout error:", error);
-      setLoggingOut(false);
+    });
 
-      showMessage({
-        title: t.errorTitle,
-        body:
-          selectedLanguage === "AR"
-            ? "تعذر تسجيل الخروج. حاولي مرة ثانية."
-            : "Could not logout. Please try again.",
-        icon: "alert-circle",
-      });
-    }
+    // نسجل الخروج في الخلفية حتى لا يعلق المستخدم على شاشة بيضاء.
+    setTimeout(async () => {
+      try {
+        await logout(disconnectObd);
+      } catch (error) {
+        console.log("Logout error:", error);
+      }
+    }, 0);
   };
 
   const rowDirection = isRTL ? "row-reverse" : "row";
@@ -1084,15 +2093,32 @@ if (error) {
   const alignItems = isRTL ? "flex-end" : "flex-start";
   const iconMargin = isRTL ? { marginLeft: 12 } : { marginRight: 12 };
 
-  if (settingsLoading) {
+  if (!fontsLoaded || settingsLoading) {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.background }]}
         edges={["top"]}
       >
+        <Stack.Screen
+          options={{
+            gestureEnabled: false,
+          }}
+        />
+
         <View style={styles.loadingSettingsContainer}>
           <ActivityIndicator size="small" color={theme.iconColor} />
         </View>
+
+        <AppMessageModal
+          visible={messageVisible}
+          title={messageTitle}
+          message={messageBody}
+          icon={messageIcon}
+          buttonText={t.ok}
+          theme={theme}
+          isRTL={isRTL}
+          onClose={() => setMessageVisible(false)}
+        />
       </SafeAreaView>
     );
   }
@@ -1102,6 +2128,12 @@ if (error) {
       style={[styles.container, { backgroundColor: theme.background }]}
       edges={["top"]}
     >
+      <Stack.Screen
+        options={{
+          gestureEnabled: false,
+        }}
+      />
+
       <StatusBar
         barStyle={darkModeEnabled ? "light-content" : "dark-content"}
         backgroundColor={theme.background}
@@ -1118,7 +2150,10 @@ if (error) {
       >
         <View style={styles.headerSide} />
 
-        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
+        <Text
+          allowFontScaling={false}
+          style={[styles.headerTitle, { color: theme.textPrimary }]}
+        >
           {t.settings}
         </Text>
 
@@ -1143,17 +2178,15 @@ if (error) {
           {t.account}
         </Text>
 
-        <Pressable
-          style={styles.accountCard}
-          onPress={() => {
-            setFullNameInput(
-              (displayName === "مستخدم" ? "" : displayName).slice(
-                0,
-                MAX_NAME_LENGTH,
-              ),
-            );
-            setEditNameVisible(true);
-          }}
+        <View
+          style={[
+            styles.accountCard,
+            {
+              backgroundColor: theme.accent,
+              borderColor: theme.accentBorder,
+              shadowColor: theme.accent,
+            },
+          ]}
         >
           <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
             <View
@@ -1192,11 +2225,76 @@ if (error) {
                 </Text>
               </View>
             </View>
+          </View>
+        </View>
 
-            <Feather
-              name={isRTL ? "chevron-left" : "chevron-right"}
-              size={18}
-              color="rgba(255,255,255,0.78)"
+        <Pressable
+          style={({ pressed }) => [
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+            pressed && { backgroundColor: theme.cardPressed },
+          ]}
+          onPress={() => {
+            setFullNameInput(
+              (displayName === "مستخدم" ? "" : displayName).slice(
+                0,
+                MAX_NAME_LENGTH,
+              ),
+            );
+            setNameSheetError("");
+            setNameSheetMode("form");
+            setEditNameVisible(true);
+          }}
+        >
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
+                <Feather name="type" size={20} color={theme.iconColor} />
+              </View>
+
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {selectedLanguage === "AR" ? "تعديل الاسم" : "Edit Name"}
+                </Text>
+
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={[
+                    styles.settingHint,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {selectedLanguage === "AR"
+                    ? "تغيير الاسم الظاهر في الحساب"
+                    : "Change the display name on the account"}
+                </Text>
+              </View>
+            </View>
+
+            <EditActionPill
+              label={selectedLanguage === "AR" ? "تعديل" : "Edit"}
+              theme={theme}
+              isRTL={isRTL}
             />
           </View>
         </Pressable>
@@ -1210,15 +2308,93 @@ if (error) {
             },
             pressed && { backgroundColor: theme.cardPressed },
           ]}
-          onPress={() =>
+          onPress={() => {
+            setEmailInput(userEmail !== "—" ? userEmail : "");
+            setEmailSheetError("");
+            setEmailResendNotice("");
+            setEmailResendTimer(0);
+            setEmailSheetMode("form");
+            setEditEmailVisible(true);
+          }}
+        >
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
+                <Feather name="mail" size={20} color={theme.iconColor} />
+              </View>
+
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {selectedLanguage === "AR" ? "تعديل البريد الإلكتروني" : "Edit Email"}
+                </Text>
+
+                <Text
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                  style={[
+                    styles.settingHint,
+                    styles.settingHintTwoLines,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {selectedLanguage === "AR"
+                    ? "سيتم إرسال رابط تأكيد إلى البريد الإلكتروني الجديد"
+                    : "A confirmation link will be sent to the new\nemail address"}
+                </Text>
+              </View>
+            </View>
+
+            <EditActionPill
+              label={selectedLanguage === "AR" ? "تعديل" : "Edit"}
+              theme={theme}
+              isRTL={isRTL}
+            />
+          </View>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+            pressed && { backgroundColor: theme.cardPressed },
+          ]}
+          onPress={async () => {
+            try {
+              await AsyncStorage.multiSet([
+                ["password_change_return_to_settings", "true"],
+                ["password_change_started_from_settings", "true"],
+              ]);
+            } catch (error) {
+              console.log("Save password return target error:", error);
+            }
+
             router.push({
               pathname: "/forgot-password",
               params: {
                 email: userEmail !== "—" ? userEmail : "",
                 from: "settings",
               },
-            } as any)
-          }
+            } as any);
+          }}
         >
           <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
             <View
@@ -1250,84 +2426,25 @@ if (error) {
                 </Text>
 
                 <Text
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
                   style={[
                     styles.settingHint,
+                    styles.settingHintTwoLines,
                     { color: theme.textSecondary, textAlign },
                   ]}
                 >
                   {selectedLanguage === "AR"
-                    ? "إرسال رمز تحقق لتغيير كلمة المرور"
-                    : "Send a verification code to change password"}
+                    ? "إرسال رمز للتحقق قبل تغيير كلمة المرور"
+                    : "Send a verification code before changing\nthe password"}
                 </Text>
               </View>
             </View>
 
-            <Feather
-              name={isRTL ? "chevron-left" : "chevron-right"}
-              size={18}
-              color={theme.textSecondary}
-            />
-          </View>
-        </Pressable>
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.card,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.cardBorder,
-            },
-            pressed && { backgroundColor: theme.cardPressed },
-          ]}
-          onPress={() => {
-            setEmailInput(userEmail !== "—" ? userEmail : "");
-            setEditEmailVisible(true);
-          }}
-        >
-          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
-            <View
-              style={[
-                styles.settingLabelContainer,
-                { flexDirection: rowDirection },
-              ]}
-            >
-              <View
-                style={[
-                  styles.iconWrapper,
-                  iconMargin,
-                  { backgroundColor: theme.iconBg },
-                ]}
-              >
-                <Feather name="mail" size={20} color={theme.iconColor} />
-              </View>
-
-              <View style={[styles.labelBlock, { alignItems }]}>
-                <Text
-                  style={[
-                    styles.settingLabel,
-                    { color: theme.textPrimary, textAlign },
-                  ]}
-                >
-                  {selectedLanguage === "AR" ? "تعديل الإيميل" : "Edit Email"}
-                </Text>
-
-                <Text
-                  style={[
-                    styles.settingHint,
-                    { color: theme.textSecondary, textAlign },
-                  ]}
-                >
-                  {selectedLanguage === "AR"
-                    ? "سيتم إرسال تأكيد للإيميل الجديد"
-                    : "A confirmation will be sent to the new email"}
-                </Text>
-              </View>
-            </View>
-
-            <Feather
-              name={isRTL ? "chevron-left" : "chevron-right"}
-              size={18}
-              color={theme.textSecondary}
+            <EditActionPill
+              label={selectedLanguage === "AR" ? "تعديل" : "Edit"}
+              theme={theme}
+              isRTL={isRTL}
             />
           </View>
         </Pressable>
@@ -1366,7 +2483,11 @@ if (error) {
                   { backgroundColor: theme.iconBg },
                 ]}
               >
-                <Feather name="bell" size={20} color={theme.iconColor} />
+                <Feather
+                  name={notificationsEnabled ? "bell" : "bell-off"}
+                  size={20}
+                  color={theme.iconColor}
+                />
               </View>
 
               <View style={[styles.labelBlock, { alignItems }]}>
@@ -1376,16 +2497,26 @@ if (error) {
                     { color: theme.textPrimary, textAlign },
                   ]}
                 >
-                  {t.notifications}
+                  {notificationsEnabled
+                    ? t.notifications
+                    : selectedLanguage === "AR"
+                      ? "الإشعارات متوقفة"
+                      : "Notifications Off"}
                 </Text>
 
                 <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
                   style={[
                     styles.settingHint,
                     { color: theme.textSecondary, textAlign },
                   ]}
                 >
-                  {t.notificationsDesc}
+                  {notificationsEnabled
+                    ? t.notificationsDesc
+                    : selectedLanguage === "AR"
+                      ? "لن تصلك تنبيهات الفحص والتذكيرات"
+                      : "You will not receive scan alerts or reminders"}
                 </Text>
               </View>
             </View>
@@ -1393,6 +2524,7 @@ if (error) {
             <AppSwitch
               value={notificationsEnabled}
               onValueChange={handleNotificationsChange}
+              trackOnColor={theme.accent}
               trackOffColor={theme.border}
             />
           </View>
@@ -1435,12 +2567,16 @@ if (error) {
                 </Text>
 
                 <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
                   style={[
                     styles.settingHint,
                     { color: theme.textSecondary, textAlign },
                   ]}
                 >
-                  {t.languageDesc}
+                  {selectedLanguage === "AR"
+                    ? "لغة التطبيق الحالية: العربية"
+                    : "Current app language: English"}
                 </Text>
               </View>
             </View>
@@ -1449,7 +2585,7 @@ if (error) {
               <Pressable
                 style={[
                   styles.segmentItem,
-                  selectedLanguage === "AR" && styles.segmentItemActive,
+                  selectedLanguage === "AR" && [styles.segmentItemActive, { backgroundColor: theme.accent }],
                 ]}
                 onPress={() => handleSettingsLanguageChange("AR")}
               >
@@ -1467,7 +2603,7 @@ if (error) {
               <Pressable
                 style={[
                   styles.segmentItem,
-                  selectedLanguage === "EN" && styles.segmentItemActive,
+                  selectedLanguage === "EN" && [styles.segmentItemActive, { backgroundColor: theme.accent }],
                 ]}
                 onPress={() => handleSettingsLanguageChange("EN")}
               >
@@ -1510,7 +2646,11 @@ if (error) {
                   { backgroundColor: theme.iconBg },
                 ]}
               >
-                <Feather name="moon" size={20} color={theme.iconColor} />
+                <Feather
+                  name={darkModeEnabled ? "moon" : "sun"}
+                  size={20}
+                  color={theme.iconColor}
+                />
               </View>
 
               <View style={[styles.labelBlock, { alignItems }]}>
@@ -1520,16 +2660,28 @@ if (error) {
                     { color: theme.textPrimary, textAlign },
                   ]}
                 >
-                  {t.darkMode}
+                  {darkModeEnabled
+                    ? t.darkMode
+                    : selectedLanguage === "AR"
+                      ? "الوضع الفاتح"
+                      : "Light Mode"}
                 </Text>
 
                 <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
                   style={[
                     styles.settingHint,
                     { color: theme.textSecondary, textAlign },
                   ]}
                 >
-                  {t.darkModeDesc}
+                  {darkModeEnabled
+                    ? selectedLanguage === "AR"
+                      ? "المظهر الداكن مفعل الآن"
+                      : "Dark appearance is currently active"
+                    : selectedLanguage === "AR"
+                      ? "المظهر الفاتح مفعل الآن"
+                      : "Light appearance is currently active"}
                 </Text>
               </View>
             </View>
@@ -1537,6 +2689,7 @@ if (error) {
             <AppSwitch
               value={darkModeEnabled}
               onValueChange={handleDarkModeChange}
+              trackOnColor={theme.accent}
               trackOffColor={theme.border}
             />
           </View>
@@ -1574,7 +2727,11 @@ if (error) {
                   { backgroundColor: theme.iconBg },
                 ]}
               >
-                <Ionicons name="car-sport-outline" size={20} color={theme.iconColor} />
+                <Ionicons
+                  name="car-outline"
+                  size={20}
+                  color={theme.iconColor}
+                />
               </View>
 
               <View style={[styles.labelBlock, { alignItems }]}>
@@ -1588,7 +2745,8 @@ if (error) {
                 </Text>
 
                 <Text
-                  numberOfLines={2}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
                   style={[
                     styles.settingHint,
                     { color: theme.textSecondary, textAlign },
@@ -1644,7 +2802,7 @@ if (error) {
               <Text
                 style={[
                   styles.carInfoValue,
-                  { color: obdConnected ? COLORS.success : COLORS.danger },
+                  { color: obdConnected ? COLORS.success : theme.danger },
                 ]}
               >
                 {obdConnected ? t.connected : t.disconnected}
@@ -1658,7 +2816,7 @@ if (error) {
               textAlign,
               marginTop: 10,
               fontSize: 12,
-              fontWeight: "700",
+              fontFamily: FONT_BOLD,
             }}
           >
             {connectedCarId
@@ -1715,7 +2873,7 @@ if (error) {
                       {
                         backgroundColor: theme.subtle,
                         borderColor: isCurrent
-                          ? COLORS.primary
+                          ? theme.accent
                           : theme.cardBorder,
                         borderWidth: isCurrent ? 1.4 : 1,
                         marginBottom: 0,
@@ -1750,7 +2908,7 @@ if (error) {
                           ]}
                         >
                           <Ionicons
-                            name="car-sport-outline"
+                            name="car-outline"
                             size={18}
                             color={theme.iconColor}
                           />
@@ -1796,7 +2954,7 @@ if (error) {
                                 style={{
                                   color: COLORS.success,
                                   fontSize: 11,
-                                  fontWeight: "800",
+                                  fontFamily: FONT_EXTRABOLD,
                                 }}
                               >
                                 {selectedLanguage === "AR"
@@ -1808,6 +2966,7 @@ if (error) {
 
                           <Text
                             numberOfLines={1}
+                            ellipsizeMode="tail"
                             style={[
                               styles.settingHint,
                               {
@@ -1822,6 +2981,7 @@ if (error) {
 
                           <Text
                             numberOfLines={1}
+                            ellipsizeMode="tail"
                             style={[
                               styles.settingHint,
                               {
@@ -1854,7 +3014,7 @@ if (error) {
                           onPress={() => handleSelectDefaultCar(car.car_id)}
                           disabled={!!switchingCarId}
                           style={{
-                            backgroundColor: COLORS.primary,
+                            backgroundColor: theme.accent,
                             paddingHorizontal: 12,
                             paddingVertical: 10,
                             borderRadius: 12,
@@ -1868,7 +3028,7 @@ if (error) {
                               style={{
                                 color: "#FFF",
                                 fontSize: 12,
-                                fontWeight: "700",
+                                fontFamily: FONT_BOLD,
                               }}
                             >
                               {selectedLanguage === "AR" ? "تعيين" : "Set"}
@@ -1890,7 +3050,7 @@ if (error) {
                           style={{
                             color: theme.textPrimary,
                             fontSize: 12,
-                            fontWeight: "700",
+                            fontFamily: FONT_BOLD,
                           }}
                         >
                           {selectedLanguage === "AR" ? "تعديل" : "Rename"}
@@ -1911,9 +3071,9 @@ if (error) {
                       >
                         <Text
                           style={{
-                            color: COLORS.danger,
+                            color: theme.danger,
                             fontSize: 12,
-                            fontWeight: "700",
+                            fontFamily: FONT_BOLD,
                           }}
                         >
                           {selectedLanguage === "AR" ? "حذف" : "Delete"}
@@ -1960,7 +3120,7 @@ if (error) {
               <Feather
                 name="radio"
                 size={17}
-                color={obdConnected ? COLORS.success : COLORS.danger}
+                color={obdConnected ? COLORS.success : theme.danger}
               />
 
               <Text
@@ -1972,7 +3132,7 @@ if (error) {
               <Text
                 style={[
                   styles.miniStatusText,
-                  { color: obdConnected ? COLORS.success : COLORS.danger },
+                  { color: obdConnected ? COLORS.success : theme.danger },
                 ]}
               >
                 {obdConnected ? t.connected : t.disconnected}
@@ -2030,7 +3190,7 @@ if (error) {
               <Feather
                 name="wifi"
                 size={17}
-                color={mqttConnected ? COLORS.success : COLORS.danger}
+                color={mqttConnected ? COLORS.success : theme.danger}
               />
 
               <Text
@@ -2042,7 +3202,7 @@ if (error) {
               <Text
                 style={[
                   styles.miniStatusText,
-                  { color: mqttConnected ? COLORS.success : COLORS.danger },
+                  { color: mqttConnected ? COLORS.success : theme.danger },
                 ]}
               >
                 {mqttConnected ? t.connected : t.disconnected}
@@ -2056,7 +3216,7 @@ if (error) {
                 color: theme.textSecondary,
                 textAlign,
                 fontSize: 12,
-                fontWeight: "700",
+                fontFamily: FONT_BOLD,
                 paddingHorizontal: 16,
                 paddingBottom: 12,
               }}
@@ -2094,7 +3254,8 @@ if (error) {
                     { backgroundColor: theme.iconBg },
                   ]}
                 >
-                  <Feather name="bluetooth" size={20} color={theme.iconColor} /></View>
+                  <Feather name="bluetooth" size={20} color={theme.iconColor} />
+                </View>
 
                 <View style={[styles.labelBlock, { alignItems }]}>
                   <Text
@@ -2107,7 +3268,9 @@ if (error) {
                   </Text>
 
                   <Text
-                    style={[
+                    numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={[
                       styles.settingHint,
                       { color: theme.textSecondary, textAlign },
                     ]}
@@ -2180,7 +3343,9 @@ if (error) {
                   </Text>
 
                   <Text
-                    style={[
+                    numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={[
                       styles.settingHint,
                       { color: theme.textSecondary, textAlign },
                     ]}
@@ -2245,7 +3410,9 @@ if (error) {
                   </Text>
 
                   <Text
-                    style={[
+                    numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={[
                       styles.settingHint,
                       { color: theme.textSecondary, textAlign },
                     ]}
@@ -2312,6 +3479,8 @@ if (error) {
                 </Text>
 
                 <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
                   style={[
                     styles.settingHint,
                     { color: theme.textSecondary, textAlign },
@@ -2355,7 +3524,7 @@ if (error) {
                   { backgroundColor: theme.iconBg },
                 ]}
               >
-                <Feather name="trash-2" size={20} color={COLORS.danger} />
+                <Feather name="trash-2" size={20} color={theme.danger} />
               </View>
 
               <View style={[styles.labelBlock, { alignItems }]}>
@@ -2363,7 +3532,7 @@ if (error) {
                   style={[
                     styles.settingLabel,
                     {
-                      color: COLORS.danger,
+                      color: theme.danger,
                       textAlign,
                     },
                   ]}
@@ -2372,8 +3541,11 @@ if (error) {
                 </Text>
 
                 <Text
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
                   style={[
                     styles.settingHint,
+                    styles.settingHintTwoLines,
                     {
                       color: theme.textSecondary,
                       textAlign,
@@ -2381,8 +3553,8 @@ if (error) {
                   ]}
                 >
                   {selectedLanguage === "AR"
-                    ? "سيتم طلب كلمة المرور الحالية"
-                    : "Your current password will be required"}
+                    ? "حذف نهائي للحساب ويتطلب كلمة المرور الحالية"
+                    : "Permanently deletes the account and requires\nthe current password"}
                 </Text>
               </View>
             </View>
@@ -2402,11 +3574,11 @@ if (error) {
               loggingOut && styles.logoutButtonDisabled,
               pressed && !loggingOut && { opacity: 0.92 },
             ]}
-            onPress={() => setConfirmLogoutVisible(true)}
+            onPress={handleLogout}
             disabled={loggingOut}
           >
             <LinearGradient
-              colors={[COLORS.primary, COLORS.primaryPressed]}
+              colors={[theme.accent, theme.accentPressed]}
               start={{ x: 0.15, y: 0 }}
               end={{ x: 0.9, y: 1 }}
               style={styles.logoutGradient}
@@ -2443,7 +3615,7 @@ if (error) {
               { backgroundColor: theme.surface },
             ]}
           >
-            <ActivityIndicator size="small" color={COLORS.primary} />
+            <ActivityIndicator size="small" color={theme.accent} />
 
             <Text
               style={[styles.blockingOverlayText, { color: theme.textPrimary }]}
@@ -2459,35 +3631,38 @@ if (error) {
       <Modal
         visible={helpVisible}
         transparent
-        animationType="fade"
-        onRequestClose={() => setHelpVisible(false)}
+        animationType="slide"
+        onRequestClose={closeHelpSheet}
       >
         <View
-          style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}
+          style={[styles.helpBottomOverlay, { backgroundColor: theme.modalOverlay }]}
         >
-          <View
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={closeHelpSheet}
+          />
+
+          <Animated.View
             style={[
               styles.helpModal,
               {
                 backgroundColor: darkModeEnabled ? "#202020" : "#FFFFFF",
                 borderColor: darkModeEnabled ? "#343434" : "#DCDCDC",
+                transform: [{ translateY: helpSheetDragY }],
               },
             ]}
           >
-            <Pressable
-              onPress={() => setHelpVisible(false)}
-              hitSlop={12}
-              style={({ pressed }) => [
-                styles.helpCloseButton,
-                { opacity: pressed ? 0.5 : 1 },
-              ]}
+            <View
+              style={styles.helpSheetHandleArea}
+              {...helpSheetPanResponder.panHandlers}
             >
-              <Feather
-                name="x"
-                size={23}
-                color={darkModeEnabled ? "#FFFFFF" : "#1D1D1F"}
+              <View
+                style={[
+                  styles.helpSheetHandle,
+                  { backgroundColor: darkModeEnabled ? "#4A4A4A" : "#D8D8D8" },
+                ]}
               />
-            </Pressable>
+            </View>
 
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -2496,22 +3671,6 @@ if (error) {
               <View
                 style={[styles.helpHeader, { flexDirection: rowDirection }]}
               >
-                <View
-                  style={[
-                    styles.helpHeaderIconBox,
-                    {
-                      backgroundColor: darkModeEnabled ? "#2C2C2C" : "#F3F4F6",
-                      borderColor: darkModeEnabled ? "#3A3A3A" : "#DCDCDC",
-                    },
-                  ]}
-                >
-                  <Feather
-                    name="help-circle"
-                    size={34}
-                    color={COLORS.primary}
-                  />
-                </View>
-
                 <View style={[styles.helpHeaderTextBlock, { alignItems }]}>
                   <Text
                     style={[
@@ -2622,7 +3781,7 @@ if (error) {
                   { opacity: pressed ? 0.88 : 1 },
                 ]}
               >
-                <Feather name="message-circle" size={24} color="#FFFFFF" />
+                <Feather name="message-circle" size={20} color="#FFFFFF" />
                 <Text style={styles.supportMainButtonText}>
                   {t.supportWhatsAppButton}
                 </Text>
@@ -2633,10 +3792,10 @@ if (error) {
                 style={({ pressed }) => [
                   styles.supportMainButton,
                   styles.supportEmailMainButton,
-                  { opacity: pressed ? 0.88 : 1 },
+                  { backgroundColor: theme.accent, opacity: pressed ? 0.88 : 1 },
                 ]}
               >
-                <Feather name="mail" size={25} color="#FFFFFF" />
+                <Feather name="mail" size={20} color="#FFFFFF" />
                 <Text style={styles.supportMainButtonText}>
                   {t.supportEmailButton}
                 </Text>
@@ -2655,13 +3814,13 @@ if (error) {
               >
                 <Feather
                   name="alert-circle"
-                  size={24}
-                  color={darkModeEnabled ? "#FFFFFF" : "#1D1D1F"}
+                  size={20}
+                  color={theme.accent}
                 />
                 <Text
                   style={[
                     styles.supportIssueFullButtonText,
-                    { color: darkModeEnabled ? "#FFFFFF" : "#1D1D1F" },
+                    { color: theme.accent },
                   ]}
                 >
                   {t.reportIssueButton}
@@ -2669,7 +3828,7 @@ if (error) {
               </Pressable>
 
               <Pressable
-                onPress={() => setHelpVisible(false)}
+                onPress={closeHelpSheet}
                 style={({ pressed }) => [
                   styles.closeHelpButton,
                   {
@@ -2685,28 +3844,13 @@ if (error) {
                     { color: theme.textPrimary },
                   ]}
                 >
-                  {t.done}
+                  {t.cancel}
                 </Text>
               </Pressable>
             </ScrollView>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
-
-      <ConfirmModal
-        visible={confirmLogoutVisible}
-        title={t.logoutTitle}
-        message={t.logoutMessage}
-        confirmText={t.logout}
-        cancelText={t.cancel}
-        icon="log-out"
-        theme={theme}
-        isRTL={isRTL}
-        danger
-        styles={styles}
-        onCancel={() => setConfirmLogoutVisible(false)}
-        onConfirm={handleLogout}
-      />
 
       <ConfirmModal
         visible={confirmDisconnectVisible}
@@ -2760,32 +3904,85 @@ if (error) {
         onClose={() => setMessageVisible(false)}
       />
 
-      <EditNameModal
+      <BottomEditSheet
         visible={editNameVisible}
-        value={fullNameInput}
-        onChangeText={(text: string) =>
-          setFullNameInput(text.slice(0, MAX_NAME_LENGTH))
+        title={selectedLanguage === "AR" ? "تعديل الاسم" : "Edit Name"}
+        subtitle={
+          selectedLanguage === "AR"
+            ? "أدخل الاسم الذي سيظهر في الحساب."
+            : "Enter the name that will appear on the account."
         }
-        onCancel={() => setEditNameVisible(false)}
+        value={fullNameInput}
+        onChangeText={(text: string) => {
+          setNameSheetError("");
+          setFullNameInput(text.slice(0, MAX_NAME_LENGTH));
+        }}
+        placeholder={selectedLanguage === "AR" ? "الاسم" : "Name"}
+        maxLength={MAX_NAME_LENGTH}
+        onClose={() => {
+          setEditNameVisible(false);
+          setNameSheetMode("form");
+          setNameSheetError("");
+        }}
         onSave={handleUpdateName}
         saving={savingName}
         theme={theme}
         isRTL={isRTL}
-        t={t}
-        styles={styles}
+        confirmText={t.confirm}
+        cancelText={t.cancel}
+        mode={nameSheetMode}
+        successTitle={
+          selectedLanguage === "AR" ? "تم حفظ الاسم" : "Name saved"
+        }
+        successMessage={
+          selectedLanguage === "AR"
+            ? "تم حفظ الاسم الجديد في الحساب."
+            : "The new name has been saved."
+        }
+        errorMessage={nameSheetError}
       />
 
-      <EditEmailModal
+      <BottomEditSheet
         visible={editEmailVisible}
+        title={selectedLanguage === "AR" ? "تعديل البريد الإلكتروني" : "Edit Email"}
+        subtitle={
+          selectedLanguage === "AR"
+            ? "أدخل البريد الإلكتروني الجديد، وسيتم إرسال رابط تأكيد له."
+            : "Enter the new email address. A confirmation link will be sent to it."
+        }
         value={emailInput}
-        onChangeText={setEmailInput}
-        onCancel={() => setEditEmailVisible(false)}
+        onChangeText={(text: string) => {
+          setEmailSheetError("");
+          setEmailInput(text);
+        }}
+        placeholder={selectedLanguage === "AR" ? "البريد الإلكتروني الجديد" : "New email"}
+        keyboardType="email-address"
+        onClose={resetEmailEditSheet}
         onSave={handleUpdateEmail}
         saving={savingEmail}
         theme={theme}
         isRTL={isRTL}
-        t={t}
-        styles={styles}
+        confirmText={t.confirm}
+        cancelText={t.cancel}
+        mode={emailSheetMode}
+        successTitle={t.emailChangeSentTitle}
+        successMessage={t.emailChangeSentBody}
+        successActionText={t.ok}
+        successInfoText={emailResendNotice || t.emailChangeStaySettings}
+        successResendQuestion={
+          selectedLanguage === "AR"
+            ? "لم يصلك رابط التأكيد؟"
+            : "Didn’t receive the confirmation link?"
+        }
+        successResendText={
+          selectedLanguage === "AR"
+            ? "إعادة إرسال الرابط"
+            : "Resend link"
+        }
+        successResendTimer={emailResendTimer}
+        successResending={resendingEmailLink}
+        onSuccessResend={handleResendEmailChangeLink}
+        errorMessage={emailSheetError}
       />
 
       <EditCarNameModal
@@ -2816,15 +4013,8 @@ if (error) {
         loading={deletingAccount}
         theme={theme}
         isRTL={isRTL}
-        styles={styles}
       />
 
-      <LogoutLoadingModal
-        visible={loggingOut}
-        text={t.loggingOut}
-        theme={theme}
-        styles={styles}
-      />
     </SafeAreaView>
   );
 }
@@ -2838,8 +4028,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 18,
-    paddingTop: 8,
-    paddingBottom: 10,
+    paddingTop: 9,
+    paddingBottom: 12,
+    minHeight: 58,
   },
 
   headerSide: {
@@ -2853,8 +4044,14 @@ const styles = StyleSheet.create({
 
   headerTitle: {
     fontSize: 18,
-    fontWeight: "800",
+    lineHeight: 30,
+    fontFamily: FONT_EXTRABOLD,
     letterSpacing: 0.2,
+    includeFontPadding: true,
+    paddingTop: 2,
+    paddingBottom: 3,
+    textAlign: "center",
+    textAlignVertical: "center",
   },
 
   scrollView: {
@@ -2869,17 +4066,21 @@ const styles = StyleSheet.create({
 
   sectionTitle: {
     fontSize: 12,
+    lineHeight: 20,
     marginTop: 18,
     marginBottom: 10,
-    fontWeight: "800",
+    fontFamily: FONT_EXTRABOLD,
     letterSpacing: 0.2,
+    includeFontPadding: true,
+    paddingBottom: 1,
   },
 
   card: {
     borderRadius: 22,
     borderWidth: 1,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingTop: 16,
+    paddingBottom: 17,
     marginBottom: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -2896,7 +4097,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 15,
     marginBottom: 10,
-    shadowColor: "#6E1411",
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 7 },
     shadowOpacity: Platform.OS === "android" ? 0.14 : 0.2,
     shadowRadius: 12,
@@ -2911,6 +4112,7 @@ const styles = StyleSheet.create({
   settingLabelContainer: {
     alignItems: "center",
     flex: 1,
+    flexShrink: 1,
     minWidth: 0,
   },
 
@@ -2951,23 +4153,41 @@ const styles = StyleSheet.create({
 
   labelBlock: {
     flex: 1,
+    flexShrink: 1,
     minWidth: 0,
+    paddingTop: 1,
   },
 
   settingLabel: {
     fontSize: 14,
-    fontWeight: "800",
+    fontFamily: FONT_EXTRABOLD,
+    lineHeight: 22,
+    includeFontPadding: true,
+    paddingBottom: 1,
   },
 
   actionLabel: {
     fontSize: 13.5,
-    fontWeight: "900",
+    fontFamily: FONT_EXTRABOLD,
+    lineHeight: 21,
+    includeFontPadding: true,
+    paddingBottom: 1,
   },
 
   settingHint: {
-    fontSize: 12,
-    marginTop: 4,
-    lineHeight: 17,
+    fontSize: 10.6,
+    marginTop: 3,
+    lineHeight: 18,
+    fontFamily: FONT_SEMIBOLD,
+    includeFontPadding: true,
+    paddingBottom: 2,
+    flexShrink: 1,
+  },
+
+  settingHintTwoLines: {
+    lineHeight: 16.5,
+    minHeight: 34,
+    marginTop: 3,
   },
 
   userInfo: {
@@ -2977,14 +4197,38 @@ const styles = StyleSheet.create({
 
   userName: {
     fontSize: 17,
-    fontWeight: "900",
+    lineHeight: 26,
+    fontFamily: FONT_EXTRABOLD,
     flexShrink: 1,
+    includeFontPadding: true,
+    paddingBottom: 1,
   },
 
   accountNameRow: {
     alignItems: "center",
     gap: 8,
     maxWidth: "100%",
+  },
+
+  editActionPlain: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    minWidth: 48,
+    flexShrink: 0,
+    paddingHorizontal: 2,
+    paddingVertical: 4,
+    backgroundColor: "transparent",
+    borderWidth: 0,
+  },
+
+  editActionPlainText: {
+    color: COLORS.primary,
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: FONT_EXTRABOLD,
+    includeFontPadding: true,
+    paddingBottom: 1,
   },
 
   accountEditPill: {
@@ -3002,19 +4246,26 @@ const styles = StyleSheet.create({
   accountEditText: {
     color: "#FFFFFF",
     fontSize: 10.5,
-    fontWeight: "900",
+    fontFamily: FONT_EXTRABOLD,
   },
 
   userEmail: {
     fontSize: 12,
-    marginTop: 5,
+    lineHeight: 20,
+    marginTop: 6,
     opacity: 0.86,
+    fontFamily: FONT_BOLD,
+    includeFontPadding: true,
+    paddingBottom: 1,
   },
 
   userIdText: {
     fontSize: 10.5,
+    lineHeight: 18,
     marginTop: 5,
     opacity: 0.72,
+    fontFamily: FONT_BOLD,
+    includeFontPadding: true,
   },
 
   connectionPanel: {
@@ -3050,13 +4301,13 @@ const styles = StyleSheet.create({
 
   miniStatusTitle: {
     fontSize: 10.5,
-    fontWeight: "700",
+    fontFamily: FONT_BOLD,
     textAlign: "center",
   },
 
   miniStatusText: {
     fontSize: 12,
-    fontWeight: "900",
+    fontFamily: FONT_EXTRABOLD,
     textAlign: "center",
   },
 
@@ -3097,7 +4348,7 @@ const styles = StyleSheet.create({
 
   segmentText: {
     fontSize: 13,
-    fontWeight: "800",
+    fontFamily: FONT_EXTRABOLD,
   },
 
   segmentTextActive: {
@@ -3110,10 +4361,10 @@ const styles = StyleSheet.create({
 
   logoutButtonWrapper: {
     width: "100%",
-    height: 56,
-    borderRadius: 28,
+    height: 60,
+    borderRadius: 30,
     overflow: "hidden",
-    shadowColor: "#6E1411",
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
     shadowRadius: 14,
@@ -3127,7 +4378,7 @@ const styles = StyleSheet.create({
 
   logoutGradient: {
     flex: 1,
-    borderRadius: 28,
+    borderRadius: 30,
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
@@ -3140,8 +4391,8 @@ const styles = StyleSheet.create({
     right: 0,
     height: "48%",
     backgroundColor: "rgba(255,255,255,0.10)",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
   },
 
   logoutInner: {
@@ -3157,9 +4408,12 @@ const styles = StyleSheet.create({
 
   logoutText: {
     color: "#FFFFFF",
-    fontWeight: "900",
+    fontFamily: FONT_EXTRABOLD,
     fontSize: 18,
+    lineHeight: 30,
     textAlign: "center",
+    includeFontPadding: true,
+    paddingBottom: 2,
   },
 
   switchTrack: {
@@ -3226,7 +4480,7 @@ const styles = StyleSheet.create({
 
   helpModalTitle: {
     fontSize: 18,
-    fontWeight: "900",
+    fontFamily: FONT_EXTRABOLD,
     textAlign: "center",
   },
 
@@ -3255,7 +4509,7 @@ const styles = StyleSheet.create({
 
   helpParagraph: {
     fontSize: 14,
-    fontWeight: "700",
+    fontFamily: FONT_BOLD,
     lineHeight: 24,
     marginBottom: 14,
   },
@@ -3326,6 +4580,10 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
 
+  appMessagePlainErrorIcon: {
+    marginBottom: 14,
+  },
+
   appMessageIconCircle: {
     width: 62,
     height: 62,
@@ -3347,14 +4605,17 @@ const styles = StyleSheet.create({
 
   confirmTitle: {
     fontSize: 18,
-    fontWeight: "900",
+    lineHeight: 28,
+    fontFamily: FONT_EXTRABOLD,
     textAlign: "center",
     marginBottom: 8,
+    includeFontPadding: true,
+    paddingBottom: 1,
   },
 
   confirmMessage: {
     fontSize: 14,
-    fontWeight: "700",
+    fontFamily: FONT_BOLD,
     lineHeight: 22,
     marginBottom: 20,
   },
@@ -3366,7 +4627,8 @@ const styles = StyleSheet.create({
 
   confirmSecondaryButton: {
     flex: 1,
-    height: 48,
+    minHeight: 50,
+    height: 50,
     borderRadius: 16,
     borderWidth: 1,
     alignItems: "center",
@@ -3375,7 +4637,8 @@ const styles = StyleSheet.create({
 
   confirmPrimaryButton: {
     flex: 1,
-    height: 48,
+    minHeight: 50,
+    height: 50,
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
@@ -3383,13 +4646,19 @@ const styles = StyleSheet.create({
 
   confirmSecondaryText: {
     fontSize: 14,
-    fontWeight: "900",
+    lineHeight: 22,
+    fontFamily: FONT_EXTRABOLD,
+    includeFontPadding: true,
+    paddingBottom: 1,
   },
 
   confirmPrimaryText: {
     color: "#FFFFFF",
     fontSize: 14,
-    fontWeight: "900",
+    lineHeight: 22,
+    fontFamily: FONT_EXTRABOLD,
+    includeFontPadding: true,
+    paddingBottom: 1,
   },
 
   singleModalButton: {
@@ -3398,6 +4667,34 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  deleteAccountIconCircle: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+    borderWidth: 1,
+  },
+
+  deletePasswordLabel: {
+    width: "100%",
+    fontSize: 13,
+    fontFamily: FONT_EXTRABOLD,
+    marginBottom: 8,
+  },
+
+  deletePasswordInput: {
+    width: "100%",
+    height: 52,
+    borderRadius: 17,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    fontFamily: FONT_EXTRABOLD,
+    marginBottom: 16,
   },
 
   logoutLoadingBox: {
@@ -3430,12 +4727,12 @@ const styles = StyleSheet.create({
 
   logoutLoadingText: {
     fontSize: 16,
-    fontWeight: "900",
+    fontFamily: FONT_EXTRABOLD,
     textAlign: "center",
   },
   helpSectionTitle: {
     fontSize: 15.5,
-    fontWeight: "900",
+    fontFamily: FONT_EXTRABOLD,
     lineHeight: 24,
     marginTop: 12,
     marginBottom: 8,
@@ -3457,14 +4754,14 @@ const styles = StyleSheet.create({
 
   carInfoLabel: {
     fontSize: 10.5,
-    fontWeight: "800",
+    fontFamily: FONT_EXTRABOLD,
     textAlign: "center",
   },
 
   carInfoValue: {
     marginTop: 4,
     fontSize: 13,
-    fontWeight: "900",
+    fontFamily: FONT_EXTRABOLD,
     textAlign: "center",
   },
 
@@ -3481,49 +4778,63 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 14,
     fontSize: 15,
-    fontWeight: "800",
+    fontFamily: FONT_EXTRABOLD,
     marginBottom: 18,
   },
 
+  helpBottomOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+
   helpModal: {
-    width: "93%",
-    maxWidth: 430,
-    maxHeight: "88%",
-    borderRadius: 34,
+    width: "100%",
+    maxWidth: 680,
+    alignSelf: "center",
+    maxHeight: "86%",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
     paddingHorizontal: 0,
     paddingTop: 0,
-    paddingBottom: 0,
+    paddingBottom: Platform.OS === "ios" ? 18 : 10,
     borderWidth: 1,
+    borderBottomWidth: 0,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: Platform.OS === "android" ? 0.22 : 0.28,
-    shadowRadius: 24,
-    elevation: 10,
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: Platform.OS === "android" ? 0.20 : 0.24,
+    shadowRadius: 22,
+    elevation: 16,
+  },
+
+  helpSheetHandleArea: {
+    width: "100%",
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  helpSheetHandle: {
+    width: 46,
+    height: 5,
+    borderRadius: 999,
   },
 
   helpScrollContent: {
     paddingHorizontal: 22,
-    paddingTop: 58,
+    paddingTop: 8,
     paddingBottom: 22,
   },
 
   helpCloseButton: {
-    position: "absolute",
-    top: 16,
-    left: 18,
-    width: 34,
-    height: 34,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 20,
+    display: "none",
   },
 
   helpHeader: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-    gap: 14,
+    alignItems: "stretch",
+    justifyContent: "flex-start",
+    marginBottom: 14,
+    gap: 0,
   },
 
   helpHeaderIconBox: {
@@ -3536,57 +4847,58 @@ const styles = StyleSheet.create({
   },
 
   helpHeaderTextBlock: {
-    flex: 1,
+    width: "100%",
     minWidth: 0,
   },
 
   helpTitle: {
-    fontSize: 24,
-    fontWeight: "900",
-    lineHeight: 32,
+    fontSize: 20,
+    fontFamily: FONT_EXTRABOLD,
+    lineHeight: 28,
   },
 
   helpIntroText: {
-    fontSize: 15,
-    lineHeight: 23,
-    fontWeight: "700",
+    fontSize: 13.5,
+    lineHeight: 21,
+    fontFamily: FONT_BOLD,
     marginTop: 6,
   },
 
   faqCard: {
-    borderRadius: 24,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-    marginBottom: 14,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
     borderWidth: 1,
   },
 
   helpQuestion: {
-    fontSize: 18,
-    fontWeight: "900",
-    marginBottom: 8,
-    lineHeight: 27,
+    fontSize: 14.5,
+    fontFamily: FONT_EXTRABOLD,
+    marginBottom: 5,
+    lineHeight: 21,
   },
 
   helpAnswer: {
-    fontSize: 15.5,
-    lineHeight: 27,
-    fontWeight: "700",
+    fontSize: 12.8,
+    lineHeight: 20,
+    fontFamily: FONT_BOLD,
   },
 
   supportMainButton: {
-    minHeight: 58,
-    borderRadius: 20,
-    marginTop: 10,
+    minHeight: 54,
+    borderRadius: 16,
+    marginTop: 9,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    gap: 10,
+    paddingHorizontal: 14,
+    gap: 8,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 7 },
-    shadowOpacity: Platform.OS === "android" ? 0.12 : 0.18,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: Platform.OS === "android" ? 0.08 : 0.12,
+    shadowRadius: 8,
+    elevation: 3,
   },
 
   supportWhatsAppMainButton: {
@@ -3599,26 +4911,33 @@ const styles = StyleSheet.create({
 
   supportMainButtonText: {
     color: "#FFFFFF",
-    fontWeight: "900",
-    fontSize: 16,
+    fontFamily: FONT_EXTRABOLD,
+    fontSize: 14.2,
+    lineHeight: 23,
     textAlign: "center",
+    includeFontPadding: true,
+    paddingBottom: Platform.OS === "ios" ? 1 : 2,
   },
 
   supportIssueFullButton: {
-    minHeight: 56,
-    borderRadius: 20,
-    marginTop: 12,
+    minHeight: 54,
+    borderRadius: 16,
+    marginTop: 9,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    gap: 10,
+    paddingHorizontal: 14,
+    gap: 8,
   },
 
   supportIssueFullButtonText: {
-    fontWeight: "900",
-    fontSize: 16,
+    fontFamily: FONT_EXTRABOLD,
+    fontSize: 14.2,
+    lineHeight: 23,
     textAlign: "center",
+    includeFontPadding: true,
+    paddingBottom: Platform.OS === "ios" ? 1 : 2,
   },
 
   closeHelpButton: {
@@ -3631,9 +4950,12 @@ const styles = StyleSheet.create({
   },
 
   closeHelpButtonText: {
-    fontSize: 16,
-    fontWeight: "900",
+    fontSize: 15.5,
+    lineHeight: 25,
+    fontFamily: FONT_EXTRABOLD,
     textAlign: "center",
+    includeFontPadding: true,
+    paddingBottom: Platform.OS === "ios" ? 1 : 2,
   },
 
   fullScreenBlockingOverlay: {
@@ -3663,7 +4985,242 @@ const styles = StyleSheet.create({
   blockingOverlayText: {
     marginTop: 12,
     fontSize: 14,
-    fontWeight: "900",
+    fontFamily: FONT_EXTRABOLD,
     textAlign: "center",
   },
+
+  bottomSheetRoot: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+
+  bottomSheetKeyboardAvoider: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+
+  bottomSheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+
+  bottomSheetContainer: {
+    width: "100%",
+    maxWidth: 680,
+    alignSelf: "center",
+    maxHeight: "86%",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 26 : 18,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: Platform.OS === "android" ? 0.18 : 0.22,
+    shadowRadius: 18,
+    elevation: 18,
+  },
+
+  bottomSheetHandleArea: {
+    width: "100%",
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  bottomSheetHandle: {
+    width: 46,
+    height: 5,
+    borderRadius: 999,
+  },
+
+  bottomSheetHeader: {
+    width: "100%",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 4,
+    marginBottom: 18,
+  },
+
+  bottomSheetHeaderTextBlock: {
+    flex: 1,
+  },
+
+  bottomSheetTitle: {
+    fontSize: 20,
+    fontFamily: FONT_EXTRABOLD,
+    lineHeight: 28,
+  },
+
+  bottomSheetSubtitle: {
+    marginTop: 6,
+    fontSize: 14,
+    fontFamily: FONT_BOLD,
+    lineHeight: 21,
+  },
+
+  bottomSheetCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  bottomSheetInput: {
+    width: "100%",
+    minHeight: 54,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 15,
+    fontSize: 15.5,
+    fontFamily: FONT_EXTRABOLD,
+    marginBottom: 12,
+  },
+
+  bottomSheetErrorBox: {
+    width: "100%",
+    minHeight: 30,
+    alignItems: "center",
+    paddingHorizontal: 2,
+    paddingVertical: 4,
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  bottomSheetErrorText: {
+    flex: 1,
+    fontSize: 13.2,
+    fontFamily: FONT_EXTRABOLD,
+    lineHeight: 19,
+  },
+
+  bottomSheetActions: {
+    width: "100%",
+    gap: 10,
+    marginTop: 4,
+  },
+
+  bottomSheetSecondaryButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  bottomSheetPrimaryButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 18,
+    overflow: "hidden",
+    backgroundColor: COLORS.primary,
+  },
+
+  bottomSheetPrimaryGradient: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 18,
+  },
+
+  bottomSheetSecondaryText: {
+    fontSize: 14,
+    lineHeight: 22,
+    fontFamily: FONT_EXTRABOLD,
+    includeFontPadding: true,
+    paddingBottom: Platform.OS === "ios" ? 1 : 2,
+  },
+
+  bottomSheetPrimaryText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    lineHeight: 22,
+    fontFamily: FONT_EXTRABOLD,
+    includeFontPadding: true,
+    paddingBottom: Platform.OS === "ios" ? 1 : 2,
+  },
+
+  bottomSheetSuccessContent: {
+    minHeight: 220,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 16,
+  },
+
+  bottomSheetSuccessLottie: {
+    width: 138,
+    height: 138,
+    marginBottom: 8,
+  },
+
+  bottomSheetSuccessButton: {
+    width: "100%",
+    height: 52,
+    borderRadius: 18,
+    overflow: "hidden",
+    backgroundColor: COLORS.primary,
+    marginTop: 18,
+  },
+
+  bottomSheetSuccessButtonGradient: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 18,
+  },
+
+  bottomSheetSuccessInfoText: {
+    width: "100%",
+    marginTop: 10,
+    fontSize: 12.5,
+    fontFamily: FONT_EXTRABOLD,
+    lineHeight: 18,
+  },
+
+  bottomSheetResendArea: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 14,
+  },
+
+  bottomSheetResendQuestion: {
+    fontSize: 12.5,
+    fontFamily: FONT_EXTRABOLD,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+
+  bottomSheetResendTimerText: {
+    color: COLORS.primary,
+    fontSize: 12.5,
+    fontFamily: FONT_EXTRABOLD,
+    textAlign: "center",
+  },
+
+  bottomSheetResendButton: {
+    minHeight: 40,
+    minWidth: 150,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  bottomSheetResendButtonText: {
+    color: COLORS.primary,
+    fontSize: 13,
+    fontFamily: FONT_EXTRABOLD,
+  },
+  
 });

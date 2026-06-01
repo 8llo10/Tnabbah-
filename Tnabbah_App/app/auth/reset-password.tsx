@@ -22,20 +22,31 @@ import {
 
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import LottieView from "lottie-react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  Alexandria_400Regular,
+  Alexandria_600SemiBold,
+  Alexandria_700Bold,
+  Alexandria_800ExtraBold,
+  useFonts,
+} from "@expo-google-fonts/alexandria";
 import { useLanguage } from "../../providers/LanguageProvider";
+import { useAppSettings } from "../../providers/AppSettingsProvider";
 
 const OTP_DIGITS = 8;
 const RESEND_COOLDOWN = 60;
 
-const COLORS = {
+const LIGHT_COLORS = {
   screenBackground: "#FFFFFF",
 
   primary: "#9A211C",
   primaryDark: "#761713",
   primaryText: "#871B17",
+  buttonGradientStart: "#9A211C",
+  buttonGradientEnd: "#761713",
 
-  title: "#7B1714",
+  title: "#202020",
   textDark: "#2C2C2C",
   inputText: "#2E1D1D",
 
@@ -48,19 +59,63 @@ const COLORS = {
   white: "#FFFFFF",
 
   error: "#D32F2F",
+  errorSoft: "rgba(211,47,47,0.075)",
+  errorBorder: "rgba(211,47,47,0.68)",
   success: "#2E7D32",
+};
+
+const DARK_COLORS = {
+  screenBackground: "#151515",
+
+  primary: "#B63A34",
+  primaryDark: "#871B17",
+  primaryText: "#C8564E",
+  buttonGradientStart: "#B63A34",
+  buttonGradientEnd: "#871B17",
+
+  title: "#FFFFFF",
+  textDark: "#F2F2F2",
+  inputText: "#FFFFFF",
+
+  label: "#C9C0BD",
+  muted: "#D7D7D7",
+  placeholder: "#8F8F8F",
+  border: "rgba(255,255,255,0.16)",
+
+  shadowGray: "#000000",
+  white: "#FFFFFF",
+
+  error: "#EF7676",
+  errorSoft: "rgba(239,118,118,0.10)",
+  errorBorder: "rgba(239,118,118,0.45)",
+  success: "#6EDB7B",
 };
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
+const FONT_REGULAR = "Alexandria_400Regular";
+const FONT_SEMIBOLD = "Alexandria_600SemiBold";
+const FONT_BOLD = "Alexandria_700Bold";
+const FONT_EXTRABOLD = "Alexandria_800ExtraBold";
+
 export default function ResetPasswordScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { t, isArabic } = useLanguage();
+  const { darkModeEnabled } = useAppSettings();
+  const [fontsLoaded] = useFonts({
+    Alexandria_400Regular,
+    Alexandria_600SemiBold,
+    Alexandria_700Bold,
+    Alexandria_800ExtraBold,
+  });
+  const isDarkMode = darkModeEnabled;
+  const colors = isDarkMode ? DARK_COLORS : LIGHT_COLORS;
 
   const textAlign = isArabic ? "right" : "left";
   const rowDirection = isArabic ? "row-reverse" : "row";
+  const iconMargin = isArabic ? { marginLeft: 10 } : { marginRight: 10 };
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -84,6 +139,8 @@ export default function ResetPasswordScreen() {
     Array.from({ length: OTP_DIGITS }, () => new Animated.Value(1))
   ).current;
 
+  const emailSentLottieRef = useRef<LottieView>(null);
+
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
@@ -94,8 +151,9 @@ export default function ResetPasswordScreen() {
 
   const isSmallScreen = height < 720;
   const isVerySmallScreen = height < 650;
+  const isTabletLike = width >= 768;
 
-  const horizontalPadding = clamp(width * 0.055, 18, 24);
+  const horizontalPadding = isTabletLike ? 24 : clamp(width * 0.055, 18, 24);
 
   const backButtonSize = isVerySmallScreen ? 42 : 46;
   const backButtonRadius = backButtonSize / 2;
@@ -126,6 +184,9 @@ export default function ResetPasswordScreen() {
         safeTop: insets.top,
         width,
         height,
+        colors,
+        isDarkMode,
+        isArabic,
       }),
     [
       horizontalPadding,
@@ -142,6 +203,9 @@ export default function ResetPasswordScreen() {
       insets.top,
       width,
       height,
+      colors,
+      isDarkMode,
+      isArabic,
     ]
   );
 
@@ -159,6 +223,16 @@ export default function ResetPasswordScreen() {
 
     return () => clearInterval(interval);
   }, [resendTimer]);
+
+  useEffect(() => {
+    emailSentLottieRef.current?.reset();
+
+    const playTimer = setTimeout(() => {
+      emailSentLottieRef.current?.play();
+    }, 120);
+
+    return () => clearTimeout(playTimer);
+  }, []);
 
   const dismissKeyboard = () => {
     Keyboard.dismiss();
@@ -347,8 +421,13 @@ export default function ResetPasswordScreen() {
     if (errorMessage) {
       return (
         <View style={[styles.messageBoxError, { flexDirection: rowDirection }]}>
-          <Ionicons name="alert-circle" size={24} color={COLORS.primaryText} />
-          <Text style={[styles.messageTextError, { textAlign }]}>
+          <Ionicons
+            name="alert-circle"
+            size={14}
+            color={colors.error}
+            style={iconMargin}
+          />
+          <Text style={[styles.messageTextError, { textAlign }]} allowFontScaling={false}>
             {errorMessage}
           </Text>
         </View>
@@ -358,8 +437,13 @@ export default function ResetPasswordScreen() {
     if (infoMessage) {
       return (
         <View style={[styles.messageBoxInfo, { flexDirection: rowDirection }]}>
-          <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
-          <Text style={[styles.messageTextInfo, { textAlign }]}>
+          <Ionicons
+            name="checkmark-circle"
+            size={14}
+            color={colors.success}
+            style={iconMargin}
+          />
+          <Text style={[styles.messageTextInfo, { textAlign }]} allowFontScaling={false}>
             {infoMessage}
           </Text>
         </View>
@@ -373,8 +457,8 @@ export default function ResetPasswordScreen() {
     if (resendTimer > 0) {
       return (
         <View style={[styles.timerBox, { flexDirection: rowDirection }]}>
-          <Ionicons name="time-outline" size={24} color={COLORS.primary} />
-          <Text style={styles.timerText}>
+          <Ionicons name="time-outline" size={24} color={colors.primary} />
+          <Text style={styles.timerText} allowFontScaling={false}>
             {t.resetOtpResendAfter} {resendTimer} {t.resetOtpSeconds}
           </Text>
         </View>
@@ -383,20 +467,24 @@ export default function ResetPasswordScreen() {
 
     return (
       <View style={[styles.resendRow, { flexDirection: rowDirection }]}>
-        <Text style={styles.resendQuestion}>{t.resetOtpWantResend}</Text>
+        <Text style={styles.resendQuestion} allowFontScaling={false}>{t.resetOtpWantResend}</Text>
 
         <TouchableOpacity
           activeOpacity={0.75}
           onPress={handleResendCode}
           disabled={resendLoading || loading}
         >
-          <Text style={styles.resendText}>
+          <Text style={styles.resendText} allowFontScaling={false}>
             {resendLoading ? t.resetOtpSending : t.resetOtpResendCode}
           </Text>
         </TouchableOpacity>
       </View>
     );
   };
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   return (
     <View style={styles.container}>
@@ -405,7 +493,7 @@ export default function ResetPasswordScreen() {
       <StatusBar
         translucent
         backgroundColor="transparent"
-        barStyle="dark-content"
+        barStyle={isDarkMode ? "light-content" : "dark-content"}
       />
 
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
@@ -424,19 +512,29 @@ export default function ResetPasswordScreen() {
                   disabled={loading || resendLoading}
                 >
                   <Ionicons
-                    name="arrow-back-outline"
+                    name={isArabic ? "arrow-forward-outline" : "arrow-back-outline"}
                     size={isVerySmallScreen ? 23 : 25}
-                    color={COLORS.textDark}
+                    color={colors.textDark}
                   />
                 </TouchableOpacity>
               </View>
 
+              <View style={styles.emailSentAnimationWrapper}>
+                <LottieView
+                  ref={emailSentLottieRef}
+                  source={require("../../assets/animations/email-sent.json")}
+                  autoPlay
+                  loop
+                  style={styles.emailSentAnimation}
+                />
+              </View>
+
               <View style={styles.titleArea}>
-                <Text style={styles.title}>{t.resetOtpTitle}</Text>
+                <Text style={styles.title} allowFontScaling={false}>{t.resetOtpTitle}</Text>
 
-                <Text style={styles.subtitle}>{t.resetOtpSubtitle}</Text>
+                <Text style={styles.subtitle} allowFontScaling={false}>{t.resetOtpSubtitle}</Text>
 
-                <Text style={styles.emailText}>
+                <Text style={styles.emailText} allowFontScaling={false}>
                   {email || t.resetOtpEmailFallback}
                 </Text>
               </View>
@@ -462,12 +560,14 @@ export default function ResetPasswordScreen() {
                         ]}
                       >
                         <TextInput
+                          allowFontScaling={false}
                           ref={(ref) => {
                             otpRefs.current[index] = ref;
                           }}
                           style={[
                             styles.otpInput,
                             isFilled && styles.otpInputFilled,
+                            hasError && styles.otpInputError,
                           ]}
                           value={digit}
                           onChangeText={(text) => handleOtpChange(text, index)}
@@ -481,7 +581,7 @@ export default function ResetPasswordScreen() {
                           textAlign="center"
                           autoCorrect={false}
                           autoCapitalize="none"
-                          selectionColor={COLORS.primaryDark}
+                          selectionColor={colors.primaryDark}
                           editable={!loading && !resendLoading}
                         />
                       </Animated.View>
@@ -503,10 +603,7 @@ export default function ResetPasswordScreen() {
                   activeOpacity={0.9}
                 >
                   <LinearGradient
-                    colors={[
-                      "rgba(154,33,28,0.98)",
-                      "rgba(118,23,19,0.98)",
-                    ]}
+                    colors={[colors.buttonGradientStart, colors.buttonGradientEnd]}
                     start={{ x: 0.15, y: 0 }}
                     end={{ x: 0.9, y: 1 }}
                     style={styles.buttonGradient}
@@ -517,12 +614,12 @@ export default function ResetPasswordScreen() {
                       {loading ? (
                         <ActivityIndicator
                           size="small"
-                          color={COLORS.white}
+                          color={colors.white}
                           style={styles.loadingSpinner}
                         />
                       ) : null}
 
-                      <Text style={styles.buttonText}>
+                      <Text style={styles.buttonText} allowFontScaling={false}>
                         {loading ? t.resetOtpVerifying : t.resetOtpContinue}
                       </Text>
                     </View>
@@ -554,6 +651,9 @@ function createStyles({
   safeTop,
   width,
   height,
+  colors,
+  isDarkMode,
+  isArabic,
 }: {
   horizontalPadding: number;
   backButtonSize: number;
@@ -569,22 +669,25 @@ function createStyles({
   safeTop: number;
   width: number;
   height: number;
+  colors: typeof LIGHT_COLORS;
+  isDarkMode: boolean;
+  isArabic: boolean;
 }) {
   return StyleSheet.create({
     container: {
       flex: 1,
       overflow: "hidden",
-      backgroundColor: COLORS.screenBackground,
+      backgroundColor: colors.screenBackground,
     },
 
     safeArea: {
       flex: 1,
-      backgroundColor: COLORS.screenBackground,
+      backgroundColor: colors.screenBackground,
     },
 
     keyboardAvoidingView: {
       flex: 1,
-      backgroundColor: COLORS.screenBackground,
+      backgroundColor: colors.screenBackground,
     },
 
     screenContent: {
@@ -592,13 +695,16 @@ function createStyles({
       paddingHorizontal: horizontalPadding,
       paddingTop: topSpacing,
       paddingBottom: bottomSpacing,
-      backgroundColor: COLORS.screenBackground,
+      backgroundColor: colors.screenBackground,
+      width: "100%",
+      maxWidth: 430,
+      alignSelf: "center",
     },
 
     backArea: {
       width: "100%",
       paddingTop: safeTop + 2,
-      alignItems: "flex-start",
+      alignItems: isArabic ? "flex-end" : "flex-start",
       justifyContent: "center",
       marginBottom: isVerySmallScreen ? 18 : 22,
     },
@@ -615,6 +721,20 @@ function createStyles({
       elevation: 0,
     },
 
+    emailSentAnimationWrapper: {
+      width: "100%",
+      height: isVerySmallScreen ? 104 : 118,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: isVerySmallScreen ? -12 : -16,
+      marginBottom: isVerySmallScreen ? -8 : -10,
+    },
+
+    emailSentAnimation: {
+      width: isVerySmallScreen ? 138 : 160,
+      height: isVerySmallScreen ? 138 : 160,
+    },
+
     titleArea: {
       width: "100%",
       alignItems: "center",
@@ -624,36 +744,37 @@ function createStyles({
     },
 
     title: {
-      fontSize: isVerySmallScreen ? 24 : isSmallScreen ? 26 : 27,
-      fontWeight: "900",
-      color: COLORS.title,
+      fontFamily: FONT_EXTRABOLD,
+      fontSize: isVerySmallScreen ? 23 : isSmallScreen ? 25 : 27,
+      color: colors.title,
       textAlign: "center",
-      letterSpacing: -0.4,
-      lineHeight: isVerySmallScreen ? 33 : 37,
-      textShadowColor: "rgba(255,255,255,0.95)",
+      letterSpacing: -0.35,
+      lineHeight: isVerySmallScreen ? 32 : isSmallScreen ? 35 : 38,
+      textShadowColor: isDarkMode ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.95)",
       textShadowOffset: { width: 0, height: 2 },
       textShadowRadius: 12,
     },
 
     subtitle: {
+      fontFamily: FONT_SEMIBOLD,
       marginTop: isVerySmallScreen ? 9 : 12,
-      fontSize: isVerySmallScreen ? 14.5 : 15.5,
-      lineHeight: isVerySmallScreen ? 22 : 25,
-      color: "#6C5B58",
-      fontWeight: "800",
+      fontSize: isVerySmallScreen ? 12.2 : 13.2,
+      lineHeight: isVerySmallScreen ? 20 : 22,
+      color: colors.muted,
       textAlign: "center",
       maxWidth: clamp(width * 0.9, 300, 360),
-      textShadowColor: "rgba(255,255,255,0.90)",
+      textShadowColor: isDarkMode ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.90)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 10,
     },
 
     emailText: {
+      fontFamily: FONT_BOLD,
       marginTop: 8,
-      fontSize: isVerySmallScreen ? 14 : 15,
-      color: COLORS.primaryText,
-      fontWeight: "900",
+      fontSize: isVerySmallScreen ? 13 : 14,
+      color: colors.primaryText,
       textAlign: "center",
+      lineHeight: isVerySmallScreen ? 20 : 22,
     },
 
     otpArea: {
@@ -673,12 +794,12 @@ function createStyles({
       width: otpBoxSize,
       height: otpBoxHeight,
       borderRadius: 16,
-      backgroundColor: COLORS.white,
+      backgroundColor: isDarkMode ? "rgba(255,255,255,0.055)" : colors.white,
       borderWidth: 1.7,
-      borderColor: COLORS.border,
+      borderColor: colors.border,
       justifyContent: "center",
       alignItems: "center",
-      shadowColor: COLORS.shadowGray,
+      shadowColor: colors.shadowGray,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: Platform.OS === "android" ? 0.14 : 0.2,
       shadowRadius: 4,
@@ -691,9 +812,9 @@ function createStyles({
     },
 
     otpBoxFocused: {
-      borderColor: COLORS.primary,
+      borderColor: colors.primary,
       backgroundColor: "rgba(154,33,28,0.08)",
-      shadowColor: COLORS.primaryDark,
+      shadowColor: colors.primaryDark,
       shadowOffset: { width: 0, height: 5 },
       shadowOpacity: Platform.OS === "android" ? 0.2 : 0.25,
       shadowRadius: 10,
@@ -701,75 +822,75 @@ function createStyles({
     },
 
     otpBoxError: {
-      borderColor: "rgba(154,33,28,0.62)",
-      backgroundColor: "rgba(154,33,28,0.055)",
+      borderColor: colors.errorBorder,
+      backgroundColor: colors.errorSoft,
+      shadowColor: colors.error,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: Platform.OS === "android" ? 0.13 : 0.16,
+      shadowRadius: 8,
+      elevation: 4,
     },
 
     otpInput: {
+      fontFamily: FONT_EXTRABOLD,
       width: "100%",
       height: "100%",
-      fontSize: isVerySmallScreen ? 22 : 25,
-      fontWeight: "900",
-      color: COLORS.inputText,
+      fontSize: isVerySmallScreen ? 21 : 23,
+      color: colors.inputText,
       textAlign: "center",
       paddingVertical: 0,
       backgroundColor: "transparent",
+      letterSpacing: -0.2,
     },
 
     otpInputFilled: {
-      color: COLORS.primaryText,
+      color: colors.primaryText,
+    },
+
+    otpInputError: {
+      color: colors.error,
     },
 
     messagePlaceholder: {
-      height: isVerySmallScreen ? 42 : 46,
+      minHeight: isVerySmallScreen ? 28 : 32,
     },
 
     messageBoxError: {
       width: "100%",
-      minHeight: isVerySmallScreen ? 48 : 52,
-      flexDirection: "row-reverse",
+      minHeight: isVerySmallScreen ? 28 : 32,
       alignItems: "center",
+      justifyContent: "flex-start",
       marginTop: 0,
-      paddingHorizontal: isVerySmallScreen ? 14 : 16,
-      paddingVertical: isVerySmallScreen ? 9 : 10,
-      borderRadius: 22,
-      backgroundColor: "#F5F5F5",
-      borderWidth: 1.1,
-      borderColor: "rgba(170,170,170,0.45)",
-      gap: 7,
+      paddingHorizontal: 8,
     },
 
     messageBoxInfo: {
       width: "100%",
-      minHeight: isVerySmallScreen ? 48 : 52,
-      flexDirection: "row-reverse",
+      minHeight: isVerySmallScreen ? 28 : 32,
       alignItems: "center",
+      justifyContent: "flex-start",
       marginTop: 0,
-      paddingHorizontal: isVerySmallScreen ? 14 : 16,
-      paddingVertical: isVerySmallScreen ? 9 : 10,
-      borderRadius: 22,
-      backgroundColor: "#F5F5F5",
-      borderWidth: 1.1,
-      borderColor: "rgba(170,170,170,0.45)",
-      gap: 7,
+      paddingHorizontal: 8,
     },
 
     messageTextError: {
-      color: COLORS.primary,
-      fontSize: isVerySmallScreen ? 12.8 : 13.5,
-      fontWeight: "800",
+      fontFamily: FONT_SEMIBOLD,
+      color: colors.error,
+      fontSize: isVerySmallScreen ? 12.2 : 13,
       textAlign: "right",
       flex: 1,
       lineHeight: isVerySmallScreen ? 18 : 20,
+      includeFontPadding: false,
     },
 
     messageTextInfo: {
-      color: "#6C5B58",
-      fontSize: isVerySmallScreen ? 13.8 : 15,
-      fontWeight: "900",
+      fontFamily: FONT_SEMIBOLD,
+      color: colors.success,
+      fontSize: isVerySmallScreen ? 12.2 : 13,
       textAlign: "right",
       flex: 1,
-      lineHeight: isVerySmallScreen ? 19 : 21,
+      lineHeight: isVerySmallScreen ? 18 : 20,
+      includeFontPadding: false,
     },
 
     bottomArea: {
@@ -789,7 +910,7 @@ function createStyles({
       shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
       shadowRadius: 14,
       elevation: 6,
-      backgroundColor: COLORS.primary,
+      backgroundColor: colors.primary,
     },
 
     mainButtonDisabled: {
@@ -829,11 +950,16 @@ function createStyles({
     },
 
     buttonText: {
-      color: COLORS.white,
+      fontFamily: FONT_EXTRABOLD,
+      color: colors.white,
       textAlign: "center",
-      fontSize: isVerySmallScreen ? 18.5 : 20,
-      fontWeight: "900",
+      fontSize: isVerySmallScreen ? 17.4 : 18.4,
       zIndex: 5,
+      lineHeight: isVerySmallScreen ? 28 : 30,
+      letterSpacing: -0.15,
+      textAlignVertical: "center",
+      paddingTop: Platform.OS === "ios" ? 1 : 0,
+      paddingBottom: Platform.OS === "ios" ? 1 : 0,
     },
 
     timerBox: {
@@ -843,9 +969,9 @@ function createStyles({
       paddingHorizontal: isVerySmallScreen ? 14 : 16,
       paddingVertical: isVerySmallScreen ? 9 : 10,
       borderRadius: 22,
-      backgroundColor: "#F5F5F5",
+      backgroundColor: isDarkMode ? "rgba(255,255,255,0.055)" : "#F5F5F5",
       borderWidth: 1.1,
-      borderColor: "rgba(170,170,170,0.45)",
+      borderColor: isDarkMode ? "rgba(255,255,255,0.14)" : "rgba(170,170,170,0.45)",
       flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "center",
@@ -853,10 +979,10 @@ function createStyles({
     },
 
     timerText: {
+      fontFamily: FONT_SEMIBOLD,
       flexShrink: 1,
-      color: "#6C5B58",
-      fontSize: isVerySmallScreen ? 13.8 : 15,
-      fontWeight: "900",
+      color: colors.muted,
+      fontSize: isVerySmallScreen ? 12.8 : 14,
       textAlign: "center",
       lineHeight: isVerySmallScreen ? 19 : 21,
     },
@@ -871,16 +997,18 @@ function createStyles({
     },
 
     resendQuestion: {
-      color: "rgba(87, 87, 87, 1)",
-      fontSize: isVerySmallScreen ? 16 : 17,
-      fontWeight: "700",
+      fontFamily: FONT_REGULAR,
+      color: isDarkMode ? "rgba(255,255,255,0.68)" : "rgba(87,87,87,1)",
+      fontSize: isVerySmallScreen ? 14.2 : 15.2,
+      lineHeight: isVerySmallScreen ? 22 : 24,
     },
 
     resendText: {
-      color: COLORS.primaryText,
-      fontSize: isVerySmallScreen ? 16 : 17,
-      fontWeight: "900",
+      fontFamily: FONT_BOLD,
+      color: colors.primaryText,
+      fontSize: isVerySmallScreen ? 14.2 : 15.2,
       textDecorationLine: "none",
+      lineHeight: isVerySmallScreen ? 22 : 24,
     },
   });
 }

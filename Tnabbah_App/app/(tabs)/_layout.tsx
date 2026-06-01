@@ -13,12 +13,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useMemo, useRef } from "react";
 import { useLanguage } from "../../providers/LanguageProvider";
-
-const ACTIVE = "#871B17";
-const ACTIVE_DARK = "#5F130F";
-const INACTIVE = "#5F5F5F";
-
-const BAR_BG = "#EBEBEB";
+import { useAppSettings } from "../../providers/AppSettingsProvider";
 
 const TAB_COUNT = 3;
 
@@ -27,11 +22,36 @@ const WRAPPER_HEIGHT = Platform.OS === "ios" ? 96 : 88;
 
 const ACTIVE_PILL_WIDTH = 92;
 const ACTIVE_PILL_HEIGHT = 50;
-
-/* هنا رفعت الشكل الأحمر فوق */
 const ACTIVE_PILL_TOP = Platform.OS === "ios" ? 14 : 12;
 
 type IconPack = "ion" | "material";
+
+type TabTheme = {
+  screenBg: string;
+  barBg: string;
+  inactive: string;
+  activeGradient: readonly [string, string, string];
+  activeShadow: string;
+  activeText: string;
+};
+
+const lightTabTheme: TabTheme = {
+  screenBg: "#FFFFFF",
+  barBg: "#EBEBEB",
+  inactive: "#5F5F5F",
+  activeGradient: ["#871B17", "#871B17", "#871B17"],
+  activeShadow: "#871B17",
+  activeText: "#FFFFFF",
+};
+
+const darkTabTheme: TabTheme = {
+  screenBg: "#151515",
+  barBg: "#202020",
+  inactive: "#C7C7C7",
+  activeGradient: ["#B63A34", "#B63A34", "#B63A34"],
+  activeShadow: "rgba(182,58,52,0.42)",
+  activeText: "#FFFFFF",
+};
 
 function TabIcon({
   pack,
@@ -53,7 +73,7 @@ function TabIcon({
 
 function getIconData(
   routeName: string,
-  focused: boolean
+  focused: boolean,
 ): { pack: IconPack; name: any } {
   switch (routeName) {
     case "home":
@@ -111,22 +131,41 @@ function getLabel(routeName: string, language: "AR" | "EN"): string {
   }
 }
 
+function getVisualRouteOrder(language: "AR" | "EN") {
+  // English LTR: Home left, Wallet middle, Settings right
+  // Arabic RTL: Home right, Wallet middle, Settings left
+  return language === "AR"
+    ? ["settings", "wallet", "home"]
+    : ["home", "wallet", "settings"];
+}
+
 function CustomTabBar({ state, navigation }: any) {
   const { width } = useWindowDimensions();
   const { language } = useLanguage();
+  const { darkModeEnabled } = useAppSettings();
 
+  const theme = darkModeEnabled ? darkTabTheme : lightTabTheme;
+
+  const visualRoutes = getVisualRouteOrder(language);
   const barWidth = width;
   const tabSlotWidth = barWidth / TAB_COUNT;
 
-  const activeIndex = state.index;
-  const activeRoute = state.routes[activeIndex];
+  const activeRoute = state.routes[state.index];
+  const activeVisualIndex = Math.max(
+    0,
+    visualRoutes.findIndex((routeName) => routeName === activeRoute.name),
+  );
 
   const activeIcon = getIconData(activeRoute.name, true);
   const activeLabel = getLabel(activeRoute.name, language);
 
   const activePillLeft = useMemo(() => {
-    return activeIndex * tabSlotWidth + tabSlotWidth / 2 - ACTIVE_PILL_WIDTH / 2;
-  }, [activeIndex, tabSlotWidth]);
+    return (
+      activeVisualIndex * tabSlotWidth +
+      tabSlotWidth / 2 -
+      ACTIVE_PILL_WIDTH / 2
+    );
+  }, [activeVisualIndex, tabSlotWidth]);
 
   const pillTranslateX = useRef(new Animated.Value(activePillLeft)).current;
   const pillScale = useRef(new Animated.Value(1)).current;
@@ -168,18 +207,34 @@ function CustomTabBar({ state, navigation }: any) {
     });
 
     if (!isFocused && !event.defaultPrevented) {
-      navigation.navigate(route.name);
+      // مهم:
+      // jumpTo ما يبني History بين التابات مثل navigate،
+      // فـ Home ما يرجعك Settings بسبب history.
+      navigation.jumpTo(route.name);
     }
   };
 
   return (
-    <View style={styles.wrapper} pointerEvents="box-none">
-      <View style={[styles.barContainer, { width: barWidth }]}>
+    <View
+      style={[styles.wrapper, { backgroundColor: theme.barBg }]}
+      pointerEvents="box-none"
+    >
+      <View
+        style={[
+          styles.barContainer,
+          {
+            width: barWidth,
+            backgroundColor: theme.barBg,
+          },
+        ]}
+      >
         <Animated.View
           pointerEvents="box-none"
           style={[
             styles.activePillWrapper,
             {
+              shadowColor: theme.activeShadow,
+              shadowOpacity: darkModeEnabled ? 0.16 : 0.22,
               transform: [{ translateX: pillTranslateX }, { scale: pillScale }],
             },
           ]}
@@ -192,11 +247,11 @@ function CustomTabBar({ state, navigation }: any) {
                 await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               } catch {}
 
-              navigation.navigate(activeRoute.name);
+              navigation.jumpTo(activeRoute.name);
             }}
           >
             <LinearGradient
-              colors={[ACTIVE, "#7A1814", ACTIVE_DARK]}
+              colors={theme.activeGradient}
               start={{ x: 0.15, y: 0 }}
               end={{ x: 0.9, y: 1 }}
               style={styles.activePill}
@@ -205,10 +260,14 @@ function CustomTabBar({ state, navigation }: any) {
                 pack={activeIcon.pack}
                 name={activeIcon.name}
                 size={21}
-                color="#FFFFFF"
+                color={theme.activeText}
               />
 
-              <Text numberOfLines={1} style={styles.activePillLabel}>
+              <Text
+                numberOfLines={1}
+                allowFontScaling={false}
+                style={[styles.activePillLabel, { color: theme.activeText }]}
+              >
                 {activeLabel}
               </Text>
             </LinearGradient>
@@ -216,7 +275,13 @@ function CustomTabBar({ state, navigation }: any) {
         </Animated.View>
 
         <View style={[styles.tabsRow, { width: barWidth }]}>
-          {state.routes.map((route: any) => {
+          {visualRoutes.map((routeName) => {
+            const route = state.routes.find(
+              (item: any) => item.name === routeName,
+            );
+
+            if (!route) return null;
+
             const isFocused = state.routes[state.index].key === route.key;
             const iconData = getIconData(route.name, false);
             const label = getLabel(route.name, language);
@@ -240,11 +305,15 @@ function CustomTabBar({ state, navigation }: any) {
                         pack={iconData.pack}
                         name={iconData.name}
                         size={24}
-                        color={INACTIVE}
+                        color={theme.inactive}
                       />
                     </View>
 
-                    <Text numberOfLines={1} style={styles.tabLabel}>
+                    <Text
+                      numberOfLines={1}
+                      allowFontScaling={false}
+                      style={[styles.tabLabel, { color: theme.inactive }]}
+                    >
                       {label}
                     </Text>
                   </>
@@ -260,23 +329,49 @@ function CustomTabBar({ state, navigation }: any) {
 
 export default function TabsLayout() {
   const { language } = useLanguage();
+  const { darkModeEnabled } = useAppSettings();
+
   const isArabic = language === "AR";
+  const theme = darkModeEnabled ? darkTabTheme : lightTabTheme;
 
   return (
     <Tabs
       initialRouteName="home"
+      backBehavior="none"
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
+
+        // لا تضيفي gestureEnabled هنا.
+        // gestureEnabled خاص بالـ Stack وليس Tabs،
+        // لذلك وجوده هنا يسبب TypeScript error.
+
         sceneStyle: {
-          backgroundColor: "#FFFFFF",
+          backgroundColor: theme.screenBg,
           paddingBottom: Platform.OS === "ios" ? 96 : 88,
         },
       }}
     >
-      <Tabs.Screen name="wallet" options={{ title: isArabic ? "المحفظة" : "Wallet" }} />
-      <Tabs.Screen name="home" options={{ title: isArabic ? "الرئيسية" : "Home" }} />
-      <Tabs.Screen name="settings" options={{ title: isArabic ? "الإعدادات" : "Settings" }} />
+      <Tabs.Screen
+        name="home"
+        options={{
+          title: isArabic ? "الرئيسية" : "Home",
+        }}
+      />
+
+      <Tabs.Screen
+        name="wallet"
+        options={{
+          title: isArabic ? "المحفظة" : "Wallet",
+        }}
+      />
+
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: isArabic ? "الإعدادات" : "Settings",
+        }}
+      />
     </Tabs>
   );
 }
@@ -292,7 +387,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     zIndex: 999,
     elevation: 999,
-    backgroundColor: BAR_BG,
   },
 
   barContainer: {
@@ -301,12 +395,11 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: BAR_HEIGHT,
-    backgroundColor: BAR_BG,
     overflow: "hidden",
 
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.08,
     shadowRadius: 7,
     elevation: 7,
   },
@@ -317,8 +410,6 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     justifyContent: "space-between",
     zIndex: 5,
-
-    /* هنا رفعت الأيقونات فوق */
     paddingTop: Platform.OS === "ios" ? 14 : 12,
   },
 
@@ -338,10 +429,12 @@ const styles = StyleSheet.create({
 
   tabLabel: {
     fontSize: 11,
+    fontFamily: "Alexandria-Bold",
     fontWeight: "800",
-    color: INACTIVE,
     textAlign: "center",
-    includeFontPadding: false,
+    lineHeight: 15,
+    includeFontPadding: true,
+    paddingBottom: 1,
   },
 
   activePillWrapper: {
@@ -353,11 +446,9 @@ const styles = StyleSheet.create({
     borderRadius: ACTIVE_PILL_HEIGHT / 2,
     zIndex: 30,
 
-    shadowColor: ACTIVE,
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.22,
-    shadowRadius: 9,
-    elevation: 12,
+    shadowRadius: 8,
+    elevation: 8,
   },
 
   activePillTouch: {
@@ -381,9 +472,11 @@ const styles = StyleSheet.create({
   activePillLabel: {
     marginTop: 1,
     fontSize: 10.5,
+    fontFamily: "Alexandria-Bold",
     fontWeight: "900",
-    color: "#FFFFFF",
     textAlign: "center",
-    includeFontPadding: false,
+    lineHeight: 14,
+    includeFontPadding: true,
+    paddingBottom: 1,
   },
 });

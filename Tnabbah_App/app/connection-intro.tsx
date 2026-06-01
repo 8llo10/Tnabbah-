@@ -3,6 +3,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import LottieView from "lottie-react-native";
+import { Image as ExpoImage } from "expo-image";
 import * as Notifications from "expo-notifications";
 import {
   ActivityIndicator,
@@ -10,7 +11,7 @@ import {
   BackHandler,
   Easing,
   FlatList,
-  Image,
+  Image as RNImage,
   PermissionsAndroid,
   Platform,
   StatusBar,
@@ -25,19 +26,28 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import {
+  Alexandria_400Regular,
+  Alexandria_600SemiBold,
+  Alexandria_700Bold,
+  Alexandria_800ExtraBold,
+  useFonts,
+} from "@expo-google-fonts/alexandria";
 import { Device, State } from "react-native-ble-plx";
 import { elmBluetoothService } from "@/services/elmBluetoothService";
 import { vehicleScannerService } from "@/services/vehicleScannerService";
 import { useLanguage } from "../providers/LanguageProvider";
+import { useAppSettings } from "../providers/AppSettingsProvider";
 
-const START_IMAGE = require("../assets/images/obd-connection-start.webp");
+const START_IMAGE_LIGHT = require("../assets/images/obd-connection-start-light.png");
+const START_IMAGE_DARK = require("../assets/images/obd-connection-start-dark.png");
 
-const COLORS = {
+const LIGHT_COLORS = {
   screenBackground: "#FFFFFF",
 
   primary: "#9A211C",
   primaryDark: "#761713",
-  title: "#8F1D1D",
+  title: "#9A211C",
 
   textDark: "#111111",
   textMuted: "#737373",
@@ -45,12 +55,61 @@ const COLORS = {
   grayText: "#8E8E8E",
   borderGray: "#E8E8E8",
   softGray: "#F4F4F4",
+  card: "#FFFFFF",
+  dropdown: "#FFFFFF",
+  lineTrack: "#E4E4E4",
+  subtleBorder: "#F0F0F0",
+  placeholder: "#B6B6B6",
+  mutedBoxText: "#777777",
+  primarySoft: "rgba(154,33,28,0.06)",
+  primarySoftStrong: "rgba(154,33,28,0.08)",
+  primarySoftBorder: "rgba(154,33,28,0.14)",
+  primarySoftBorderLight: "rgba(154,33,28,0.12)",
+  white: "#FFFFFF",
+  statusBar: "dark-content" as const,
+};
+
+const DARK_COLORS = {
+  screenBackground: "#151515",
+
+  primary: "#B63A34",
+  primaryDark: "#871B17",
+  title: "#B63A34",
+
+  textDark: "#FFFFFF",
+  textMuted: "#C7C7C7",
+
+  grayText: "#B8B8B8",
+  borderGray: "#383838",
+  softGray: "#292929",
+  card: "#202020",
+  dropdown: "#202020",
+  lineTrack: "#3A3A3A",
+  subtleBorder: "#333333",
+  placeholder: "#8E8E8E",
+  mutedBoxText: "#C7C7C7",
+  primarySoft: "rgba(182,58,52,0.16)",
+  primarySoftStrong: "rgba(182,58,52,0.20)",
+  primarySoftBorder: "rgba(182,58,52,0.28)",
+  primarySoftBorderLight: "rgba(182,58,52,0.22)",
+
+  error: "#EF7676",
+  errorSoft: "rgba(239,118,118,0.10)",
+  errorBorder: "rgba(239,118,118,0.45)",
 
   white: "#FFFFFF",
+  statusBar: "light-content" as const,
 };
+
+type AppColors = typeof LIGHT_COLORS | typeof DARK_COLORS;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
+
+const FONT_REGULAR = "Alexandria_400Regular";
+const FONT_SEMIBOLD = "Alexandria_600SemiBold";
+const FONT_BOLD = "Alexandria_700Bold";
+const FONT_EXTRABOLD = "Alexandria_800ExtraBold";
 
 type StepNumber = 1 | 2 | 3;
 
@@ -82,6 +141,15 @@ export default function ConnectionIntroScreen() {
   const appRouter = useRouter();
   const { from } = useLocalSearchParams<{ from?: string }>();
   const { t, isArabic } = useLanguage();
+  const { darkModeEnabled } = useAppSettings();
+  const [fontsLoaded] = useFonts({
+    Alexandria_400Regular,
+    Alexandria_600SemiBold,
+    Alexandria_700Bold,
+    Alexandria_800ExtraBold,
+  });
+
+  const COLORS = darkModeEnabled ? DARK_COLORS : LIGHT_COLORS;
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -148,6 +216,7 @@ export default function ConnectionIntroScreen() {
   const styles = useMemo(
     () =>
       createStyles({
+        COLORS,
         width,
         height,
         safeTop: insets.top,
@@ -174,6 +243,7 @@ export default function ConnectionIntroScreen() {
       isTablet,
       currentStep,
       isArabic,
+      darkModeEnabled,
     ]
   );
 
@@ -449,7 +519,9 @@ export default function ConnectionIntroScreen() {
   }, []);
 
   useEffect(() => {
-    Image.resolveAssetSource(START_IMAGE);
+    // تحميل الصورتين من البداية عشان ما يكون فيه تأخير عند تبديل الوضع
+    RNImage.resolveAssetSource(START_IMAGE_LIGHT);
+    RNImage.resolveAssetSource(START_IMAGE_DARK);
   }, []);
 
   useEffect(() => {
@@ -567,18 +639,22 @@ export default function ConnectionIntroScreen() {
 
   const firstLineWidth = firstLineAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, lineWidth],
+    outputRange: ["0%", "100%"],
   });
 
   const secondLineWidth = secondLineAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, lineWidth],
+    outputRange: ["0%", "100%"],
   });
 
   const stepData = steps[currentStep];
 
   const isButtonDisabled =
     currentStep === 3 && (!selectedDevice || isConnecting);
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   return (
     <View style={styles.container}>
@@ -587,7 +663,7 @@ export default function ConnectionIntroScreen() {
       <StatusBar
         translucent
         backgroundColor="transparent"
-        barStyle="dark-content"
+        barStyle={COLORS.statusBar}
       />
 
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
@@ -601,7 +677,7 @@ export default function ConnectionIntroScreen() {
                 disabled={isConnecting}
               >
                 <Ionicons
-                  name="arrow-back-outline"
+                  name={isArabic ? "arrow-forward-outline" : "arrow-back-outline"}
                   size={backIconSize}
                   color={COLORS.textDark}
                 />
@@ -614,7 +690,7 @@ export default function ConnectionIntroScreen() {
                   onPress={handleSkip}
                   disabled={isConnecting}
                 >
-                  <Text style={styles.skipText}>{t.connectionSkip}</Text>
+                  <Text style={styles.skipText} allowFontScaling={false}>{t.connectionSkip}</Text>
                 </TouchableOpacity>
               ) : (
                 <View style={styles.skipPlaceholder} />
@@ -624,13 +700,13 @@ export default function ConnectionIntroScreen() {
             <View style={styles.stepsContainer}>
               <Animated.View
                 style={{
-                  opacity: stepThreeAnim,
+                  opacity: stepOneAnim,
                   transform: [
                     {
                       scale:
-                        currentStep === 3
+                        currentStep === 1
                           ? pulseAnim
-                          : stepThreeAnim.interpolate({
+                          : stepOneAnim.interpolate({
                               inputRange: [0, 1],
                               outputRange: [0.9, 1],
                             }),
@@ -639,17 +715,18 @@ export default function ConnectionIntroScreen() {
                 }}
               >
                 <StepItem
-                  label={t.connectionStepChooseLabel}
-                  iconName="bluetooth"
-                  active={currentStep === 3}
-                  completed={false}
+                  label={t.connectionStepStartLabel}
+                  iconName="cellphone-cog"
+                  active={currentStep === 1}
+                  completed={currentStep > 1}
                   styles={styles}
+                  COLORS={COLORS}
                 />
               </Animated.View>
 
               <View style={styles.activeLineTrack}>
                 <Animated.View
-                  style={[styles.activeLineFill, { width: secondLineWidth }]}
+                  style={[styles.activeLineFill, { width: firstLineWidth }]}
                 />
               </View>
 
@@ -675,24 +752,25 @@ export default function ConnectionIntroScreen() {
                   active={currentStep === 2}
                   completed={currentStep > 2}
                   styles={styles}
+                  COLORS={COLORS}
                 />
               </Animated.View>
 
               <View style={styles.activeLineTrack}>
                 <Animated.View
-                  style={[styles.activeLineFill, { width: firstLineWidth }]}
+                  style={[styles.activeLineFill, { width: secondLineWidth }]}
                 />
               </View>
 
               <Animated.View
                 style={{
-                  opacity: stepOneAnim,
+                  opacity: stepThreeAnim,
                   transform: [
                     {
                       scale:
-                        currentStep === 1
+                        currentStep === 3
                           ? pulseAnim
-                          : stepOneAnim.interpolate({
+                          : stepThreeAnim.interpolate({
                               inputRange: [0, 1],
                               outputRange: [0.9, 1],
                             }),
@@ -701,11 +779,12 @@ export default function ConnectionIntroScreen() {
                 }}
               >
                 <StepItem
-                  label={t.connectionStepStartLabel}
-                  iconName="cellphone-cog"
-                  active={currentStep === 1}
-                  completed={currentStep > 1}
+                  label={t.connectionStepChooseLabel}
+                  iconName="bluetooth"
+                  active={currentStep === 3}
+                  completed={false}
                   styles={styles}
+                  COLORS={COLORS}
                 />
               </Animated.View>
             </View>
@@ -719,13 +798,13 @@ export default function ConnectionIntroScreen() {
                 },
               ]}
             >
-              <Text style={styles.title}>{stepData.title}</Text>
-              <Text style={styles.subtitle}>{stepData.subtitle}</Text>
+              <Text style={styles.title} allowFontScaling={false}>{stepData.title}</Text>
+              <Text style={styles.subtitle} allowFontScaling={false}>{stepData.subtitle}</Text>
 
               {currentStep === 1 ? (
-                <StepOneContent styles={styles} />
+                <StepOneContent styles={styles} darkModeEnabled={darkModeEnabled} />
               ) : currentStep === 2 ? (
-                <StepTwoContent styles={styles} t={t} />
+                <StepTwoContent styles={styles} t={t} COLORS={COLORS} />
               ) : (
                 <BluetoothContent
                   styles={styles}
@@ -742,6 +821,7 @@ export default function ConnectionIntroScreen() {
                   setPassword={setPassword}
                   setErrorMessage={setErrorMessage}
                   t={t}
+                  COLORS={COLORS}
                 />
               )}
             </Animated.View>
@@ -757,10 +837,7 @@ export default function ConnectionIntroScreen() {
                 disabled={isButtonDisabled}
               >
                 <LinearGradient
-                  colors={[
-                    "rgba(154,33,28,0.98)",
-                    "rgba(118,23,19,0.98)",
-                  ]}
+                  colors={[COLORS.primary, COLORS.primaryDark]}
                   start={{ x: 0.15, y: 0 }}
                   end={{ x: 0.9, y: 1 }}
                   style={styles.startGradient}
@@ -769,13 +846,13 @@ export default function ConnectionIntroScreen() {
 
                   {currentStep === 3 && isConnecting ? (
                     <View style={styles.connectingRow}>
-                      <ActivityIndicator color="#FFFFFF" />
-                      <Text style={styles.startButtonText}>
+                      <ActivityIndicator color={COLORS.white} />
+                      <Text style={styles.startButtonText} allowFontScaling={false}>
                         {t.connectionConnecting}
                       </Text>
                     </View>
                   ) : (
-                    <Text style={styles.startButtonText}>
+                    <Text style={styles.startButtonText} allowFontScaling={false}>
                       {stepData.buttonText}
                     </Text>
                   )}
@@ -791,18 +868,44 @@ export default function ConnectionIntroScreen() {
 
 function StepOneContent({
   styles,
+  darkModeEnabled,
 }: {
   styles: ReturnType<typeof createStyles>;
+  darkModeEnabled: boolean;
 }) {
   return (
     <View style={styles.stepOneBody}>
-      <Image
-        source={START_IMAGE}
-        style={styles.startImage}
-        resizeMode="contain"
-        fadeDuration={0}
-        progressiveRenderingEnabled
-      />
+      <View style={styles.startImageFrame}>
+        <ExpoImage
+          source={START_IMAGE_LIGHT}
+          style={[
+            styles.startImage,
+            styles.startImageLayer,
+            styles.startImageLightAdjust,
+            { opacity: darkModeEnabled ? 0 : 1 },
+          ]}
+          contentFit="contain"
+          cachePolicy="memory-disk"
+          priority="high"
+          transition={0}
+        />
+
+        <ExpoImage
+          source={START_IMAGE_DARK}
+          style={[
+            styles.startImage,
+            styles.startImageLayer,
+            styles.startImageDarkAdjust,
+            {
+              opacity: darkModeEnabled ? 1 : 0,
+            },
+          ]}
+          contentFit="contain"
+          cachePolicy="memory-disk"
+          priority="high"
+          transition={0}
+        />
+      </View>
     </View>
   );
 }
@@ -810,9 +913,11 @@ function StepOneContent({
 function StepTwoContent({
   styles,
   t,
+  COLORS,
 }: {
   styles: ReturnType<typeof createStyles>;
   t: any;
+  COLORS: AppColors;
 }) {
   return (
     <View style={styles.prepareCard}>
@@ -821,6 +926,7 @@ function StepTwoContent({
           number="1"
           text={t.connectionInstructionStartCar}
           styles={styles}
+          COLORS={COLORS}
         />
 
         <View style={styles.secondInstructionOffset}>
@@ -828,6 +934,7 @@ function StepTwoContent({
             number="2"
             text={t.connectionInstructionPlugObd}
             styles={styles}
+            COLORS={COLORS}
           />
         </View>
       </View>
@@ -847,6 +954,7 @@ function StepTwoContent({
           number="3"
           text={t.connectionInstructionWaitLight}
           styles={styles}
+          COLORS={COLORS}
         />
       </View>
     </View>
@@ -855,6 +963,7 @@ function StepTwoContent({
 
 function BluetoothContent({
   styles,
+  COLORS,
   devices,
   isScanning,
   isConnecting,
@@ -870,6 +979,7 @@ function BluetoothContent({
   t,
 }: {
   styles: ReturnType<typeof createStyles>;
+  COLORS: AppColors;
   devices: DeviceItem[];
   isScanning: boolean;
   isConnecting: boolean;
@@ -886,7 +996,7 @@ function BluetoothContent({
 }) {
   return (
     <View style={styles.bluetoothCard}>
-      <Text style={styles.inputLabel}>{t.connectionAvailableDevices}</Text>
+      <Text style={styles.inputLabel} allowFontScaling={false}>{t.connectionAvailableDevices}</Text>
 
       <TouchableOpacity
         style={styles.deviceSelectBox}
@@ -907,7 +1017,7 @@ function BluetoothContent({
           color={COLORS.grayText}
         />
 
-        <Text style={styles.deviceSelectText}>
+        <Text style={styles.deviceSelectText} allowFontScaling={false}>
           {isScanning
             ? t.connectionSearching
             : selectedDevice
@@ -919,7 +1029,7 @@ function BluetoothContent({
       {showDeviceList ? (
         <View style={styles.dropdownBox}>
           <View style={styles.dropdownHeader}>
-            <Text style={styles.dropdownTitle}>
+            <Text style={styles.dropdownTitle} allowFontScaling={false}>
               {devices.length > 0
                 ? `${t.connectionDiscoveredDevices} (${devices.length})`
                 : t.connectionDeviceList}
@@ -937,7 +1047,7 @@ function BluetoothContent({
                 <Ionicons name="refresh" size={16} color={COLORS.primary} />
               )}
 
-              <Text style={styles.refreshText}>
+              <Text style={styles.refreshText} allowFontScaling={false}>
                 {isScanning
                   ? t.connectionRefreshSearching
                   : t.connectionRefresh}
@@ -948,7 +1058,7 @@ function BluetoothContent({
           {isScanning && devices.length === 0 ? (
             <View style={styles.loadingRow}>
               <ActivityIndicator color={COLORS.primary} />
-              <Text style={styles.loadingText}>
+              <Text style={styles.loadingText} allowFontScaling={false}>
                 {t.connectionSearchingNearby}
               </Text>
             </View>
@@ -960,7 +1070,7 @@ function BluetoothContent({
               onPress={startScan}
               activeOpacity={0.8}
             >
-              <Text style={styles.emptyText}>{t.connectionNoDevicesFound}</Text>
+              <Text style={styles.emptyText} allowFontScaling={false}>{t.connectionNoDevicesFound}</Text>
             </TouchableOpacity>
           ) : (
             <FlatList
@@ -999,14 +1109,14 @@ function BluetoothContent({
                       <View style={styles.deviceNameRow}>
                         {isObd ? (
                           <View style={styles.obdBadge}>
-                            <Text style={styles.obdBadgeText}>OBD</Text>
+                            <Text style={styles.obdBadgeText} allowFontScaling={false}>OBD</Text>
                           </View>
                         ) : null}
 
-                        <Text style={styles.deviceName}>{item.name}</Text>
+                        <Text style={styles.deviceName} allowFontScaling={false}>{item.name}</Text>
                       </View>
 
-                      <Text style={styles.deviceId}>
+                      <Text style={styles.deviceId} allowFontScaling={false}>
                         {t.connectionDeviceId}: {item.id}
                       </Text>
                     </View>
@@ -1018,15 +1128,16 @@ function BluetoothContent({
         </View>
       ) : null}
 
-      <Text style={styles.inputLabel}>{t.connectionObdPassword}</Text>
+      <Text style={styles.inputLabel} allowFontScaling={false}>{t.connectionObdPassword}</Text>
 
       <View style={styles.passwordBox}>
         <Feather name="lock" size={20} color={COLORS.grayText} />
 
         <TextInput
+          allowFontScaling={false}
           style={styles.passwordInput}
           placeholder={t.connectionObdPasswordPlaceholder}
-          placeholderTextColor="#B6B6B6"
+          placeholderTextColor={COLORS.placeholder}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -1036,12 +1147,12 @@ function BluetoothContent({
         />
       </View>
 
-      <Text style={styles.noteText}>{t.connectionObdPasswordNote}</Text>
+      <Text style={styles.noteText} allowFontScaling={false}>{t.connectionObdPasswordNote}</Text>
 
       {!!errorMessage ? (
         <View style={styles.messageBox}>
-          <Feather name="alert-circle" size={18} color={COLORS.primary} />
-          <Text style={styles.messageText}>{errorMessage}</Text>
+          <Feather name="alert-circle" size={18} color={"error" in COLORS ? COLORS.error : COLORS.primary} />
+          <Text style={styles.messageText} allowFontScaling={false}>{errorMessage}</Text>
         </View>
       ) : (
         <View style={styles.messagePlaceholder} />
@@ -1056,12 +1167,14 @@ function StepItem({
   active,
   completed,
   styles,
+  COLORS,
 }: {
   label: string;
   iconName: keyof typeof MaterialCommunityIcons.glyphMap;
   active: boolean;
   completed: boolean;
   styles: ReturnType<typeof createStyles>;
+  COLORS: AppColors;
 }) {
   return (
     <View style={styles.stepItem}>
@@ -1085,7 +1198,7 @@ function StepItem({
           active && styles.stepLabelActive,
           completed && styles.stepLabelCompleted,
         ]}
-      >
+       allowFontScaling={false}>
         {label}
       </Text>
     </View>
@@ -1100,19 +1213,21 @@ function InstructionRow({
   number: string;
   text: string;
   styles: ReturnType<typeof createStyles>;
+  COLORS: AppColors;
 }) {
   return (
     <View style={styles.instructionRow}>
       <View style={styles.numberCircle}>
-        <Text style={styles.numberText}>{number}</Text>
+        <Text style={styles.numberText} allowFontScaling={false}>{number}</Text>
       </View>
 
-      <Text style={styles.instructionText}>{text}</Text>
+      <Text style={styles.instructionText} allowFontScaling={false}>{text}</Text>
     </View>
   );
 }
 
 function createStyles({
+  COLORS,
   width,
   height,
   safeTop,
@@ -1126,6 +1241,7 @@ function createStyles({
   currentStep,
   isArabic,
 }: {
+  COLORS: AppColors;
   width: number;
   height: number;
   safeTop: number;
@@ -1143,7 +1259,7 @@ function createStyles({
   const stepItemWidth = isVerySmallScreen ? 50 : 54;
 
   const buttonHeight = isVerySmallScreen ? 54 : 58;
-  const buttonRadius = 30;
+  const buttonRadius = 34;
 
   const topPadding = Platform.OS === "ios" ? safeTop - 18 : safeTop - 8;
   const bottomPadding = Math.max(safeBottom, isVerySmallScreen ? 8 : 12);
@@ -1156,13 +1272,23 @@ function createStyles({
     ? height * 0.29
     : height * 0.33;
 
-  const firstImageWidth = isTablet
-    ? clamp(width * 0.56, 410, 550)
-    : clamp(width * 1.02, 350, 480);
+ const firstImageWidth = isTablet
+  ? clamp(width * 0.72, 500, 680)
+  : clamp(width * 1.18, 420, 590);
 
-  const firstImageHeight = isTablet
-    ? clamp(height * 0.49, 380, 500)
-    : clamp(height * 0.49, 365, 500);
+const firstImageHeight = isTablet
+  ? clamp(height * 0.56, 430, 600)
+  : clamp(height * 0.52, 390, 550);
+
+  // صورة اللايت مود أصلها داخل الملف نازلة أكثر من الدارك مود،
+  // لذلك نرفعها فقط بدون ما نغير مكان صورة الدارك.
+  const lightImageTranslateY = isTablet
+    ? -34
+    : isVerySmallScreen
+    ? -24
+    : isSmallScreen
+    ? -28
+    : -32;
 
   return StyleSheet.create({
     container: {
@@ -1194,9 +1320,9 @@ function createStyles({
     },
 
     topArea: {
-      height: isVerySmallScreen ? 26 : 30,
+      height: isVerySmallScreen ? 34 : 38,
       width: "100%",
-      flexDirection: "row",
+      flexDirection: isArabic ? "row-reverse" : "row",
       alignItems: "center",
       justifyContent: "space-between",
       marginBottom: 0,
@@ -1204,19 +1330,20 @@ function createStyles({
 
     backButton: {
       width: 44,
-      height: 30,
+      height: 34,
       justifyContent: "center",
-      alignItems: "flex-start",
+      alignItems: isArabic ? "flex-end" : "flex-start",
     },
 
     skipButton: {
-      minWidth: 62,
-      height: 30,
-      borderRadius: 15,
+      minWidth: 72,
+      height: 34,
+      borderRadius: 17,
       backgroundColor: COLORS.softGray,
       justifyContent: "center",
       alignItems: "center",
-      paddingHorizontal: 14,
+      paddingHorizontal: 16,
+      paddingTop: Platform.OS === "ios" ? 1 : 0,
       borderWidth: 1,
       borderColor: COLORS.borderGray,
     },
@@ -1224,22 +1351,28 @@ function createStyles({
     skipText: {
       color: COLORS.primary,
       fontSize: 12.5,
-      fontWeight: "900",
-      includeFontPadding: false,
+      lineHeight: 22,
+      fontFamily: FONT_EXTRABOLD,
+      includeFontPadding: true,
+      textAlign: "center",
+      textAlignVertical: "center",
+      paddingBottom: Platform.OS === "ios" ? 1 : 0,
     },
 
     skipPlaceholder: {
-      width: 62,
-      height: 30,
+      width: 72,
+      height: 34,
     },
 
     stepsContainer: {
       width: "100%",
-      height: isVerySmallScreen ? 46 : 50,
-      flexDirection: "row",
+      height: isVerySmallScreen ? 54 : 60,
+      flexDirection: isArabic ? "row-reverse" : "row",
       alignItems: "flex-start",
-      justifyContent: "center",
-      marginBottom: isVerySmallScreen ? 20 : 26,
+      justifyContent: "space-between",
+      marginTop: isVerySmallScreen ? 10 : 14,
+      marginBottom: isVerySmallScreen ? 18 : 24,
+      paddingHorizontal: 0,
     },
 
     stepItem: {
@@ -1278,29 +1411,31 @@ function createStyles({
       marginTop: 5,
       fontSize: 11,
       color: COLORS.grayText,
-      fontWeight: "800",
+      fontFamily: FONT_SEMIBOLD,
       textAlign: "center",
       includeFontPadding: false,
     },
 
     stepLabelActive: {
       color: COLORS.primary,
-      fontWeight: "900",
+      fontFamily: FONT_EXTRABOLD,
     },
 
     stepLabelCompleted: {
       color: COLORS.primary,
-      fontWeight: "900",
+      fontFamily: FONT_EXTRABOLD,
     },
 
     activeLineTrack: {
-      width: lineWidth,
+      flex: 1,
       height: 2,
       marginTop: stepSize / 2,
+      marginHorizontal: isVerySmallScreen ? 2 : 4,
       borderRadius: 2,
-      backgroundColor: "#E4E4E4",
+      backgroundColor: COLORS.lineTrack,
       overflow: "hidden",
-      alignItems: "flex-end",
+      // Arabic: fill from right to left. English: fill from left to right.
+      alignItems: isArabic ? "flex-end" : "flex-start",
     },
 
     activeLineFill: {
@@ -1313,43 +1448,73 @@ function createStyles({
       flex: 1,
       width: "100%",
       alignItems: "center",
-      paddingTop: currentStep === 1 ? 30 : currentStep === 3 ? 26 : 24,
+      paddingTop: currentStep === 1 ? 24 : currentStep === 3 ? 26 : 24,
     },
 
     title: {
       fontSize: isVerySmallScreen ? 19.5 : isTablet ? 25 : 22,
-      fontWeight: "900",
+      fontFamily: FONT_EXTRABOLD,
       color: COLORS.title,
       textAlign: "center",
       marginTop: 0,
       marginBottom: 8,
       letterSpacing: -0.2,
-      includeFontPadding: false,
+      lineHeight: isVerySmallScreen ? 28 : isTablet ? 35 : 31,
+      includeFontPadding: true,
+      paddingTop: 2,
+      paddingBottom: 2,
     },
 
     subtitle: {
       width: "100%",
-      fontSize: isVerySmallScreen ? 13.5 : isTablet ? 16 : 15,
+      fontSize: isVerySmallScreen ? 13 : isTablet ? 15.4 : 14.2,
       color: COLORS.textMuted,
-      fontWeight: "800",
+      fontFamily: FONT_SEMIBOLD,
       textAlign: "center",
-      lineHeight: isVerySmallScreen ? 21 : isTablet ? 27 : 24,
-      paddingHorizontal: currentStep === 3 ? 2 : 8,
-      marginBottom: currentStep === 1 ? 18 : currentStep === 3 ? 16 : 12,
-      includeFontPadding: false,
+      lineHeight: isVerySmallScreen ? 25 : isTablet ? 31 : 28,
+      paddingHorizontal: currentStep === 3 ? 2 : 14,
+      paddingTop: 3,
+      paddingBottom: 10,
+      marginBottom: currentStep === 1 ? 4 : currentStep === 3 ? 14 : 10,
+      includeFontPadding: true,
     },
 
     stepOneBody: {
       flex: 1,
       width: "100%",
-      justifyContent: "center",
+      justifyContent: "flex-start",
       alignItems: "center",
+      paddingTop: isVerySmallScreen ? 0 : 4,
       paddingBottom: isVerySmallScreen ? 0 : 4,
+    },
+
+    startImageFrame: {
+      width: firstImageWidth,
+      height: firstImageHeight,
+      alignItems: "center",
+      justifyContent: "center",
     },
 
     startImage: {
       width: firstImageWidth,
       height: firstImageHeight,
+    },
+
+    startImageLayer: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+    },
+
+    startImageLightAdjust: {
+      transform: [
+        { translateY: lightImageTranslateY },
+        { scale: isTablet ? 0.9 : 0.86 },
+      ],
+    },
+
+    startImageDarkAdjust: {
+      transform: [{ scale: isTablet ? 1.06 : 1.08 }],
     },
 
     prepareCard: {
@@ -1358,7 +1523,7 @@ function createStyles({
       borderRadius: 24,
       borderWidth: 1,
       borderColor: COLORS.borderGray,
-      backgroundColor: COLORS.white,
+      backgroundColor: COLORS.card,
       paddingHorizontal: isVerySmallScreen ? 18 : isTablet ? 30 : 22,
       paddingTop: isVerySmallScreen ? 18 : 22,
       paddingBottom: isVerySmallScreen ? 14 : 18,
@@ -1408,14 +1573,14 @@ function createStyles({
     numberText: {
       color: COLORS.primary,
       fontSize: isVerySmallScreen ? 16 : 17,
-      fontWeight: "900",
+      fontFamily: FONT_EXTRABOLD,
       includeFontPadding: false,
     },
 
     instructionText: {
       flex: 1,
       fontSize: isVerySmallScreen ? 15 : isTablet ? 18 : 16,
-      fontWeight: "900",
+      fontFamily: FONT_EXTRABOLD,
       color: COLORS.textDark,
       textAlign: isArabic ? "right" : "left",
       lineHeight: isVerySmallScreen ? 23 : 25,
@@ -1441,7 +1606,7 @@ function createStyles({
       borderRadius: 24,
       borderWidth: 1,
       borderColor: COLORS.borderGray,
-      backgroundColor: COLORS.white,
+      backgroundColor: COLORS.card,
       paddingHorizontal: isVerySmallScreen ? 16 : isTablet ? 26 : 20,
       paddingTop: isVerySmallScreen ? 16 : 20,
       paddingBottom: isVerySmallScreen ? 12 : 16,
@@ -1455,7 +1620,7 @@ function createStyles({
     inputLabel: {
       fontSize: isVerySmallScreen ? 13 : 13.5,
       color: COLORS.grayText,
-      fontWeight: "800",
+      fontFamily: FONT_SEMIBOLD,
       textAlign: isArabic ? "right" : "left",
       marginBottom: 8,
       includeFontPadding: false,
@@ -1465,7 +1630,7 @@ function createStyles({
       width: "100%",
       height: isVerySmallScreen ? 48 : 52,
       borderRadius: 16,
-      backgroundColor: COLORS.white,
+      backgroundColor: COLORS.card,
       borderWidth: 1,
       borderColor: COLORS.borderGray,
       paddingHorizontal: 16,
@@ -1479,7 +1644,7 @@ function createStyles({
       flex: 1,
       fontSize: isVerySmallScreen ? 14.5 : 15.5,
       color: COLORS.textDark,
-      fontWeight: "900",
+      fontFamily: FONT_EXTRABOLD,
       textAlign: isArabic ? "right" : "left",
       marginHorizontal: 8,
       includeFontPadding: false,
@@ -1491,7 +1656,7 @@ function createStyles({
       borderRadius: 18,
       borderWidth: 1,
       borderColor: COLORS.borderGray,
-      backgroundColor: "#FFFFFF",
+      backgroundColor: COLORS.dropdown,
       marginBottom: 12,
       overflow: "hidden",
     },
@@ -1500,17 +1665,17 @@ function createStyles({
       minHeight: 42,
       paddingHorizontal: 12,
       borderBottomWidth: 1,
-      borderBottomColor: "#F0F0F0",
+      borderBottomColor: COLORS.subtleBorder,
       flexDirection: isArabic ? "row-reverse" : "row",
       alignItems: "center",
       justifyContent: "space-between",
-      backgroundColor: "#FFFFFF",
+      backgroundColor: COLORS.dropdown,
     },
 
     dropdownTitle: {
       color: COLORS.textDark,
       fontSize: 13,
-      fontWeight: "900",
+      fontFamily: FONT_EXTRABOLD,
       textAlign: isArabic ? "right" : "left",
       includeFontPadding: false,
     },
@@ -1519,7 +1684,7 @@ function createStyles({
       minHeight: 30,
       borderRadius: 15,
       paddingHorizontal: 10,
-      backgroundColor: "rgba(154,33,28,0.06)",
+      backgroundColor: COLORS.primarySoft,
       flexDirection: isArabic ? "row-reverse" : "row",
       alignItems: "center",
       justifyContent: "center",
@@ -1529,7 +1694,7 @@ function createStyles({
     refreshText: {
       color: COLORS.primary,
       fontSize: 12,
-      fontWeight: "900",
+      fontFamily: FONT_EXTRABOLD,
       includeFontPadding: false,
     },
 
@@ -1545,7 +1710,7 @@ function createStyles({
     loadingText: {
       color: COLORS.grayText,
       fontSize: 13,
-      fontWeight: "800",
+      fontFamily: FONT_SEMIBOLD,
       includeFontPadding: false,
     },
 
@@ -1557,11 +1722,11 @@ function createStyles({
     },
 
     emptyText: {
-      color: "#777777",
+      color: COLORS.mutedBoxText,
       fontSize: 13,
       textAlign: "center",
       lineHeight: 20,
-      fontWeight: "700",
+      fontFamily: FONT_SEMIBOLD,
       includeFontPadding: false,
     },
 
@@ -1578,14 +1743,14 @@ function createStyles({
       paddingHorizontal: 14,
       paddingVertical: 9,
       borderBottomWidth: 1,
-      borderBottomColor: "#F0F0F0",
+      borderBottomColor: COLORS.subtleBorder,
       flexDirection: isArabic ? "row-reverse" : "row",
       alignItems: "center",
       gap: 10,
     },
 
     deviceItemSelected: {
-      backgroundColor: "rgba(154,33,28,0.06)",
+      backgroundColor: COLORS.primarySoft,
     },
 
     deviceIconBox: {
@@ -1594,9 +1759,9 @@ function createStyles({
       borderRadius: 17,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "rgba(154,33,28,0.06)",
+      backgroundColor: COLORS.primarySoft,
       borderWidth: 1,
-      borderColor: "rgba(154,33,28,0.12)",
+      borderColor: COLORS.primarySoftBorderLight,
     },
 
     deviceInfo: {
@@ -1616,7 +1781,7 @@ function createStyles({
       flexShrink: 1,
       fontSize: 14.5,
       color: COLORS.textDark,
-      fontWeight: "900",
+      fontFamily: FONT_EXTRABOLD,
       textAlign: isArabic ? "right" : "left",
       includeFontPadding: false,
     },
@@ -1625,15 +1790,15 @@ function createStyles({
       borderRadius: 10,
       paddingHorizontal: 7,
       paddingVertical: 2,
-      backgroundColor: "rgba(154,33,28,0.08)",
+      backgroundColor: COLORS.primarySoftStrong,
       borderWidth: 1,
-      borderColor: "rgba(154,33,28,0.13)",
+      borderColor: COLORS.primarySoftBorderLight,
     },
 
     obdBadgeText: {
       color: COLORS.primary,
       fontSize: 10,
-      fontWeight: "900",
+      fontFamily: FONT_EXTRABOLD,
       includeFontPadding: false,
     },
 
@@ -1651,7 +1816,7 @@ function createStyles({
       borderRadius: 16,
       borderWidth: 1,
       borderColor: COLORS.borderGray,
-      backgroundColor: "#FFFFFF",
+      backgroundColor: COLORS.dropdown,
       paddingHorizontal: 16,
       flexDirection: isArabic ? "row-reverse" : "row",
       alignItems: "center",
@@ -1662,7 +1827,7 @@ function createStyles({
       flex: 1,
       fontSize: isVerySmallScreen ? 14 : 14.5,
       color: COLORS.textDark,
-      fontWeight: "700",
+      fontFamily: FONT_SEMIBOLD,
       paddingVertical: 0,
       marginRight: isArabic ? 10 : 0,
       marginLeft: isArabic ? 0 : 10,
@@ -1670,12 +1835,12 @@ function createStyles({
     },
 
     noteText: {
-      color: "#777777",
+      color: COLORS.mutedBoxText,
       fontSize: isVerySmallScreen ? 11.8 : 12.2,
       textAlign: isArabic ? "right" : "left",
       lineHeight: isVerySmallScreen ? 18 : 19,
       marginBottom: 7,
-      fontWeight: "700",
+      fontFamily: FONT_SEMIBOLD,
       includeFontPadding: false,
     },
 
@@ -1688,19 +1853,19 @@ function createStyles({
       paddingHorizontal: 14,
       paddingVertical: 9,
       borderRadius: 16,
-      backgroundColor: "rgba(154,33,28,0.07)",
+      backgroundColor: "errorSoft" in COLORS ? COLORS.errorSoft : COLORS.primarySoft,
       borderWidth: 1,
-      borderColor: "rgba(154,33,28,0.14)",
+      borderColor: "errorBorder" in COLORS ? COLORS.errorBorder : COLORS.primarySoftBorder,
       gap: 8,
     },
 
     messageText: {
       flex: 1,
-      color: COLORS.primary,
+      color: "error" in COLORS ? COLORS.error : COLORS.primary,
       fontSize: isVerySmallScreen ? 12.5 : 13,
       textAlign: isArabic ? "right" : "left",
       lineHeight: isVerySmallScreen ? 18 : 20,
-      fontWeight: "800",
+      fontFamily: FONT_SEMIBOLD,
       includeFontPadding: false,
     },
 
@@ -1759,11 +1924,16 @@ function createStyles({
     },
 
     startButtonText: {
+      fontFamily: FONT_EXTRABOLD,
       color: COLORS.white,
       textAlign: "center",
-      fontSize: isVerySmallScreen ? 18 : 19.5,
-      fontWeight: "900",
+      fontSize: isVerySmallScreen ? 17.4 : 18.4,
+      lineHeight: isVerySmallScreen ? 28 : 30,
+      letterSpacing: -0.15,
+      textAlignVertical: "center",
       includeFontPadding: false,
+      paddingTop: Platform.OS === "ios" ? 1 : 0,
+      paddingBottom: Platform.OS === "ios" ? 1 : 0,
       zIndex: 5,
     },
   });
