@@ -1,29 +1,33 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Notifications from "expo-notifications";
+import { router } from "expo-router";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
+    TouchableOpacity,
     Alert,
     Image,
+    Modal,
+    Platform,
     Pressable,
     ScrollView,
     StatusBar,
     StyleSheet,
     Text,
-    View,
     useWindowDimensions,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import { elmBluetoothService } from "../../services/elmBluetoothService";
-import { vehicleScannerService } from "../../services/vehicleScannerService";
-import { mqttService } from "../../services/mqttService";
 import { supabase } from "../../lib/supabase";
+import { useCars } from "../../providers/CarsProvider";
+import { useVehicleRealtime } from "../../providers/VehicleRealtimeProvider";
 
 const API_URL =
-  process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://207.180.244.27:8001";
+    process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://207.180.244.27:8001";
 
-const CORTEX_URL = process.env.EXPO_PUBLIC_CORTEX_API || "http://207.180.244.27:3101";
+const CORTEX_URL =
+    process.env.EXPO_PUBLIC_CORTEX_API || "http://207.180.244.27:3101";
 
 const COLORS = {
     primary: "#871B17",
@@ -41,13 +45,13 @@ const COLORS = {
     success: "#1F8A4C",
 };
 
-type MetricState = {
+/* type MetricState = {
     rpm: number | string | null;
     speed: number | string | null;
     voltage: number | string | null;
     coolant: number | string | null;
 };
-
+ */
 type HomeAiState = {
     status: "safe" | "watch" | "urgent";
     title: string;
@@ -57,27 +61,33 @@ type HomeAiState = {
     alertsCount: number;
 } | null;
 
+type InAppNotificationState = {
+    id: string;
+    title: string;
+    body: string;
+} | null;
+
 function safeValue(value: any) {
     if (value === null || value === undefined || value === "") return "--";
     return String(value);
 }
 
-function prettyJson(value: unknown) {
+/* function prettyJson(value: unknown) {
     try {
         return JSON.stringify(value, null, 2);
     } catch {
         return String(value);
     }
-}
+} */
 
-function getPayloadData(message: Buffer) {
+/* function getPayloadData(message: Buffer) {
     try {
         const parsed = JSON.parse(message.toString());
         return parsed?.data ?? parsed;
     } catch {
         return null;
     }
-}
+} */
 
 function getUserDisplayName(user: any) {
     const metadata = user?.user_metadata || {};
@@ -93,6 +103,19 @@ function getUserDisplayName(user: any) {
 }
 
 export default function HomeScreen() {
+    const { activeCarId, obdConnected } = useCars();
+
+    const {
+        metrics,
+        vin,
+        dtcCount,
+        supportedCount,
+        lastRaw,
+        statusText,
+        isConnected,
+        isAutoRunning,
+    } = useVehicleRealtime();
+
     const { width, height } = useWindowDimensions();
 
     const isLandscape = width > height;
@@ -102,24 +125,31 @@ export default function HomeScreen() {
     const [userName, setUserName] = useState("");
     const [homeAi, setHomeAi] = useState<HomeAiState>(null);
     const [isChecking, setIsChecking] = useState(false);
-    const [isConnected, setIsConnected] = useState(false);
-    const [isAutoRunning, setIsAutoRunning] = useState(false);
-
-    const [metrics, setMetrics] = useState<MetricState>({
-        rpm: null,
-        speed: null,
-        voltage: null,
-        coolant: null,
-    });
-
-    const [vin, setVin] = useState<string | null>(null);
     const [carId, setCarId] = useState<string | null>(null);
-    const [supportedCount, setSupportedCount] = useState<number>(0);
-    const [dtcCount, setDtcCount] = useState<number>(0);
 
-    const [lastRaw, setLastRaw] = useState("");
-    const [statusText, setStatusText] = useState("جاهز للفحص");
     const [debugText, setDebugText] = useState("");
+    const [notificationsCount, setNotificationsCount] = useState(0);
+    const [notificationsList, setNotificationsList] = useState<
+        {
+            id: string;
+            title: string;
+            body: string;
+            is_read: boolean;
+            created_at: string;
+        }[]
+    >([]);
+    const [showNotifications, setShowNotifications] = useState(false);
+    const [inAppNotification, setInAppNotification] =
+        useState<InAppNotificationState>(null);
+
+    const seenNotificationIdsRef = useRef<Set<string>>(new Set());
+    const firstNotificationsLoadRef = useRef(true);
+
+    const activeCarIdRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        activeCarIdRef.current = activeCarId || null;
+    }, [activeCarId]);
 
     const metricWidth = useMemo(() => {
         const pagePadding = isWide ? 52 : 36;
@@ -138,6 +168,23 @@ export default function HomeScreen() {
     }, []);
 
     useEffect(() => {
+        setCarId(activeCarId || null);
+        /* 
+                setMetrics({
+                    rpm: null,
+                    speed: null,
+                    voltage: null,
+                    coolant: null,
+                });
+        
+                setVin(null);
+                setSupportedCount(0);
+                setDtcCount(0);
+                setLastRaw("");
+                setHomeAi(null); */
+    }, [activeCarId]);
+
+    /* useEffect(() => {
         const update = async () => {
             const connected = await elmBluetoothService
                 .isActuallyConnected?.()
@@ -145,9 +192,6 @@ export default function HomeScreen() {
 
             setIsConnected(!!connected);
             setIsAutoRunning(vehicleScannerService.isAutoScanRunning());
-
-            const cachedCarId = vehicleScannerService.getCachedCarId();
-            if (cachedCarId) setCarId(cachedCarId);
 
             if (!connected) {
                 setStatusText("غير متصل بالقطعة");
@@ -162,9 +206,9 @@ export default function HomeScreen() {
 
         const interval = setInterval(update, 1500);
         return () => clearInterval(interval);
-    }, []);
+    }, []); */
 
-    useEffect(() => {
+    /* useEffect(() => {
         let mounted = true;
         let client: any = null;
 
@@ -202,13 +246,26 @@ export default function HomeScreen() {
                     const section = parts[3];
                     const sub = parts[4];
 
-                    if (incomingCarId) setCarId(incomingCarId);
+                    setDebugText(`MQTT وصل: ${topic}`);
+
+
+                    if (!incomingCarId) return;
+
+                    const currentActiveCarId = activeCarIdRef.current;
+
+                    if (
+                        currentActiveCarId &&
+                        incomingCarId &&
+                        incomingCarId !== currentActiveCarId
+                    ) {
+                        return;
+                    }
 
                     if (section === "status") {
                         setStatusText(
                             data.status === "disconnected"
                                 ? "القطعة غير متصلة"
-                                : data.status || "تم تحديث الحالة"
+                                : data.status || "تم تحديث الحالة",
                         );
 
                         setIsAutoRunning(!!data.streaming);
@@ -289,8 +346,7 @@ export default function HomeScreen() {
             if (cleanup) cleanup();
         };
     }, []);
-
-
+ */
     useEffect(() => {
         let mounted = true;
 
@@ -303,9 +359,9 @@ export default function HomeScreen() {
 
                 const res = await fetch(`${CORTEX_URL}/cortex/${userId}/${carId}/home`);
                 if (!res.ok) {
-  setDebugText(`Cortex HTTP ${res.status}`);
-  return;
-}
+                    setDebugText(`Cortex HTTP ${res.status}`);
+                    return;
+                }
 
                 const json = await res.json();
 
@@ -313,8 +369,8 @@ export default function HomeScreen() {
                     setHomeAi(json);
                 }
             } catch (e: any) {
-  setDebugText(e?.message || "فشل الاتصال مع Cortex");
-}
+                setDebugText(e?.message || "فشل الاتصال مع Cortex");
+            }
         };
 
         loadHomeAi();
@@ -326,6 +382,113 @@ export default function HomeScreen() {
             clearInterval(interval);
         };
     }, [carId]);
+
+    const showAppleInAppNotification = (notification: {
+        id: string;
+        title: string;
+        body: string;
+    }) => {
+        setInAppNotification(notification);
+
+        setTimeout(() => {
+            setInAppNotification((current) =>
+                current?.id === notification.id ? null : current
+            );
+        }, 4500);
+    };
+
+    const showDeviceNotificationForAndroid = async (notification: {
+        title: string;
+        body: string;
+    }) => {
+        try {
+            if (Platform.OS !== "android") return;
+
+            await Notifications.scheduleNotificationAsync({
+                content: {
+                    title: notification.title,
+                    body: notification.body,
+                    sound: true,
+                },
+                trigger: null,
+            });
+        } catch (error) {
+            console.log("Android local notification error:", error);
+        }
+    };
+
+    useEffect(() => {
+        let mounted = true;
+
+        const loadNotifications = async () => {
+            try {
+                const { data: authData } = await supabase.auth.getUser();
+                const userId = authData.user?.id;
+
+                if (!userId) return;
+
+                const { data, error } = await supabase
+                    .from("notifications")
+                    .select("id, title, body, is_read, created_at")
+                    .eq("user_id", userId)
+                    .order("created_at", { ascending: false })
+                    .limit(20);
+
+                if (error) throw error;
+
+                if (!mounted) return;
+
+                const mapped = (data || []).map((item) => ({
+                    id: item.id,
+                    title: item.title,
+                    body: item.body,
+                    is_read: item.is_read,
+                    created_at: item.created_at,
+                }));
+
+                const unreadNotifications = mapped.filter((item) => !item.is_read);
+                const newestUnread = unreadNotifications.find(
+                    (item) => !seenNotificationIdsRef.current.has(item.id)
+                );
+
+                setNotificationsList(mapped);
+                setNotificationsCount(unreadNotifications.length);
+
+                mapped.forEach((item) => {
+                    seenNotificationIdsRef.current.add(item.id);
+                });
+
+                if (firstNotificationsLoadRef.current) {
+                    firstNotificationsLoadRef.current = false;
+                    return;
+                }
+
+                if (newestUnread) {
+                    showAppleInAppNotification({
+                        id: newestUnread.id,
+                        title: newestUnread.title,
+                        body: newestUnread.body,
+                    });
+
+                    showDeviceNotificationForAndroid({
+                        title: newestUnread.title,
+                        body: newestUnread.body,
+                    });
+                }
+            } catch (error) {
+                console.log("Load notifications error:", error);
+            }
+        };
+
+        loadNotifications();
+
+        const interval = setInterval(loadNotifications, 30000);
+
+        return () => {
+            mounted = false;
+            clearInterval(interval);
+        };
+    }, []);
 
     const performDirectScan = async () => {
         try {
@@ -341,10 +504,14 @@ export default function HomeScreen() {
                 return;
             }
 
-            const scannedCarId =
-                carId || vehicleScannerService.getCachedCarId() || "car_a521e25";
+            const scannedCarId = activeCarId;
 
-            setStatusText("جاري التقاط لقطة من بيانات السيارة وتشغيل التحليل...");
+            if (!scannedCarId) {
+                Alert.alert("تنبيه", "اختاري سيارة أولًا أو وصلي قطعة السيارة.");
+                setIsChecking(false);
+                return;
+            }
+
 
             const response = await fetch(`${API_URL}/api/scan-from-mqtt`, {
                 method: "POST",
@@ -377,7 +544,6 @@ export default function HomeScreen() {
             }
 
             const report = await response.json();
-            setStatusText("تم إنشاء التقرير بنجاح");
 
             router.push({
                 pathname: "/report",
@@ -389,7 +555,6 @@ export default function HomeScreen() {
                     ? e.message
                     : JSON.stringify(e?.message || e || "خطأ غير متوقع");
 
-            setStatusText("فشل تشغيل التحليل");
             setDebugText(errorMsg);
             Alert.alert("خطأ", errorMsg);
         } finally {
@@ -397,9 +562,84 @@ export default function HomeScreen() {
         }
     };
 
+    const markNotificationAsRead = async (id: string) => {
+        try {
+            const { error } = await supabase
+                .from("notifications")
+                .update({ is_read: true })
+                .eq("id", id);
+
+            if (error) throw error;
+
+            setNotificationsList((prev) =>
+                prev.map((item) =>
+                    item.id === id ? { ...item, is_read: true } : item
+                )
+            );
+
+            setNotificationsCount((prev) => Math.max(prev - 1, 0));
+        } catch (error) {
+            console.log("Mark notification read error:", error);
+        }
+    };
+
+    const deleteNotification = async (id: string) => {
+        try {
+            const { error } = await supabase
+                .from("notifications")
+                .delete()
+                .eq("id", id);
+
+            if (error) throw error;
+
+            setNotificationsList((prev) => {
+                const deleted = prev.find((item) => item.id === id);
+
+                if (deleted && !deleted.is_read) {
+                    setNotificationsCount((count) => Math.max(count - 1, 0));
+                }
+
+                return prev.filter((item) => item.id !== id);
+            });
+        } catch (error) {
+            console.log("Delete notification error:", error);
+        }
+    };
+
     return (
         <SafeAreaView style={styles.safeArea} edges={["top"]}>
             <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+            {inAppNotification && (
+                <Pressable
+                    style={styles.inAppNotificationCard}
+                    onPress={() => {
+                        setShowNotifications(true);
+                        setInAppNotification(null);
+                        markNotificationAsRead(inAppNotification.id);
+                    }}
+                >
+                    <View style={styles.inAppNotificationIcon}>
+                        <Feather name="bell" size={18} color="#FFFFFF" />
+                    </View>
+
+                    <View style={styles.inAppNotificationTextBox}>
+                        <Text style={styles.inAppNotificationTitle} numberOfLines={1}>
+                            {inAppNotification.title}
+                        </Text>
+                        <Text style={styles.inAppNotificationBody} numberOfLines={2}>
+                            {inAppNotification.body}
+                        </Text>
+                    </View>
+
+                    <Pressable
+                        style={styles.inAppNotificationClose}
+                        onPress={() => setInAppNotification(null)}
+                    >
+                        <Feather name="x" size={17} color={COLORS.muted} />
+                    </Pressable>
+                </Pressable>
+            )}
 
             <ScrollView
                 style={styles.scrollView}
@@ -422,29 +662,125 @@ export default function HomeScreen() {
                         </Text>
                     </View>
 
-                    <View
-                        style={[
-                            styles.connectionBadge,
-                            isConnected ? styles.connectedBadge : styles.disconnectedBadge,
-                        ]}
-                    >
+                    <View style={styles.headerActions}>
+                        <View style={styles.headerRightArea}>
+                            <Pressable
+                                onPress={() => setShowNotifications(true)}
+                                style={styles.notificationButton}
+                            >
+                                <Feather name="bell" size={21} color={COLORS.text} />
+
+                                {notificationsCount > 0 && (
+                                    <View style={styles.notificationDot} />
+                                )}
+                            </Pressable>
+
+                            <Modal
+                                visible={showNotifications}
+                                transparent={true}
+                                animationType="fade"
+                                onRequestClose={() => setShowNotifications(false)}
+                            >
+                                <Pressable
+                                    style={styles.modalOverlay}
+                                    onPress={() => setShowNotifications(false)}
+                                >
+                                    <Pressable style={styles.modalContainer} pointerEvents="auto">
+                                        <View style={styles.modalHeader}>
+                                            <Pressable
+                                                style={styles.closeButton}
+                                                onPress={() => setShowNotifications(false)}
+                                            >
+                                                <Feather name="x" size={20} color={COLORS.text} />
+                                            </Pressable>
+                                            <Text style={styles.notificationsTitle}>الإشعارات</Text>
+                                        </View>
+
+                                        <ScrollView
+                                            showsVerticalScrollIndicator={true}
+                                            style={styles.modalScroll}
+                                            contentContainerStyle={styles.modalScrollContent}
+                                            nestedScrollEnabled
+                                        >
+                                            {notificationsList.length === 0 ? (
+                                                <Text style={styles.emptyNotificationText}>
+                                                    لا توجد إشعارات جديدة حالياً
+                                                </Text>
+                                            ) : (
+                                                notificationsList.map((item) => (
+                                                    <View
+                                                        key={item.id}
+                                                        style={[
+                                                            styles.notificationItem,
+                                                            !item.is_read && styles.notificationItemUnread,
+                                                        ]}
+                                                    >
+                                                        <View style={styles.notificationTopRow}>
+                                                            {!item.is_read && <View style={styles.unreadDot} />}
+
+                                                            <Text style={styles.notificationTitleText}>
+                                                                {item.title}
+                                                            </Text>
+                                                        </View>
+
+                                                        <Text style={styles.notificationText}>
+                                                            {item.body}
+                                                        </Text>
+
+                                                        <View style={styles.notificationActions}>
+                                                            {!item.is_read && (
+                                                                <Pressable
+                                                                    style={styles.readButton}
+                                                                    onPress={() => markNotificationAsRead(item.id)}
+                                                                >
+                                                                    <Text style={styles.readButtonText}>تمت القراءة</Text>
+                                                                </Pressable>
+                                                            )}
+
+                                                            <Pressable
+                                                                style={styles.deleteButton}
+                                                                onPress={() => deleteNotification(item.id)}
+                                                            >
+                                                                <Text style={styles.deleteButtonText}>حذف</Text>
+                                                            </Pressable>
+                                                        </View>
+                                                    </View>
+                                                ))
+                                            )}
+                                        </ScrollView>
+                                    </Pressable>
+                                </Pressable>
+                            </Modal>
+                        </View>
+
                         <View
                             style={[
-                                styles.connectionDot,
-                                {
-                                    backgroundColor: isConnected ? COLORS.success : COLORS.danger,
-                                },
-                            ]}
-                        />
-
-                        <Text
-                            style={[
-                                styles.connectionText,
-                                { color: isConnected ? COLORS.success : COLORS.danger },
+                                styles.connectionBadge,
+                                obdConnected ? styles.connectedBadge : styles.disconnectedBadge,
                             ]}
                         >
-                            {isConnected ? "متصل" : "غير متصل"}
-                        </Text>
+                            <View
+                                style={[
+                                    styles.connectionDot,
+                                    {
+                                        backgroundColor: obdConnected
+                                            ? COLORS.success
+                                            : COLORS.danger,
+                                    },
+                                ]}
+                            />
+
+                            <Text
+                                style={[
+                                    styles.connectionText,
+                                    {
+                                        color: obdConnected ? COLORS.success : COLORS.danger,
+                                    },
+                                ]}
+                            >
+                                {obdConnected ? "متصل" : "غير متصل"}
+                            </Text>
+                        </View>
                     </View>
                 </View>
 
@@ -459,16 +795,13 @@ export default function HomeScreen() {
                 <View style={[styles.heroCard, isWide && styles.heroCardWide]}>
                     <View style={styles.heroContent}>
                         <Text style={styles.heroTitle}>فحص تنبّه</Text>
-
                     </View>
 
                     {homeAi && (
-  <View style={styles.aiHomeBox}>
-    <Text style={styles.aiHomeMessage}>
-      {homeAi.message}
-    </Text>
-  </View>
-)}
+                        <View style={styles.aiHomeBox}>
+                            <Text style={styles.aiHomeMessage}>{homeAi.message}</Text>
+                        </View>
+                    )}
 
                     <View style={styles.heroButtons}>
                         <Pressable
@@ -608,6 +941,18 @@ export default function HomeScreen() {
                     </View>
                 </View>
             </ScrollView>
+
+            <TouchableOpacity
+                style={styles.aiFloatingButton}
+                activeOpacity={0.85}
+                onPress={() =>
+                    router.push({
+                        pathname: "/chatbot",
+                    })
+                }
+            >
+                <Feather name="message-circle" size={29} color="#5F5F5F" />
+            </TouchableOpacity>
         </SafeAreaView>
     );
 }
@@ -647,6 +992,66 @@ function MetricCard({
 }
 
 const styles = StyleSheet.create({
+    inAppNotificationCard: {
+        position: "absolute",
+        top: 58,
+        left: 18,
+        right: 18,
+        zIndex: 100,
+        elevation: 12,
+        borderRadius: 20,
+        backgroundColor: "#FFFFFF",
+        borderWidth: 1,
+        borderColor: "#F1E0E0",
+        padding: 12,
+        flexDirection: "row-reverse",
+        alignItems: "center",
+        gap: 10,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.14,
+        shadowRadius: 16,
+    },
+
+    inAppNotificationIcon: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: COLORS.primary,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
+    inAppNotificationTextBox: {
+        flex: 1,
+        alignItems: "flex-end",
+    },
+
+    inAppNotificationTitle: {
+        fontSize: 13,
+        fontWeight: "900",
+        color: COLORS.text,
+        textAlign: "right",
+    },
+
+    inAppNotificationBody: {
+        marginTop: 3,
+        fontSize: 12,
+        fontWeight: "700",
+        color: COLORS.muted,
+        textAlign: "right",
+        lineHeight: 18,
+    },
+
+    inAppNotificationClose: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        backgroundColor: COLORS.soft,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
     safeArea: {
         flex: 1,
         backgroundColor: COLORS.bg,
@@ -686,6 +1091,103 @@ const styles = StyleSheet.create({
         alignItems: "flex-end",
     },
 
+    headerRightArea: {
+        position: "relative",
+    },
+
+    notificationButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: COLORS.soft,
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+
+    notificationDot: {
+        position: "absolute",
+        top: 12,
+        right: 12,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: "#D32F2F",
+    },
+
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0, 0, 0, 0.4)",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 24,
+    },
+
+    modalContainer: {
+        width: "100%",
+        maxWidth: 340,
+        backgroundColor: "#FFFFFF",
+        borderRadius: 24,
+        padding: 20,
+        maxHeight: "70%",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+        elevation: 10,
+    },
+
+    modalHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        borderBottomWidth: 1,
+        borderBottomColor: "#F5F5F5",
+        paddingBottom: 12,
+        marginBottom: 10,
+    },
+
+    closeButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: COLORS.soft,
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+
+    notificationsTitle: {
+        fontSize: 16,
+        fontWeight: "900",
+        color: COLORS.text,
+        textAlign: "right",
+    },
+
+    emptyNotificationText: {
+        fontSize: 13,
+        color: COLORS.muted,
+        textAlign: "center",
+        fontWeight: "700",
+        paddingVertical: 30,
+    },
+
+    notificationItem: {
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: "#FBFBFB",
+    },
+
+    notificationText: {
+        fontSize: 13,
+        color: COLORS.text,
+        textAlign: "right",
+        lineHeight: 22,
+        fontWeight: "700",
+    },
+
     helloText: {
         fontSize: 17,
         color: COLORS.text,
@@ -696,11 +1198,58 @@ const styles = StyleSheet.create({
 
     headerTitle: {
         marginTop: 4,
-        fontSize: 15,
+        fontSize: 14,
         color: COLORS.muted,
         fontWeight: "700",
         textAlign: "right",
         lineHeight: 22,
+    },
+
+    headerActions: {
+        flexDirection: "row-reverse",
+        alignItems: "center",
+        gap: 8,
+    },
+
+    notificationItemText: {
+        flex: 1,
+        textAlign: "right",
+        fontSize: 13,
+        fontWeight: "700",
+        color: COLORS.text,
+    },
+
+    emptyNotificationsText: {
+        textAlign: "center",
+        fontSize: 13,
+        color: COLORS.muted,
+        fontWeight: "700",
+    },
+
+    redDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: COLORS.danger,
+    },
+
+    notificationBadge: {
+        position: "absolute",
+        top: -4,
+        right: -2,
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: COLORS.danger,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 4,
+    },
+
+    notificationBadgeText: {
+        color: "#FFFFFF",
+        fontSize: 10,
+        fontWeight: "900",
     },
 
     connectionBadge: {
@@ -1010,50 +1559,143 @@ const styles = StyleSheet.create({
         lineHeight: 20,
         textAlign: "right",
     },
+
     aiHomeBox: {
-  width: "100%",
-  marginTop: 16,
-  borderRadius: 20,
-  backgroundColor: "#FFFFFF",
-  borderWidth: 1,
-  borderColor: "#F1E0E0",
-  padding: 14,
-},
+        width: "100%",
+        marginTop: 16,
+        borderRadius: 20,
+        backgroundColor: "#FFFFFF",
+        borderWidth: 1,
+        borderColor: "#F1E0E0",
+        padding: 14,
+    },
 
-aiHomeTitle: {
-  fontSize: 16,
-  fontWeight: "900",
-  color: COLORS.text,
-  textAlign: "right",
-},
+    aiHomeTitle: {
+        fontSize: 16,
+        fontWeight: "900",
+        color: COLORS.text,
+        textAlign: "right",
+    },
 
-aiHomeMessage: {
-  marginTop: 6,
-  fontSize: 13,
-  fontWeight: "700",
-  color: COLORS.muted,
-  textAlign: "right",
-  lineHeight: 22,
-},
+    aiHomeMessage: {
+        marginTop: 6,
+        fontSize: 13,
+        fontWeight: "700",
+        color: COLORS.muted,
+        textAlign: "right",
+        lineHeight: 22,
+    },
 
-aiHomeFooter: {
-  marginTop: 10,
-  flexDirection: "row-reverse",
-  justifyContent: "space-between",
-  gap: 10,
-},
+    aiHomeFooter: {
+        marginTop: 10,
+        flexDirection: "row-reverse",
+        justifyContent: "space-between",
+        gap: 10,
+    },
 
-aiHomeScore: {
-  fontSize: 12,
-  fontWeight: "900",
-  color: COLORS.primary,
-},
+    aiHomeScore: {
+        fontSize: 12,
+        fontWeight: "900",
+        color: COLORS.primary,
+    },
 
-aiHomeAction: {
-  flex: 1,
-  fontSize: 12,
-  fontWeight: "800",
-  color: COLORS.success,
-  textAlign: "left",
-},
+    aiHomeAction: {
+        flex: 1,
+        fontSize: 12,
+        fontWeight: "800",
+        color: COLORS.success,
+        textAlign: "left",
+    },
+
+    notificationItemUnread: {
+        backgroundColor: "#FFF8F8",
+        borderRadius: 16,
+        paddingHorizontal: 12,
+    },
+
+    notificationTopRow: {
+        flexDirection: "row-reverse",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 4,
+    },
+
+    unreadDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: COLORS.primary,
+    },
+
+    notificationTitleText: {
+        flex: 1,
+        fontSize: 13,
+        fontWeight: "900",
+        color: COLORS.text,
+        textAlign: "right",
+    },
+
+    notificationActions: {
+        marginTop: 10,
+        flexDirection: "row-reverse",
+        gap: 8,
+    },
+
+    readButton: {
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+        borderRadius: 10,
+    },
+
+    readButtonText: {
+        color: "#FFFFFF",
+        fontSize: 11,
+        fontWeight: "900",
+    },
+
+    deleteButton: {
+        backgroundColor: "rgba(198,40,40,0.10)",
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+        borderRadius: 10,
+    },
+
+    deleteButtonText: {
+        color: COLORS.danger,
+        fontSize: 11,
+        fontWeight: "900",
+    },
+
+    modalScrollContent: {
+        paddingBottom: 12,
+    },
+
+    modalScroll: {
+        maxHeight: 350,
+        width: "100%",
+    },
+
+    aiFloatingButton: {
+        position: "absolute",
+        right: 24,
+        bottom: Platform.OS === "ios" ? 10 : 10,
+        width: 62,
+        height: 62,
+        borderRadius: 31,
+        backgroundColor: "#EBEBEB",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 800,
+        elevation: 14,
+
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 7 },
+        shadowOpacity: 0.20,
+        shadowRadius: 12,
+
+        borderWidth: 1,
+        borderColor: "rgba(255, 255, 255, 0.35)",
+    },
 });
+/* انا */

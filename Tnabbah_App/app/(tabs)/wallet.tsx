@@ -1,260 +1,177 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { useFonts } from "expo-font";
+import { router } from "expo-router";
+import React, { useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  StatusBar,
-  Platform,
   ActivityIndicator,
   Alert,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import DateTimePickerModal from "react-native-modal-datetime-picker";
-import { useFonts } from "expo-font";
-import { router, useFocusEffect } from "expo-router";
-import { Feather } from "@expo/vector-icons";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../providers/AuthProvider";
+import { useWallet } from "../../providers/WalletProvider";
+import { useLanguage } from "../../providers/LanguageProvider";
 
 const COLORS = {
   primary: "#871B17",
   primaryLight: "#9A3A33",
   primaryDark: "#5F130F",
-
   bg: "#FFFFFF",
   surface: "#FFFFFF",
   soft: "#F8F8F8",
   softGray: "#F3F4F6",
   border: "#EFEFEF",
-
   text: "#1D1D1F",
   muted: "#707070",
   mutedLight: "#A8A8A8",
-
   danger: "#C62828",
   dangerBg: "#FFF1F1",
-
   warning: "#B7791F",
   warningBg: "#FFF8E1",
-
   success: "#1F8A4C",
   successBg: "#EFFAF3",
+
+  reportSaved: "#1F8A4C",
+  reportSavedBg: "#EFFAF3",
+  reportPending: "#B7791F",
+  reportPendingBg: "#FFF8E1",
+  neutralAction: "#6B7280",
+  neutralActionBg: "#F4F4F4",
+  neutralActionBorder: "#E6E6E6",
+  softPrimaryBg: "#F7F3F2",
+  reportDocument: "#7A4D2A",
+  reportDocumentBg: "#F7F1EA",
+  reportDocumentBorder: "#EAD9C6",
+  reportAlert: "#871B17",
+  reportAlertBg: "#FFF1F1",
+  reportAlertBorder: "#F1D1CF",
 };
 
 interface MaintenanceItem {
-  id: number;
+  reminderId: number | null;
+  maintenanceTypeId: number;
   title: string;
   lastDate: string;
   nextDate: string;
   intervalDays: number;
-  remainingDays: number;
+  remainingDays: number | null;
+  status: "upcoming" | "due" | "overdue";
 }
 
-type ReportStatus = "pending" | "saved" | "temp_rejected" | "deleted";
-
-interface ReportItem {
-  id: string;
-  title: string;
-  date: string;
-  type: "PDF" | "DTC";
-  status: ReportStatus;
-  createdAt: string;
-}
-
-function formatDate(date: Date) {
-  return date.toISOString().split("T")[0];
-}
-
-function addDays(dateString: string, days: number) {
-  const date = new Date(dateString);
-  date.setDate(date.getDate() + days);
-  return formatDate(date);
-}
-
-function getRemainingDays(nextDateString: string) {
-  const today = new Date();
-  const nextDate = new Date(nextDateString);
-
-  today.setHours(0, 0, 0, 0);
-  nextDate.setHours(0, 0, 0, 0);
-
-  const diff = nextDate.getTime() - today.getTime();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
-}
-
-function recalculateMaintenance(item: MaintenanceItem): MaintenanceItem {
-  const nextDate = addDays(item.lastDate, item.intervalDays);
-  const remainingDays = getRemainingDays(nextDate);
-
-  return {
-    ...item,
-    nextDate,
-    remainingDays,
-  };
+function getReportTotalCountFallback(reports: any[]) {
+  return reports.filter(
+    (r: any) => r.status === "saved" || r.status === "pending",
+  ).length;
 }
 
 export default function Wallet() {
+  const {
+    reports,
+    setReports,
+    reportsLoading,
+    maintenance,
+    maintenanceLoading,
+    fetchMaintenance,
+  } = useWallet();
+
   const [fontsLoaded] = useFonts({
     "Tajawal-Regular": require("../../assets/fonts/Tajawal-Regular.ttf"),
     "Tajawal-Bold": require("../../assets/fonts/Tajawal-Bold.ttf"),
   });
 
-  const [maintenance, setMaintenance] = useState<MaintenanceItem[]>([
-    {
-      id: 1,
-      title: "زيت المحرك",
-      lastDate: "2026-01-10",
-      nextDate: "2026-04-10",
-      intervalDays: 90,
-      remainingDays: 45,
-    },
-    {
-      id: 2,
-      title: "الكفرات",
-      lastDate: "2025-11-20",
-      nextDate: "2026-11-20",
-      intervalDays: 365,
-      remainingDays: 120,
-    },
-    {
-      id: 3,
-      title: "الفرامل",
-      lastDate: "2025-12-01",
-      nextDate: "2026-06-01",
-      intervalDays: 180,
-      remainingDays: 60,
-    },
-    {
-      id: 4,
-      title: "فلتر الهواء",
-      lastDate: "2025-12-01",
-      nextDate: "2026-03-01",
-      intervalDays: 90,
-      remainingDays: 15,
-    },
-    {
-      id: 5,
-      title: "البطارية",
-      lastDate: "2025-12-01",
-      nextDate: "2027-12-01",
-      intervalDays: 730,
-      remainingDays: 500,
-    },
-  ]);
-
   const { session } = useAuth();
   const userId = session?.user?.id;
+  const { t, isArabic, language } = useLanguage();
 
-  const [reports, setReports] = useState<ReportItem[]>([]);
-  const [reportsLoading, setReportsLoading] = useState(true);
-  const [reportFilter, setReportFilter] = useState<
-    "all" | "saved" | "pending"
-  >("all");
+  const rowDirection = isArabic ? "row-reverse" : "row";
+  const textAlign = isArabic ? "right" : "left";
+  const alignItems = isArabic ? "flex-end" : "flex-start";
+  const iconSideSelf = isArabic ? "flex-end" : "flex-start";
+  const iconSideDirection = isArabic ? "row-reverse" : "row";
+  const reportCount = getReportTotalCountFallback(reports);
+  const maintenanceCount = maintenance.length;
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editData, setEditData] = useState<MaintenanceItem[]>([]);
+  const [savingId, setSavingId] = useState<number | null>(null);
+  const [reportFilter, setReportFilter] = useState<"all" | "saved" | "pending">(
+    "all",
+  );
+  const [showAllReports, setShowAllReports] = useState(false);
+
   const [datePickerVisible, setDatePickerVisible] = useState(false);
-  const [currentEditingId, setCurrentEditingId] = useState<number | null>(null);
+  const [pendingDate, setPendingDate] = useState<Date>(new Date());
+  const [currentEditingItem, setCurrentEditingItem] =
+    useState<MaintenanceItem | null>(null);
 
-  const mapRowToReport = (row: any): ReportItem => {
-    const content = row?.content || {};
-    const hasDtc =
-      Array.isArray(content.detected_dtcs) && content.detected_dtcs.length > 0;
 
-    const ts = content.timestamp || row.created_at;
+  const translateMaintenanceTitle = (title: string) => {
+    const normalizedTitle = title.toLowerCase();
 
-    let dateLabel = "";
-
-    try {
-      dateLabel = new Date(ts).toLocaleDateString("ar-SA", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-    } catch {
-      dateLabel = String(ts || "");
+    if (normalizedTitle.includes("زيت المحرك") || normalizedTitle.includes("engine oil")) {
+      return t.walletEngineOil;
     }
 
-    return {
-      id: row.id,
-      title: hasDtc ? "تقرير أعطال DTC" : "تقرير فحص شامل",
-      date: dateLabel,
-      type: hasDtc ? "DTC" : "PDF",
-      status: (row.status || "pending") as ReportStatus,
-      createdAt: row.created_at,
-    };
+    if (
+      normalizedTitle.includes("الكفرات") ||
+      normalizedTitle.includes("كفر") ||
+      normalizedTitle.includes("tires") ||
+      normalizedTitle.includes("tyres")
+    ) {
+      return t.walletTires;
+    }
+
+    if (
+      normalizedTitle.includes("الفرامل") ||
+      normalizedTitle.includes("فحم") ||
+      normalizedTitle.includes("brake")
+    ) {
+      return t.walletBrakes;
+    }
+
+    if (normalizedTitle.includes("فلتر الهواء") || normalizedTitle.includes("air filter")) {
+      return t.walletAirFilter;
+    }
+
+    if (normalizedTitle.includes("بطارية") || normalizedTitle.includes("البطارية") || normalizedTitle.includes("battery")) {
+      return t.walletBattery;
+    }
+
+    return title;
   };
 
-  const fetchReports = useCallback(async () => {
-    if (!userId) {
-      setReports([]);
-      setReportsLoading(false);
-      return;
-    }
+  // دالة مساعدة لاختيار أيقونة الصيانة بناءً على الكلمات المفتاحية بالاسم لمظهر احترافي
 
-    try {
-      const { data, error } = await supabase
-        .from("reports")
-        .select("id, content, status, created_at, is_permanently_saved")
-        .eq("user_id", userId)
-        .in("status", ["pending", "saved"])
-        .order("created_at", { ascending: false });
+  const getMaintenanceIcon = (
+    title: string,
+  ): React.ComponentProps<typeof MaterialCommunityIcons>["name"] => {
+    const t = title.toLowerCase();
 
-      if (error) throw error;
+    if (t.includes("زيت المحرك") || t.includes("engine oil")) return "oil";
+    if (t.includes("الكفرات") || t.includes("كفر") || t.includes("tires") || t.includes("tyres")) return "car-tire-alert";
+    if (t.includes("الفرامل") || t.includes("فحم") || t.includes("brake")) return "car-brake-alert";
+    if (t.includes("فلتر الهواء") || t.includes("air filter")) return "air-filter";
+    if (t.includes("بطارية") || t.includes("البطارية") || t.includes("battery")) return "battery"; // إيقونة البطارية المضافة هنا
 
-      setReports((data || []).map(mapRowToReport));
-    } catch (err: any) {
-      console.error("Failed to load reports:", err?.message || err);
-    } finally {
-      setReportsLoading(false);
-    }
-  }, [userId]);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchReports();
-    }, [fetchReports])
-  );
-
-  useEffect(() => {
-    if (!userId) return;
-
-    const channel = supabase
-      .channel(`wallet-reports-${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "reports",
-          filter: `user_id=eq.${userId}`,
-        },
-        () => fetchReports()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId, fetchReports]);
+    return "car-cog"; // الأيقونة الافتراضية لأي صيانة أخرى ثابتة
+  };
 
   const handleSaveReport = async (id: string) => {
     if (!userId) return;
-
     const prev = reports;
-
-    setReports((rs) =>
-      rs.map((r) => (r.id === id ? { ...r, status: "saved" } : r))
+    setReports((rs: any[]) =>
+      rs.map((r) => (r.id === id ? { ...r, status: "saved" } : r)),
     );
-
     try {
       const now = new Date();
       const expiry = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 365 * 10);
-
       const { error } = await supabase
         .from("reports")
         .update({
@@ -265,34 +182,29 @@ export default function Wallet() {
         })
         .eq("id", id)
         .eq("user_id", userId);
-
       if (error) throw error;
     } catch (err: any) {
       console.error("Save report failed:", err?.message || err);
       setReports(prev);
-      Alert.alert("خطأ", "فشل حفظ التقرير");
+      Alert.alert(t.walletErrorTitle, t.walletSaveReportError);
     }
   };
 
   const handleRejectReport = async (id: string) => {
     if (!userId) return;
-
     const prev = reports;
-
-    setReports((rs) => rs.filter((r) => r.id !== id));
-
+    setReports((rs: any[]) => rs.filter((r) => r.id !== id));
     try {
       const { error } = await supabase
         .from("reports")
         .update({ status: "temp_rejected" })
         .eq("id", id)
         .eq("user_id", userId);
-
       if (error) throw error;
     } catch (err: any) {
       console.error("Reject report failed:", err?.message || err);
       setReports(prev);
-      Alert.alert("خطأ", "تعذر تجاهل التقرير");
+      Alert.alert(t.walletErrorTitle, t.walletRejectReportError);
     }
   };
 
@@ -300,53 +212,99 @@ export default function Wallet() {
     router.push({ pathname: "/report", params: { id } });
   };
 
-  const visibleReports = reports.filter((r) => {
+  const formatLocalDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const parseLocalDate = (value?: string) => {
+    if (!value) return new Date();
+    const [year, month, day] = value.split("-").map(Number);
+    if (!year || !month || !day) return new Date();
+    return new Date(year, month - 1, day);
+  };
+
+  const openMaintenanceDatePicker = (item: MaintenanceItem) => {
+    setCurrentEditingItem(item);
+    setPendingDate(parseLocalDate(item.lastDate));
+    setDatePickerVisible(true);
+  };
+
+  const closeDatePicker = () => {
+    setDatePickerVisible(false);
+    setCurrentEditingItem(null);
+  };
+
+  const handleConfirmDate = async (date: Date) => {
+    setDatePickerVisible(false);
+    if (!currentEditingItem || !userId) {
+      setCurrentEditingItem(null);
+      return;
+    }
+
+    const selectedDateStr = formatLocalDate(date);
+    if (selectedDateStr === currentEditingItem.lastDate) return;
+
+    setSavingId(currentEditingItem.maintenanceTypeId);
+
+    try {
+      const [year, month, day] = selectedDateStr.split("-").map(Number);
+      const next = new Date(year, month - 1, day);
+      next.setDate(next.getDate() + currentEditingItem.intervalDays);
+      const nextDateStr = formatLocalDate(next);
+
+      const { error } = await supabase.from("maintenance_reminders").upsert(
+        {
+          user_id: userId,
+          maintenance_type_id: currentEditingItem.maintenanceTypeId,
+          last_date: selectedDateStr,
+          next_date: nextDateStr,
+          notification_stage: 0,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,maintenance_type_id" },
+      );
+
+      if (error) throw error;
+      await fetchMaintenance();
+
+      try {
+        await fetch("http://207.180.244.27:3102/check-now", { method: "POST" });
+      } catch (error) {
+        console.log("Check notifications now error:", error);
+      }
+
+      Alert.alert(t.walletDoneTitle, `${t.walletMaintenanceUpdated} (${translateMaintenanceTitle(currentEditingItem.title)})`);
+    } catch (err: any) {
+      console.error("Save maintenance failed:", err);
+      Alert.alert(t.walletErrorTitle, err?.message || t.walletSaveMaintenanceError);
+    } finally {
+      setSavingId(null);
+      setCurrentEditingItem(null);
+    }
+  };
+
+  const visibleReports = reports.filter((r: any) => {
     if (reportFilter === "all") return true;
     return r.status === reportFilter;
   });
 
-  const openModal = () => {
-    setEditData(maintenance.map((item) => ({ ...item })));
-    setModalVisible(true);
-  };
+  const REPORT_PREVIEW_LIMIT = 5;
+  const hasMoreReports = visibleReports.length > REPORT_PREVIEW_LIMIT;
+  const displayedReports = showAllReports
+    ? visibleReports
+    : visibleReports.slice(0, REPORT_PREVIEW_LIMIT);
 
-  const updateField = (
-    id: number,
-    field: keyof MaintenanceItem,
-    value: string
-  ) => {
-    const updated = editData.map((item) => {
-      if (item.id !== id) return item;
-
-      const updatedItem = {
-        ...item,
-        [field]: value,
-      };
-
-      if (field === "lastDate") {
-        return recalculateMaintenance(updatedItem);
-      }
-
-      return updatedItem;
-    });
-
-    setEditData(updated);
-  };
-
-  const saveAll = () => {
-    const recalculated = editData.map(recalculateMaintenance);
-    setMaintenance(recalculated);
-    setModalVisible(false);
-    Alert.alert("تم الحفظ", "تم تحديث مواعيد الصيانة بنجاح.");
-  };
-
-  const handleConfirmDate = (date: Date) => {
-    if (currentEditingId !== null) {
-      const formatted = formatDate(date);
-      updateField(currentEditingId, "lastDate", formatted);
+  const getFilterCount = (key: "all" | "saved" | "pending") => {
+    if (key === "all") {
+      return reports.filter(
+        (r: any) => r.status === "saved" || r.status === "pending",
+      ).length;
     }
-
-    setDatePickerVisible(false);
+    return reports.filter((r: any) => r.status === key).length;
   };
 
   if (!fontsLoaded) return null;
@@ -355,9 +313,9 @@ export default function Wallet() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
 
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: rowDirection }]}>
         <View style={styles.headerSide} />
-        <Text style={styles.headerTitle}>المحفظة</Text>
+        <Text style={styles.headerTitle}>{t.walletTitle}</Text>
         <View style={styles.headerSide} />
       </View>
 
@@ -367,39 +325,41 @@ export default function Wallet() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <View style={styles.sectionHeader}>
-          <View style={styles.reportSectionIconCircle}>
-            <Feather name="file-text" size={24} color={COLORS.primary} />
+        {/* ─── قسم التقارير ─── */}
+        <View style={[styles.sectionHeaderCard, { flexDirection: iconSideDirection }]}>
+          <View style={styles.sectionIconCirclePrimary}>
+            <Feather name="file-text" size={18} color="#FFFFFF" />
           </View>
 
-          <View style={styles.sectionTextBox}>
-            <Text style={styles.sectionTitle}>التقارير</Text>
-            <Text style={styles.sectionSubtitle}>
-              تقارير الفحص المحفوظة وغير المحفوظة
+          <View style={[styles.sectionTextBox, { alignItems }]}>
+            <Text style={[styles.sectionTitle, { textAlign }]}>
+              {t.walletReportsTitle}
             </Text>
+            <Text style={[styles.sectionSubtitle, { textAlign }]}>
+              {t.walletReportsSubtitle}
+            </Text>
+          </View>
+
+          <View style={styles.sectionCountBadge}>
+            <Text style={styles.sectionCountText}>{reportCount}</Text>
           </View>
         </View>
 
-        <View style={styles.filterRow}>
+        <View style={[styles.filterRow, { flexDirection: rowDirection }]}>
           {[
-            { key: "all", label: "الكل" },
-            { key: "saved", label: "المحفوظة" },
-            { key: "pending", label: "غير المحفوظة" },
+            { key: "all", label: t.walletFilterAll },
+            { key: "saved", label: t.walletFilterSaved },
+            { key: "pending", label: t.walletFilterPending },
           ].map((f) => {
             const key = f.key as "all" | "saved" | "pending";
             const active = reportFilter === key;
-
-            const count =
-              key === "all"
-                ? reports.filter(
-                    (r) => r.status === "saved" || r.status === "pending"
-                  ).length
-                : reports.filter((r) => r.status === key).length;
-
             return (
               <TouchableOpacity
                 key={key}
-                onPress={() => setReportFilter(key)}
+                onPress={() => {
+                  setReportFilter(key);
+                  setShowAllReports(false);
+                }}
                 activeOpacity={0.85}
                 style={[styles.filterChip, active && styles.filterChipActive]}
               >
@@ -409,113 +369,143 @@ export default function Wallet() {
                     active && styles.filterChipTextActive,
                   ]}
                 >
-                  {f.label} ({count})
+                  {f.label} ({getFilterCount(key)})
                 </Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalScroll}
-        >
+        <View style={styles.reportsList}>
           {reportsLoading && reports.length === 0 && (
-            <View style={styles.emptyCard}>
+            <View style={styles.emptyFullCard}>
               <ActivityIndicator color={COLORS.primary} />
-              <Text style={styles.emptyText}>جاري تحميل التقارير...</Text>
+              <Text style={styles.emptyText}>{t.walletLoadingReports}</Text>
             </View>
           )}
 
           {!reportsLoading && visibleReports.length === 0 && (
-            <View style={styles.emptyCard}>
+            <View style={styles.emptyFullCard}>
               <View style={styles.emptyIconCircle}>
                 <Feather name="folder" size={22} color={COLORS.primary} />
               </View>
-
               <Text style={styles.emptyText}>
-                {!userId ? "يجب تسجيل الدخول" : "لا توجد تقارير"}
+                {!userId ? t.walletLoginRequired : t.walletNoReports}
               </Text>
             </View>
           )}
 
-          {visibleReports.map((report) => {
+          {displayedReports.map((report: any) => {
             const isPending = report.status === "pending";
             const isDtc = report.type === "DTC";
+            const reportTypeLabel = isDtc
+              ? "DTC"
+              : isArabic
+              ? "تقرير"
+              : "Report";
 
             return (
-              <View key={report.id} style={styles.reportCard}>
-                <View style={styles.cardTopRow}>
+              <TouchableOpacity
+                key={report.id}
+                style={styles.reportListCard}
+                activeOpacity={0.82}
+                onPress={() => {
+                  if (!isPending) openReport(report.id);
+                }}
+              >
+                <View style={[styles.reportListTop, { flexDirection: iconSideDirection }]}>
                   <View
                     style={[
-                      styles.statusDot,
-                      {
-                        backgroundColor: isPending
-                          ? COLORS.warning
-                          : COLORS.success,
-                      },
-                    ]}
-                  />
-
-                  <View
-                    style={[
-                      styles.reportBadge,
-                      isDtc ? styles.reportBadgeDtc : styles.reportBadgePdf,
+                      styles.reportListIconBox,
+                      isDtc
+                        ? styles.reportListIconBoxAlert
+                        : styles.reportListIconBoxDocument,
                     ]}
                   >
-                    <Text
+                    <Feather
+                      name={isDtc ? "alert-triangle" : "file-text"}
+                      size={18}
+                      color={isDtc ? COLORS.reportAlert : COLORS.reportDocument}
+                    />
+                  </View>
+
+                  <View style={[styles.reportListInfo, { alignItems }]}>
+                    <Text style={[styles.reportListTitle, { textAlign }]} numberOfLines={2}>
+                      {report.title}
+                    </Text>
+
+                    <View
                       style={[
-                        styles.reportBadgeText,
-                        isDtc
-                          ? styles.reportBadgeTextDtc
-                          : styles.reportBadgeTextPdf,
+                        styles.reportListMeta,
+                        { flexDirection: iconSideDirection, alignSelf: iconSideSelf },
                       ]}
                     >
-                      {report.type}
-                    </Text>
+                      <Text style={[styles.reportListDate, { textAlign }]}>
+                        {report.date}
+                      </Text>
+
+                      <View
+                        style={[
+                          styles.reportBadge,
+                          isDtc ? styles.reportBadgeDtc : styles.reportBadgePdf,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.reportBadgeText,
+                            isDtc
+                              ? styles.reportBadgeTextDtc
+                              : styles.reportBadgeTextPdf,
+                          ]}
+                        >
+                          {reportTypeLabel}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={styles.reportListActionSide}>
+                    <View
+                      style={[
+                        styles.statusSmallPill,
+                        isPending
+                          ? styles.statusPillPending
+                          : styles.statusPillSaved,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusPillText,
+                          isPending
+                            ? styles.statusPillTextPending
+                            : styles.statusPillTextSaved,
+                        ]}
+                      >
+                        {isPending ? t.walletPending : t.walletSaved}
+                      </Text>
+                    </View>
+
+                    {!isPending ? (
+                      <Feather
+                        name={isArabic ? "chevron-left" : "chevron-right"}
+                        size={20}
+                        color={COLORS.mutedLight}
+                      />
+                    ) : null}
                   </View>
                 </View>
 
-                <View style={styles.reportIconCircle}>
-                  <Feather
-                    name={isDtc ? "alert-triangle" : "file-text"}
-                    size={22}
-                    color={COLORS.primary}
-                  />
-                </View>
-
-                <Text style={styles.cardTitle}>{report.title}</Text>
-                <Text style={styles.cardDate}>{report.date}</Text>
-
-                <View
-                  style={[
-                    styles.statusPill,
-                    isPending
-                      ? styles.statusPillPending
-                      : styles.statusPillSaved,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusPillText,
-                      isPending
-                        ? styles.statusPillTextPending
-                        : styles.statusPillTextSaved,
-                    ]}
-                  >
-                    {isPending ? "غير محفوظ" : "محفوظ"}
-                  </Text>
-                </View>
-
                 {isPending ? (
-                  <View style={styles.actionsRow}>
+                  <View style={[styles.actionsRow, { flexDirection: rowDirection }]}>
                     <TouchableOpacity
                       style={styles.saveReportBtn}
                       activeOpacity={0.85}
                       onPress={() => handleSaveReport(report.id)}
                     >
-                      <Text style={styles.saveReportText}>حفظ التقرير</Text>
+                      <View style={[styles.saveReportContent, { flexDirection: iconSideDirection }]}>
+                        <Feather name="bookmark" size={14} color="#FFFFFF" />
+                        <Text style={styles.saveReportText}>{t.walletSaveReport}</Text>
+                      </View>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -523,222 +513,325 @@ export default function Wallet() {
                       activeOpacity={0.85}
                       onPress={() => handleRejectReport(report.id)}
                     >
-                      <Text style={styles.rejectBtnText}>تجاهل</Text>
+                      <Text style={styles.rejectBtnText}>{t.walletIgnore}</Text>
                     </TouchableOpacity>
                   </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.openReportBtn}
-                    activeOpacity={0.85}
-                    onPress={() => openReport(report.id)}
-                  >
-                    <Text style={styles.openReportText}>فتح التقرير</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+                ) : null}
+              </TouchableOpacity>
             );
           })}
-        </ScrollView>
 
-        <View style={styles.maintenanceSectionTop}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.maintenanceIconCircle}>
-              <Feather name="tool" size={24} color={COLORS.primary} />
-            </View>
-
-            <View style={styles.sectionTextBox}>
-              <Text style={styles.sectionTitle}>الصيانات الدورية</Text>
-              <Text style={styles.sectionSubtitle}>
-                مواعيد الصيانة القادمة حسب آخر تحديث
+          {hasMoreReports ? (
+            <TouchableOpacity
+              style={[styles.viewAllReportsButton, { flexDirection: iconSideDirection }]}
+              activeOpacity={0.85}
+              onPress={() => setShowAllReports((prev) => !prev)}
+            >
+              <Text style={styles.viewAllReportsText}>
+                {showAllReports
+                  ? isArabic
+                    ? "عرض أقل"
+                    : "Show less"
+                  : isArabic
+                  ? "عرض الكل"
+                  : "View all"}
               </Text>
-            </View>
-          </View>
 
-          <TouchableOpacity
-            onPress={openModal}
-            style={styles.editActionBtn}
-            activeOpacity={0.85}
-          >
-            <Feather name="calendar" size={18} color={COLORS.primary} />
-            <Text style={styles.editActionText}>تعديل بيانات الصيانة</Text>
-          </TouchableOpacity>
+              <Text style={styles.viewAllReportsCount}>
+                {showAllReports
+                  ? `${displayedReports.length}/${visibleReports.length}`
+                  : `${REPORT_PREVIEW_LIMIT}/${visibleReports.length}`}
+              </Text>
+
+              <Feather
+                name={showAllReports ? "chevron-up" : isArabic ? "chevron-left" : "chevron-right"}
+                size={18}
+                color={COLORS.primary}
+              />
+            </TouchableOpacity>
+          ) : null}
         </View>
 
-        {maintenance.map((item) => {
-          const progress = Math.min(
-            Math.max((item.remainingDays / item.intervalDays) * 100, 0),
-            100
-          );
+        {/* ─── قسم الصيانات الدورية ─── */}
+        <View style={[styles.sectionHeaderCard, styles.maintenanceHeaderCard, { flexDirection: iconSideDirection }]}>
+          <View style={styles.sectionIconCirclePrimary}>
+            <MaterialCommunityIcons
+              name="wrench-clock"
+              size={18}
+              color="#FFFFFF"
+            />
+          </View>
 
-          const isSoon = item.remainingDays <= 30 && item.remainingDays >= 0;
-          const isLate = item.remainingDays < 0;
+          <View style={[styles.sectionTextBox, { alignItems }]}>
+            <Text style={[styles.sectionTitle, { textAlign }]}>
+              {t.walletMaintenanceTitle}
+            </Text>
+            <Text style={[styles.sectionSubtitle, { textAlign }]}>
+              {t.walletMaintenanceSubtitle}
+            </Text>
+          </View>
 
-          return (
-            <View key={item.id} style={styles.maintenanceCard}>
-              <View style={styles.maintenanceHeader}>
-                <View
-                  style={[
-                    styles.daysBadge,
-                    isLate
-                      ? styles.daysBadgeLate
-                      : isSoon
-                      ? styles.daysBadgeWarning
-                      : styles.daysBadgeNormal,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.daysBadgeText,
-                      isLate
-                        ? styles.daysBadgeTextLate
-                        : isSoon
-                        ? styles.daysBadgeTextWarning
-                        : styles.daysBadgeTextNormal,
-                    ]}
-                  >
-                    {isLate
-                      ? `متأخر ${Math.abs(item.remainingDays)} يوم`
-                      : `متبقي ${item.remainingDays} يوم`}
-                  </Text>
+          <View style={styles.sectionCountBadge}>
+            <Text style={styles.sectionCountText}>{maintenanceCount}</Text>
+          </View>
+        </View>
+
+        {maintenanceLoading && maintenance.length === 0 ? (
+          <View style={styles.maintenanceLoadingBox}>
+            <ActivityIndicator color={COLORS.primary} />
+            <Text style={styles.emptyText}>{t.walletLoadingMaintenance}</Text>
+          </View>
+        ) : (
+          maintenance.map((item: MaintenanceItem) => {
+            const hasData = !!item.lastDate;
+            const progress = hasData
+              ? Math.min(
+                  ((item.intervalDays - (item.remainingDays ?? 0)) /
+                    item.intervalDays) *
+                    100,
+                  100,
+                )
+              : 0;
+
+            const remainingDays = item.remainingDays ?? 0;
+            const isOverdue = hasData && (item.status === "overdue" || remainingDays < 0);
+            const isSoon =
+              hasData &&
+              !isOverdue &&
+              (item.status === "due" || remainingDays <= 7);
+            const isUpcoming = hasData && !isOverdue && !isSoon;
+            const isCurrentlySaving = savingId === item.maintenanceTypeId;
+
+            let statusColor = COLORS.success;
+            let statusBg = COLORS.successBg;
+            if (isSoon) {
+              statusColor = COLORS.warning;
+              statusBg = COLORS.warningBg;
+            }
+            if (isOverdue) {
+              statusColor = COLORS.danger;
+              statusBg = COLORS.dangerBg;
+            }
+            if (!hasData) {
+              statusColor = COLORS.muted;
+              statusBg = COLORS.softGray;
+            }
+
+            // تحديد نص الشارة بناءً على الشروط الجديدة المطلوبة
+            let badgeText = "";
+            if (!hasData) {
+              badgeText = t.walletNotRegistered;
+            } else if (isOverdue) {
+              const absDays = Math.abs(item.remainingDays ?? 0);
+              badgeText = `${absDays} ${t.walletDaysLate}`;
+            } else if (isSoon) {
+              badgeText = `${t.walletRemaining} ${remainingDays} ${t.walletDay}`;
+            } else {
+              badgeText = `${t.walletRemaining} ${remainingDays} ${t.walletDay}`;
+            }
+
+            // تلوين نص التاريخ بناءً على الحالة (أخضر للمستقبل البعيد)
+            let valueDateColor = COLORS.text;
+            if (isOverdue) valueDateColor = COLORS.danger;
+            else if (isSoon) valueDateColor = COLORS.warning;
+            else if (isUpcoming) valueDateColor = COLORS.success;
+
+            return (
+              <TouchableOpacity
+                key={item.maintenanceTypeId}
+                style={styles.uxMaintenanceCard}
+                activeOpacity={0.75}
+                disabled={isCurrentlySaving}
+                onPress={() => openMaintenanceDatePicker(item)}
+              >
+                {/* الجزء العلوي: الأيقونة في اليمين للعربي وتنعكس لليسار في الإنجليزي */}
+                <View style={[styles.uxCardTopElement, { flexDirection: iconSideDirection }]}>
+                  <View style={styles.uxIconContainer}>
+                    {isCurrentlySaving ? (
+                      <ActivityIndicator size="small" color={COLORS.primary} />
+                    ) : (
+                      <MaterialCommunityIcons
+                        name={getMaintenanceIcon(item.title)}
+                        size={22}
+                        color={COLORS.primary}
+                      />
+                    )}
+                  </View>
+
+                  <View style={[styles.uxTextGroup, { alignItems }]}>
+                    <Text style={[styles.uxMaintenanceTitle, { textAlign }]}>
+                      {translateMaintenanceTitle(item.title)}
+                    </Text>
+                    <View
+                      style={[
+                        styles.uxMetaRow,
+                        { flexDirection: iconSideDirection, alignSelf: iconSideSelf },
+                      ]}
+                    >
+                      <Text style={[styles.uxMaintenanceSub, { textAlign }]}>
+                        {t.walletEvery} {item.intervalDays} {t.walletDay}
+                      </Text>
+                      <View style={[styles.uxStatusBadge, { backgroundColor: statusBg }]}>
+                        <Text style={[styles.uxStatusBadgeText, { color: statusColor }]}>
+                          {badgeText}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={styles.uxEditHint}>
+                    <Feather
+                      name={isArabic ? "chevron-left" : "chevron-right"}
+                      size={20}
+                      color={COLORS.mutedLight}
+                    />
+                  </View>
                 </View>
 
-                <View style={styles.maintenanceTitleBox}>
-                  <Text style={styles.maintenanceTitle}>{item.title}</Text>
-                  <Text style={styles.maintenanceHint}>
-                    كل {item.intervalDays} يوم
-                  </Text>
+                {/* جزء التواريخ: متناسق تماماً مع القراءة العربية من اليمين (الماضي) إلى اليسار (المستقبل) */}
+                <View style={[styles.uxGridContainer, { flexDirection: rowDirection }]}>
+                  {/* اليمين: آخر صيانة تمت */}
+                  <View style={styles.uxGridItem}>
+                    <Text style={styles.uxGridLabel}>{t.walletLastMaintenance}</Text>
+                    <Text style={styles.uxGridValue}>
+                      {item.lastDate || "—"}
+                    </Text>
+                  </View>
+
+                  <View style={styles.uxGridDivider} />
+
+                  {/* اليسار: الموعد القادم المستحق */}
+                  <View style={styles.uxGridItem}>
+                    <Text style={styles.uxGridLabel}>{t.walletNextDate}</Text>
+                    <Text
+                      style={[styles.uxGridValue, { color: valueDateColor }]}
+                    >
+                      {item.nextDate || "—"}
+                    </Text>
+                  </View>
                 </View>
-              </View>
 
-              <View style={styles.divider} />
-
-              <View style={styles.dateRow}>
-                <Text style={styles.dateLabel}>موعد الصيانة القادم:</Text>
-                <Text style={styles.nextDateText}>{item.nextDate}</Text>
-              </View>
-
-              <View style={[styles.dateRow, { marginTop: 5 }]}>
-                <Text style={styles.dateLabel}>آخر صيانة تمت:</Text>
-                <Text style={styles.lastDateText}>{item.lastDate}</Text>
-              </View>
-
-              <View style={styles.progressContainer}>
-                <View
-                  style={[
-                    styles.progressBar,
-                    {
-                      width: `${progress}%`,
-                      backgroundColor: isLate
-                        ? COLORS.danger
-                        : isSoon
-                        ? COLORS.warning
-                        : COLORS.primary,
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-          );
-        })}
+                {/* شريط التقدم السفلي ومؤشر التفاعل */}
+                <View style={[styles.uxFooterRow, { flexDirection: rowDirection }]}>
+                  <View style={[styles.uxActionIndicator, { flexDirection: iconSideDirection }]}>
+                    <Feather
+                      name="calendar"
+                      size={13}
+                      color={COLORS.mutedLight}
+                    />
+                    <Text style={styles.uxActionText}>{t.walletUpdate}</Text>
+                    <Feather
+                      name={isArabic ? "chevron-left" : "chevron-right"}
+                      size={13}
+                      color={COLORS.mutedLight}
+                    />
+                  </View>
+                  <View style={[styles.uxProgressWrapper, { flexDirection: rowDirection }]}>
+                    <View
+                      style={[
+                        styles.uxProgressBar,
+                        { width: `${progress}%`, backgroundColor: statusColor },
+                      ]}
+                    />
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        )}
       </ScrollView>
 
-      <Modal visible={modalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
+      {/* Android uses the native date dialog. iOS uses a clear in-app modal. */}
+      {datePickerVisible && Platform.OS === "android" ? (
+        <DateTimePicker
+          value={pendingDate}
+          mode="date"
+          display="calendar"
+          onChange={(event, selectedDate) => {
+            if (event.type === "dismissed") {
+              closeDatePicker();
+              return;
+            }
+
+            if (selectedDate) {
+              handleConfirmDate(selectedDate);
+            } else {
+              closeDatePicker();
+            }
+          }}
+        />
+      ) : null}
+
+      <Modal
+        visible={datePickerVisible && Platform.OS === "ios"}
+        transparent
+        animationType="fade"
+        onRequestClose={closeDatePicker}
+      >
+        <View style={styles.dateModalOverlay}>
+          <View style={styles.dateModalCard}>
+            <View style={[styles.dateModalHeader, { flexDirection: rowDirection }]}>
               <TouchableOpacity
-                onPress={() => setModalVisible(false)}
-                style={styles.modalCloseBtn}
-                activeOpacity={0.85}
+                style={styles.dateModalTextButton}
+                activeOpacity={0.8}
+                onPress={closeDatePicker}
               >
-                <Feather name="x" size={20} color={COLORS.primary} />
+                <Text style={styles.dateCancelText}>
+                  {isArabic ? "إلغاء" : "Cancel"}
+                </Text>
               </TouchableOpacity>
 
-              <Text style={styles.modalTitle}>تعديل بيانات الصيانة</Text>
-
-              <View style={styles.modalHeaderSide} />
+              <View style={[styles.dateModalTitleBox, { alignItems }]}>
+                <Text style={[styles.dateModalTitle, { textAlign }]}>
+                  {currentEditingItem
+                    ? translateMaintenanceTitle(currentEditingItem.title)
+                    : t.walletMaintenanceTitle}
+                </Text>
+                <Text style={[styles.dateModalSubtitle, { textAlign }]}>
+                  {isArabic ? "اختاري تاريخ آخر صيانة" : "Select the last maintenance date"}
+                </Text>
+              </View>
             </View>
 
-            <View style={styles.modalDivider} />
-
-            <ScrollView
-              style={styles.modalList}
-              showsVerticalScrollIndicator={false}
-            >
-              {editData.map((item) => (
-                <View key={item.id} style={styles.inputGroup}>
-                  <View style={styles.inputGroupHeader}>
-                    <View style={styles.inputIconCircle}>
-                      <Feather name="tool" size={15} color={COLORS.primary} />
-                    </View>
-
-                    <View style={styles.inputTextBox}>
-                      <Text style={styles.inputLabel}>{item.title}</Text>
-                      <Text style={styles.inputHint}>
-                        اختاري تاريخ آخر صيانة تمت
-                      </Text>
-                    </View>
-                  </View>
-
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={() => {
-                      setCurrentEditingId(item.id);
-                      setDatePickerVisible(true);
-                    }}
-                  >
-                    <View style={styles.dateInputBox}>
-                      <Feather name="calendar" size={16} color={COLORS.primary} />
-
-                      <TextInput
-                        value={item.lastDate}
-                        style={styles.input}
-                        editable={false}
-                        textAlign="center"
-                      />
-                    </View>
-                  </TouchableOpacity>
-
-                  <View style={styles.editPreviewBox}>
-                    <Text style={styles.editPreviewText}>
-                      القادم: {item.nextDate}
-                    </Text>
-                    <Text style={styles.editPreviewText}>
-                      المتبقي: {item.remainingDays} يوم
-                    </Text>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
+            <View style={styles.datePickerBox}>
+              <DateTimePicker
+                value={pendingDate}
+                mode="date"
+                display="spinner"
+                            textColor={COLORS.text}
+                onChange={(_, selectedDate) => {
+                  if (selectedDate) {
+                    setPendingDate(selectedDate);
+                  }
+                }}
+                style={styles.datePicker}
+              />
+            </View>
 
             <TouchableOpacity
-              style={styles.saveBtn}
-              onPress={saveAll}
-              activeOpacity={0.85}
+              style={styles.dateConfirmButton}
+              activeOpacity={0.88}
+              onPress={() => handleConfirmDate(pendingDate)}
             >
-              <Feather name="check" size={18} color="#FFFFFF" />
-              <Text style={styles.saveBtnText}>حفظ التغييرات</Text>
+              <Text style={styles.dateConfirmButtonText}>
+                {isArabic ? "تأكيد التاريخ" : "Confirm date"}
+              </Text>
             </TouchableOpacity>
-
-            <DateTimePickerModal
-              isVisible={datePickerVisible}
-              mode="date"
-              onConfirm={handleConfirmDate}
-              onCancel={() => setDatePickerVisible(false)}
-            />
           </View>
         </View>
       </Modal>
+
     </SafeAreaView>
   );
 }
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.bg,
   },
-
   header: {
     alignItems: "center",
     justifyContent: "space-between",
@@ -748,17 +841,14 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     backgroundColor: COLORS.bg,
   },
-
   headerSide: {
     width: 40,
     height: 40,
   },
-
   headerDivider: {
     height: 1,
     backgroundColor: "#F2F2F2",
   },
-
   headerTitle: {
     fontSize: 18,
     fontWeight: "800",
@@ -767,58 +857,143 @@ const styles = StyleSheet.create({
     fontFamily: "Tajawal-Bold",
     textAlign: "center",
   },
-
   scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 14,
     paddingBottom: 130,
     backgroundColor: COLORS.bg,
   },
-
-  sectionHeader: {
+  overviewRow: {
+    width: "100%",
+    gap: 10,
+    marginBottom: 8,
+  },
+  overviewCard: {
+    flex: 1,
+    minHeight: 126,
+    borderRadius: 22,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 12,
+    paddingVertical: 13,
+    justifyContent: "space-between",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  overviewTopRow: {
+    alignItems: "center",
+    gap: 9,
+  },
+  overviewIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: COLORS.primaryDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  overviewTextBox: {
+    flex: 1,
+  },
+  overviewTitle: {
+    fontSize: 13.5,
+    lineHeight: 19,
+    color: COLORS.text,
+    fontFamily: "Tajawal-Bold",
+  },
+  overviewSubtitle: {
+    marginTop: 2,
+    fontSize: 10.8,
+    lineHeight: 15,
+    color: COLORS.muted,
+    fontFamily: "Tajawal-Regular",
+  },
+  overviewNumber: {
+    marginTop: 10,
+    fontSize: 30,
+    lineHeight: 34,
+    color: COLORS.primary,
+    fontFamily: "Tajawal-Bold",
+    includeFontPadding: false,
+  },
+  sectionHeaderCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(135,27,23,0.10)",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     flexDirection: "row-reverse",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 16,
+    marginTop: 20,
     marginBottom: 12,
     gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.035,
+    shadowRadius: 8,
+    elevation: 1,
   },
-
-  reportSectionIconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  maintenanceHeaderCard: {
+    marginTop: 28,
+  },
+  sectionIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     backgroundColor: COLORS.softGray,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-
-  maintenanceIconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: COLORS.softGray,
+  sectionIconCirclePrimary: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: COLORS.primary,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    shadowColor: COLORS.primaryDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    elevation: 3,
   },
-
   sectionTextBox: {
     flex: 1,
     alignItems: "flex-end",
   },
-
+  sectionCountBadge: {
+    minWidth: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+  sectionCountText: {
+    color: COLORS.primary,
+    fontSize: 23,
+    fontWeight: "900",
+    fontFamily: "Tajawal-Bold",
+    includeFontPadding: false,
+  },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "900",
     color: COLORS.text,
     textAlign: "right",
     fontFamily: "Tajawal-Bold",
   },
-
   sectionSubtitle: {
     marginTop: 3,
     fontSize: 12,
@@ -827,13 +1002,12 @@ const styles = StyleSheet.create({
     textAlign: "right",
     fontFamily: "Tajawal-Regular",
   },
-
   filterRow: {
     flexDirection: "row-reverse",
     marginBottom: 12,
     gap: 8,
+    flexWrap: "wrap",
   },
-
   filterChip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -842,28 +1016,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-
   filterChipActive: {
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
   },
-
   filterChipText: {
     fontSize: 12,
     color: COLORS.muted,
     fontFamily: "Tajawal-Bold",
   },
-
   filterChipTextActive: {
     color: "#FFFFFF",
   },
-
   horizontalScroll: {
     paddingRight: 2,
     paddingLeft: 18,
     flexDirection: "row",
   },
-
   emptyCard: {
     width: 220,
     height: 180,
@@ -876,7 +1045,6 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     gap: 10,
   },
-
   emptyIconCircle: {
     width: 48,
     height: 48,
@@ -887,74 +1055,168 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-
   emptyText: {
     color: COLORS.muted,
     fontFamily: "Tajawal-Bold",
     fontSize: 13,
     textAlign: "center",
   },
-
+  reportsList: {
+    width: "100%",
+    gap: 10,
+  },
+  viewAllReportsButton: {
+    width: "100%",
+    minHeight: 46,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.neutralActionBorder,
+    backgroundColor: COLORS.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 2,
+  },
+  viewAllReportsText: {
+    color: COLORS.primary,
+    fontSize: 13,
+    fontFamily: "Tajawal-Bold",
+    includeFontPadding: false,
+  },
+  viewAllReportsCount: {
+    color: COLORS.neutralAction,
+    fontSize: 12,
+    fontFamily: "Tajawal-Bold",
+    includeFontPadding: false,
+  },
+  emptyFullCard: {
+    width: "100%",
+    minHeight: 150,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    gap: 10,
+    paddingHorizontal: 18,
+  },
+  reportListCard: {
+    width: "100%",
+    backgroundColor: COLORS.surface,
+    padding: 14,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  reportListTop: {
+    alignItems: "center",
+    gap: 10,
+  },
+  reportListIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  reportListIconBoxDocument: {
+    backgroundColor: COLORS.reportDocumentBg,
+    borderColor: COLORS.reportDocumentBorder,
+  },
+  reportListIconBoxAlert: {
+    backgroundColor: COLORS.reportAlertBg,
+    borderColor: COLORS.reportAlertBorder,
+  },
+  reportListInfo: {
+    flex: 1,
+  },
+  reportListTitle: {
+    fontSize: 14.8,
+    lineHeight: 22,
+    fontFamily: "Tajawal-Bold",
+    color: COLORS.text,
+  },
+  reportListMeta: {
+    alignItems: "center",
+    gap: 8,
+    marginTop: 7,
+    flexWrap: "wrap",
+  },
+  reportListDate: {
+    fontSize: 11.5,
+    color: COLORS.muted,
+    fontFamily: "Tajawal-Regular",
+  },
+  reportListActionSide: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  statusSmallPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 14,
+  },
   reportCard: {
     backgroundColor: COLORS.surface,
     padding: 16,
     borderRadius: 24,
     marginLeft: 12,
-    width: 222,
-    minHeight: 232,
+    width: 228,
+    minHeight: 238,
     borderWidth: 1,
     borderColor: COLORS.border,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.045,
+    shadowRadius: 8,
+    elevation: 2,
   },
-
   cardTopRow: {
     flexDirection: "row-reverse",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 10,
   },
-
   statusDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
   },
-
   reportBadge: {
     paddingHorizontal: 9,
     paddingVertical: 5,
     borderRadius: 12,
     alignSelf: "flex-end",
   },
-
   reportBadgePdf: {
-    backgroundColor: COLORS.dangerBg,
-  },
-
-  reportBadgeDtc: {
-    backgroundColor: COLORS.softGray,
+    backgroundColor: COLORS.reportDocumentBg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.reportDocumentBorder,
   },
-
+  reportBadgeDtc: {
+    backgroundColor: COLORS.reportAlertBg,
+    borderWidth: 1,
+    borderColor: COLORS.reportAlertBorder,
+  },
   reportBadgeText: {
     fontSize: 10,
     fontWeight: "900",
     fontFamily: "Tajawal-Bold",
   },
-
   reportBadgeTextPdf: {
-    color: COLORS.primary,
+    color: COLORS.reportDocument,
   },
-
   reportBadgeTextDtc: {
-    color: COLORS.muted,
+    color: COLORS.reportAlert,
   },
-
   reportIconCircle: {
     width: 48,
     height: 48,
@@ -967,7 +1229,6 @@ const styles = StyleSheet.create({
     alignSelf: "flex-end",
     marginBottom: 12,
   },
-
   cardTitle: {
     fontSize: 15,
     fontWeight: "900",
@@ -976,7 +1237,6 @@ const styles = StyleSheet.create({
     fontFamily: "Tajawal-Bold",
     lineHeight: 22,
   },
-
   cardDate: {
     fontSize: 12,
     color: COLORS.muted,
@@ -984,7 +1244,6 @@ const styles = StyleSheet.create({
     textAlign: "right",
     fontFamily: "Tajawal-Regular",
   },
-
   statusPill: {
     alignSelf: "flex-end",
     paddingHorizontal: 11,
@@ -992,35 +1251,32 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginTop: 10,
   },
-
   statusPillPending: {
-    backgroundColor: COLORS.warningBg,
+    backgroundColor: COLORS.reportPendingBg,
+    borderWidth: 1,
+    borderColor: "rgba(183,121,31,0.16)",
   },
-
   statusPillSaved: {
-    backgroundColor: COLORS.successBg,
+    backgroundColor: COLORS.reportSavedBg,
+    borderWidth: 1,
+    borderColor: "rgba(31,138,76,0.14)",
   },
-
   statusPillText: {
     fontSize: 10.5,
     fontFamily: "Tajawal-Bold",
   },
-
   statusPillTextPending: {
-    color: COLORS.warning,
+    color: COLORS.reportPending,
   },
-
   statusPillTextSaved: {
-    color: COLORS.success,
+    color: COLORS.reportSaved,
   },
-
   actionsRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
     marginTop: 14,
     gap: 8,
   },
-
   saveReportBtn: {
     flex: 1,
     height: 42,
@@ -1028,8 +1284,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: COLORS.primaryDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 2,
   },
-
+  saveReportContent: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
   saveReportText: {
     color: "#FFFFFF",
     textAlign: "center",
@@ -1037,24 +1302,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Tajawal-Bold",
   },
-
   rejectBtn: {
     height: 42,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     borderRadius: 21,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.softGray,
+    borderColor: COLORS.neutralActionBorder,
+    backgroundColor: COLORS.neutralActionBg,
     alignItems: "center",
     justifyContent: "center",
   },
-
   rejectBtnText: {
-    color: COLORS.primary,
+    color: COLORS.neutralAction,
     fontSize: 12,
     fontFamily: "Tajawal-Bold",
   },
-
   openReportBtn: {
     marginTop: 14,
     height: 42,
@@ -1063,7 +1325,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   openReportText: {
     color: "#FFFFFF",
     textAlign: "center",
@@ -1071,318 +1332,238 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Tajawal-Bold",
   },
-
-  maintenanceSectionTop: {
-    marginTop: 6,
-  },
-
-  editActionBtn: {
-    height: 40,
-    backgroundColor: COLORS.softGray,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    flexDirection: "row-reverse",
+  maintenanceLoadingBox: {
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignSelf: "stretch",
+    paddingVertical: 32,
+    gap: 10,
   },
 
-  editActionText: {
-    color: COLORS.text,
-    textAlign: "center",
-    fontWeight: "900",
-    fontSize: 13,
-    fontFamily: "Tajawal-Bold",
-  },
-
-  maintenanceCard: {
+  /* ─── الستايلات الحديثة والمحسنة لقسم الصيانات (UX Optimized) ─── */
+  uxMaintenanceCard: {
     backgroundColor: COLORS.surface,
     padding: 16,
-    borderRadius: 24,
-    marginBottom: 12,
+    borderRadius: 22,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.045,
+    shadowRadius: 9,
+    elevation: 2,
   },
-
-  maintenanceHeader: {
+  uxCardTopElement: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 16,
+    gap: 10,
   },
-
-  maintenanceTitleBox: {
+  uxTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
     flex: 1,
+  },
+  uxTextGroup: {
     alignItems: "flex-end",
+    flex: 1,
   },
-
-  maintenanceTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: COLORS.text,
-    textAlign: "right",
+  uxMetaRow: {
+    alignItems: "center",
+    gap: 8,
+    marginTop: 6,
+    flexWrap: "wrap",
+  },
+  uxMaintenanceTitle: {
+    fontSize: 15.5,
     fontFamily: "Tajawal-Bold",
+    color: COLORS.text,
+    lineHeight: 23,
   },
-
-  maintenanceHint: {
-    marginTop: 3,
-    fontSize: 11.5,
+  uxMaintenanceSub: {
+    fontSize: 11,
     color: COLORS.muted,
     fontFamily: "Tajawal-Regular",
-    textAlign: "right",
+    marginTop: 2,
   },
-
-  daysBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  uxIconContainer: {
+    width: 42,
+    height: 42,
     borderRadius: 14,
+    backgroundColor: COLORS.softGray,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-
-  daysBadgeNormal: {
-    backgroundColor: COLORS.successBg,
+  uxEditHint: {
+    width: 22,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
   },
-
-  daysBadgeWarning: {
-    backgroundColor: COLORS.warningBg,
+  uxStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.04)",
   },
-
-  daysBadgeLate: {
-    backgroundColor: COLORS.dangerBg,
-  },
-
-  daysBadgeText: {
+  uxStatusBadgeText: {
     fontSize: 11,
     fontFamily: "Tajawal-Bold",
   },
-
-  daysBadgeTextNormal: {
-    color: COLORS.success,
-  },
-
-  daysBadgeTextWarning: {
-    color: COLORS.warning,
-  },
-
-  daysBadgeTextLate: {
-    color: COLORS.danger,
-  },
-
-  divider: {
-    height: 1,
-    backgroundColor: "#F2F2F2",
-    marginVertical: 12,
-  },
-
-  dateRow: {
+  uxGridContainer: {
     flexDirection: "row-reverse",
-    justifyContent: "flex-start",
+    backgroundColor: COLORS.soft,
+    borderRadius: 16,
+    padding: 12,
+    alignItems: "center",
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+  },
+  uxGridItem: {
+    flex: 1,
     alignItems: "center",
   },
-
-  dateLabel: {
-    fontSize: 13,
-    color: COLORS.muted,
-    marginLeft: 8,
-    fontFamily: "Tajawal-Regular",
+  uxGridDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: COLORS.border,
   },
-
-  nextDateText: {
-    fontSize: 14,
-    fontWeight: "900",
-    color: COLORS.text,
+  uxGridLabel: {
+    fontSize: 11,
+    color: COLORS.muted,
+    fontFamily: "Tajawal-Regular",
+    marginBottom: 4,
+  },
+  uxGridValue: {
+    fontSize: 13,
     fontFamily: "Tajawal-Bold",
   },
-
-  lastDateText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: COLORS.muted,
-    fontFamily: "Tajawal-Regular",
+  uxFooterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
   },
-
-  progressContainer: {
-    height: 8,
-    backgroundColor: COLORS.softGray,
-    borderRadius: 4,
-    marginTop: 15,
+  uxProgressWrapper: {
+    flex: 1,
+    height: 7,
+    backgroundColor: "#ECECEC",
+    borderRadius: 7,
     overflow: "hidden",
     flexDirection: "row-reverse",
   },
-
-  progressBar: {
+  uxProgressBar: {
     height: "100%",
-    borderRadius: 4,
+    borderRadius: 3,
   },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.32)",
-    justifyContent: "flex-end",
-  },
-
-  modalContent: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    paddingHorizontal: 18,
-    paddingTop: 16,
-    paddingBottom: Platform.OS === "ios" ? 30 : 22,
-    maxHeight: "90%",
-  },
-
-  modalHeader: {
-    minHeight: 48,
+  uxActionIndicator: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: 4,
   },
-
-  modalCloseBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+  uxActionText: {
+    fontSize: 11,
+    color: COLORS.muted,
+    fontFamily: "Tajawal-Bold",
+  },
+  dateModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.28)",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+  dateModalCard: {
+    width: "100%",
+    borderRadius: 26,
+    backgroundColor: COLORS.surface,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.14,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  dateModalHeader: {
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 10,
+  },
+  dateModalTitleBox: {
+    flex: 1,
+  },
+  dateModalTitle: {
+    fontSize: 16,
+    color: COLORS.text,
+    fontFamily: "Tajawal-Bold",
+  },
+  dateModalSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    color: COLORS.muted,
+    fontFamily: "Tajawal-Regular",
+  },
+  dateModalSmallButton: {
+    minWidth: 64,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: COLORS.softGray,
     borderWidth: 1,
     borderColor: COLORS.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  modalHeaderSide: {
-    width: 42,
-    height: 42,
-  },
-
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: COLORS.text,
-    fontFamily: "Tajawal-Bold",
-  },
-
-  modalDivider: {
-    height: 1,
-    backgroundColor: "#F2F2F2",
-    marginBottom: 14,
-  },
-
-  modalList: {
-    marginBottom: 18,
-  },
-
-  inputGroup: {
-    marginBottom: 14,
-    padding: 14,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.soft,
-  },
-
-  inputGroupHeader: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 12,
-  },
-
-  inputIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 14,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  inputTextBox: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-
-  inputLabel: {
-    fontSize: 15,
-    fontWeight: "900",
-    textAlign: "right",
-    color: COLORS.text,
-    fontFamily: "Tajawal-Bold",
-  },
-
-  inputHint: {
-    marginTop: 2,
-    fontSize: 11.5,
-    color: COLORS.muted,
-    textAlign: "right",
-    fontFamily: "Tajawal-Regular",
-  },
-
-  dateInputBox: {
-    minHeight: 48,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 18,
-    backgroundColor: COLORS.surface,
     paddingHorizontal: 12,
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 8,
   },
-
-  input: {
-    flex: 1,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: COLORS.text,
-    fontFamily: "Tajawal-Regular",
-  },
-
-  editPreviewBox: {
-    marginTop: 10,
-    padding: 10,
-    borderRadius: 16,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 4,
-  },
-
-  editPreviewText: {
-    fontSize: 11.5,
+  dateModalSmallButtonText: {
+    fontSize: 12,
     color: COLORS.muted,
-    fontFamily: "Tajawal-Regular",
-    textAlign: "right",
+    fontFamily: "Tajawal-Bold",
   },
-
-  saveBtn: {
-    backgroundColor: COLORS.primary,
-    height: 54,
-    borderRadius: 27,
+  dateModalTextButton: {
+    minWidth: 58,
+    height: 34,
     alignItems: "center",
     justifyContent: "center",
-    flexDirection: "row-reverse",
-    gap: 8,
-    shadowColor: COLORS.primaryDark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.14,
-    shadowRadius: 14,
-    elevation: 4,
+    paddingHorizontal: 4,
   },
-
-  saveBtnText: {
+  dateCancelText: {
+    fontSize: 13,
+    color: COLORS.muted,
+    fontFamily: "Tajawal-Bold",
+  },
+  datePickerBox: {
+    width: "100%",
+    borderRadius: 20,
+    backgroundColor: COLORS.soft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+  },
+  datePicker: {
+    width: "100%",
+    height: Platform.OS === "ios" ? 216 : undefined,
+  },
+  dateConfirmButton: {
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 14,
+  },
+  dateConfirmButtonText: {
     color: "#FFFFFF",
-    textAlign: "center",
-    fontWeight: "900",
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: "Tajawal-Bold",
   },
 });

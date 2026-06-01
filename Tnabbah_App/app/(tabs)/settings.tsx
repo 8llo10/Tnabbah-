@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+
 import {
   View,
   Text,
@@ -10,16 +11,31 @@ import {
   Modal,
   ActivityIndicator,
   Platform,
+  Linking,
+  TextInput,
 } from "react-native";
+import { supabase } from "../../lib/supabase";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import LottieView from "lottie-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../../providers/AuthProvider";
-import { supabase } from "../../lib/supabase";
-import { useRouter } from "expo-router";
-import { elmBluetoothService } from "../../services/elmBluetoothService";
-import { vehicleScannerService } from "../../services/vehicleScannerService";
-import { mqttService } from "../../services/mqttService";
+
+import { useCars, UserCar } from "../../providers/CarsProvider";
+import { useAppSettings } from "../../providers/AppSettingsProvider";
+import { useNotifications } from "../../providers/NotificationsProvider";
+import { useAccountSettings } from "../../providers/AccountSettingsProvider";
+import { useLanguage } from "../../providers/LanguageProvider";
+
+import {
+  EditNameModal,
+  EditEmailModal,
+  DeleteAccountModal,
+  LogoutLoadingModal,
+} from "../../components/settings/AccountModals";
+import { EditCarNameModal } from "../../components/settings/CarModals";
+import { ConfirmModal } from "../../components/settings/CommonModals";
 
 const COLORS = {
   primary: "#871B17",
@@ -30,21 +46,23 @@ const COLORS = {
   // خليته غامق بدل الأحمر الفاتح
   danger: "#871B17",
 
-  success: "#1F8A4C",
+  success: "#2E7D32",
   white: "#FFFFFF",
 };
+
+const MAX_NAME_LENGTH = 20;
 
 const lightTheme = {
   background: "#FFFFFF",
   surface: "#FFFFFF",
-  border: "#EDEDED",
-  cardBorder: "#EFEFEF",
+  border: "#D8D8D8",
+  cardBorder: "#DCDCDC",
   textPrimary: "#1D1D1F",
   textSecondary: "#707070",
-  iconBg: "#F3F4F6",
+  iconBg: "#F0F1F3",
   iconColor: "#871B17",
-  subtle: "#F8F8F8",
-  headerDivider: "#F2F2F2",
+  subtle: "#F6F6F6",
+  headerDivider: "#E4E4E4",
   cardPressed: "#FAFAFA",
   dangerBg: "#FFF1F1",
   successBg: "#EFFAF3",
@@ -53,21 +71,22 @@ const lightTheme = {
 
 const darkTheme = {
   background: "#151515",
-  surface: "#232323",
+  surface: "#202020",
   border: "#3A3A3A",
-  cardBorder: "#343434",
+  cardBorder: "#383838",
   textPrimary: "#FFFFFF",
-  textSecondary: "#B8B8B8",
+  textSecondary: "#C7C7C7",
 
-  iconBg: "rgba(135,27,23,0.20)",
+  // Dark mode icons use the same warm red family as the account card
+  iconBg: "rgba(255,255,255,0.08)",
   iconColor: "#D04740",
 
-  subtle: "#2C2C2C",
+  subtle: "#292929",
   headerDivider: "#343434",
-  cardPressed: "#2B2B2B",
+  cardPressed: "#2E2E2E",
   dangerBg: "rgba(135,27,23,0.18)",
-  successBg: "rgba(31,138,76,0.16)",
-  modalOverlay: "rgba(0,0,0,0.58)",
+  successBg: "rgba(46,125,50,0.18)",
+  modalOverlay: "rgba(0,0,0,0.62)",
 };
 
 const translations = {
@@ -90,18 +109,34 @@ const translations = {
     darkModeDesc: "تفعيل المظهر الداكن للتطبيق",
 
     helpSupport: "المساعدة والدعم",
-    help: "المساعدة",
-    helpDesc: "الأسئلة الشائعة وطريقة التواصل مع الدعم",
+    help: "تواصل مع الدعم",
+    helpDesc: "للاستفسارات أو الإبلاغ عن مشكلة في التطبيق",
+    supportEmailButton: "إرسال بريد للدعم",
+    supportWhatsAppButton: "التواصل عبر واتساب",
+    reportIssueButton: "الإبلاغ عن مشكلة",
+    helpIntro:
+      "إذا واجهت مشكلة أو عندك استفسار، أرسلي لنا التفاصيل وسنساعدك في أقرب وقت.",
+    faqTitle: "الأسئلة الشائعة",
+    faqConnectionQuestion: "كيف أوصل قطعة السيارة؟",
+    faqConnectionAnswer:
+      "من صفحة الاتصال اختاري البلوتوث ثم اختاري قطعة السيارة وابدئي الفحص.",
+    faqNotificationsQuestion: "لماذا لا تظهر السيارة؟",
+    faqNotificationsAnswer:
+      "تأكدي أن القطعة تعمل وأن البلوتوث والصلاحيات مفعلة.",
+    faqReportQuestion: "هل التطبيق يحفظ بيانات السيارة؟",
+    faqReportAnswer:
+      "يتم حفظ البيانات الضرورية فقط لتحسين تجربتك وعرض التقارير.",
 
     vehicleConnection: "اتصال السيارة",
-    bluetoothSettings: "إعدادات البلوتوث",
-    bluetoothSettingsDesc: "ربط أو تغيير جهاز السيارة",
-    deviceStatus: "حالة الجهاز",
-    scanStatus: "حالة المتابعة",
+    bluetoothSettings: "ربط قطعة السيارة",
+    bluetoothSettingsDesc: "ربط أو تغيير قطعة السيارة",
+    deviceStatus: "اتصال القطعة",
+    scanStatus: "قراءة بيانات السيارة",
+        dataConnection: "اتصال البيانات",
     connected: "متصل",
     disconnected: "غير متصل",
-    scannerOn: "المتابعة تعمل",
-    scannerOff: "المتابعة متوقفة",
+    scannerOn: "تعمل الآن",
+    scannerOff: "متوقفة",
 
     pauseMonitoring: "إيقاف المتابعة مؤقتًا",
     pauseMonitoringDesc: "إيقاف قراءة بيانات السيارة مؤقتًا",
@@ -125,10 +160,21 @@ const translations = {
     disconnectMessage: "هل تريد إنهاء اتصال السيارة الآن؟",
     disconnectedDone: "تم إنهاء اتصال السيارة.",
     errorTitle: "حدث خطأ",
-
+    nameLimitError: "الاسم يجب ألا يتجاوز 20 حرفًا.",
+    emailSameError: "اكتبي بريدًا إلكترونيًا مختلفًا عن البريد الحالي.",
+    emailChangeSentTitle: "تم إرسال رابط التأكيد",
+    emailChangeSentBody:
+      "افتحي البريد الإلكتروني الجديد واضغطي على رابط تأكيد تغيير البريد لإكمال العملية.",
+    emailChangeError:
+      "تعذر إرسال رابط تغيير البريد. تأكدي من البريد أو حاولي مرة أخرى.",
 
     totalCars: "عدد السيارات",
-carConnection: "اتصال السيارة الحالية",
+    carConnection: "اتصال السيارة الحالية",
+
+    notificationsDeniedTitle: "الإشعارات غير مفعّلة",
+    notificationsDeniedBody:
+      "فعّلي الإشعارات من إعدادات الجهاز حتى تصلك التنبيهات.",
+    openSettings: "فتح الإعدادات",
   },
 
   EN: {
@@ -150,18 +196,34 @@ carConnection: "اتصال السيارة الحالية",
     darkModeDesc: "Enable dark theme for the app",
 
     helpSupport: "Help & Support",
-    help: "Help",
-    helpDesc: "FAQs and contact support",
+    help: "Contact Support",
+    helpDesc: "For questions or reporting an app issue",
+    supportEmailButton: "Email Support",
+    supportWhatsAppButton: "Contact via WhatsApp",
+    reportIssueButton: "Report an Issue",
+    helpIntro:
+      "If you have a question or an issue, send us the details and we will help you as soon as possible.",
+    faqTitle: "FAQs",
+    faqConnectionQuestion: "How do I connect the car device?",
+    faqConnectionAnswer:
+      "Open the connection page, choose Bluetooth, select the car device, then start the scan.",
+    faqNotificationsQuestion: "Why does my car not appear?",
+    faqNotificationsAnswer:
+      "Make sure the device is powered on and Bluetooth permissions are enabled.",
+    faqReportQuestion: "Does the app save car data?",
+    faqReportAnswer:
+      "Only the necessary data is saved to improve your experience and show reports.",
 
-    vehicleConnection: "Vehicle Connection",
-    bluetoothSettings: "Bluetooth Settings",
-    bluetoothSettingsDesc: "Pair or change the vehicle device",
-    deviceStatus: "Device Status",
-    scanStatus: "Monitoring Status",
+    vehicleConnection: "Car Connection",
+    bluetoothSettings: "Connect Car Device",
+    bluetoothSettingsDesc: "Connect or change the car device",
+    deviceStatus: "Device Connection",
+    scanStatus: "Car Data Reading",
+    dataConnection: "Data Connection",
     connected: "Connected",
     disconnected: "Disconnected",
-    scannerOn: "Monitoring active",
-    scannerOff: "Monitoring stopped",
+    scannerOn: "Running",
+    scannerOff: "Stopped",
 
     pauseMonitoring: "Pause monitoring",
     pauseMonitoringDesc: "Temporarily stop reading vehicle data",
@@ -185,10 +247,21 @@ carConnection: "اتصال السيارة الحالية",
     disconnectMessage: "Do you want to end the vehicle connection now?",
     disconnectedDone: "Vehicle connection has been ended.",
     errorTitle: "Error",
-
+    nameLimitError: "Name must be 20 characters or less.",
+    emailSameError: "Enter an email address different from your current email.",
+    emailChangeSentTitle: "Confirmation link sent",
+    emailChangeSentBody:
+      "Open your new email and tap the confirmation link to complete the change.",
+    emailChangeError:
+      "Could not send the email change link. Check the email or try again.",
 
     totalCars: "Total Cars",
-carConnection: "Current Car Connection",
+    carConnection: "Current Car Connection",
+
+    notificationsDeniedTitle: "Notifications disabled",
+    notificationsDeniedBody:
+      "Enable notifications from device settings to receive alerts.",
+    openSettings: "Open Settings",
   },
 };
 
@@ -196,7 +269,7 @@ function AppSwitch({
   value,
   onValueChange,
   trackOnColor = COLORS.primary,
-  trackOffColor = "#EDEDED",
+  trackOffColor = "#E5E5E5",
   thumbColor = "#FFFFFF",
 }: {
   value: boolean;
@@ -210,14 +283,14 @@ function AppSwitch({
   useEffect(() => {
     Animated.timing(anim, {
       toValue: value ? 1 : 0,
-      duration: 160,
+      duration: 180,
       useNativeDriver: true,
     }).start();
   }, [value, anim]);
 
   const translateX = anim.interpolate({
     inputRange: [0, 1],
-    outputRange: [2, 24],
+    outputRange: [3, 27],
   });
 
   return (
@@ -227,7 +300,7 @@ function AppSwitch({
         styles.switchTrack,
         {
           backgroundColor: value ? trackOnColor : trackOffColor,
-          opacity: pressed ? 0.9 : 1,
+          opacity: pressed ? 0.85 : 1,
         },
       ]}
     >
@@ -244,24 +317,264 @@ function AppSwitch({
   );
 }
 
+function AppMessageModal({
+  visible,
+  title,
+  message,
+  icon,
+  buttonText,
+  theme,
+  isRTL,
+  onClose,
+}: {
+  visible: boolean;
+  title: string;
+  message?: string;
+  icon: keyof typeof Feather.glyphMap;
+  buttonText: string;
+  theme: typeof lightTheme;
+  isRTL: boolean;
+  onClose: () => void;
+}) {
+  const isSuccess = icon === "check-circle";
+  const isError = icon === "alert-circle";
+  const lottieRef = useRef<LottieView>(null);
+  const iconColor = isError ? COLORS.danger : COLORS.primary;
+  const iconBackground = isError ? "rgba(135,27,23,0.12)" : theme.iconBg;
+
+  const successScale = useRef(new Animated.Value(0.35)).current;
+  const successOpacity = useRef(new Animated.Value(0)).current;
+  const pulseOneScale = useRef(new Animated.Value(0.65)).current;
+  const pulseOneOpacity = useRef(new Animated.Value(0)).current;
+  const pulseTwoScale = useRef(new Animated.Value(0.65)).current;
+  const pulseTwoOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!visible || !isSuccess) return;
+
+    lottieRef.current?.reset();
+
+    const playTimer = setTimeout(() => {
+      lottieRef.current?.play(0);
+    }, 80);
+
+    successScale.setValue(0.35);
+    successOpacity.setValue(0);
+    pulseOneScale.setValue(0.65);
+    pulseOneOpacity.setValue(0.45);
+    pulseTwoScale.setValue(0.65);
+    pulseTwoOpacity.setValue(0.32);
+
+    Animated.parallel([
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(successOpacity, {
+            toValue: 1,
+            duration: 120,
+            useNativeDriver: true,
+          }),
+          Animated.spring(successScale, {
+            toValue: 1.14,
+            friction: 5,
+            tension: 90,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.spring(successScale, {
+          toValue: 1,
+          friction: 6,
+          tension: 70,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(pulseOneScale, {
+            toValue: 1.75,
+            duration: 760,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseOneOpacity, {
+            toValue: 0,
+            duration: 760,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+      Animated.sequence([
+        Animated.delay(150),
+        Animated.parallel([
+          Animated.timing(pulseTwoScale, {
+            toValue: 1.95,
+            duration: 780,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseTwoOpacity, {
+            toValue: 0,
+            duration: 780,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+    ]).start();
+
+    const timer = setTimeout(() => {
+      onClose();
+    }, 2300);
+
+    return () => {
+      clearTimeout(playTimer);
+      clearTimeout(timer);
+    };
+  }, [
+    visible,
+    isSuccess,
+    onClose,
+    successScale,
+    successOpacity,
+    pulseOneScale,
+    pulseOneOpacity,
+    pulseTwoScale,
+    pulseTwoOpacity,
+  ]);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View
+        style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}
+      >
+        <View
+          style={[
+            styles.confirmModal,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          {isSuccess ? (
+            <View style={styles.successAnimationWrapper}>
+              <LottieView
+                ref={lottieRef}
+                source={require("../../assets/animations/success-check.json")}
+                loop={false}
+                speed={0.55}
+                style={styles.successLottie}
+              />
+            </View>
+          ) : (
+            <View
+              style={[
+                styles.appMessageIconCircle,
+                { backgroundColor: iconBackground },
+              ]}
+            >
+              <Feather name={icon} size={28} color={iconColor} />
+            </View>
+          )}
+
+          <Text style={[styles.confirmTitle, { color: theme.textPrimary }]}>
+            {title}
+          </Text>
+
+          {!!message?.trim() && (
+            <Text
+              style={[
+                styles.confirmMessage,
+                {
+                  color: theme.textSecondary,
+                  textAlign: isRTL ? "right" : "left",
+                },
+              ]}
+            >
+              {message}
+            </Text>
+          )}
+
+          {!isSuccess && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.singleModalButton,
+                {
+                  backgroundColor: COLORS.primary,
+                  opacity: pressed ? 0.9 : 1,
+                  marginTop: message?.trim() ? 0 : 10,
+                },
+              ]}
+              onPress={onClose}
+            >
+              <Text style={styles.confirmPrimaryText}>{buttonText}</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function Settings() {
   const { profile, session } = useAuth();
   const router = useRouter();
+  const { language, changeLanguage } = useLanguage();
+
+  const {
+    obdConnected,
+    scannerRunning,
+    mqttConnected,
+    lastConnectionTime,
+    activeCarId,
+    selectedCarId,
+    connectedCarId,
+    userCars,
+    selectDefaultCar,
+    renameCar,
+    deleteCar,
+    stopScanner,
+    disconnectObd,
+  } = useCars();
+
+  const {
+    settingsLoading,
+    savingSettings,
+    darkModeEnabled,
+    notificationsEnabled,
+    handleLanguageChange: saveAppLanguageChange,
+    handleDarkModeChange,
+  } = useAppSettings();
+
+  const { handleNotificationsChange } = useNotifications();
+
+  const { updateName, deleteAccount, logout } = useAccountSettings();
 
   const [loggingOut, setLoggingOut] = useState(false);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState<"AR" | "EN">("AR");
 
-  const [obdConnected, setObdConnected] = useState(false);
-  const [scannerRunning, setScannerRunning] = useState(false);
-  const [currentCarId, setCurrentCarId] = useState<string | null>(null);
-  const [knownCarIds, setKnownCarIds] = useState<string[]>([]);
+  const [displayName, setDisplayName] = useState("");
+
+  const [editCarVisible, setEditCarVisible] = useState(false);
+  const [selectedCarForEdit, setSelectedCarForEdit] = useState<UserCar | null>(
+    null,
+  );
+  const [carNameInput, setCarNameInput] = useState("");
+  const [savingCarName, setSavingCarName] = useState(false);
+
+  const [switchingCarId, setSwitchingCarId] = useState<string | null>(null);
+  const [optimisticSelectedCarId, setOptimisticSelectedCarId] = useState<
+    string | null
+  >(null);
 
   const [helpVisible, setHelpVisible] = useState(false);
   const [confirmLogoutVisible, setConfirmLogoutVisible] = useState(false);
   const [confirmDisconnectVisible, setConfirmDisconnectVisible] =
     useState(false);
+
+  const [editNameVisible, setEditNameVisible] = useState(false);
+  const [fullNameInput, setFullNameInput] = useState("");
+  const [savingName, setSavingName] = useState(false);
 
   const [messageVisible, setMessageVisible] = useState(false);
   const [messageTitle, setMessageTitle] = useState("");
@@ -269,107 +582,148 @@ export default function Settings() {
   const [messageIcon, setMessageIcon] =
     useState<keyof typeof Feather.glyphMap>("check-circle");
 
+  const [editEmailVisible, setEditEmailVisible] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+
+  const [deleteAccountVisible, setDeleteAccountVisible] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  const [confirmDeleteCarVisible, setConfirmDeleteCarVisible] = useState(false);
+  const [carToDelete, setCarToDelete] = useState<UserCar | null>(null);
+
+  const selectedLanguage = language;
   const t = translations[selectedLanguage];
   const isRTL = selectedLanguage === "AR";
   const theme = darkModeEnabled ? darkTheme : lightTheme;
 
-  const userName =
-    profile?.full_name ||
-    session?.user?.user_metadata?.full_name ||
-    "مستخدم";
+  const handleSettingsLanguageChange = async (lang: "AR" | "EN") => {
+    await changeLanguage(lang);
 
-  const userEmail =
-    session?.user?.email ||
-    profile?.email ||
-    profile?.username ||
-    "—";
-
-  const userId = session?.user?.id || "—";
-
-  const refreshObdState = async () => {
-    const connected = await elmBluetoothService
-      .isActuallyConnected?.()
-      .catch(() => false);
-
-    setObdConnected(!!connected);
-    setScannerRunning(vehicleScannerService.isAutoScanRunning());
-    setCurrentCarId(vehicleScannerService.getCachedCarId());
-  };
-
-  useEffect(() => {
-    refreshObdState();
-
-    const interval = setInterval(refreshObdState, 1500);
-    return () => clearInterval(interval);
-  }, []);
-
-
-  useEffect(() => {
-  let mounted = true;
-  let client: any = null;
-
-  const setupCarsListener = async () => {
     try {
-      const { data } = await supabase.auth.getUser();
-      const userId = data.user?.id;
-
-      if (!userId) return;
-
-      client = await mqttService.connectAsync();
-
-      const topics = [
-        `Tnabbah/${userId}/+/identity`,
-        `Tnabbah/${userId}/+/status`,
-      ];
-
-      client.subscribe(topics);
-
-      const onMessage = (topic: string, message: Buffer) => {
-        if (!mounted) return;
-
-        const parts = topic.split("/");
-        const incomingCarId = parts[2];
-
-        if (incomingCarId) {
-          setKnownCarIds((prev) =>
-            prev.includes(incomingCarId) ? prev : [...prev, incomingCarId]
-          );
-        }
-
-        try {
-          const parsed = JSON.parse(message.toString());
-          const data = parsed?.data ?? parsed;
-
-          if (data?.obdConnected && incomingCarId) {
-            setCurrentCarId(incomingCarId);
-          }
-        } catch {}
-      };
-
-      client.on("message", onMessage);
-
-      return () => {
-        try {
-          client.off?.("message", onMessage);
-          client.unsubscribe?.(topics);
-        } catch {}
-      };
+      await saveAppLanguageChange(lang);
     } catch (error) {
-      console.log("Settings cars listener error:", error);
+      console.log("Save language settings error:", error);
     }
   };
 
-  let cleanup: any;
+  const activeSelectedCarId =
+    optimisticSelectedCarId ||
+    connectedCarId ||
+    selectedCarId ||
+    activeCarId;
 
-  setupCarsListener().then((fn) => {
-    cleanup = fn;
-  });
+  const userName =
+    profile?.full_name || session?.user?.user_metadata?.full_name || "مستخدم";
 
-  return () => {
-    mounted = false;
-    if (cleanup) cleanup();
+  useEffect(() => {
+    setDisplayName(userName);
+  }, [userName]);
+
+  const userEmail =
+    session?.user?.email || profile?.email || profile?.username || "—";
+
+  const userId = session?.user?.id || "—";
+
+  const handleSelectDefaultCar = async (carId: string) => {
+    if (switchingCarId) return;
+    if (carId === activeSelectedCarId) return;
+
+    const previousCarId = activeSelectedCarId;
+
+    setSwitchingCarId(carId);
+    setOptimisticSelectedCarId(carId);
+
+    try {
+      await selectDefaultCar(carId);
+
+      setOptimisticSelectedCarId(null);
+    } catch (error) {
+      console.log("Select car error:", error);
+
+      setOptimisticSelectedCarId(previousCarId);
+
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "تعذر اختيار السيارة. رجعنا للاختيار السابق."
+            : "Could not select car. Restored previous selection.",
+        icon: "alert-circle",
+      });
+    } finally {
+      setSwitchingCarId(null);
+    }
   };
-}, []);
+
+  const openEditCarName = (car: UserCar) => {
+    setSelectedCarForEdit(car);
+    setCarNameInput(car.display_name || "");
+    setEditCarVisible(true);
+  };
+
+  const handleSaveCarName = async () => {
+    if (!selectedCarForEdit) return;
+
+    setSavingCarName(true);
+
+    try {
+      await renameCar(selectedCarForEdit.id, carNameInput);
+
+      setEditCarVisible(false);
+      setSelectedCarForEdit(null);
+      setCarNameInput("");
+
+      showMessage({
+        title:
+          selectedLanguage === "AR"
+            ? "تم تحديث اسم السيارة"
+            : "Car name updated",
+        body: "",
+        icon: "check-circle",
+      });
+    } catch (error) {
+      console.log("Save car name error:", error);
+
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "تعذر تحديث اسم السيارة."
+            : "Could not update car name.",
+        icon: "alert-circle",
+      });
+    } finally {
+      setSavingCarName(false);
+    }
+  };
+
+  const handleDeleteCar = async (car: UserCar) => {
+    try {
+      await deleteCar(car);
+
+      showMessage({
+        title:
+          selectedLanguage === "AR"
+            ? "تم حذف السيارة من القائمة"
+            : "Car removed from list",
+        body: "",
+        icon: "check-circle",
+      });
+    } catch (error) {
+      console.log("Delete car error:", error);
+
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "تعذر حذف السيارة."
+            : "Could not delete car.",
+        icon: "alert-circle",
+      });
+    }
+  };
 
   const showMessage = ({
     title,
@@ -393,17 +747,70 @@ export default function Settings() {
     } as any);
   };
 
+  const openSupportEmail = () => {
+    const subject = encodeURIComponent("Tnabbah Support Request");
+    const body = encodeURIComponent(
+      selectedLanguage === "AR"
+        ? `مرحبًا فريق تنبّه،\n\nأحتاج مساعدة بخصوص التطبيق.\n\nبيانات الحساب:\nUser ID: ${userId}\nEmail: ${userEmail}\nCurrent Car: ${selectedCarId || "—"}\nConnected Car: ${connectedCarId || "—"}\nCar Connection: ${obdConnected ? "Connected" : "Disconnected"}\nData Reading: ${scannerRunning ? "Running" : "Stopped"}\nLast Connection: ${lastConnectionTime || "—"}\n\nاكتبي تفاصيل الاستفسار أو المشكلة هنا:\n`
+        : `Hello Tnabbah Support,\n\nI need help with the app.\n\nAccount details:\nUser ID: ${userId}\nEmail: ${userEmail}\nCurrent Car: ${selectedCarId || "—"}\nConnected Car: ${connectedCarId || "—"}\nCar Connection: ${obdConnected ? "Connected" : "Disconnected"}\nData Reading: ${scannerRunning ? "Running" : "Stopped"}\nLast Connection: ${lastConnectionTime || "—"}\n\nDescribe your question or issue here:\n`,
+    );
+
+    Linking.openURL(
+      `mailto:tanbbahteem@gmail.com?subject=${subject}&body=${body}`,
+    );
+  };
+
+  const openWhatsAppSupport = () => {
+    const message = encodeURIComponent(
+      selectedLanguage === "AR"
+        ? `مرحبًا، أحتاج مساعدة في تطبيق تنبّه.
+User ID: ${userId}
+Email: ${userEmail}
+Current Car: ${selectedCarId || "—"}`
+        : `Hello, I need help with Tnabbah app.
+User ID: ${userId}
+Email: ${userEmail}
+Current Car: ${selectedCarId || "—"}`,
+    );
+
+    Linking.openURL(`https://wa.me/966560602239?text=${message}`);
+  };
+
+  const sendIssueReport = () => {
+    const subject = encodeURIComponent("Tnabbah Issue Report");
+    const body = encodeURIComponent(
+      `Issue Report
+
+User ID: ${userId}
+Email: ${userEmail}
+Current Car: ${selectedCarId || "—"}
+Connected Car: ${connectedCarId || "—"}
+OBD Connected: ${obdConnected}
+Scanner Running: ${scannerRunning}
+Data Connection: ${mqttConnected}
+Last Connection: ${lastConnectionTime || "—"}
+
+Describe the issue:
+`,
+    );
+
+    Linking.openURL(
+      `mailto:tanbbahteem@gmail.com?subject=${subject}&body=${body}`,
+    );
+  };
+
   const handleStopScanner = async () => {
     try {
-      await vehicleScannerService.stopAutoScan();
-      await refreshObdState();
+      await stopScanner();
 
       showMessage({
-        title: t.done,
-        body: t.monitoringPaused,
+        title: t.monitoringPaused,
+        body: "",
         icon: "pause-circle",
       });
-    } catch {
+    } catch (error) {
+      console.log("Stop scanner error:", error);
+
       showMessage({
         title: t.errorTitle,
         body:
@@ -419,16 +826,16 @@ export default function Settings() {
     setConfirmDisconnectVisible(false);
 
     try {
-      await vehicleScannerService.stopAutoScan();
-      await elmBluetoothService.disconnect();
-      await refreshObdState();
+      await disconnectObd();
 
       showMessage({
-        title: t.done,
-        body: t.disconnectedDone,
+        title: t.disconnectedDone,
+        body: "",
         icon: "check-circle",
       });
-    } catch {
+    } catch (error) {
+      console.log("Disconnect OBD error:", error);
+
       showMessage({
         title: t.errorTitle,
         body:
@@ -440,32 +847,225 @@ export default function Settings() {
     }
   };
 
+  const handleUpdateName = async () => {
+    const realUserId = session?.user?.id;
+    const cleanName = fullNameInput.trim();
+
+    if (!realUserId || !cleanName) return;
+
+    if (cleanName.length > MAX_NAME_LENGTH) {
+      showMessage({
+        title: t.errorTitle,
+        body: t.nameLimitError,
+        icon: "alert-circle",
+      });
+      return;
+    }
+
+    setSavingName(true);
+
+    try {
+      /**
+       * نحدث الاسم في كل مكان بدون نقل المستخدم للهوم:
+       * 1) Provider الخاص بالحساب
+       * 2) جدول profiles في Supabase
+       * 3) user_metadata في Supabase Auth
+       * 4) نعمل refresh للجلسة عشان الواجهات الثانية مثل Home تقرأ الاسم الجديد أسرع
+       */
+      await updateName(cleanName);
+
+      const { error: profileUpdateError } = await supabase
+        .from("profiles")
+        .update({
+          full_name: cleanName,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", realUserId);
+
+      if (profileUpdateError) {
+        throw profileUpdateError;
+      }
+
+      const { error: authUpdateError } = await supabase.auth.updateUser({
+        data: { full_name: cleanName },
+      });
+
+      if (authUpdateError) {
+        throw authUpdateError;
+      }
+
+      /**
+       * هذا يساعد AuthProvider والهوم يستقبلون بيانات الجلسة الجديدة أسرع.
+       * لو فشل refresh ما نوقف العملية لأن الاسم تم حفظه في profiles و metadata.
+       */
+      const { error: refreshError } = await supabase.auth.refreshSession();
+
+      if (refreshError) {
+        console.log(
+          "Refresh session after name update error:",
+          refreshError.message,
+        );
+      }
+
+      await supabase.auth.getUser();
+
+      setEditNameVisible(false);
+      setDisplayName(cleanName);
+
+      showMessage({
+        title: selectedLanguage === "AR" ? "تم تحديث الاسم" : "Name updated",
+        body: "",
+        icon: "check-circle",
+      });
+
+      /**
+       * لا يوجد router.replace هنا.
+       * المستخدم يبقى في الإعدادات، ولما يروح للهوم يلقى الاسم الجديد.
+       */
+    } catch (error) {
+      console.log("Update name error:", error);
+
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "تعذر تحديث الاسم."
+            : "Could not update name.",
+        icon: "alert-circle",
+      });
+    } finally {
+      setSavingName(false);
+    }
+  };
+
+  const handleUpdateEmail = async () => {
+  const cleanEmail = emailInput.trim().toLowerCase();
+  const currentEmail = userEmail !== "—" ? userEmail.trim().toLowerCase() : "";
+
+  if (!cleanEmail || !cleanEmail.includes("@")) {
+    showMessage({
+      title: t.errorTitle,
+      body:
+        selectedLanguage === "AR"
+          ? "اكتبي بريد إلكتروني صحيح."
+          : "Enter a valid email.",
+      icon: "alert-circle",
+    });
+    return;
+  }
+
+  if (cleanEmail === currentEmail) {
+    showMessage({
+      title: t.errorTitle,
+      body: t.emailSameError,
+      icon: "alert-circle",
+    });
+    return;
+  }
+
+  setSavingEmail(true);
+
+  try {
+    
+
+    const redirectTo = "tnabbah://auth/callback";
+
+
+
+const { error } = await supabase.auth.updateUser(
+  { email: cleanEmail },
+  { emailRedirectTo: "tnabbah://auth/callback" }
+);
+
+if (error) {
+  throw error;
+}
+
+    setEditEmailVisible(false);
+    setEmailInput("");
+
+    showMessage({
+      title: t.emailChangeSentTitle,
+      body: t.emailChangeSentBody,
+      icon: "check-circle",
+    });
+  } catch (error: any) {
+    console.log("Update email error:", error?.message ?? error);
+
+    showMessage({
+      title: t.errorTitle,
+      body: error?.message || t.emailChangeError,
+      icon: "alert-circle",
+    });
+  } finally {
+    setSavingEmail(false);
+  }
+  };
+
+  const handleDeleteAccountVerification = async () => {
+    if (!userEmail || userEmail === "—") return;
+
+    if (!deletePassword.trim()) {
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "اكتبي كلمة المرور الحالية."
+            : "Enter your current password.",
+        icon: "alert-circle",
+      });
+
+      return;
+    }
+
+    setDeletingAccount(true);
+
+    try {
+      await deleteAccount(deletePassword);
+
+      setDeleteAccountVisible(false);
+      setDeletePassword("");
+
+      showMessage({
+        title:
+          selectedLanguage === "AR"
+            ? "تم حذف الحساب نهائيًا"
+            : "Account deleted permanently",
+        body: "",
+        icon: "check-circle",
+      });
+
+      setTimeout(async () => {
+        router.replace("/start" as any);
+      }, 1200);
+    } catch (error) {
+      console.log("Delete account verify error:", error);
+
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "حدث خطأ أثناء التحقق."
+            : "Verification failed.",
+        icon: "alert-circle",
+      });
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
   const handleLogout = async () => {
+    if (loggingOut) return;
+
     setConfirmLogoutVisible(false);
     setLoggingOut(true);
 
     try {
-      await vehicleScannerService.stopAutoScan();
-      await elmBluetoothService.disconnect();
-      mqttService.disconnect();
-      vehicleScannerService.resetCache();
-
-      const { error } = await supabase.auth.signOut();
-
-      if (error) {
-        setLoggingOut(false);
-
-        showMessage({
-          title: t.errorTitle,
-          body: t.logoutError,
-          icon: "alert-circle",
-        });
-
-        return;
-      }
+      await logout(disconnectObd);
 
       router.replace("/start" as any);
-    } catch {
+    } catch (error) {
+      console.log("Logout error:", error);
       setLoggingOut(false);
 
       showMessage({
@@ -483,6 +1083,19 @@ export default function Settings() {
   const textAlign = isRTL ? "right" : "left";
   const alignItems = isRTL ? "flex-end" : "flex-start";
   const iconMargin = isRTL ? { marginLeft: 12 } : { marginRight: 12 };
+
+  if (settingsLoading) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        edges={["top"]}
+      >
+        <View style={styles.loadingSettingsContainer}>
+          <ActivityIndicator size="small" color={theme.iconColor} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView
@@ -513,10 +1126,7 @@ export default function Settings() {
       </View>
 
       <View
-        style={[
-          styles.headerDivider,
-          { backgroundColor: theme.headerDivider },
-        ]}
+        style={[styles.headerDivider, { backgroundColor: theme.headerDivider }]}
       />
 
       <ScrollView
@@ -533,7 +1143,18 @@ export default function Settings() {
           {t.account}
         </Text>
 
-        <View style={styles.accountCard}>
+        <Pressable
+          style={styles.accountCard}
+          onPress={() => {
+            setFullNameInput(
+              (displayName === "مستخدم" ? "" : displayName).slice(
+                0,
+                MAX_NAME_LENGTH,
+              ),
+            );
+            setEditNameVisible(true);
+          }}
+        >
           <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
             <View
               style={[
@@ -546,12 +1167,22 @@ export default function Settings() {
               </View>
 
               <View style={[styles.userInfo, { alignItems }]}>
-                <Text
-                  numberOfLines={1}
-                  style={[styles.userName, { color: "#FFFFFF", textAlign }]}
+                <View
+                  style={[
+                    styles.accountNameRow,
+                    {
+                      flexDirection: rowDirection,
+                      alignSelf: isRTL ? "flex-end" : "flex-start",
+                    },
+                  ]}
                 >
-                  {userName}
-                </Text>
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.userName, { color: "#FFFFFF", textAlign }]}
+                  >
+                    {displayName || userName}
+                  </Text>
+                </View>
 
                 <Text
                   numberOfLines={1}
@@ -559,119 +1190,147 @@ export default function Settings() {
                 >
                   {userEmail}
                 </Text>
+              </View>
+            </View>
+
+            <Feather
+              name={isRTL ? "chevron-left" : "chevron-right"}
+              size={18}
+              color="rgba(255,255,255,0.78)"
+            />
+          </View>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+            pressed && { backgroundColor: theme.cardPressed },
+          ]}
+          onPress={() =>
+            router.push({
+              pathname: "/forgot-password",
+              params: {
+                email: userEmail !== "—" ? userEmail : "",
+                from: "settings",
+              },
+            } as any)
+          }
+        >
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
+                <Feather name="lock" size={20} color={theme.iconColor} />
+              </View>
+
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {selectedLanguage === "AR"
+                    ? "تغيير كلمة المرور"
+                    : "Change Password"}
+                </Text>
 
                 <Text
-                  numberOfLines={1}
-                  style={[styles.userIdText, { color: "#FFFFFF", textAlign }]}
+                  style={[
+                    styles.settingHint,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
                 >
-                  {t.userId}: {userId}
+                  {selectedLanguage === "AR"
+                    ? "إرسال رمز تحقق لتغيير كلمة المرور"
+                    : "Send a verification code to change password"}
                 </Text>
               </View>
             </View>
+
+            <Feather
+              name={isRTL ? "chevron-left" : "chevron-right"}
+              size={18}
+              color={theme.textSecondary}
+            />
           </View>
-        </View>
+        </Pressable>
 
-        <Text
-          style={[
-            styles.sectionTitle,
-            { color: theme.textSecondary, textAlign },
+        <Pressable
+          style={({ pressed }) => [
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+            pressed && { backgroundColor: theme.cardPressed },
           ]}
+          onPress={() => {
+            setEmailInput(userEmail !== "—" ? userEmail : "");
+            setEditEmailVisible(true);
+          }}
         >
-          {t.cars}
-        </Text>
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
+                <Feather name="mail" size={20} color={theme.iconColor} />
+              </View>
 
-        <View
-  style={[
-    styles.card,
-    {
-      backgroundColor: theme.surface,
-      borderColor: theme.cardBorder,
-    },
-  ]}
->
-  <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
-    <View
-      style={[
-        styles.settingLabelContainer,
-        { flexDirection: rowDirection },
-      ]}
-    >
-      <View
-        style={[
-          styles.iconWrapper,
-          iconMargin,
-          { backgroundColor: theme.iconBg },
-        ]}
-      >
-        <Feather name="truck" size={20} color={theme.iconColor} />
-      </View>
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {selectedLanguage === "AR" ? "تعديل الإيميل" : "Edit Email"}
+                </Text>
 
-      <View style={[styles.labelBlock, { alignItems }]}>
-        <Text
-          style={[
-            styles.settingLabel,
-            { color: theme.textPrimary, textAlign },
-          ]}
-        >
-          {t.currentCar}
-        </Text>
+                <Text
+                  style={[
+                    styles.settingHint,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {selectedLanguage === "AR"
+                    ? "سيتم إرسال تأكيد للإيميل الجديد"
+                    : "A confirmation will be sent to the new email"}
+                </Text>
+              </View>
+            </View>
 
-        <Text
-          numberOfLines={2}
-          style={[
-            styles.settingHint,
-            { color: theme.textSecondary, textAlign },
-          ]}
-        >
-          {currentCarId || t.noCar}
-        </Text>
-      </View>
-    </View>
-  </View>
-
-  <View style={[styles.carInfoGrid, { flexDirection: rowDirection }]}>
-    <View
-      style={[
-        styles.carInfoPill,
-        {
-          backgroundColor: theme.subtle,
-          borderColor: theme.cardBorder,
-        },
-      ]}
-    >
-      <Text style={[styles.carInfoLabel, { color: theme.textSecondary }]}>
-        {t.totalCars}
-      </Text>
-
-      <Text style={[styles.carInfoValue, { color: theme.textPrimary }]}>
-        {knownCarIds.length || (currentCarId ? 1 : 0)}
-      </Text>
-    </View>
-
-    <View
-      style={[
-        styles.carInfoPill,
-        {
-          backgroundColor: obdConnected ? theme.successBg : theme.dangerBg,
-          borderColor: theme.cardBorder,
-        },
-      ]}
-    >
-      <Text style={[styles.carInfoLabel, { color: theme.textSecondary }]}>
-        {t.carConnection}
-      </Text>
-
-      <Text
-        style={[
-          styles.carInfoValue,
-          { color: obdConnected ? COLORS.success : COLORS.danger },
-        ]}
-      >
-        {obdConnected ? t.connected : t.disconnected}
-      </Text>
-    </View>
-  </View>
-</View>
+            <Feather
+              name={isRTL ? "chevron-left" : "chevron-right"}
+              size={18}
+              color={theme.textSecondary}
+            />
+          </View>
+        </Pressable>
 
         <Text
           style={[
@@ -691,7 +1350,7 @@ export default function Settings() {
             },
             pressed && { backgroundColor: theme.cardPressed },
           ]}
-          onPress={() => setNotificationsEnabled((v) => !v)}
+          onPress={() => handleNotificationsChange(!notificationsEnabled)}
         >
           <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
             <View
@@ -733,7 +1392,7 @@ export default function Settings() {
 
             <AppSwitch
               value={notificationsEnabled}
-              onValueChange={setNotificationsEnabled}
+              onValueChange={handleNotificationsChange}
               trackOffColor={theme.border}
             />
           </View>
@@ -792,7 +1451,7 @@ export default function Settings() {
                   styles.segmentItem,
                   selectedLanguage === "AR" && styles.segmentItemActive,
                 ]}
-                onPress={() => setSelectedLanguage("AR")}
+                onPress={() => handleSettingsLanguageChange("AR")}
               >
                 <Text
                   style={[
@@ -810,7 +1469,7 @@ export default function Settings() {
                   styles.segmentItem,
                   selectedLanguage === "EN" && styles.segmentItemActive,
                 ]}
-                onPress={() => setSelectedLanguage("EN")}
+                onPress={() => handleSettingsLanguageChange("EN")}
               >
                 <Text
                   style={[
@@ -835,7 +1494,7 @@ export default function Settings() {
             },
             pressed && { backgroundColor: theme.cardPressed },
           ]}
-          onPress={() => setDarkModeEnabled((v) => !v)}
+          onPress={() => handleDarkModeChange(!darkModeEnabled)}
         >
           <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
             <View
@@ -877,7 +1536,7 @@ export default function Settings() {
 
             <AppSwitch
               value={darkModeEnabled}
-              onValueChange={setDarkModeEnabled}
+              onValueChange={handleDarkModeChange}
               trackOffColor={theme.border}
             />
           </View>
@@ -889,19 +1548,17 @@ export default function Settings() {
             { color: theme.textSecondary, textAlign },
           ]}
         >
-          {t.helpSupport}
+          {t.cars}
         </Text>
 
-        <Pressable
-          style={({ pressed }) => [
+        <View
+          style={[
             styles.card,
             {
               backgroundColor: theme.surface,
               borderColor: theme.cardBorder,
             },
-            pressed && { backgroundColor: theme.cardPressed },
           ]}
-          onPress={() => setHelpVisible(true)}
         >
           <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
             <View
@@ -917,11 +1574,7 @@ export default function Settings() {
                   { backgroundColor: theme.iconBg },
                 ]}
               >
-                <Feather
-                  name="help-circle"
-                  size={20}
-                  color={theme.iconColor}
-                />
+                <Ionicons name="car-sport-outline" size={20} color={theme.iconColor} />
               </View>
 
               <View style={[styles.labelBlock, { alignItems }]}>
@@ -931,27 +1584,348 @@ export default function Settings() {
                     { color: theme.textPrimary, textAlign },
                   ]}
                 >
-                  {t.help}
+                  {t.currentCar}
                 </Text>
 
                 <Text
+                  numberOfLines={2}
                   style={[
                     styles.settingHint,
                     { color: theme.textSecondary, textAlign },
                   ]}
                 >
-                  {t.helpDesc}
+                  {userCars.find((car) => car.car_id === activeSelectedCarId)
+                    ?.display_name ||
+                    activeSelectedCarId ||
+                    t.noCar}
                 </Text>
               </View>
             </View>
-
-            <Feather
-              name={isRTL ? "chevron-left" : "chevron-right"}
-              size={18}
-              color={theme.textSecondary}
-            />
           </View>
-        </Pressable>
+
+          <View style={[styles.carInfoGrid, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.carInfoPill,
+                {
+                  backgroundColor: darkModeEnabled ? "#2A2A2A" : theme.subtle,
+                  borderColor: darkModeEnabled ? "#3D3D3D" : theme.cardBorder,
+                },
+              ]}
+            >
+              <Text
+                style={[styles.carInfoLabel, { color: theme.textSecondary }]}
+              >
+                {t.totalCars}
+              </Text>
+
+              <Text style={[styles.carInfoValue, { color: theme.textPrimary }]}>
+                {userCars.length}
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.carInfoPill,
+                {
+                  backgroundColor: obdConnected
+                    ? theme.successBg
+                    : theme.dangerBg,
+                  borderColor: theme.cardBorder,
+                },
+              ]}
+            >
+              <Text
+                style={[styles.carInfoLabel, { color: theme.textSecondary }]}
+              >
+                {t.carConnection}
+              </Text>
+
+              <Text
+                style={[
+                  styles.carInfoValue,
+                  { color: obdConnected ? COLORS.success : COLORS.danger },
+                ]}
+              >
+                {obdConnected ? t.connected : t.disconnected}
+              </Text>
+            </View>
+          </View>
+
+          <Text
+            style={{
+              color: connectedCarId ? COLORS.success : theme.textSecondary,
+              textAlign,
+              marginTop: 10,
+              fontSize: 12,
+              fontWeight: "700",
+            }}
+          >
+            {connectedCarId
+              ? selectedLanguage === "AR"
+                ? `السيارة المتصلة الآن: ${
+                    userCars.find((car) => car.car_id === connectedCarId)
+                      ?.display_name || connectedCarId
+                  }`
+                : `Connected now: ${
+                    userCars.find((car) => car.car_id === connectedCarId)
+                      ?.display_name || connectedCarId
+                  }`
+              : selectedLanguage === "AR"
+                ? "لا توجد سيارة متصلة الآن"
+                : "No car is connected now"}
+          </Text>
+
+          <View
+            style={[
+              styles.panelDivider,
+              { backgroundColor: theme.headerDivider, marginTop: 16 },
+            ]}
+          />
+
+          {userCars.length === 0 ? (
+            <Text
+              style={{
+                color: theme.textSecondary,
+                textAlign,
+                marginTop: 16,
+                fontSize: 13,
+              }}
+            >
+              {connectedCarId
+                ? selectedLanguage === "AR"
+                  ? "تم العثور على آخر سيارة متصلة، وسيتم حفظها عند وصول أول تحديث اتصال."
+                  : "Last connected car found. It will be saved when the next connection update arrives."
+                : selectedLanguage === "AR"
+                  ? "لا توجد سيارات محفوظة بعد. اربطي قطعة السيارة لإضافة أول سيارة."
+                  : "No saved cars yet. Connect a device to add your first car."}
+            </Text>
+          ) : (
+            <View style={{ marginTop: 12, gap: 12 }}>
+              {userCars.map((car) => {
+                const isCurrent = activeSelectedCarId === car.car_id;
+                const isSwitchingThisCar = switchingCarId === car.car_id;
+                const isConnectedNow = connectedCarId === car.car_id;
+
+                return (
+                  <View
+                    key={car.id}
+                    style={[
+                      styles.card,
+                      {
+                        backgroundColor: theme.subtle,
+                        borderColor: isCurrent
+                          ? COLORS.primary
+                          : theme.cardBorder,
+                        borderWidth: isCurrent ? 1.4 : 1,
+                        marginBottom: 0,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.settingRow,
+                        {
+                          flexDirection: rowDirection,
+                          alignItems: "flex-start",
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.settingLabelContainer,
+                          {
+                            flexDirection: rowDirection,
+                            flex: 1,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.iconWrapper,
+                            iconMargin,
+                            {
+                              backgroundColor: theme.iconBg,
+                            },
+                          ]}
+                        >
+                          <Ionicons
+                            name="car-sport-outline"
+                            size={18}
+                            color={theme.iconColor}
+                          />
+                        </View>
+
+                        <View
+                          style={[
+                            styles.labelBlock,
+                            {
+                              alignItems,
+                              flex: 1,
+                            },
+                          ]}
+                        >
+                          <Text
+                            numberOfLines={1}
+                            style={[
+                              styles.settingLabel,
+                              {
+                                color: theme.textPrimary,
+                                textAlign,
+                              },
+                            ]}
+                          >
+                            {car.display_name ||
+                              `${
+                                selectedLanguage === "AR" ? "سيارة" : "Car"
+                              } ${car.car_id}`}
+                          </Text>
+
+                          {isConnectedNow && (
+                            <View
+                              style={{
+                                alignSelf: isRTL ? "flex-end" : "flex-start",
+                                backgroundColor: theme.successBg,
+                                borderRadius: 999,
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                                marginTop: 6,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: COLORS.success,
+                                  fontSize: 11,
+                                  fontWeight: "800",
+                                }}
+                              >
+                                {selectedLanguage === "AR"
+                                  ? "متصلة الآن"
+                                  : "Connected now"}
+                              </Text>
+                            </View>
+                          )}
+
+                          <Text
+                            numberOfLines={1}
+                            style={[
+                              styles.settingHint,
+                              {
+                                color: theme.textSecondary,
+                                textAlign,
+                                marginTop: 4,
+                              },
+                            ]}
+                          >
+                            ID: {car.car_id}
+                          </Text>
+
+                          <Text
+                            numberOfLines={1}
+                            style={[
+                              styles.settingHint,
+                              {
+                                color: theme.textSecondary,
+                                textAlign,
+                                marginTop: 2,
+                              },
+                            ]}
+                          >
+                            {selectedLanguage === "AR"
+                              ? "آخر اتصال:"
+                              : "Last connection:"}{" "}
+                            {car.last_connected_at
+                              ? new Date(car.last_connected_at).toLocaleString()
+                              : "—"}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <View
+                      style={{
+                        flexDirection: rowDirection,
+                        gap: 8,
+                        marginTop: 14,
+                      }}
+                    >
+                      {!isCurrent && (
+                        <Pressable
+                          onPress={() => handleSelectDefaultCar(car.car_id)}
+                          disabled={!!switchingCarId}
+                          style={{
+                            backgroundColor: COLORS.primary,
+                            paddingHorizontal: 12,
+                            paddingVertical: 10,
+                            borderRadius: 12,
+                            opacity: switchingCarId ? 0.65 : 1,
+                          }}
+                        >
+                          {isSwitchingThisCar ? (
+                            <ActivityIndicator size="small" color="#FFF" />
+                          ) : (
+                            <Text
+                              style={{
+                                color: "#FFF",
+                                fontSize: 12,
+                                fontWeight: "700",
+                              }}
+                            >
+                              {selectedLanguage === "AR" ? "تعيين" : "Set"}
+                            </Text>
+                          )}
+                        </Pressable>
+                      )}
+
+                      <Pressable
+                        onPress={() => openEditCarName(car)}
+                        style={{
+                          backgroundColor: theme.iconBg,
+                          paddingHorizontal: 12,
+                          paddingVertical: 10,
+                          borderRadius: 12,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: theme.textPrimary,
+                            fontSize: 12,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {selectedLanguage === "AR" ? "تعديل" : "Rename"}
+                        </Text>
+                      </Pressable>
+
+                      <Pressable
+                        onPress={() => {
+                          setCarToDelete(car);
+                          setConfirmDeleteCarVisible(true);
+                        }}
+                        style={{
+                          backgroundColor: theme.iconBg,
+                          paddingHorizontal: 12,
+                          paddingVertical: 10,
+                          borderRadius: 12,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: COLORS.danger,
+                            fontSize: 12,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {selectedLanguage === "AR" ? "حذف" : "Delete"}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
 
         <Text
           style={[
@@ -990,10 +1964,7 @@ export default function Settings() {
               />
 
               <Text
-                style={[
-                  styles.miniStatusTitle,
-                  { color: theme.textSecondary },
-                ]}
+                style={[styles.miniStatusTitle, { color: theme.textSecondary }]}
               >
                 {t.deviceStatus}
               </Text>
@@ -1026,10 +1997,7 @@ export default function Settings() {
               />
 
               <Text
-                style={[
-                  styles.miniStatusTitle,
-                  { color: theme.textSecondary },
-                ]}
+                style={[styles.miniStatusTitle, { color: theme.textSecondary }]}
               >
                 {t.scanStatus}
               </Text>
@@ -1047,7 +2015,56 @@ export default function Settings() {
                 {scannerRunning ? t.scannerOn : t.scannerOff}
               </Text>
             </View>
+
+            <View
+              style={[
+                styles.miniStatusCard,
+                {
+                  backgroundColor: mqttConnected
+                    ? theme.successBg
+                    : theme.dangerBg,
+                  borderColor: theme.cardBorder,
+                },
+              ]}
+            >
+              <Feather
+                name="wifi"
+                size={17}
+                color={mqttConnected ? COLORS.success : COLORS.danger}
+              />
+
+              <Text
+                style={[styles.miniStatusTitle, { color: theme.textSecondary }]}
+              >
+                {t.dataConnection}
+              </Text>
+
+              <Text
+                style={[
+                  styles.miniStatusText,
+                  { color: mqttConnected ? COLORS.success : COLORS.danger },
+                ]}
+              >
+                {mqttConnected ? t.connected : t.disconnected}
+              </Text>
+            </View>
           </View>
+
+          {lastConnectionTime && (
+            <Text
+              style={{
+                color: theme.textSecondary,
+                textAlign,
+                fontSize: 12,
+                fontWeight: "700",
+                paddingHorizontal: 16,
+                paddingBottom: 12,
+              }}
+            >
+              {selectedLanguage === "AR" ? "آخر اتصال:" : "Last connection:"}{" "}
+              {new Date(lastConnectionTime).toLocaleString()}
+            </Text>
+          )}
 
           <View
             style={[
@@ -1077,12 +2094,7 @@ export default function Settings() {
                     { backgroundColor: theme.iconBg },
                   ]}
                 >
-                  <Feather
-                    name="bluetooth"
-                    size={20}
-                    color={theme.iconColor}
-                  />
-                </View>
+                  <Feather name="bluetooth" size={20} color={theme.iconColor} /></View>
 
                 <View style={[styles.labelBlock, { alignItems }]}>
                   <Text
@@ -1127,9 +2139,14 @@ export default function Settings() {
                 backgroundColor: theme.iconBg,
                 borderColor: theme.cardBorder,
               },
-              pressed && { backgroundColor: theme.cardPressed },
+              pressed &&
+                scannerRunning && {
+                  backgroundColor: theme.cardPressed,
+                },
+              !scannerRunning && { opacity: 0.45 },
             ]}
             onPress={handleStopScanner}
+            disabled={!scannerRunning}
           >
             <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
               <View
@@ -1142,7 +2159,7 @@ export default function Settings() {
                   style={[
                     styles.smallIconWrapper,
                     iconMargin,
-                    { backgroundColor: theme.surface },
+                    { backgroundColor: theme.iconBg },
                   ]}
                 >
                   <Feather
@@ -1188,9 +2205,17 @@ export default function Settings() {
                 backgroundColor: theme.iconBg,
                 borderColor: theme.cardBorder,
               },
-              pressed && { backgroundColor: theme.cardPressed },
+              pressed &&
+                obdConnected && {
+                  backgroundColor: theme.cardPressed,
+                },
+              !obdConnected && { opacity: 0.45 },
             ]}
-            onPress={() => setConfirmDisconnectVisible(true)}
+            onPress={() => {
+              if (!obdConnected) return;
+              setConfirmDisconnectVisible(true);
+            }}
+            disabled={!obdConnected}
           >
             <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
               <View
@@ -1203,7 +2228,7 @@ export default function Settings() {
                   style={[
                     styles.smallIconWrapper,
                     iconMargin,
-                    { backgroundColor: theme.surface },
+                    { backgroundColor: theme.iconBg },
                   ]}
                 >
                   <Feather name="power" size={18} color={theme.iconColor} />
@@ -1239,6 +2264,137 @@ export default function Settings() {
           </Pressable>
         </View>
 
+        <Text
+          style={[
+            styles.sectionTitle,
+            { color: theme.textSecondary, textAlign },
+          ]}
+        >
+          {t.helpSupport}
+        </Text>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+            pressed && { backgroundColor: theme.cardPressed },
+          ]}
+          onPress={() => setHelpVisible(true)}
+        >
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
+                <Feather name="help-circle" size={20} color={theme.iconColor} />
+              </View>
+
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {t.help}
+                </Text>
+
+                <Text
+                  style={[
+                    styles.settingHint,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {t.helpDesc}
+                </Text>
+              </View>
+            </View>
+
+            <Feather
+              name={isRTL ? "chevron-left" : "chevron-right"}
+              size={18}
+              color={theme.textSecondary}
+            />
+          </View>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+            pressed && { backgroundColor: theme.cardPressed },
+          ]}
+          onPress={() => setDeleteAccountVisible(true)}
+        >
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
+                <Feather name="trash-2" size={20} color={COLORS.danger} />
+              </View>
+
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    {
+                      color: COLORS.danger,
+                      textAlign,
+                    },
+                  ]}
+                >
+                  {selectedLanguage === "AR" ? "حذف الحساب" : "Delete Account"}
+                </Text>
+
+                <Text
+                  style={[
+                    styles.settingHint,
+                    {
+                      color: theme.textSecondary,
+                      textAlign,
+                    },
+                  ]}
+                >
+                  {selectedLanguage === "AR"
+                    ? "سيتم طلب كلمة المرور الحالية"
+                    : "Your current password will be required"}
+                </Text>
+              </View>
+            </View>
+
+            <Feather
+              name={isRTL ? "chevron-left" : "chevron-right"}
+              size={18}
+              color={theme.textSecondary}
+            />
+          </View>
+        </Pressable>
+
         <View style={styles.logoutSection}>
           <Pressable
             style={({ pressed }) => [
@@ -1250,7 +2406,7 @@ export default function Settings() {
             disabled={loggingOut}
           >
             <LinearGradient
-              colors={["rgba(154,33,28,0.98)", "rgba(118,23,19,0.98)"]}
+              colors={[COLORS.primary, COLORS.primaryPressed]}
               start={{ x: 0.15, y: 0 }}
               end={{ x: 0.9, y: 1 }}
               style={styles.logoutGradient}
@@ -1279,13 +2435,263 @@ export default function Settings() {
         </View>
       </ScrollView>
 
-      <HelpModal
+      {switchingCarId && (
+        <View style={styles.fullScreenBlockingOverlay}>
+          <View
+            style={[
+              styles.blockingOverlayCard,
+              { backgroundColor: theme.surface },
+            ]}
+          >
+            <ActivityIndicator size="small" color={COLORS.primary} />
+
+            <Text
+              style={[styles.blockingOverlayText, { color: theme.textPrimary }]}
+            >
+              {selectedLanguage === "AR"
+                ? "جاري تبديل السيارة..."
+                : "Switching vehicle..."}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      <Modal
         visible={helpVisible}
-        onClose={() => setHelpVisible(false)}
-        t={t}
-        theme={theme}
-        isRTL={isRTL}
-      />
+        transparent
+        animationType="fade"
+        onRequestClose={() => setHelpVisible(false)}
+      >
+        <View
+          style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}
+        >
+          <View
+            style={[
+              styles.helpModal,
+              {
+                backgroundColor: darkModeEnabled ? "#202020" : "#FFFFFF",
+                borderColor: darkModeEnabled ? "#343434" : "#DCDCDC",
+              },
+            ]}
+          >
+            <Pressable
+              onPress={() => setHelpVisible(false)}
+              hitSlop={12}
+              style={({ pressed }) => [
+                styles.helpCloseButton,
+                { opacity: pressed ? 0.5 : 1 },
+              ]}
+            >
+              <Feather
+                name="x"
+                size={23}
+                color={darkModeEnabled ? "#FFFFFF" : "#1D1D1F"}
+              />
+            </Pressable>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.helpScrollContent}
+            >
+              <View
+                style={[styles.helpHeader, { flexDirection: rowDirection }]}
+              >
+                <View
+                  style={[
+                    styles.helpHeaderIconBox,
+                    {
+                      backgroundColor: darkModeEnabled ? "#2C2C2C" : "#F3F4F6",
+                      borderColor: darkModeEnabled ? "#3A3A3A" : "#DCDCDC",
+                    },
+                  ]}
+                >
+                  <Feather
+                    name="help-circle"
+                    size={34}
+                    color={COLORS.primary}
+                  />
+                </View>
+
+                <View style={[styles.helpHeaderTextBlock, { alignItems }]}>
+                  <Text
+                    style={[
+                      styles.helpTitle,
+                      { color: theme.textPrimary, textAlign },
+                    ]}
+                  >
+                    {t.helpSupport}
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.helpIntroText,
+                      { color: theme.textSecondary, textAlign },
+                    ]}
+                  >
+                    {t.helpIntro}
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={[
+                  styles.faqCard,
+                  {
+                    backgroundColor: darkModeEnabled ? "#2A2A2A" : "#F7F7F7",
+                    borderColor: darkModeEnabled ? "#3A3A3A" : "#DCDCDC",
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.helpQuestion,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {t.faqConnectionQuestion}
+                </Text>
+                <Text
+                  style={[
+                    styles.helpAnswer,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {t.faqConnectionAnswer}
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.faqCard,
+                  {
+                    backgroundColor: darkModeEnabled ? "#2A2A2A" : "#F7F7F7",
+                    borderColor: darkModeEnabled ? "#3A3A3A" : "#DCDCDC",
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.helpQuestion,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {t.faqNotificationsQuestion}
+                </Text>
+                <Text
+                  style={[
+                    styles.helpAnswer,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {t.faqNotificationsAnswer}
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.faqCard,
+                  {
+                    backgroundColor: darkModeEnabled ? "#2A2A2A" : "#F7F7F7",
+                    borderColor: darkModeEnabled ? "#3A3A3A" : "#DCDCDC",
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.helpQuestion,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {t.faqReportQuestion}
+                </Text>
+                <Text
+                  style={[
+                    styles.helpAnswer,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {t.faqReportAnswer}
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={openWhatsAppSupport}
+                style={({ pressed }) => [
+                  styles.supportMainButton,
+                  styles.supportWhatsAppMainButton,
+                  { opacity: pressed ? 0.88 : 1 },
+                ]}
+              >
+                <Feather name="message-circle" size={24} color="#FFFFFF" />
+                <Text style={styles.supportMainButtonText}>
+                  {t.supportWhatsAppButton}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={openSupportEmail}
+                style={({ pressed }) => [
+                  styles.supportMainButton,
+                  styles.supportEmailMainButton,
+                  { opacity: pressed ? 0.88 : 1 },
+                ]}
+              >
+                <Feather name="mail" size={25} color="#FFFFFF" />
+                <Text style={styles.supportMainButtonText}>
+                  {t.supportEmailButton}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={sendIssueReport}
+                style={({ pressed }) => [
+                  styles.supportIssueFullButton,
+                  {
+                    backgroundColor: darkModeEnabled ? "#2A2A2A" : "#F3F4F6",
+                    borderColor: darkModeEnabled ? "#3A3A3A" : "#DCDCDC",
+                    opacity: pressed ? 0.82 : 1,
+                  },
+                ]}
+              >
+                <Feather
+                  name="alert-circle"
+                  size={24}
+                  color={darkModeEnabled ? "#FFFFFF" : "#1D1D1F"}
+                />
+                <Text
+                  style={[
+                    styles.supportIssueFullButtonText,
+                    { color: darkModeEnabled ? "#FFFFFF" : "#1D1D1F" },
+                  ]}
+                >
+                  {t.reportIssueButton}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setHelpVisible(false)}
+                style={({ pressed }) => [
+                  styles.closeHelpButton,
+                  {
+                    backgroundColor: darkModeEnabled ? "#252525" : "#FFFFFF",
+                    borderColor: darkModeEnabled ? "#3A3A3A" : "#DCDCDC",
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.closeHelpButtonText,
+                    { color: theme.textPrimary },
+                  ]}
+                >
+                  {t.done}
+                </Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <ConfirmModal
         visible={confirmLogoutVisible}
@@ -1297,6 +2703,7 @@ export default function Settings() {
         theme={theme}
         isRTL={isRTL}
         danger
+        styles={styles}
         onCancel={() => setConfirmLogoutVisible(false)}
         onConfirm={handleLogout}
       />
@@ -1310,11 +2717,39 @@ export default function Settings() {
         icon="power"
         theme={theme}
         isRTL={isRTL}
+        styles={styles}
         onCancel={() => setConfirmDisconnectVisible(false)}
         onConfirm={handleDisconnectObd}
       />
 
-      <MessageModal
+      <ConfirmModal
+        visible={confirmDeleteCarVisible}
+        title={selectedLanguage === "AR" ? "حذف السيارة" : "Delete Car"}
+        message={
+          selectedLanguage === "AR"
+            ? "هل أنتِ متأكدة؟ سيتم حذف السيارة من قائمتك، وإذا كانت متصلة سيتم فصل الاتصال وإيقاف المتابعة."
+            : "Are you sure? This car will be removed from your list. If it is connected, the connection will be ended."
+        }
+        confirmText={selectedLanguage === "AR" ? "حذف" : "Delete"}
+        cancelText={t.cancel}
+        icon="trash-2"
+        theme={theme}
+        isRTL={isRTL}
+        danger
+        styles={styles}
+        onCancel={() => {
+          setConfirmDeleteCarVisible(false);
+          setCarToDelete(null);
+        }}
+        onConfirm={async () => {
+          if (!carToDelete) return;
+          setConfirmDeleteCarVisible(false);
+          await handleDeleteCar(carToDelete);
+          setCarToDelete(null);
+        }}
+      />
+
+      <AppMessageModal
         visible={messageVisible}
         title={messageTitle}
         message={messageBody}
@@ -1325,461 +2760,72 @@ export default function Settings() {
         onClose={() => setMessageVisible(false)}
       />
 
+      <EditNameModal
+        visible={editNameVisible}
+        value={fullNameInput}
+        onChangeText={(text: string) =>
+          setFullNameInput(text.slice(0, MAX_NAME_LENGTH))
+        }
+        onCancel={() => setEditNameVisible(false)}
+        onSave={handleUpdateName}
+        saving={savingName}
+        theme={theme}
+        isRTL={isRTL}
+        t={t}
+        styles={styles}
+      />
+
+      <EditEmailModal
+        visible={editEmailVisible}
+        value={emailInput}
+        onChangeText={setEmailInput}
+        onCancel={() => setEditEmailVisible(false)}
+        onSave={handleUpdateEmail}
+        saving={savingEmail}
+        theme={theme}
+        isRTL={isRTL}
+        t={t}
+        styles={styles}
+      />
+
+      <EditCarNameModal
+        visible={editCarVisible}
+        value={carNameInput}
+        onChangeText={setCarNameInput}
+        onCancel={() => {
+          setEditCarVisible(false);
+          setSelectedCarForEdit(null);
+          setCarNameInput("");
+        }}
+        onSave={handleSaveCarName}
+        saving={savingCarName}
+        theme={theme}
+        isRTL={isRTL}
+        styles={styles}
+      />
+
+      <DeleteAccountModal
+        visible={deleteAccountVisible}
+        password={deletePassword}
+        onChangePassword={setDeletePassword}
+        onCancel={() => {
+          setDeleteAccountVisible(false);
+          setDeletePassword("");
+        }}
+        onConfirm={handleDeleteAccountVerification}
+        loading={deletingAccount}
+        theme={theme}
+        isRTL={isRTL}
+        styles={styles}
+      />
+
       <LogoutLoadingModal
         visible={loggingOut}
         text={t.loggingOut}
         theme={theme}
+        styles={styles}
       />
     </SafeAreaView>
-  );
-}
-
-function HelpModal({
-  visible,
-  onClose,
-  t,
-  theme,
-  isRTL,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  t: any;
-  theme: any;
-  isRTL: boolean;
-}) {
-  const textAlign = isRTL ? "right" : "left";
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View
-        style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}
-      >
-        <View
-          style={[
-            styles.helpModal,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.cardBorder,
-            },
-          ]}
-        >
-          <View style={styles.helpModalHeader}>
-            <Pressable
-              style={[
-                styles.modalCloseButton,
-                {
-                  backgroundColor: theme.iconBg,
-                  borderColor: theme.border,
-                },
-              ]}
-              onPress={onClose}
-            >
-              <Feather name="x" size={21} color={theme.iconColor} />
-            </Pressable>
-
-            <Text style={[styles.helpModalTitle, { color: theme.textPrimary }]}>
-              {t.helpTitle}
-            </Text>
-
-            <View style={styles.modalHeaderSpace} />
-          </View>
-
-          <View
-            style={[
-              styles.modalDivider,
-              { backgroundColor: theme.headerDivider },
-            ]}
-          />
-
-          <ScrollView
-            style={styles.helpModalScroll}
-            contentContainerStyle={styles.helpModalContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.helpModalBody}>
-  <Text
-    style={[
-      styles.helpSectionTitle,
-      { color: theme.textPrimary, textAlign },
-    ]}
-  >
-    مرحبًا بك في تنبّه
-  </Text>
-
-  <Text
-    style={[
-      styles.helpParagraph,
-      { color: theme.textSecondary, textAlign },
-    ]}
-  >
-    تطبيق تنبّه يساعدك على متابعة حالة سيارتك بطريقة سهلة وواضحة. يمكنك من خلاله ربط قطعة السيارة، تشغيل الفحص، معرفة حالة الاتصال، قراءة أهم التنبيهات، وحفظ تقارير الفحص للرجوع لها لاحقًا.
-  </Text>
-
-  <Text
-    style={[
-      styles.helpSectionTitle,
-      { color: theme.textPrimary, textAlign },
-    ]}
-  >
-    ربط قطعة السيارة
-  </Text>
-
-  <Text
-    style={[
-      styles.helpParagraph,
-      { color: theme.textSecondary, textAlign },
-    ]}
-  >
-    عند الدخول للتطبيق يمكنك ربط قطعة السيارة من خلال البلوتوث. اتبعي خطوات الربط، ثم اختاري الجهاز المناسب من قائمة الأجهزة المتاحة. بعد نجاح الاتصال، يستطيع التطبيق قراءة بيانات السيارة وعرض حالتها.
-  </Text>
-
-  <Text
-    style={[
-      styles.helpSectionTitle,
-      { color: theme.textPrimary, textAlign },
-    ]}
-  >
-    الصفحة الرئيسية
-  </Text>
-
-  <Text
-    style={[
-      styles.helpParagraph,
-      { color: theme.textSecondary, textAlign },
-    ]}
-  >
-    الصفحة الرئيسية تعرض أهم معلومات السيارة في مكان واحد، مثل حالة اتصال القطعة، ملخص حالة السيارة، والتنبيهات المهمة. كما يمكنك من خلالها تشغيل الفحص لمعرفة حالة السيارة بشكل أوضح.
-  </Text>
-
-  <Text
-    style={[
-      styles.helpSectionTitle,
-      { color: theme.textPrimary, textAlign },
-    ]}
-  >
-    الفحص
-  </Text>
-
-  <Text
-    style={[
-      styles.helpParagraph,
-      { color: theme.textSecondary, textAlign },
-    ]}
-  >
-    عند تشغيل الفحص، يقوم التطبيق بقراءة بيانات السيارة وتحليلها. بعد انتهاء الفحص يظهر تقرير يوضح الحالة والملاحظات المهمة، ويمكن حفظ التقرير في المحفظة.
-  </Text>
-
-  <Text
-    style={[
-      styles.helpSectionTitle,
-      { color: theme.textPrimary, textAlign },
-    ]}
-  >
-    المساعد الذكي
-  </Text>
-
-  <Text
-    style={[
-      styles.helpParagraph,
-      { color: theme.textSecondary, textAlign },
-    ]}
-  >
-    المساعد الذكي يسمح لك بطرح أسئلة عن السيارة أو الأعطال أو التنبيهات. اكتبي سؤالك، وسيحاول المساعد إعطاء إجابة واضحة تساعدك على فهم المشكلة أو الخطوة المناسبة.
-  </Text>
-
-  <Text
-    style={[
-      styles.helpSectionTitle,
-      { color: theme.textPrimary, textAlign },
-    ]}
-  >
-    المحفظة
-  </Text>
-
-  <Text
-    style={[
-      styles.helpParagraph,
-      { color: theme.textSecondary, textAlign },
-    ]}
-  >
-    المحفظة تحفظ تقارير الفحص الخاصة بسيارتك. كما تساعدك على متابعة الصيانة الدورية، مثل التذكير بالأشياء التي تحتاج متابعة أو صيانة خلال فترة محددة.
-  </Text>
-
-  <Text
-    style={[
-      styles.helpSectionTitle,
-      { color: theme.textPrimary, textAlign },
-    ]}
-  >
-    الإعدادات
-  </Text>
-
-  <Text
-    style={[
-      styles.helpParagraph,
-      { color: theme.textSecondary, textAlign },
-    ]}
-  >
-    من الإعدادات يمكنك التحكم في لغة التطبيق، تفعيل أو إيقاف الإشعارات، تغيير الوضع الداكن، متابعة حالة اتصال السيارة، الدخول إلى إعدادات البلوتوث، إيقاف المتابعة مؤقتًا، أو إنهاء اتصال السيارة.
-  </Text>
-
-  <Text
-    style={[
-      styles.helpSectionTitle,
-      { color: theme.textPrimary, textAlign },
-    ]}
-  >
-    ملاحظة مهمة
-  </Text>
-
-  <Text
-    style={[
-      styles.helpParagraph,
-      { color: theme.textSecondary, textAlign },
-    ]}
-  >
-    إذا كانت قطعة السيارة غير متصلة، قد لا تظهر بعض البيانات أو نتائج الفحص. تأكدي من تشغيل البلوتوث، وتركيب القطعة بشكل صحيح، ثم أعيدي المحاولة.
-  </Text>
-</View>
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function ConfirmModal({
-  visible,
-  title,
-  message,
-  confirmText,
-  cancelText,
-  icon,
-  theme,
-  isRTL,
-  danger = false,
-  onCancel,
-  onConfirm,
-}: {
-  visible: boolean;
-  title: string;
-  message: string;
-  confirmText: string;
-  cancelText: string;
-  icon: keyof typeof Feather.glyphMap;
-  theme: any;
-  isRTL: boolean;
-  danger?: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const textAlign = isRTL ? "right" : "left";
-  const rowDirection = isRTL ? "row-reverse" : "row";
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onCancel}
-    >
-      <View
-        style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}
-      >
-        <View
-          style={[
-            styles.confirmModal,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.cardBorder,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.confirmIconCircle,
-              { backgroundColor: theme.iconBg },
-            ]}
-          >
-            <Feather name={icon} size={28} color={theme.iconColor} />
-          </View>
-
-          <Text style={[styles.confirmTitle, { color: theme.textPrimary }]}>
-            {title}
-          </Text>
-
-          <Text
-            style={[
-              styles.confirmMessage,
-              { color: theme.textSecondary, textAlign },
-            ]}
-          >
-            {message}
-          </Text>
-
-          <View style={[styles.confirmButtons, { flexDirection: rowDirection }]}>
-            <Pressable
-              style={[
-                styles.confirmSecondaryButton,
-                {
-                  backgroundColor: theme.iconBg,
-                  borderColor: theme.cardBorder,
-                },
-              ]}
-              onPress={onCancel}
-            >
-              <Text
-                style={[
-                  styles.confirmSecondaryText,
-                  { color: theme.textPrimary },
-                ]}
-              >
-                {cancelText}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.confirmPrimaryButton,
-                { backgroundColor: danger ? COLORS.primary : COLORS.primary },
-              ]}
-              onPress={onConfirm}
-            >
-              <Text style={styles.confirmPrimaryText}>{confirmText}</Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function MessageModal({
-  visible,
-  title,
-  message,
-  icon,
-  buttonText,
-  theme,
-  isRTL,
-  onClose,
-}: {
-  visible: boolean;
-  title: string;
-  message: string;
-  icon: keyof typeof Feather.glyphMap;
-  buttonText: string;
-  theme: any;
-  isRTL: boolean;
-  onClose: () => void;
-}) {
-  const textAlign = isRTL ? "right" : "left";
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View
-        style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}
-      >
-        <View
-          style={[
-            styles.confirmModal,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.cardBorder,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.confirmIconCircle,
-              { backgroundColor: theme.iconBg },
-            ]}
-          >
-            <Feather name={icon} size={28} color={theme.iconColor} />
-          </View>
-
-          <Text style={[styles.confirmTitle, { color: theme.textPrimary }]}>
-            {title}
-          </Text>
-
-          <Text
-            style={[
-              styles.confirmMessage,
-              { color: theme.textSecondary, textAlign },
-            ]}
-          >
-            {message}
-          </Text>
-
-          <Pressable
-            style={[
-              styles.singleModalButton,
-              { backgroundColor: COLORS.primary },
-            ]}
-            onPress={onClose}
-          >
-            <Text style={styles.confirmPrimaryText}>{buttonText}</Text>
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function LogoutLoadingModal({
-  visible,
-  text,
-  theme,
-}: {
-  visible: boolean;
-  text: string;
-  theme: any;
-}) {
-  return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View
-        style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}
-      >
-        <View
-          style={[
-            styles.logoutLoadingBox,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.cardBorder,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.logoutLoadingIconCircle,
-              { backgroundColor: theme.iconBg },
-            ]}
-          >
-            <Feather name="log-out" size={28} color={theme.iconColor} />
-          </View>
-
-          <ActivityIndicator
-            size="small"
-            color={theme.iconColor}
-            style={styles.logoutLoadingSpinner}
-          />
-
-          <Text style={[styles.logoutLoadingText, { color: theme.textPrimary }]}>
-            {text}
-          </Text>
-        </View>
-      </View>
-    </Modal>
   );
 }
 
@@ -1932,6 +2978,31 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 17,
     fontWeight: "900",
+    flexShrink: 1,
+  },
+
+  accountNameRow: {
+    alignItems: "center",
+    gap: 8,
+    maxWidth: "100%",
+  },
+
+  accountEditPill: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+
+  accountEditText: {
+    color: "#FFFFFF",
+    fontSize: 10.5,
+    fontWeight: "900",
   },
 
   userEmail: {
@@ -2039,8 +3110,8 @@ const styles = StyleSheet.create({
 
   logoutButtonWrapper: {
     width: "100%",
-    height: 64,
-    borderRadius: 30,
+    height: 56,
+    borderRadius: 28,
     overflow: "hidden",
     shadowColor: "#6E1411",
     shadowOffset: { width: 0, height: 8 },
@@ -2056,7 +3127,7 @@ const styles = StyleSheet.create({
 
   logoutGradient: {
     flex: 1,
-    borderRadius: 30,
+    borderRadius: 28,
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
@@ -2069,8 +3140,8 @@ const styles = StyleSheet.create({
     right: 0,
     height: "48%",
     backgroundColor: "rgba(255,255,255,0.10)",
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
   },
 
   logoutInner: {
@@ -2087,15 +3158,15 @@ const styles = StyleSheet.create({
   logoutText: {
     color: "#FFFFFF",
     fontWeight: "900",
-    fontSize: 20,
+    fontSize: 18,
     textAlign: "center",
   },
 
   switchTrack: {
-    width: 52,
-    height: 30,
-    borderRadius: 15,
-    padding: 2,
+    width: 56,
+    height: 32,
+    borderRadius: 18,
+    padding: 3,
     justifyContent: "center",
   },
 
@@ -2103,11 +3174,12 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
+    backgroundColor: "#FFFFFF",
     shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+    elevation: 3,
   },
 
   modalOverlay: {
@@ -2117,18 +3189,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
 
-  helpModal: {
-    width: "100%",
-    height: "86%",
-    borderRadius: 30,
-    borderWidth: 1,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    elevation: 8,
-  },
+  /* helpModal: {
+        width: "100%",
+        height: "86%",
+        borderRadius: 30,
+        borderWidth: 1,
+        overflow: "hidden",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.18,
+        shadowRadius: 18,
+        elevation: 8,
+    }, */
 
   helpModalHeader: {
     minHeight: 72,
@@ -2210,6 +3282,67 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 14,
+  },
+
+  successAnimationWrapper: {
+    width: 90,
+    height: 90,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+
+  successLottie: {
+    width: 145,
+    height: 145,
+  },
+
+  successPulseRing: {
+    position: "absolute",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: "rgba(46,125,50,0.28)",
+    backgroundColor: "rgba(46,125,50,0.08)",
+  },
+
+  successPulseRingSecond: {
+    borderColor: "rgba(46,125,50,0.18)",
+    backgroundColor: "rgba(46,125,50,0.05)",
+  },
+
+  successCheckCircle: {
+    width: 66,
+    height: 66,
+    borderRadius: 33,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.success,
+    shadowColor: COLORS.success,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: Platform.OS === "android" ? 0.16 : 0.26,
+    shadowRadius: 14,
+    elevation: 6,
+  },
+
+  appMessageIconCircle: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+
+  appMessageSuccessIconCircle: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+    backgroundColor: "transparent",
   },
 
   confirmTitle: {
@@ -2301,38 +3434,236 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   helpSectionTitle: {
-  fontSize: 15.5,
-  fontWeight: "900",
-  lineHeight: 24,
-  marginTop: 12,
-  marginBottom: 8,
-},
-carInfoGrid: {
-  gap: 10,
-  marginTop: 14,
-},
+    fontSize: 15.5,
+    fontWeight: "900",
+    lineHeight: 24,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  carInfoGrid: {
+    gap: 10,
+    marginTop: 14,
+  },
 
-carInfoPill: {
-  flex: 1,
-  borderRadius: 16,
-  borderWidth: 1,
-  paddingVertical: 10,
-  paddingHorizontal: 10,
-  alignItems: "center",
-  justifyContent: "center",
-},
+  carInfoPill: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
-carInfoLabel: {
-  fontSize: 10.5,
-  fontWeight: "800",
-  textAlign: "center",
-},
+  carInfoLabel: {
+    fontSize: 10.5,
+    fontWeight: "800",
+    textAlign: "center",
+  },
 
-carInfoValue: {
-  marginTop: 4,
-  fontSize: 13,
-  fontWeight: "900",
-  textAlign: "center",
-},
+  carInfoValue: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: "900",
+    textAlign: "center",
+  },
 
+  loadingSettingsContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  nameInput: {
+    width: "100%",
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: 18,
+  },
+
+  helpModal: {
+    width: "93%",
+    maxWidth: 430,
+    maxHeight: "88%",
+    borderRadius: 34,
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
+    borderWidth: 1,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: Platform.OS === "android" ? 0.22 : 0.28,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+
+  helpScrollContent: {
+    paddingHorizontal: 22,
+    paddingTop: 58,
+    paddingBottom: 22,
+  },
+
+  helpCloseButton: {
+    position: "absolute",
+    top: 16,
+    left: 18,
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 20,
+  },
+
+  helpHeader: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+    gap: 14,
+  },
+
+  helpHeaderIconBox: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+
+  helpHeaderTextBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  helpTitle: {
+    fontSize: 24,
+    fontWeight: "900",
+    lineHeight: 32,
+  },
+
+  helpIntroText: {
+    fontSize: 15,
+    lineHeight: 23,
+    fontWeight: "700",
+    marginTop: 6,
+  },
+
+  faqCard: {
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    marginBottom: 14,
+    borderWidth: 1,
+  },
+
+  helpQuestion: {
+    fontSize: 18,
+    fontWeight: "900",
+    marginBottom: 8,
+    lineHeight: 27,
+  },
+
+  helpAnswer: {
+    fontSize: 15.5,
+    lineHeight: 27,
+    fontWeight: "700",
+  },
+
+  supportMainButton: {
+    minHeight: 58,
+    borderRadius: 20,
+    marginTop: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: Platform.OS === "android" ? 0.12 : 0.18,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+
+  supportWhatsAppMainButton: {
+    backgroundColor: "#25C96A",
+  },
+
+  supportEmailMainButton: {
+    backgroundColor: COLORS.primary,
+  },
+
+  supportMainButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "900",
+    fontSize: 16,
+    textAlign: "center",
+  },
+
+  supportIssueFullButton: {
+    minHeight: 56,
+    borderRadius: 20,
+    marginTop: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 10,
+  },
+
+  supportIssueFullButtonText: {
+    fontWeight: "900",
+    fontSize: 16,
+    textAlign: "center",
+  },
+
+  closeHelpButton: {
+    marginTop: 18,
+    minHeight: 54,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+
+  closeHelpButtonText: {
+    fontSize: 16,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+
+  fullScreenBlockingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.22)",
+    zIndex: 9999,
+    elevation: 9999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  blockingOverlayCard: {
+    minWidth: 210,
+    borderRadius: 24,
+    paddingVertical: 22,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    justifyContent: "center",
+
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+
+  blockingOverlayText: {
+    marginTop: 12,
+    fontSize: 14,
+    fontWeight: "900",
+    textAlign: "center",
+  },
 });
