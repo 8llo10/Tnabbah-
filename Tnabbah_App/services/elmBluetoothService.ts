@@ -417,31 +417,13 @@ export const elmBluetoothService = {
     await writeToChar(writeChar, command);
   },
 
-  /* async send(command: string, waitMs = 1200) {
-    return runExclusive(async () => {
-      await this.assertConnected();
-
-      rxBuffer = "";
-
-      await this.write(command);
-
-      const response = await waitForResponse(waitMs);
-
-      return cleanResponse(response);
-    });
-  } */
-
   async send(command: string, waitMs = 1200) {
     return runExclusive(async () => {
       await this.assertConnected();
 
       rxBuffer = "";
 
-      if (!writeChar) {
-        throw new Error("قناة الإرسال غير جاهزة.");
-      }
-
-      await writeToChar(writeChar, command);
+      await this.write(command);
 
       const response = await waitForResponse(waitMs);
 

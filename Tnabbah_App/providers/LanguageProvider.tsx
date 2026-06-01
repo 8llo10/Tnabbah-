@@ -15,16 +15,32 @@ const LANGUAGE_STORAGE_KEY = "app_language";
 
 const translations = {
   AR: {
+startIntroTitleBefore: "سلامتك",
+startIntroTitleAccent: "تبدأ",
+startIntroTitleAfter: "من سيارتك",
+startIntroSubtitle:
+  "تابع حالة سيارتك، افهم التنبيهات، واحصل على تقارير ذكية تساعدك في الصيانة والسلامة",
+startIntroButton: "ابدأ الآن",
+
+startAuthTitleBefore: "مرحبًا بك في",
+startAuthTitleAccent: "تنبّه",
+startAuthSubtitle:
+  "سجّل دخولك أو أنشئ حسابًا جديدًا لمتابعة حالة سيارتك",
+startLoginButton: "تسجيل الدخول",
+startCreateAccountButton: "إنشاء حساب جديد",
+
+startStepOne: "١ من ٢",
+startStepTwo: "٢ من ٢",
     chatTitle: "المساعد",
     chatWelcome: "مرحبًا بك، كيف أقدر أساعدك اليوم؟",
-    chatInputPlaceholder: "اكتبي رسالتك...",
-    chatLoginRequired: "لازم تسجلين دخول أولًا عشان أقدر أقرأ بيانات سيارتك.",
+    chatInputPlaceholder: "اكتب رسالتك...",
+    chatLoginRequired: "سجّل الدخول أولًا عشان أقدر أقرأ بيانات سيارتك.",
     chatNoAssistantReply:
-      'ما وصلني رد من المساعد. تأكدي إن الـ workflow في n8n يرجّع رد عبر "Respond to Webhook".',
+      'ما وصلني رد من المساعد. تأكد أن الـ workflow في n8n يرجّع رد عبر "Respond to Webhook".',
     chatTimeout:
-      "انتهت مدة الانتظار. تأكدي إن الـ workflow في n8n شغّال Active.",
+      "انتهت مدة الانتظار. تأكد أن الـ workflow في n8n شغّال Active.",
     chatNetworkError:
-      "فشل الاتصال بالشبكة. تأكدي من:\n• إن الـ Workflow في n8n مفعّل Active\n• إن الرابط صحيح webhook وليس webhook-test",
+      "فشل الاتصال بالشبكة. تأكد من:\n• أن الـ Workflow في n8n مفعّل Active\n• إن الرابط صحيح webhook وليس webhook-test",
     chatConnectionError: "تعذّر الاتصال بالمساعد.",
 
     walletTitle: "المحفظة",
@@ -67,6 +83,18 @@ const translations = {
     walletRejectReportError: "تعذر تجاهل التقرير",
     walletMaintenanceUpdated: "تم تحديث الصيانة بنجاح",
     walletSaveMaintenanceError: "تعذر حفظ التعديل",
+    walletMaintenanceSuccessTitle: "تم تحديث الصيانة",
+    walletMaintenanceSuccessBody: "تم حفظ تاريخ الصيانة في المحفظة بنجاح.",
+    walletMaintenanceSuccessBodyWithName: "تم حفظ تاريخ {name} في المحفظة بنجاح.",
+    walletViewAll: "عرض الكل",
+    walletShowLess: "عرض أقل",
+    walletOpenReportButton: "عرض التقرير",
+    walletReportLabel: "تقرير",
+    walletHorizontalView: "عرض أفقي",
+    walletVerticalView: "عرض رأسي",
+    walletConfirmDate: "تأكيد التاريخ",
+    walletCancelDate: "إلغاء",
+    walletSelectLastMaintenanceDate: "اختر تاريخ آخر صيانة",
 
     connectionStepStartLabel: "إبدأ",
     connectionStepPrepareLabel: "جهّز",
@@ -82,7 +110,7 @@ const translations = {
       "ابدأ بتجهيز السيارة والقطعة حتى يتمكن التطبيق من التعرف عليها قبل اختيار طريقة الاتصال.",
     connectionStep2Button: "تم توصيل القطعة",
 
-    connectionStep3Title: "اختيار اتصال البلوتوث",
+    connectionStep3Title: "اختر اتصال البلوتوث",
     connectionStep3Subtitle:
       "اضغط على اختيار جهاز OBD لعرض الأجهزة القريبة، ثم اختر القطعة المناسبة.",
     connectionStep3Button: "ربط الجهاز",
@@ -219,13 +247,13 @@ const translations = {
 
     registerTitle: "إنشاء حساب جديد",
     registerSubtitle: "انضمّ إلى تنبّه وابدأ متابعة حالة سيارتك",
-    fullName: "الاسم الكامل",
-    fullNamePlaceholder: "اكتب الاسم الكامل",
+    fullName: "الاسم",
+    fullNamePlaceholder: "اكتب الاسم",
     registerButton: "تسجيل حساب جديد",
-    registering: "جاري التسجيل...",
+    registering: "جارٍ إنشاء الحساب...",
     alreadyHaveAccount: "لديك حساب بالفعل؟",
 
-    enterFullName: "أدخل الاسم الكامل",
+    enterFullName: "أدخل الاسم",
     enterValidEmail: "أدخل بريد إلكتروني صحيح",
     writePassword: "اكتب كلمة المرور",
     passwordRequirementsError: "كلمة المرور لا تحقق المتطلبات",
@@ -247,16 +275,219 @@ const translations = {
     or: "أو",
     noAccount: "ليس لديك حساب؟",
     createAccount: "إنشاء حساب جديد",
-    enterEmail: "أدخلي البريد الإلكتروني",
-    enterPassword: "أدخلي كلمة المرور",
+    enterEmail: "أدخل البريد الإلكتروني",
+    enterPassword: "أدخل كلمة المرور",
     wrongEmailOrPassword: "البريد أو كلمة المرور غير صحيحة",
-    verifyError: "تعذر التحقق من الحساب، حاولي مرة أخرى",
-    unexpectedError: "صار خطأ غير متوقع، حاولي مرة أخرى",
+    verifyError: "تعذر التحقق من الحساب، حاول مرة أخرى",
+    unexpectedError: "صار خطأ غير متوقع، حاول مرة أخرى",
 
     startWelcome: "مرحباً بك في",
     startBrand: "تنبه",
     startSubtitle: "لأن سيارتك تحتاج من ينتبه لها",
     languageButton: "En",
+
+    // Settings screen
+    account: "الحساب",
+    userId: "رقم الحساب",
+
+    editAction: "تعديل",
+    editName: "تعديل الاسم",
+    editNameDesc: "تغيير الاسم الظاهر في الحساب",
+    editEmail: "تعديل البريد الإلكتروني",
+    editEmailDesc: "سيتم إرسال رابط تأكيد إلى البريد الإلكتروني الجديد",
+    changePassword: "تغيير كلمة المرور",
+    changePasswordDesc: "إرسال رمز تحقق قبل تغيير كلمة المرور",
+
+    editNameTitle: "تعديل الاسم",
+    editNameSubtitle: "أدخل الاسم الذي سيظهر في الحساب.",
+    namePlaceholder: "الاسم",
+    nameSavedTitle: "تم حفظ الاسم",
+    nameSavedBody: "تم حفظ الاسم الجديد في الحساب.",
+
+    editEmailTitle: "تعديل البريد الإلكتروني",
+    editEmailSubtitle:
+      "أدخل البريد الإلكتروني الجديد، وسيتم إرسال رابط تأكيد له.",
+    newEmailPlaceholder: "البريد الإلكتروني الجديد",
+    validEmailError: "أدخل بريدًا إلكترونيًا صحيحًا.",
+    emailSameError: "أدخل بريدًا إلكترونيًا مختلفًا عن البريد الحالي.",
+    emailChangeSentTitle: "تم إرسال رابط التأكيد",
+    emailChangeSentBody:
+      "افتح البريد الإلكتروني الجديد واضغط على رابط التأكيد لإكمال التغيير.",
+    emailChangeError:
+      "تعذر إرسال رابط التأكيد. تأكد من البريد الإلكتروني أو جرّب مرة أخرى.",
+    emailChangeSuccessTitle: "تم تغيير البريد الإلكتروني",
+    emailChangeSuccessBody: "تم تأكيد البريد الإلكتروني الجديد وتحديثه في الحساب.",
+    emailChangeSuccessInstantTitle: "تم تغيير البريد الإلكتروني بنجاح",
+    emailChangeSuccessInstantBody: "تم تحديث البريد الإلكتروني في حسابك.",
+    emailChangeStaySettings:
+      "بعد التأكيد ستعود إلى الإعدادات ويظهر البريد الجديد في الحساب.",
+    emailAlreadyUsed: "هذا البريد الإلكتروني مستخدم في حساب آخر.",
+    emailRateLimit: "تمت محاولات كثيرة. انتظر قليلًا ثم جرّب مرة أخرى.",
+    emailResendQuestion: "لم يصلك رابط التأكيد؟",
+    emailResendLink: "إعادة إرسال الرابط",
+    emailResendAfter: "يمكنك إعادة الإرسال بعد {seconds} ثانية",
+    emailResentNotice: "تم إرسال رابط التأكيد مرة أخرى.",
+    emailResendError: "تعذر إعادة إرسال الرابط الآن. جرّب بعد قليل.",
+
+    cars: "سياراتي",
+    currentCar: "السيارة الحالية",
+    noCar: "لا توجد سيارة متصلة الآن",
+    totalCars: "عدد السيارات",
+    carConnection: "اتصال السيارة الحالية",
+    connected: "متصل",
+    disconnected: "غير متصل",
+    connectedNow: "متصلة الآن",
+    noCarConnectedNow: "لا توجد سيارة متصلة الآن",
+    currentConnectedCar: "السيارة المتصلة الآن",
+    lastConnection: "آخر اتصال",
+    noSavedCars:
+      "لا توجد سيارات محفوظة بعد. اربط قطعة السيارة لإضافة أول سيارة.",
+    lastConnectedCarFound:
+      "تم العثور على آخر سيارة متصلة، وسيتم حفظها عند وصول أول تحديث اتصال.",
+    setDefaultCar: "تعيين",
+    renameCar: "تعديل",
+    deleteCar: "حذف",
+    switchingVehicle: "جاري تبديل السيارة...",
+    couldNotSelectCar: "تعذر اختيار السيارة. تم الرجوع للاختيار السابق.",
+    carNameUpdated: "تم تحديث اسم السيارة",
+    couldNotUpdateCarName: "تعذر تحديث اسم السيارة.",
+    carRemoved: "تم حذف السيارة من القائمة",
+    couldNotDeleteCar: "تعذر حذف السيارة.",
+
+    appSettings: "إعدادات التطبيق",
+    notifications: "السماح بالإشعارات",
+    notificationsDesc: "استلام تنبيهات الفحص والتذكيرات",
+    notificationsOff: "الإشعارات متوقفة",
+    notificationsOffDesc: "لن تصلك تنبيهات الفحص والتذكيرات",
+    language: "اللغة",
+    languageDesc: "لغة التطبيق الحالية: العربية",
+    languageArabicActive: "لغة التطبيق الحالية: العربية",
+    languageEnglishActive: "لغة التطبيق الحالية: الإنجليزية",
+    appearance: "المظهر",
+    lightMode: "الوضع الفاتح",
+    lightModeDesc: "المظهر الفاتح مفعل الآن",
+    darkMode: "الوضع الداكن",
+    darkModeDesc: "المظهر الداكن مفعل الآن",
+
+    notificationsDeniedTitle: "الإشعارات غير مفعّلة",
+    notificationsDeniedBody:
+      "فعّل الإشعارات من إعدادات الجهاز حتى تصل التنبيهات.",
+    openSettings: "فتح الإعدادات",
+
+    vehicleConnection: "اتصال السيارة",
+    bluetoothSettings: "ربط قطعة السيارة",
+    bluetoothSettingsDesc: "ربط أو تغيير قطعة السيارة",
+    deviceStatus: "اتصال القطعة",
+    scanStatus: "قراءة بيانات السيارة",
+    dataConnection: "اتصال البيانات",
+    scannerOn: "تعمل الآن",
+    scannerOff: "متوقفة",
+    pauseMonitoring: "إيقاف المتابعة مؤقتًا",
+    pauseMonitoringDesc: "إيقاف قراءة بيانات السيارة مؤقتًا",
+    endVehicleConnection: "إنهاء اتصال السيارة",
+    endVehicleConnectionDesc: "فصل الجهاز وإيقاف قراءة البيانات",
+    monitoringPaused: "تم إيقاف المتابعة مؤقتًا.",
+    couldNotPauseMonitoring: "تعذر إيقاف المتابعة.",
+    disconnectTitle: "إنهاء اتصال السيارة",
+    disconnectMessage: "هل تريد إنهاء اتصال السيارة الآن؟",
+    disconnectedDone: "تم إنهاء اتصال السيارة.",
+    couldNotDisconnectVehicle: "تعذر إنهاء اتصال السيارة.",
+
+    helpSupport: "المساعدة والدعم",
+    help: "تواصل مع الدعم",
+    helpDesc: "للاستفسارات أو الإبلاغ عن مشكلة في التطبيق",
+    helpTitle: "المساعدة",
+    helpIntro:
+      "إذا واجهت مشكلة أو كان لديك استفسار، أرسل التفاصيل وسنساعدك في أقرب وقت.",
+    supportEmailButton: "إرسال بريد للدعم",
+    supportWhatsAppButton: "التواصل عبر واتساب",
+    reportIssueButton: "الإبلاغ عن مشكلة",
+    faqTitle: "الأسئلة الشائعة",
+    faqConnectionQuestion: "كيف يتم توصيل قطعة السيارة؟",
+    faqConnectionAnswer:
+      "من صفحة الاتصال، اختر البلوتوث ثم اختر قطعة السيارة وابدأ الفحص.",
+    faqNotificationsQuestion: "لماذا لا تظهر السيارة؟",
+    faqNotificationsAnswer:
+      "تأكد أن القطعة تعمل وأن البلوتوث والصلاحيات مفعّلة.",
+    faqReportQuestion: "هل التطبيق يحفظ بيانات السيارة؟",
+    faqReportAnswer:
+      "يتم حفظ البيانات الضرورية فقط لتحسين التجربة وعرض التقارير.",
+
+    logout: "تسجيل الخروج",
+    loggingOut: "جاري تسجيل الخروج...",
+    logoutTitle: "تسجيل الخروج",
+    logoutMessage: "هل تريد تسجيل الخروج من الحساب؟",
+    logoutError: "تعذر تسجيل الخروج. جرّب مرة أخرى.",
+
+    deleteAccount: "حذف الحساب",
+    deleteAccountDesc: "حذف نهائي للحساب ويتطلب كلمة المرور الحالية",
+    deleteAccountTitle: "حذف الحساب",
+    deleteAccountMessage:
+      "سيؤدي حذف الحساب إلى إزالة الحساب وبياناته بشكل نهائي. لا يمكن التراجع عن هذه العملية أو استرجاع الحساب بعد الحذف.",
+    deleteAccountConfirm: "حذف الحساب",
+    deleteAccountDone: "تم حذف الحساب نهائيًا",
+    currentPasswordRequired: "أدخل كلمة المرور الحالية.",
+    currentPasswordConfirmLabel: "أدخل كلمة المرور الحالية للتأكيد",
+    currentPasswordPlaceholder: "كلمة المرور الحالية",
+    deleteAccountVerifyError: "حدث خطأ أثناء التحقق.",
+    deleteCarTitle: "حذف السيارة",
+    deleteCarMessage:
+      "هل أنت متأكد؟ سيتم حذف السيارة من قائمتك، وإذا كانت متصلة سيتم فصل الاتصال وإيقاف المتابعة.",
+    deleteCarConfirm: "حذف",
+    carLabel: "سيارة",
+
+    errorTitle: "حدث خطأ",
+    done: "تم",
+    ok: "حسنًا",
+    cancel: "إلغاء",
+    confirm: "تأكيد",
+    save: "حفظ",
+    saving: "جاري الحفظ...",
+    nameLimitError: "الاسم يجب ألا يتجاوز 15 حرفًا.",
+    updateNameError: "تعذر تحديث الاسم.",
+
+
+    homeGreeting: "أهلًا بك في تنبّهـ",
+    homeSubtitle: "سيارتك تتكلم، ونحن نترجمها لك",
+    homeNotificationsTitle: "الإشعارات",
+    homeNoNotifications: "لا توجد إشعارات جديدة حاليًا",
+    homeMarkAsRead: "تمت القراءة",
+    homeDeleteNotification: "حذف",
+    homeScanTitle: "فحص تنبّه",
+    homeCreateReport: "إنشاء تقرير",
+    homeVehicleStatus: "حالة السيارة",
+    homeVehicleStatusPlaceholder: "سيتم عرض الحالة هنا",
+    homeLastScan: "آخر فحص",
+    homeNoScanYet: "لم يتم إنشاء فحص بعد",
+    homeFaults: "الأعطال",
+    homeCurrentFaults: "عدد الأعطال الحالية",
+    homeVehicleReadings: "قراءات السيارة",
+    homeVehicleInfo: "معلومات السيارة",
+    homeRpmLabel: "دورات المحرك",
+    homeCarIdLabel: "معرّف السيارة",
+    homeVinLabel: "رقم الهيكل",
+    homeSupportedLabel: "القراءات المدعومة",
+    homeDtcLabel: "رموز الأعطال",
+    homeMode09: "بيانات السيارة",
+    homePidUnit: "قراءة",
+    homeSpeed: "السرعة",
+    homeSpeedUnit: "كم/س",
+    homeVoltage: "الفولت",
+    homeCoolantTemp: "حرارة المحرك",
+    homeRpmUnit: "دورة/دقيقة",
+    homeAvailable: "موجود",
+    homeWaitingConnection: "بانتظار الاتصال",
+    homeFaultsUnit: "أعطال",
+    homeScanStatus: "حالة الفحص",
+    homeScanResponse: "استجابة الفحص",
+    homeLiveUpdate: "تحديث مباشر",
+    homeLiveUpdateDesc:
+      "القيم المعروضة هنا تتحدث تلقائيًا من السيارة. آخر قراءة تبقى ظاهرة حتى لو انقطع الاتصال، وتتغير الحالة إلى غير متصل.",
+    homeNeedHelp: "هل تحتاج\nمساعدة؟",
+    homeLoginRequiredScan: "يجب تسجيل الدخول قبل التحليل.",
+    homeAlertTitle: "تنبيه",
+    homeSelectCarFirst: "اختر سيارة أولًا أو وصّل قطعة السيارة.",
+    homeScanFailed: "فشل تشغيل التحليل",
 
     home: "الرئيسية",
     wallet: "المحفظة",
@@ -264,6 +495,22 @@ const translations = {
   },
 
   EN: {
+startIntroTitleBefore: "Your safety",
+startIntroTitleAccent: "starts",
+startIntroTitleAfter: "with your car",
+startIntroSubtitle:
+  "Monitor your car status, understand alerts, and get smart reports for maintenance and safety",
+startIntroButton: "Get Started",
+
+startAuthTitleBefore: "Welcome to",
+startAuthTitleAccent: "TNABBAH",
+startAuthSubtitle:
+  "Sign in or create a new account to monitor your car status",
+startLoginButton: "Log In",
+startCreateAccountButton: "Create Account",
+
+startStepOne: "1 of 2",
+startStepTwo: "2 of 2",
     chatTitle: "Assistant",
     chatWelcome: "Welcome! How can I help you today?",
     chatInputPlaceholder: "Type your message...",
@@ -315,6 +562,18 @@ const translations = {
     walletRejectReportError: "Could not ignore the report",
     walletMaintenanceUpdated: "Maintenance updated successfully",
     walletSaveMaintenanceError: "Could not save the change",
+    walletMaintenanceSuccessTitle: "Maintenance updated",
+    walletMaintenanceSuccessBody: "The maintenance date has been saved in your wallet successfully.",
+    walletMaintenanceSuccessBodyWithName: "{name} date has been saved in your wallet successfully.",
+    walletViewAll: "View all",
+    walletShowLess: "Show less",
+    walletOpenReportButton: "Open report",
+    walletReportLabel: "Report",
+    walletHorizontalView: "Horizontal view",
+    walletVerticalView: "Vertical view",
+    walletConfirmDate: "Confirm date",
+    walletCancelDate: "Cancel",
+    walletSelectLastMaintenanceDate: "Select the last maintenance date",
 
     connectionStepStartLabel: "Start",
     connectionStepPrepareLabel: "Prepare",
@@ -470,13 +729,13 @@ const translations = {
 
     registerTitle: "Create Account",
     registerSubtitle: "Join Tnabbah and start monitoring your car",
-    fullName: "Full Name",
-    fullNamePlaceholder: "Enter your full name",
+    fullName: "Name",
+    fullNamePlaceholder: "Enter your name",
     registerButton: "Create Account",
     registering: "Creating account...",
     alreadyHaveAccount: "Already have an account?",
 
-    enterFullName: "Enter your full name",
+    enterFullName: "Enter your name",
     enterValidEmail: "Enter a valid email",
     writePassword: "Enter your password",
     passwordRequirementsError: "Password does not meet the requirements",
@@ -509,6 +768,208 @@ const translations = {
     startSubtitle: "Because your car needs someone to watch over it",
     languageButton: "عربي",
 
+    // Settings screen
+    account: "Account",
+    userId: "Account ID",
+
+    editAction: "Edit",
+    editName: "Edit Name",
+    editNameDesc: "Change the name shown on the account",
+    editEmail: "Edit Email",
+    editEmailDesc: "A confirmation link will be sent to the new\nemail address",
+    changePassword: "Change Password",
+    changePasswordDesc: "Send a verification code before changing\nthe password",
+
+    editNameTitle: "Edit Name",
+    editNameSubtitle: "Enter the name that will appear on the account.",
+    namePlaceholder: "Name",
+    nameSavedTitle: "Name saved",
+    nameSavedBody: "The new name has been saved.",
+
+    editEmailTitle: "Edit Email",
+    editEmailSubtitle:
+      "Enter the new email address. A confirmation link will be sent to it.",
+    newEmailPlaceholder: "New email address",
+    validEmailError: "Enter a valid email address.",
+    emailSameError: "Enter an email address different from the current email.",
+    emailChangeSentTitle: "Confirmation link sent",
+    emailChangeSentBody:
+      "Open the new email address and tap the confirmation link to complete the change.",
+    emailChangeError:
+      "Could not send the confirmation link. Check the email address or try again.",
+    emailChangeSuccessTitle: "Email changed",
+    emailChangeSuccessBody: "The new email has been confirmed and updated on your account.",
+    emailChangeSuccessInstantTitle: "Email changed successfully",
+    emailChangeSuccessInstantBody: "Your account email has been updated.",
+    emailChangeStaySettings:
+      "After confirmation, you will return to Settings and see the new email on your account.",
+    emailAlreadyUsed: "This email address is already used by another account.",
+    emailRateLimit: "Too many attempts. Please wait a moment and try again.",
+    emailResendQuestion: "Didn’t receive the confirmation link?",
+    emailResendLink: "Resend link",
+    emailResendAfter: "You can resend after {seconds} seconds",
+    emailResentNotice: "The confirmation link was sent again.",
+    emailResendError: "Could not resend the link right now. Please try again later.",
+
+    cars: "My Cars",
+    currentCar: "Current Car",
+    noCar: "No connected car",
+    totalCars: "Total Cars",
+    carConnection: "Current Car Connection",
+    connected: "Connected",
+    disconnected: "Disconnected",
+    connectedNow: "Connected now",
+    noCarConnectedNow: "No car is connected now",
+    currentConnectedCar: "Connected car",
+    lastConnection: "Last connection",
+    noSavedCars: "No saved cars yet. Connect a device to add the first car.",
+    lastConnectedCarFound:
+      "Last connected car found. It will be saved when the next connection update arrives.",
+    setDefaultCar: "Set",
+    renameCar: "Edit",
+    deleteCar: "Delete",
+    switchingVehicle: "Switching vehicle...",
+    couldNotSelectCar: "Could not select the car. The previous choice was restored.",
+    carNameUpdated: "Car name updated",
+    couldNotUpdateCarName: "Could not update car name.",
+    carRemoved: "Car removed from list",
+    couldNotDeleteCar: "Could not delete car.",
+
+    appSettings: "App Settings",
+    notifications: "Allow Notifications",
+    notificationsDesc: "Receive inspection alerts and reminders",
+    notificationsOff: "Notifications Off",
+    notificationsOffDesc: "Inspection alerts and reminders will not be received",
+    language: "Language",
+    languageDesc: "Current app language: English",
+    languageArabicActive: "Current app language: Arabic",
+    languageEnglishActive: "Current app language: English",
+    appearance: "Appearance",
+    lightMode: "Light Mode",
+    lightModeDesc: "Light mode is currently enabled",
+    darkMode: "Dark Mode",
+    darkModeDesc: "Dark mode is currently enabled",
+
+    notificationsDeniedTitle: "Notifications disabled",
+    notificationsDeniedBody:
+      "Enable notifications from device settings to receive alerts.",
+    openSettings: "Open Settings",
+
+    vehicleConnection: "Car Connection",
+    bluetoothSettings: "Connect Car Device",
+    bluetoothSettingsDesc: "Connect or change the car device",
+    deviceStatus: "Device Connection",
+    scanStatus: "Car Data Reading",
+    dataConnection: "Data Connection",
+    scannerOn: "Running",
+    scannerOff: "Stopped",
+    pauseMonitoring: "Pause monitoring",
+    pauseMonitoringDesc: "Temporarily stop reading vehicle data",
+    endVehicleConnection: "End vehicle connection",
+    endVehicleConnectionDesc: "Disconnect the device and stop reading data",
+    monitoringPaused: "Monitoring has been paused.",
+    couldNotPauseMonitoring: "Could not pause monitoring.",
+    disconnectTitle: "End vehicle connection",
+    disconnectMessage: "Do you want to end the vehicle connection now?",
+    disconnectedDone: "Vehicle connection has been ended.",
+    couldNotDisconnectVehicle: "Could not end vehicle connection.",
+
+    helpSupport: "Help & Support",
+    help: "Contact Support",
+    helpDesc: "For questions or reporting an app issue",
+    helpTitle: "Help",
+    helpIntro:
+      "If there is a question or an issue, send the details and we will help as soon as possible.",
+    supportEmailButton: "Email Support",
+    supportWhatsAppButton: "Contact via WhatsApp",
+    reportIssueButton: "Report an Issue",
+    faqTitle: "FAQs",
+    faqConnectionQuestion: "How do I connect the car device?",
+    faqConnectionAnswer:
+      "Open the connection page, choose Bluetooth, select the car device, then start the scan.",
+    faqNotificationsQuestion: "Why does my car not appear?",
+    faqNotificationsAnswer:
+      "Make sure the device is powered on and Bluetooth permissions are enabled.",
+    faqReportQuestion: "Does the app save car data?",
+    faqReportAnswer:
+      "Only necessary data is saved to improve the experience and show reports.",
+
+    logout: "Logout",
+    loggingOut: "Logging out...",
+    logoutTitle: "Logout",
+    logoutMessage: "Do you want to log out of the account?",
+    logoutError: "Could not log out. Please try again.",
+
+    deleteAccount: "Delete Account",
+    deleteAccountDesc: "Permanently deletes the account and requires\nthe current password",
+    deleteAccountTitle: "Delete account",
+    deleteAccountMessage:
+      "Deleting the account will permanently remove the account and its data. This action cannot be undone and the account cannot be restored after deletion.",
+    deleteAccountConfirm: "Delete account",
+    deleteAccountDone: "Account deleted permanently",
+    currentPasswordRequired: "Enter the current password.",
+    currentPasswordConfirmLabel: "Enter the current password to confirm",
+    currentPasswordPlaceholder: "Current password",
+    deleteAccountVerifyError: "An error occurred during verification.",
+    deleteCarTitle: "Delete car",
+    deleteCarMessage:
+      "Are you sure? This car will be removed from your list. If it is connected, the connection and monitoring will be stopped.",
+    deleteCarConfirm: "Delete",
+    carLabel: "Car",
+
+    errorTitle: "Error",
+    done: "Done",
+    ok: "OK",
+    cancel: "Cancel",
+    confirm: "Confirm",
+    save: "Save",
+    saving: "Saving...",
+    nameLimitError: "Name must be 15 characters or less.",
+    updateNameError: "Could not update name.",
+
+
+    homeGreeting: "Welcome to Tnabbah",
+    homeSubtitle: "Your car speaks, and we translate it for you",
+    homeNotificationsTitle: "Notifications",
+    homeNoNotifications: "No new notifications right now",
+    homeMarkAsRead: "Mark as read",
+    homeDeleteNotification: "Delete",
+    homeScanTitle: "Tnabbah Scan",
+    homeCreateReport: "Create Report",
+    homeVehicleStatus: "Vehicle Status",
+    homeVehicleStatusPlaceholder: "Status will appear here",
+    homeLastScan: "Last Scan",
+    homeNoScanYet: "No scan created yet",
+    homeFaults: "Faults",
+    homeCurrentFaults: "Current fault count",
+    homeVehicleReadings: "Vehicle Readings",
+    homeVehicleInfo: "Vehicle Information",
+    homeRpmLabel: "RPM",
+    homeCarIdLabel: "Car ID",
+    homeVinLabel: "VIN",
+    homeSupportedLabel: "Supported",
+    homeDtcLabel: "DTC",
+    homeMode09: "Mode 09",
+    homePidUnit: "PID",
+    homeSpeed: "Speed",
+    homeSpeedUnit: "km/h",
+    homeVoltage: "Voltage",
+    homeCoolantTemp: "Engine Temperature",
+    homeRpmUnit: "RPM",
+    homeAvailable: "Available",
+    homeWaitingConnection: "Waiting for connection",
+    homeFaultsUnit: "Faults",
+    homeScanStatus: "Scan Status",
+    homeScanResponse: "Scan Response",
+    homeLiveUpdate: "Live Update",
+    homeLiveUpdateDesc:
+      "The values shown here update automatically from the vehicle. The last reading stays visible if the connection drops, and the status changes to disconnected.",
+    homeNeedHelp: "Need\nhelp?",
+    homeLoginRequiredScan: "Please log in before running the scan.",
+    homeAlertTitle: "Notice",
+    homeSelectCarFirst: "Choose a car first or connect the car device.",
+    homeScanFailed: "Could not start the scan",
+
     home: "Home",
     wallet: "Wallet",
     settings: "Settings",
@@ -535,11 +996,34 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     loadLanguage();
   }, [realUserId]);
 
+  const syncAuthLanguageMetadata = async (lang: Language) => {
+    try {
+      if (!realUserId) return;
+
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          language: lang,
+        },
+      });
+
+      if (error) {
+        console.log("Update auth language error:", error.message);
+        return;
+      }
+
+      await supabase.auth.refreshSession();
+    } catch (error: any) {
+      console.log("Sync auth language error:", error?.message || error);
+    }
+  };
+
   const loadLanguage = async () => {
     try {
       const localLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
+      let finalLanguage: Language = "AR";
 
       if (localLanguage === "EN" || localLanguage === "AR") {
+        finalLanguage = localLanguage;
         setLanguage(localLanguage);
       }
 
@@ -553,9 +1037,21 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
       if (!error && data?.language) {
         const dbLanguage: Language = data.language === "EN" ? "EN" : "AR";
+        finalLanguage = dbLanguage;
         setLanguage(dbLanguage);
         await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, dbLanguage);
+      } else if (!error && !data) {
+        await supabase.from("user_settings").upsert(
+          {
+            user_id: realUserId,
+            language: finalLanguage,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" }
+        );
       }
+
+      await syncAuthLanguageMetadata(finalLanguage);
     } catch (error) {
       console.log("Load language error:", error);
     }
@@ -576,6 +1072,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         },
         { onConflict: "user_id" }
       );
+
+      await syncAuthLanguageMetadata(lang);
     } catch (error) {
       console.log("Change language error:", error);
     }

@@ -26,7 +26,6 @@ type VehicleRealtimeContextType = {
     statusText: string;
     isConnected: boolean;
     isAutoRunning: boolean;
-    hasLiveData: boolean;
 };
 
 const VehicleRealtimeContext =
@@ -44,12 +43,6 @@ export function VehicleRealtimeProvider({
     const [, forceUpdate] = useState(0);
 
     const snapshot = vehicleRealtimeStore.getSnapshot(activeCarId);
-
-    const hasLiveData =
-        snapshot?.metrics?.rpm !== null &&
-        snapshot?.metrics?.speed !== null &&
-        snapshot?.metrics?.voltage !== null &&
-        snapshot?.metrics?.coolant !== null;
 
     useEffect(() => {
         activeCarIdRef.current =
@@ -203,7 +196,6 @@ export function VehicleRealtimeProvider({
                 statusText: snapshot?.statusText || "جاهز للفحص",
                 isConnected: snapshot?.isConnected || false,
                 isAutoRunning: snapshot?.isAutoRunning || false,
-                hasLiveData,
             }}
         >
             {children}

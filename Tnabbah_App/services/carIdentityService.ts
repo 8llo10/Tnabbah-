@@ -2,7 +2,6 @@ import { obdCoreService } from "./obdCoreService";
 
 let cachedIdentity: any = null;
 
-
 function simpleHash(text: string) {
   let hash = 0;
 
@@ -53,7 +52,7 @@ function buildStableFingerprint(parts: {
   if (parts.ecuName) return `ECU:${parts.ecuName}`;
   if (parts.mode09Supported) return `MODE09:${parts.mode09Supported}`;
 
-  throw new Error("IDENTITY_NOT_READY");
+  return "LOCAL_UNKNOWN_VEHICLE";
 }
 
 export const carIdentityService = {
@@ -72,11 +71,11 @@ export const carIdentityService = {
     const vin = normalizeText(mode09.vin);
 
     const calibrationId = cleanRawFingerprint(
-      mode09.calibrationId || ""
+      mode09.raw?.["0904"] || mode09.raw?.["09 04"] || ""
     );
 
     const ecuName = cleanRawFingerprint(
-      mode09.ecuName || ""
+      mode09.raw?.["090A"] || mode09.raw?.["09 0A"] || ""
     );
 
     const mode09Supported = cleanRawFingerprint(
@@ -88,14 +87,6 @@ export const carIdentityService = {
       calibrationId,
       ecuName,
       mode09Supported,
-    });
-
-    console.log("CAR IDENTITY DEBUG:", {
-      vin,
-      calibrationId,
-      ecuName,
-      mode09Supported,
-      identityBase,
     });
 
     const carId = `car_${simpleHash(identityBase)}`;
@@ -112,7 +103,7 @@ export const carIdentityService = {
             ? "ecu_mode09"
             : mode09Supported
               ? "mode09_supported"
-              : "identity_not_ready",
+              : "mode09_fallback",
 
       fingerprints: {
         identityBase,
