@@ -8,42 +8,31 @@ import {
   Easing,
   useWindowDimensions,
   StatusBar,
+  Platform,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "../providers/AuthProvider";
-import { useLanguage } from "../providers/LanguageProvider";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
 import * as SplashScreen from "expo-splash-screen";
-
-SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const BACKGROUND_IMAGE = require("../assets/images/start-background.png");
 const LOGO_ARABIC = require("../assets/images/logo-arabic.png");
 const LOGO_ENGLISH = require("../assets/images/logo-english.png");
 
 const COLORS = {
-  appBackground: "#E9EEF1",
+  appBackground: "#EFE7DE",
   nextScreenBackground: "#FFFFFF",
-
-  primary: "#8F1F1A",
-  primaryDark: "#6F1713",
-  primaryText: "#7B1714",
-
-  title: "#7A1815",
-  darkText: "#263238",
-
-  // لون الخط بين الكلمتين صار نفس لون اللوقو تقريبًا
-  logoLine: "#8F1F1A",
-  logoLineBorder: "rgba(255,255,255,0.88)",
-
+  primary: "#9A211C",
+  primaryDark: "#761713",
+  primaryText: "#871B17",
+  title: "#7B1714",
+  darkText: "#2C2C2C",
+  logoLine: "#B86B69",
   white: "#FFFFFF",
-
-  glassLight: "rgba(255,255,255,0.78)",
-  glassSoft: "rgba(245,247,248,0.66)",
-  glassBorder: "rgba(143,31,26,0.34)",
 };
 
 const clamp = (value: number, min: number, max: number) =>
@@ -52,24 +41,23 @@ const clamp = (value: number, min: number, max: number) =>
 export default function StartScreen() {
   const router = useRouter();
   const { session, loading } = useAuth();
-  const { t, isArabic, language, changeLanguage } = useLanguage();
-  
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
-  
+  const [language, setLanguage] = useState<"ar" | "en">("ar");
   const [isNavigating, setIsNavigating] = useState(false);
 
+  const isArabic = language === "ar";
   const isSmallScreen = height < 720;
   const isVerySmallScreen = height < 650;
 
   const horizontalPadding = clamp(width * 0.055, 20, 26);
 
   const splashLogoWidth = clamp(width * 0.72, 220, 280);
-  const splashLogoHeight = splashLogoWidth * (240 / 270);
+  const splashLogoHeight = splashLogoWidth * (210 / 270);
 
-  const finalLogoWidth = clamp(width * 0.2, 70, 82);
+  const finalLogoWidth = clamp(width * 0.23, 78, 92);
   const finalLogoHeight = finalLogoWidth * (64 / 88);
 
   const headerTop = clamp(height * 0.025, 10, 18);
@@ -102,11 +90,11 @@ export default function StartScreen() {
     ]
   );
 
-  const exitAnim = useRef(new Animated.Value(0)).current;
+  const transitionAnim = useRef(new Animated.Value(0)).current;
 
   const contentAnim = useRef(new Animated.Value(0)).current;
+  const glassLayerAnim = useRef(new Animated.Value(0)).current;
   const logoMoveAnim = useRef(new Animated.Value(0)).current;
-  const logoFinishAnim = useRef(new Animated.Value(0)).current;
   const lineAnim = useRef(new Animated.Value(0)).current;
   const arabicAnim = useRef(new Animated.Value(0)).current;
   const englishAnim = useRef(new Animated.Value(0)).current;
@@ -117,11 +105,10 @@ export default function StartScreen() {
   useFocusEffect(
     useCallback(() => {
       setIsNavigating(false);
-      exitAnim.setValue(0);
-      logoFinishAnim.setValue(0);
+      transitionAnim.setValue(0);
 
       return () => {};
-    }, [exitAnim, logoFinishAnim])
+    }, [transitionAnim])
   );
 
   const startIntroAnimation = () => {
@@ -158,23 +145,23 @@ export default function StartScreen() {
       Animated.parallel([
         Animated.timing(logoMoveAnim, {
           toValue: 1,
-          duration: 1050,
+          duration: 900,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+
+        Animated.timing(glassLayerAnim, {
+          toValue: 1,
+          duration: 760,
+          delay: 330,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
 
         Animated.timing(contentAnim, {
           toValue: 1,
-          duration: 850,
-          delay: 420,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-
-        Animated.timing(logoFinishAnim, {
-          toValue: 1,
-          duration: 900,
-          delay: 520,
+          duration: 700,
+          delay: 430,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
@@ -199,7 +186,10 @@ export default function StartScreen() {
     }
   };
 
- 
+  const toggleLanguage = () => {
+    if (isNavigating) return;
+    setLanguage((prev) => (prev === "ar" ? "en" : "ar"));
+  };
 
   useEffect(() => {
     if (!loading && session) {
@@ -212,7 +202,17 @@ export default function StartScreen() {
     if (isNavigating) return;
 
     setIsNavigating(true);
-    router.push(path);
+
+    Animated.timing(transitionAnim, {
+      toValue: 1,
+      duration: 160,
+      easing: Easing.inOut(Easing.quad),
+      useNativeDriver: true,
+    }).start(() => {
+      requestAnimationFrame(() => {
+        router.push(path);
+      });
+    });
   };
 
   const startX = width / 2 - splashLogoWidth / 2;
@@ -252,21 +252,14 @@ export default function StartScreen() {
     outputRange: [18, 0],
   });
 
-  const exitOpacity = exitAnim.interpolate({
+  const glassLayerOpacity = glassLayerAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [1, 1],
+    outputRange: [0, 1],
   });
 
-  const exitScale = exitAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1],
-  });
-
-  // عرض الخط أثناء الأنيميشن
-  // كبرته شوي عشان يكون قريب من شكل الخط في الصورة
   const animatedLineWidth = lineAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, splashLogoWidth * 0.84],
+    outputRange: [0, splashLogoWidth * 0.73],
   });
 
   const arabicTranslateY = arabicAnim.interpolate({
@@ -289,11 +282,6 @@ export default function StartScreen() {
     outputRange: [0, 1],
   });
 
-  const logoSoftLift = logoFinishAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -4],
-  });
-
   return (
     <View style={styles.container}>
       <StatusBar
@@ -307,50 +295,58 @@ export default function StartScreen() {
         style={styles.realBackground}
         resizeMode="cover"
         fadeDuration={0}
-        blurRadius={0}
         onLoadEnd={hideSplashAfterBackground}
       />
 
-      <View pointerEvents="none" style={styles.backgroundSoftLayer} />
-
-      <View pointerEvents="none" style={styles.backgroundExtraLayer} />
-
-      <LinearGradient
+      <Animated.View
         pointerEvents="none"
-        colors={[
-          "rgba(255,255,255,0.34)",
-          "rgba(255,255,255,0.10)",
-          "rgba(233,238,241,0.50)",
-        ]}
-        locations={[0, 0.48, 1]}
-        style={styles.backgroundGradientLayer}
-      />
+        style={[styles.backgroundGlassLayer, { opacity: glassLayerOpacity }]}
+      >
+        {Platform.OS === "ios" ? (
+          <BlurView
+            intensity={10}
+            tint="light"
+            style={StyleSheet.absoluteFillObject}
+          />
+        ) : (
+          <View style={styles.androidSoftGlass} />
+        )}
+
+        <LinearGradient
+          colors={[
+            "rgba(255,255,255,0.09)",
+            "rgba(255,255,255,0.025)",
+            "rgba(255,255,255,0.08)",
+          ]}
+          locations={[0, 0.5, 1]}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+        />
+      </Animated.View>
 
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <Animated.View
           style={[
             styles.fullContent,
             {
-              opacity: Animated.multiply(contentOpacity, exitOpacity),
-              transform: [
-                { translateY: contentTranslateY },
-                { scale: exitScale },
-              ],
+              opacity: contentOpacity,
+              transform: [{ translateY: contentTranslateY }],
             },
           ]}
         >
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.langButtonWrapper}
-              activeOpacity={0.78}
-              onPress={() => {
-                const nextLanguage = language === "AR" ? "EN" : "AR";
-                changeLanguage(nextLanguage);
-              }}
+              activeOpacity={0.75}
+              onPress={toggleLanguage}
               disabled={isNavigating}
             >
               <LinearGradient
-                colors={[COLORS.glassLight, COLORS.glassLight]}
+                colors={[
+                  "rgba(255,255,255,0.64)",
+                  "rgba(255,255,255,0.42)",
+                ]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.langButtonGradient}
@@ -359,7 +355,9 @@ export default function StartScreen() {
 
                 <View style={styles.langDivider} />
 
-                <Text style={styles.langText}>{t.languageButton}</Text>
+                <Text style={styles.langText}>
+                  {isArabic ? "En" : "عربي"}
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
 
@@ -368,25 +366,23 @@ export default function StartScreen() {
 
           <View style={styles.centerContent}>
             <View style={styles.textGroup}>
-
               {isArabic ? (
                 <Text style={styles.title}>
-                  {t.startWelcome}{" "}
-                  <Text style={styles.titleBrand}>{t.startBrand}</Text>
+                  مرحباً بك في <Text style={styles.titleBrand}>تنبه</Text>
                 </Text>
               ) : (
-                <Text
-                  style={[styles.title, styles.englishTitle]}
-                  numberOfLines={1}
-                >
-                  {t.startWelcome}{" "}
-                  <Text style={styles.titleBrand}>{t.startBrand}</Text>
+                <Text style={styles.title}>
+                  Welcome to <Text style={styles.titleBrand}>Tnabbah</Text>
                 </Text>
               )}
 
               <View style={styles.titleUnderline} />
 
-              <Text style={styles.subtitle}>{t.startSubtitle}</Text>
+              <Text style={styles.subtitle}>
+                {isArabic
+                  ? "لأن سيارتك تحتاج من ينتبه لها"
+                  : "Because your car needs someone to watch over it"}
+              </Text>
             </View>
           </View>
 
@@ -398,14 +394,16 @@ export default function StartScreen() {
               disabled={isNavigating}
             >
               <LinearGradient
-                colors={[COLORS.primary, COLORS.primary]}
+                colors={[COLORS.primary, COLORS.primaryDark]}
                 start={{ x: 0.15, y: 0 }}
                 end={{ x: 0.9, y: 1 }}
                 style={styles.loginGradient}
               >
                 <View style={styles.loginShine} />
 
-                <Text style={styles.loginText}>{t.login}</Text>
+                <Text style={styles.loginText}>
+                  {isArabic ? "تسجيل الدخول" : "Login"}
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
 
@@ -416,12 +414,17 @@ export default function StartScreen() {
               disabled={isNavigating}
             >
               <LinearGradient
-                colors={[COLORS.glassLight, COLORS.glassLight]}
+                colors={[
+                  "rgba(255,255,255,0.70)",
+                  "rgba(255,255,255,0.45)",
+                ]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.registerGradient}
               >
-                <Text style={styles.registerText}>{t.createAccount}</Text>
+                <Text style={styles.registerText}>
+                  {isArabic ? "إنشاء حساب جديد" : "Create Account"}
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -435,7 +438,7 @@ export default function StartScreen() {
           {
             transform: [
               { translateX: logoTranslateX },
-              { translateY: Animated.add(logoTranslateY, logoSoftLift) },
+              { translateY: logoTranslateY },
               { scale: logoScale },
             ],
           },
@@ -473,6 +476,16 @@ export default function StartScreen() {
           fadeDuration={0}
         />
       </Animated.View>
+
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.transitionOverlay,
+          {
+            opacity: transitionAnim,
+          },
+        ]}
+      />
     </View>
   );
 }
@@ -503,17 +516,23 @@ function createStyles({
   const buttonHeight = clamp(height * 0.076, 56, 64);
   const buttonRadius = buttonHeight / 2;
 
-  const titleShadow = {
-    textShadowColor: "rgba(255,255,255,0.82)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 5,
-  };
+  const titleShadow =
+    Platform.OS === "ios"
+      ? {
+          textShadowColor: "rgba(255,255,255,0.85)",
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 8,
+        }
+      : {};
 
-  const subtitleShadow = {
-    textShadowColor: "rgba(255,255,255,0.76)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  };
+  const subtitleShadow =
+    Platform.OS === "ios"
+      ? {
+          textShadowColor: "rgba(255,255,255,0.75)",
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 6,
+        }
+      : {};
 
   return StyleSheet.create({
     container: {
@@ -530,21 +549,15 @@ function createStyles({
       zIndex: 0,
     },
 
-    backgroundSoftLayer: {
+    backgroundGlassLayer: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: "rgba(255,255,255,0.25)",
       zIndex: 1,
+      backgroundColor: "transparent",
     },
 
-    backgroundExtraLayer: {
+    androidSoftGlass: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: "rgba(233,238,241,0.22)",
-      zIndex: 2,
-    },
-
-    backgroundGradientLayer: {
-      ...StyleSheet.absoluteFillObject,
-      zIndex: 3,
+      backgroundColor: "rgba(255,255,255,0.13)",
     },
 
     safeArea: {
@@ -558,7 +571,6 @@ function createStyles({
       paddingTop: headerTop,
       paddingBottom: isVerySmallScreen ? 22 : 30,
       zIndex: 5,
-      justifyContent: "space-between",
     },
 
     splashLogoWrapper: {
@@ -578,36 +590,31 @@ function createStyles({
       marginBottom: splashLogoHeight * 0.048,
     },
 
-    // هنا حجم ومكان الخط
     logoLineContainer: {
-      width: splashLogoWidth * 0.84,
-      height: 8,
-      alignItems: "center",
+      width: splashLogoWidth * 0.73,
+      height: 6,
+      alignItems: "flex-end",
       justifyContent: "center",
       overflow: "hidden",
     },
 
-    // هنا شكل الخط نفسه: أحمر غامق + حد أبيض خفيف
     logoLine: {
-      height: 5.5,
-      borderRadius: 1.5,
+      height: 6,
+      borderRadius: 3,
       backgroundColor: COLORS.logoLine,
-      borderWidth: 0.8,
-      borderColor: COLORS.logoLineBorder,
     },
 
     logoEnglish: {
-      width: splashLogoWidth * 1.07,
-      height: splashLogoHeight * 0.3,
-      marginTop: splashLogoHeight * 0.037,
+      width: splashLogoWidth * 0.815,
+      height: splashLogoHeight * 0.162,
+      marginTop: splashLogoHeight * 0.076,
     },
 
     header: {
       width: "100%",
-      minHeight: finalLogoHeight,
       flexDirection: "row",
       justifyContent: "space-between",
-      alignItems: "center",
+      alignItems: "flex-start",
       zIndex: 5,
     },
 
@@ -617,18 +624,21 @@ function createStyles({
     },
 
     langButtonWrapper: {
-      height: isVerySmallScreen ? 40 : 44,
-      minWidth: isVerySmallScreen ? 84 : 92,
+      height: isVerySmallScreen ? 44 : 48,
+      minWidth: isVerySmallScreen ? 86 : 94,
       borderRadius: 26,
       overflow: "hidden",
-      shadowColor: "transparent",
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0,
-      shadowRadius: 0,
-      elevation: 0,
-      borderWidth: 1.3,
-      borderColor: COLORS.glassBorder,
-      backgroundColor: "rgba(255,255,255,0.62)",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: Platform.OS === "android" ? 0.07 : 0.1,
+      shadowRadius: 12,
+      elevation: 4,
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.58)",
+      backgroundColor:
+        Platform.OS === "android"
+          ? "rgba(255,255,255,0.58)"
+          : "rgba(255,255,255,0.35)",
     },
 
     langButtonGradient: {
@@ -639,84 +649,71 @@ function createStyles({
       alignItems: "center",
       justifyContent: "center",
       gap: 9,
-      overflow: "hidden",
     },
 
     langDivider: {
       width: 1,
       height: 20,
-      backgroundColor: "rgba(123,23,20,0.20)",
+      backgroundColor: "rgba(135,27,23,0.16)",
     },
 
     langText: {
       fontSize: 16,
       color: COLORS.primaryText,
-      fontWeight: "900",
+      fontWeight: "800",
       includeFontPadding: false,
       textAlignVertical: "center",
     },
 
     centerContent: {
-      width: "100%",
-      alignItems: "center",
-      justifyContent: "flex-start",
-      paddingTop: isVerySmallScreen
-        ? height * 0.1
-        : isSmallScreen
-        ? height * 0.1
-        : height * 0.1,
       flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingBottom: isVerySmallScreen ? 140 : isSmallScreen ? 175 : 205,
     },
 
     textGroup: {
       width: "100%",
       alignItems: "center",
       justifyContent: "center",
-      paddingHorizontal: clamp(width * 0.02, 8, 14),
+      paddingHorizontal: clamp(width * 0.03, 10, 16),
     },
 
     title: {
-      fontSize: isVerySmallScreen ? 30 : isSmallScreen ? 35 : 38,
+      fontSize: isVerySmallScreen ? 25 : isSmallScreen ? 30 : 32,
       fontWeight: "900",
       color: COLORS.title,
       textAlign: "center",
-      letterSpacing: -0.4,
-      lineHeight: isVerySmallScreen ? 42 : isSmallScreen ? 47 : 50,
+      letterSpacing: Platform.OS === "ios" ? -0.7 : -0.2,
+      lineHeight: isVerySmallScreen ? 38 : 44,
       includeFontPadding: false,
       textAlignVertical: "center",
       ...titleShadow,
     },
 
-    englishTitle: {
-      fontSize: isVerySmallScreen ? 28 : isSmallScreen ? 31 : 33,
-      lineHeight: isVerySmallScreen ? 38 : isSmallScreen ? 41 : 44,
-      letterSpacing: -0.8,
-      maxWidth: width * 0.99,
-    },
-
     titleBrand: {
       color: COLORS.primary,
       fontWeight: "900",
-      letterSpacing: -0.2,
+      letterSpacing: Platform.OS === "ios" ? -0.4 : 0,
       includeFontPadding: false,
     },
 
     titleUnderline: {
-      marginTop: 9,
-      marginBottom: 11,
-      width: isVerySmallScreen ? 66 : 78,
-      height: 3.5,
+      marginTop: 10,
+      marginBottom: 12,
+      width: isVerySmallScreen ? 68 : 84,
+      height: 4,
       borderRadius: 99,
-      backgroundColor: "rgba(143,31,26,0.30)",
+      backgroundColor: "rgba(135,27,23,0.28)",
     },
 
     subtitle: {
-      fontSize: isVerySmallScreen ? 15 : 16.5,
-      lineHeight: isVerySmallScreen ? 24 : 28,
-      color: "rgba(38,50,56,0.88)",
+      fontSize: isVerySmallScreen ? 15 : 17,
+      lineHeight: isVerySmallScreen ? 25 : 30,
+      color: COLORS.darkText,
       fontWeight: "800",
       textAlign: "center",
-      maxWidth: clamp(width * 0.82, 270, 330),
+      maxWidth: clamp(width * 0.82, 280, 330),
       includeFontPadding: false,
       textAlignVertical: "center",
       ...subtitleShadow,
@@ -733,14 +730,12 @@ function createStyles({
       height: buttonHeight,
       borderRadius: buttonRadius,
       overflow: "hidden",
-      shadowColor: "transparent",
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0,
-      shadowRadius: 0,
-      elevation: 0,
+      shadowColor: "#6E1411",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: Platform.OS === "android" ? 0.16 : 0.24,
+      shadowRadius: 14,
+      elevation: 6,
       backgroundColor: COLORS.primary,
-      borderWidth: 1,
-      borderColor: "rgba(111,23,19,0.28)",
     },
 
     loginGradient: {
@@ -775,14 +770,17 @@ function createStyles({
       height: buttonHeight,
       borderRadius: buttonRadius,
       overflow: "hidden",
-      shadowColor: "transparent",
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0,
-      shadowRadius: 0,
-      elevation: 0,
-      borderWidth: 1.3,
-      borderColor: COLORS.glassBorder,
-      backgroundColor: "rgba(255,255,255,0.62)",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: Platform.OS === "android" ? 0.07 : 0.1,
+      shadowRadius: 13,
+      elevation: 4,
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.62)",
+      backgroundColor:
+        Platform.OS === "android"
+          ? "rgba(255,255,255,0.62)"
+          : "rgba(255,255,255,0.40)",
     },
 
     registerGradient: {
@@ -799,6 +797,12 @@ function createStyles({
       fontWeight: "900",
       includeFontPadding: false,
       textAlignVertical: "center",
+    },
+
+    transitionOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 100,
+      backgroundColor: COLORS.nextScreenBackground,
     },
   });
 }

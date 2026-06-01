@@ -602,17 +602,23 @@ const ReportScreen = () => {
   const needsMechanic = !!finalRec?.needs_mechanic;
   const mechanicNote = String(finalRec?.mechanic_note_ar || '').trim();
 
-  // Smart summary card ("تحليل تنبّه الذكي").
-  // The PID `overview_ar` is a *holistic* sentence written by the model that
-  // describes the overall state (normal/abnormal readings + any DTC context),
-  // e.g. "جميع القراءات طبيعية باستثناء حرارة المحرك ... مع وجود كود P0104 ...".
-  // It is intentionally different from the per-DTC `smart_insight_ar` shown on
-  // each DTC card below, so we always surface it when present.
+  // Combined AI narrative (PID overview + DTC smart insights)
+  // The engine output is the source of truth. The AI overview is free text and
+  // can hallucinate issues that don't exist (or vice versa), so we gate each
+  // AI part by the corresponding engine signal:
+  //   - pidOverview is shown only when the engine actually flagged anomalies
+  //   - dtcOverview is shown only when the engine reported DTCs
+  // This eliminates "summary says there's an issue but PIDs say otherwise".
   const rawPidOverview = String(pidInterp.overview_ar || pidInterp.summary_ar || '').trim();
   const dtcInterpList: any[] = (dtcInterp.interpretations || []);
-  const pidOverview = rawPidOverview;
+  const rawDtcOverview = dtcInterpList
+    .map((it: any) => String(it.smart_insight_ar || '').trim())
+    .filter(Boolean)
+    .join(' — ');
+  const pidOverview = nAnom > 0 ? rawPidOverview : '';
+  const dtcOverview = nDtcs > 0 ? rawDtcOverview : '';
   const aiActive = sensorData.some((s: any) => s.aiInterpretation) || dtcInterpList.length > 0;
-  const aiNarrativeParts = [pidOverview].filter(Boolean);
+  const aiNarrativeParts = [pidOverview, dtcOverview].filter(Boolean);
 
   return (
     <>
