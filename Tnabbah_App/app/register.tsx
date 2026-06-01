@@ -1,25 +1,25 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Stack, useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Alert,
+  KeyboardAvoidingView,
+  ScrollView,
   Platform,
   useWindowDimensions,
   ActivityIndicator,
   Animated,
   Easing,
   StatusBar,
-  Keyboard,
-  TouchableWithoutFeedback,
 } from "react-native";
 import { supabase } from "../lib/supabase";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useLanguage } from "../providers/LanguageProvider";
 
 const COLORS = {
   screenBackground: "#FFFFFF",
@@ -33,40 +33,22 @@ const COLORS = {
   textDark: "#2C2C2C",
   inputText: "#2E1D1D",
 
-  label: "#6C5B58",
+  label: "#8C7A76",
   muted: "#6C5B58",
-  placeholder: "#A8A8A8",
-  border: "#DCDCDC",
+  placeholder: "#B0A6A4",
+  border: "rgba(205,205,205,0.95)",
 
-  shadowGray: "#000000",
-  success: "#2E7D32",
+  shadowGray: "#8E8E8E",
   white: "#FFFFFF",
-
-  rulesBackground: "#F5F5F5",
-  rulesBorder: "rgba(170,170,170,0.55)",
-  rulesText: "#6C5B58",
 };
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
-type RegisterRoute = "/login" | "/start";
-
-type FieldErrors = {
-  fullName?: string;
-  email?: string;
-  password?: string;
-};
+type RegisterRoute = "/login" | "/connection-intro" | "/start";
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const { t, isArabic } = useLanguage();
-
-  const textAlign = isArabic ? "right" : "left";
-  const rowDirection = isArabic ? "row-reverse" : "row";
-  const iconMargin = isArabic ? { marginLeft: 10 } : { marginRight: 10 };
-  const eyeMargin = isArabic ? { marginRight: 8 } : { marginLeft: 8 };
-  const ruleIconMargin = isArabic ? { marginLeft: 7 } : { marginRight: 7 };
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -76,7 +58,7 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
 
   const [showPassword, setShowPassword] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [errorMessage, setErrorMessage] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -84,29 +66,22 @@ export default function RegisterScreen() {
   const screenOpacity = useRef(new Animated.Value(0)).current;
   const screenTranslateY = useRef(new Animated.Value(10)).current;
   const transitionAnim = useRef(new Animated.Value(0)).current;
-  const keyboardTranslateY = useRef(new Animated.Value(0)).current;
-
-  const emailInputRef = useRef<TextInput>(null);
-  const passwordInputRef = useRef<TextInput>(null);
 
   const isSmallScreen = height < 720;
   const isVerySmallScreen = height < 650;
-  const isTabletLike = width >= 768;
 
-  const horizontalPadding = isTabletLike
-    ? 24
-    : clamp(width * 0.055, 18, 24);
+  const horizontalPadding = clamp(width * 0.055, 18, 24);
 
-  const backButtonSize = isVerySmallScreen ? 42 : 46;
+  const backButtonSize = isVerySmallScreen ? 44 : 48;
   const backButtonRadius = backButtonSize / 2;
 
-  const topSpacing = clamp(height * 0.01, 5, 10);
-  const bottomSpacing = clamp(height * 0.018, 10, 18);
+  const topSpacing = clamp(height * 0.012, 6, 12);
+  const bottomSpacing = clamp(height * 0.025, 16, 24);
 
-  const inputHeight = isVerySmallScreen ? 53 : 57;
+  const inputHeight = isVerySmallScreen ? 61 : 66;
   const inputRadius = inputHeight / 2;
 
-  const buttonHeight = isVerySmallScreen ? 52 : 56;
+  const buttonHeight = isVerySmallScreen ? 58 : 64;
   const buttonRadius = 30;
 
   const styles = useMemo(
@@ -123,7 +98,6 @@ export default function RegisterScreen() {
         buttonRadius,
         isSmallScreen,
         isVerySmallScreen,
-        isTabletLike,
         safeTop: insets.top,
         width,
         height,
@@ -140,87 +114,11 @@ export default function RegisterScreen() {
       buttonRadius,
       isSmallScreen,
       isVerySmallScreen,
-      isTabletLike,
       insets.top,
       width,
       height,
     ]
   );
-
-  useEffect(() => {
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-    const keyboardShift = isVerySmallScreen ? -125 : isSmallScreen ? -108 : -90;
-
-    const showSubscription = Keyboard.addListener(showEvent, () => {
-      Animated.timing(keyboardTranslateY, {
-        toValue: keyboardShift,
-        duration: 180,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }).start();
-    });
-
-    const hideSubscription = Keyboard.addListener(hideEvent, () => {
-      Animated.timing(keyboardTranslateY, {
-        toValue: 0,
-        duration: 180,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }).start();
-    });
-
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, [keyboardTranslateY, isSmallScreen, isVerySmallScreen]);
-
-  const passwordChecks = useMemo(() => {
-    const digitCount = (password.match(/[0-9]/g) || []).length;
-
-    return {
-      hasUpperCase: /[A-Z]/.test(password),
-      hasLowerCase: /[a-z]/.test(password),
-      hasSixDigits: digitCount >= 6,
-      hasSpecialCharacter:
-        /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password),
-    };
-  }, [password]);
-
-  const isPasswordValid =
-    passwordChecks.hasUpperCase &&
-    passwordChecks.hasLowerCase &&
-    passwordChecks.hasSixDigits &&
-    passwordChecks.hasSpecialCharacter;
-
-  const showPasswordRules = password.length > 0 && !isPasswordValid;
-
-  const passwordRules = [
-    {
-      key: "uppercase",
-      label: t.passwordRuleUppercase,
-      valid: passwordChecks.hasUpperCase,
-    },
-    {
-      key: "lowercase",
-      label: t.passwordRuleLowercase,
-      valid: passwordChecks.hasLowerCase,
-    },
-    {
-      key: "sixDigits",
-      label: t.passwordRuleSixDigits,
-      valid: passwordChecks.hasSixDigits,
-    },
-    {
-      key: "special",
-      label: t.passwordRuleSpecial,
-      valid: passwordChecks.hasSpecialCharacter,
-    },
-  ];
 
   useFocusEffect(
     useCallback(() => {
@@ -229,7 +127,6 @@ export default function RegisterScreen() {
       transitionAnim.setValue(0);
       screenOpacity.setValue(0);
       screenTranslateY.setValue(10);
-      keyboardTranslateY.setValue(0);
 
       Animated.parallel([
         Animated.timing(screenOpacity, {
@@ -247,7 +144,7 @@ export default function RegisterScreen() {
       ]).start();
 
       return () => {};
-    }, [screenOpacity, screenTranslateY, transitionAnim, keyboardTranslateY])
+    }, [screenOpacity, screenTranslateY, transitionAnim])
   );
 
   const smoothPush = (path: RegisterRoute) => {
@@ -263,6 +160,23 @@ export default function RegisterScreen() {
     }).start(() => {
       requestAnimationFrame(() => {
         router.push(path as any);
+      });
+    });
+  };
+
+  const smoothReplace = (path: RegisterRoute) => {
+    if (isNavigating) return;
+
+    setIsNavigating(true);
+
+    Animated.timing(transitionAnim, {
+      toValue: 1,
+      duration: 150,
+      easing: Easing.inOut(Easing.quad),
+      useNativeDriver: true,
+    }).start(() => {
+      requestAnimationFrame(() => {
+        router.replace(path as any);
       });
     });
   };
@@ -288,40 +202,44 @@ export default function RegisterScreen() {
     });
   };
 
-  const clearFieldError = (field: keyof FieldErrors) => {
-    setFieldErrors((prev) => ({
-      ...prev,
-      [field]: undefined,
-    }));
-  };
-
-  const validateForm = () => {
-    const errors: FieldErrors = {};
-
-    if (!fullName.trim()) {
-      errors.fullName = t.enterFullName;
-    }
-
-    if (!email.trim()) {
-      errors.email = t.enterEmail;
-    } else if (!email.includes("@") || !email.includes(".")) {
-      errors.email = t.enterValidEmail;
-    }
+  const validatePassword = () => {
+    const hasMinLength = password.length >= 6;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
 
     if (!password.trim()) {
-      errors.password = t.writePassword;
-    } else if (!isPasswordValid) {
-      errors.password = t.passwordRequirementsError;
+      setErrorMessage("اكتب كلمة المرور");
+      return false;
     }
 
-    setFieldErrors(errors);
+    if (!hasMinLength) {
+      setErrorMessage("كلمة المرور لازم تكون 6 خانات على الأقل");
+      return false;
+    }
 
-    return Object.keys(errors).length === 0;
+    if (!hasUpperCase || !hasLowerCase || !hasNumber) {
+      setErrorMessage("كلمة المرور لازم تحتوي على حرف كبير، حرف صغير، ورقم");
+      return false;
+    }
+
+    setErrorMessage("");
+    return true;
   };
 
   const handleRegister = async () => {
     try {
-      if (!validateForm()) {
+      if (!fullName.trim()) {
+        setErrorMessage("أدخل الاسم الكامل");
+        return;
+      }
+
+      if (!email.trim()) {
+        setErrorMessage("أدخل البريد الإلكتروني");
+        return;
+      }
+
+      if (!validatePassword()) {
         return;
       }
 
@@ -330,361 +248,253 @@ export default function RegisterScreen() {
       const cleanName = fullName.trim();
       const cleanEmail = email.trim().toLowerCase();
 
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
         options: {
           data: {
             full_name: cleanName,
           },
+          emailRedirectTo:
+            "https://qzhnghwmgujgthbkivdi.supabase.co/auth/v1/callback",
         },
       });
 
       if (error) {
-        console.log("REGISTER ERROR:", error);
-
-        const message = error.message?.toLowerCase() || "";
-
-        if (
-          message.includes("already registered") ||
-          message.includes("already exists") ||
-          message.includes("user already registered")
-        ) {
-          await supabase.auth.resend({
-            type: "signup",
-            email: cleanEmail,
-          });
-
-          router.push({
-            pathname: "/verify-email",
-            params: {
-              email: cleanEmail,
-              fullName: cleanName,
-              source: "register",
-            },
-          } as any);
-
-          return;
-        }
-
-        setFieldErrors({
-          email: error.message || t.registerEmailError,
-        });
-
+        setErrorMessage(error.message);
         return;
       }
 
-      setPassword("");
-      setFieldErrors({});
+      if (data.user) {
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .upsert({
+            id: data.user.id,
+            username: cleanEmail,
+            full_name: cleanName,
+            avatar_url: null,
+            website: null,
+          });
 
-      router.push({
-        pathname: "/verify-email",
-        params: {
-          email: cleanEmail,
-          fullName: cleanName,
-          source: "register",
-        },
-      } as any);
+        if (profileError) {
+          console.log("Profile Upsert Error:", profileError);
+          setErrorMessage(
+            "تم إنشاء الحساب، لكن الاسم لم يُحفظ في جدول profiles"
+          );
+          return;
+        }
+      }
+
+      setPassword("");
+      setErrorMessage("");
+
+      if (data.session) {
+        smoothReplace("/connection-intro");
+      } else {
+        Alert.alert("تم التسجيل", "تم إرسال رابط التفعيل إلى بريدك 📩", [
+          {
+            text: "حسنًا",
+            onPress: () => smoothReplace("/login"),
+          },
+        ]);
+      }
     } catch (err) {
       console.log(err);
-      setFieldErrors({
-        password: t.registerUnexpectedError,
-      });
+      setErrorMessage("صار خطأ غير متوقع، حاول مرة أخرى");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <View style={styles.container}>
-        <Stack.Screen options={{ gestureEnabled: false }} />
+    <View style={styles.container}>
+      <StatusBar
+        translucent
+        backgroundColor="transparent"
+        barStyle="dark-content"
+      />
 
-        <StatusBar
-          translucent
-          backgroundColor="transparent"
-          barStyle="dark-content"
-        />
+      <Animated.View
+        style={[
+          styles.animatedScreen,
+          {
+            opacity: screenOpacity,
+            transform: [{ translateY: screenTranslateY }],
+          },
+        ]}
+      >
+        <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+          <KeyboardAvoidingView
+            style={styles.keyboardAvoidingView}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              keyboardDismissMode="interactive"
+            >
+              <View style={styles.screenContent}>
+                {/* زر الرجوع فوق */}
+                <View style={styles.backArea}>
+                  <TouchableOpacity
+                    style={styles.backButtonWrapper}
+                    activeOpacity={0.85}
+                    onPress={smoothBack}
+                    disabled={isNavigating || loading}
+                  >
+                    <Ionicons
+                      name="chevron-back"
+                      size={isVerySmallScreen ? 21 : 23}
+                      color={COLORS.shadowGray}
+                    />
+                  </TouchableOpacity>
+                </View>
 
-        <Animated.View
-          style={[
-            styles.animatedScreen,
-            {
-              opacity: screenOpacity,
-              transform: [{ translateY: screenTranslateY }],
-            },
-          ]}
-        >
-          <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-            <View style={styles.screenContent}>
-              <View style={styles.innerContent}>
-                <Animated.View
-                  style={[
-                    styles.topArea,
-                    {
-                      transform: [{ translateY: keyboardTranslateY }],
-                    },
-                  ]}
-                >
-                  <View style={styles.backArea}>
-                    <TouchableOpacity
-                      style={styles.backButtonWrapper}
-                      activeOpacity={0.85}
-                      onPress={smoothBack}
-                      disabled={isNavigating || loading}
+                {/* العنوان تحت زر الرجوع */}
+                <View style={styles.titleArea}>
+                  <Text style={styles.title}>إنشاء حساب جديد</Text>
+
+                  <Text style={styles.subtitle}>
+                    انضمّ إلى تنبّه وابدء متابعة سيارتك
+                  </Text>
+                </View>
+
+                <View style={styles.formArea}>
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.inputLabel}>الاسم الكامل</Text>
+
+                    <View
+                      style={[
+                        styles.inputWrapper,
+                        errorMessage.includes("الاسم") &&
+                          styles.inputWrapperError,
+                      ]}
                     >
-                      <Ionicons
-                        name="arrow-back-outline"
-                        size={isVerySmallScreen ? 23 : 25}
-                        color={COLORS.textDark}
+                      <Feather
+                        name="user"
+                        size={isVerySmallScreen ? 20 : 21}
+                        color={COLORS.primary}
+                        style={styles.inputIcon}
                       />
-                    </TouchableOpacity>
-                  </View>
 
-                  <View style={styles.titleArea}>
-                    <Text style={styles.title}>{t.registerTitle}</Text>
-
-                    <Text style={styles.subtitle}>{t.registerSubtitle}</Text>
-                  </View>
-
-                  <View style={styles.formArea}>
-                    <View style={styles.fieldGroup}>
-                      <Text style={[styles.inputLabel, { textAlign }]}>
-                        {t.fullName}
-                      </Text>
-
-                      <View
-                        style={[
-                          styles.inputWrapper,
-                          { flexDirection: rowDirection },
-                          fieldErrors.fullName && styles.inputWrapperError,
-                        ]}
-                      >
-                        <Feather
-                          name="user"
-                          size={isVerySmallScreen ? 19 : 20}
-                          color={COLORS.primary}
-                          style={[styles.inputIcon, iconMargin]}
-                        />
-
-                        <TextInput
-                          style={[styles.input, { textAlign }]}
-                          placeholder={t.fullNamePlaceholder}
-                          placeholderTextColor={COLORS.placeholder}
-                          value={fullName}
-                          onChangeText={(text) => {
-                            setFullName(text);
-                            clearFieldError("fullName");
-                          }}
-                          returnKeyType="done"
-                          editable={!loading && !isNavigating}
-                          selectionColor={COLORS.primary}
-                        />
-                      </View>
-
-                      {fieldErrors.fullName ? (
-                        <View
-                          style={[
-                            styles.fieldErrorRow,
-                            { flexDirection: rowDirection },
-                          ]}
-                        >
-                          <Ionicons
-                            name="alert-circle"
-                            size={14}
-                            color={COLORS.primary}
-                            style={iconMargin}
-                          />
-                          <Text style={[styles.fieldErrorText, { textAlign }]}>
-                            {fieldErrors.fullName}
-                          </Text>
-                        </View>
-                      ) : null}
+                      <TextInput
+                        style={styles.input}
+                        placeholder="اكتب الاسم الكامل"
+                        placeholderTextColor={COLORS.placeholder}
+                        value={fullName}
+                        onChangeText={(text) => {
+                          setFullName(text);
+                          setErrorMessage("");
+                        }}
+                        textAlign="right"
+                        returnKeyType="next"
+                        editable={!loading && !isNavigating}
+                        selectionColor={COLORS.primary}
+                      />
                     </View>
+                  </View>
 
-                    <View style={styles.fieldGroup}>
-                      <Text style={[styles.inputLabel, { textAlign }]}>
-                        {t.email}
-                      </Text>
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.inputLabel}>البريد الإلكتروني</Text>
 
-                      <View
-                        style={[
-                          styles.inputWrapper,
-                          { flexDirection: rowDirection },
-                          fieldErrors.email && styles.inputWrapperError,
-                        ]}
+                    <View
+                      style={[
+                        styles.inputWrapper,
+                        errorMessage.includes("البريد") &&
+                          styles.inputWrapperError,
+                      ]}
+                    >
+                      <Feather
+                        name="mail"
+                        size={isVerySmallScreen ? 20 : 21}
+                        color={COLORS.primary}
+                        style={styles.inputIcon}
+                      />
+
+                      <TextInput
+                        style={styles.input}
+                        placeholder="example@email.com"
+                        placeholderTextColor={COLORS.placeholder}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        value={email}
+                        onChangeText={(text) => {
+                          setEmail(text);
+                          setErrorMessage("");
+                        }}
+                        textAlign="right"
+                        returnKeyType="next"
+                        editable={!loading && !isNavigating}
+                        selectionColor={COLORS.primary}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.inputLabel}>كلمة المرور</Text>
+
+                    <View
+                      style={[
+                        styles.inputWrapper,
+                        errorMessage.includes("كلمة المرور") &&
+                          styles.inputWrapperError,
+                      ]}
+                    >
+                      <Feather
+                        name="lock"
+                        size={isVerySmallScreen ? 21 : 22}
+                        color={COLORS.primary}
+                        style={styles.inputIcon}
+                      />
+
+                      <TextInput
+                        style={styles.input}
+                        placeholder="••••••••"
+                        placeholderTextColor={COLORS.placeholder}
+                        secureTextEntry={!showPassword}
+                        value={password}
+                        onChangeText={(text) => {
+                          setPassword(text);
+                          setErrorMessage("");
+                        }}
+                        textAlign="right"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        returnKeyType="done"
+                        editable={!loading && !isNavigating}
+                        selectionColor={COLORS.primary}
+                      />
+
+                      <TouchableOpacity
+                        style={styles.eyeButton}
+                        activeOpacity={0.7}
+                        onPress={() => setShowPassword(!showPassword)}
+                        disabled={loading || isNavigating}
                       >
-                        <Feather
-                          name="mail"
-                          size={isVerySmallScreen ? 19 : 20}
-                          color={COLORS.primary}
-                          style={[styles.inputIcon, iconMargin]}
-                        />
-
-                        <TextInput
-                          ref={emailInputRef}
-                          style={[styles.input, { textAlign }]}
-                          placeholder="example@email.com"
-                          placeholderTextColor={COLORS.placeholder}
-                          keyboardType="email-address"
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                          value={email}
-                          onChangeText={(text) => {
-                            setEmail(text);
-                            clearFieldError("email");
-                          }}
-                          returnKeyType="next"
-                          blurOnSubmit={false}
-                          onSubmitEditing={() =>
-                            passwordInputRef.current?.focus()
+                        <Ionicons
+                          name={
+                            showPassword ? "eye-outline" : "eye-off-outline"
                           }
-                          editable={!loading && !isNavigating}
-                          selectionColor={COLORS.primary}
-                        />
-                      </View>
-
-                      {fieldErrors.email ? (
-                        <View
-                          style={[
-                            styles.fieldErrorRow,
-                            { flexDirection: rowDirection },
-                          ]}
-                        >
-                          <Ionicons
-                            name="alert-circle"
-                            size={14}
-                            color={COLORS.primary}
-                            style={iconMargin}
-                          />
-                          <Text style={[styles.fieldErrorText, { textAlign }]}>
-                            {fieldErrors.email}
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-
-                    <View style={styles.passwordSection}>
-                      <Text style={[styles.inputLabel, { textAlign }]}>
-                        {t.password}
-                      </Text>
-
-                      <View
-                        style={[
-                          styles.inputWrapper,
-                          { flexDirection: rowDirection },
-                          fieldErrors.password && styles.inputWrapperError,
-                        ]}
-                      >
-                        <Feather
-                          name="lock"
-                          size={isVerySmallScreen ? 20 : 21}
+                          size={isVerySmallScreen ? 21 : 22}
                           color={COLORS.primary}
-                          style={[styles.inputIcon, iconMargin]}
                         />
-
-                        <TextInput
-                          ref={passwordInputRef}
-                          style={[styles.input, { textAlign }]}
-                          placeholder="••••••••"
-                          placeholderTextColor={COLORS.placeholder}
-                          secureTextEntry={!showPassword}
-                          value={password}
-                          onChangeText={(text) => {
-                            setPassword(text);
-                            clearFieldError("password");
-                          }}
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                          returnKeyType="done"
-                          editable={!loading && !isNavigating}
-                          selectionColor={COLORS.primary}
-                        />
-
-                        <TouchableOpacity
-                          style={[styles.eyeButton, eyeMargin]}
-                          activeOpacity={0.7}
-                          onPress={() => setShowPassword(!showPassword)}
-                          disabled={loading || isNavigating}
-                        >
-                          <Ionicons
-                            name={
-                              showPassword ? "eye-outline" : "eye-off-outline"
-                            }
-                            size={isVerySmallScreen ? 20 : 21}
-                            color={COLORS.primary}
-                          />
-                        </TouchableOpacity>
-                      </View>
-
-                      {fieldErrors.password ? (
-                        <View
-                          style={[
-                            styles.fieldErrorRow,
-                            { flexDirection: rowDirection },
-                          ]}
-                        >
-                          <Ionicons
-                            name="alert-circle"
-                            size={14}
-                            color={COLORS.primary}
-                            style={iconMargin}
-                          />
-                          <Text style={[styles.fieldErrorText, { textAlign }]}>
-                            {fieldErrors.password}
-                          </Text>
-                        </View>
-                      ) : null}
-
-                      <View
-                        style={[
-                          styles.passwordRulesBox,
-                          !showPasswordRules && styles.passwordRulesBoxHidden,
-                        ]}
-                        pointerEvents={showPasswordRules ? "auto" : "none"}
-                      >
-                        <Text style={[styles.passwordRulesTitle, { textAlign }]}>
-                          {t.passwordRulesTitle}
-                        </Text>
-
-                        {passwordRules.map((rule) => (
-                          <View
-                            key={rule.key}
-                            style={[
-                              styles.passwordRuleRow,
-                              { flexDirection: rowDirection },
-                            ]}
-                          >
-                            <Ionicons
-                              name={
-                                rule.valid
-                                  ? "checkmark-circle"
-                                  : "close-circle-outline"
-                              }
-                              size={isVerySmallScreen ? 15 : 16}
-                              color={
-                                rule.valid ? COLORS.success : COLORS.rulesText
-                              }
-                              style={ruleIconMargin}
-                            />
-
-                            <Text
-                              style={[
-                                styles.passwordRuleText,
-                                { textAlign },
-                                rule.valid && styles.passwordRuleTextValid,
-                              ]}
-                            >
-                              {rule.label}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
+                      </TouchableOpacity>
                     </View>
                   </View>
-                </Animated.View>
 
-                <View style={styles.bottomArea}>
+                  {errorMessage ? (
+                    <View style={styles.errorBox}>
+                      <Ionicons
+                        name="alert-circle"
+                        size={isVerySmallScreen ? 18 : 19}
+                        color={COLORS.primary}
+                      />
+                      <Text style={styles.errorText}>{errorMessage}</Text>
+                    </View>
+                  ) : null}
+
                   <TouchableOpacity
                     style={[
                       styles.registerButtonWrapper,
@@ -703,7 +513,8 @@ export default function RegisterScreen() {
                       end={{ x: 0.9, y: 1 }}
                       style={styles.registerGradient}
                     >
-                      <View style={styles.loginShine} />
+                      <View style={styles.registerShine} />
+
                       <View style={styles.loadingContent}>
                         {loading ? (
                           <ActivityIndicator
@@ -714,53 +525,46 @@ export default function RegisterScreen() {
                         ) : null}
 
                         <Text style={styles.registerButtonText}>
-                          {loading ? t.registering : t.registerButton}
+                          {loading ? "جاري التسجيل..." : "تسجيل حساب جديد"}
                         </Text>
                       </View>
                     </LinearGradient>
                   </TouchableOpacity>
+                </View>
 
-                  <View style={styles.orArea}>
-                    <View style={styles.orLine} />
-                    <Text style={styles.orText}>{t.or}</Text>
-                    <View style={styles.orLine} />
-                  </View>
+                <View style={styles.orArea}>
+                  <View style={styles.orLine} />
+                  <Text style={styles.orText}>أو</Text>
+                  <View style={styles.orLine} />
+                </View>
 
-                  <View
-                    style={[
-                      styles.loginTextArea,
-                      { flexDirection: isArabic ? "row-reverse" : "row" },
-                    ]}
+                <View style={styles.loginTextArea}>
+                  <Text style={styles.loginLightText}>لديك حساب بالفعل؟ </Text>
+
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => smoothPush("/login")}
+                    disabled={isNavigating || loading}
                   >
-                    <Text style={styles.loginLightText}>
-                      {t.alreadyHaveAccount}{" "}
-                    </Text>
-
-                    <TouchableOpacity
-                      activeOpacity={0.7}
-                      onPress={() => smoothPush("/login")}
-                      disabled={isNavigating || loading}
-                    >
-                      <Text style={styles.loginBoldText}>{t.login}</Text>
-                    </TouchableOpacity>
-                  </View>
+                    <Text style={styles.loginBoldText}>تسجيل الدخول</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-            </View>
-          </SafeAreaView>
-        </Animated.View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Animated.View>
 
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.transitionOverlay,
-            {
-              opacity: transitionAnim,
-            },
-          ]}
-        />
-      </View>
-    </TouchableWithoutFeedback>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.transitionOverlay,
+          {
+            opacity: transitionAnim,
+          },
+        ]}
+      />
+    </View>
   );
 }
 
@@ -776,7 +580,6 @@ function createStyles({
   buttonRadius,
   isSmallScreen,
   isVerySmallScreen,
-  isTabletLike,
   safeTop,
   width,
   height,
@@ -792,7 +595,6 @@ function createStyles({
   buttonRadius: number;
   isSmallScreen: boolean;
   isVerySmallScreen: boolean;
-  isTabletLike: boolean;
   safeTop: number;
   width: number;
   height: number;
@@ -814,26 +616,23 @@ function createStyles({
       backgroundColor: COLORS.screenBackground,
     },
 
+    keyboardAvoidingView: {
+      flex: 1,
+      backgroundColor: COLORS.screenBackground,
+    },
+
+    scrollContent: {
+      flexGrow: 1,
+      backgroundColor: COLORS.screenBackground,
+    },
+
     screenContent: {
       flex: 1,
       paddingHorizontal: horizontalPadding,
       paddingTop: topSpacing,
       paddingBottom: bottomSpacing,
+      minHeight: height,
       backgroundColor: COLORS.screenBackground,
-      alignItems: "center",
-    },
-
-    innerContent: {
-      flex: 1,
-      width: "100%",
-      maxWidth: 430,
-      alignSelf: "center",
-      justifyContent: "space-between",
-    },
-
-    topArea: {
-      width: "100%",
-      flexShrink: 1,
     },
 
     backArea: {
@@ -841,7 +640,7 @@ function createStyles({
       paddingTop: safeTop + 2,
       alignItems: "flex-start",
       justifyContent: "center",
-      marginBottom: isVerySmallScreen ? 8 : 12,
+      marginBottom: isVerySmallScreen ? 26 : 32,
     },
 
     backButtonWrapper: {
@@ -850,43 +649,41 @@ function createStyles({
       borderRadius: backButtonRadius,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "transparent",
-      borderWidth: 0,
-      shadowOpacity: 0,
-      elevation: 0,
+      backgroundColor: COLORS.white,
+      borderWidth: 1.7,
+      borderColor: COLORS.border,
+      shadowColor: COLORS.shadowGray,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: Platform.OS === "android" ? 0.16 : 0.22,
+      shadowRadius: 4,
+      elevation: 3,
     },
 
     titleArea: {
       width: "100%",
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: isVerySmallScreen
-        ? 18
-        : isSmallScreen
-        ? 22
-        : isTabletLike
-        ? 34
-        : 28,
+      marginBottom: isVerySmallScreen ? 34 : isSmallScreen ? 42 : 48,
       paddingHorizontal: clamp(width * 0.02, 8, 14),
     },
 
     title: {
-      fontSize: isVerySmallScreen ? 21 : isSmallScreen ? 23 : 24,
+      fontSize: isVerySmallScreen ? 22 : isSmallScreen ? 24 : 25,
       fontWeight: "900",
       color: COLORS.title,
       textAlign: "center",
       letterSpacing: -0.4,
-      lineHeight: isVerySmallScreen ? 29 : 32,
+      lineHeight: isVerySmallScreen ? 32 : 35,
       textShadowColor: "rgba(255,255,255,0.95)",
       textShadowOffset: { width: 0, height: 2 },
       textShadowRadius: 12,
     },
 
     subtitle: {
-      marginTop: isVerySmallScreen ? 5 : 7,
-      fontSize: isVerySmallScreen ? 14.5 : 15.5,
-      lineHeight: isVerySmallScreen ? 21 : 23,
-      color: COLORS.placeholder,
+      marginTop: isVerySmallScreen ? 12 : 15,
+      fontSize: isVerySmallScreen ? 16 : 17.5,
+      lineHeight: isVerySmallScreen ? 25 : 28,
+      color: COLORS.textDark,
       fontWeight: "800",
       textAlign: "center",
       textShadowColor: "rgba(255,255,255,0.90)",
@@ -901,46 +698,46 @@ function createStyles({
 
     fieldGroup: {
       width: "100%",
-      marginBottom: isVerySmallScreen ? 8 : 10,
+      marginBottom: isVerySmallScreen ? 16 : 18,
     },
 
     inputLabel: {
       color: COLORS.label,
-      fontSize: isVerySmallScreen ? 13.5 : 14.5,
+      fontSize: isVerySmallScreen ? 14.5 : 15.5,
       fontWeight: "800",
       textAlign: "right",
-      marginBottom: 6,
+      marginBottom: 10,
     },
 
     inputWrapper: {
       width: "100%",
       height: inputHeight,
-      borderRadius: 22,
+      borderRadius: inputRadius,
       backgroundColor: COLORS.white,
-      borderWidth: 1,
+      borderWidth: 1.7,
       borderColor: COLORS.border,
-      paddingHorizontal: isVerySmallScreen ? 14 : 16,
+      paddingHorizontal: isVerySmallScreen ? 16 : 18,
+      flexDirection: "row-reverse",
       alignItems: "center",
       shadowColor: COLORS.shadowGray,
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: Platform.OS === "android" ? 0.05 : 0.035,
-      shadowRadius: 6,
-      elevation: 1,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: Platform.OS === "android" ? 0.16 : 0.22,
+      shadowRadius: 4,
+      elevation: 3,
     },
 
     inputWrapperError: {
-      borderColor: "rgba(135,27,23,0.42)",
-      backgroundColor: "rgba(135,27,23,0.025)",
+      borderColor: "rgba(154,33,28,0.35)",
+      backgroundColor: "rgba(154,33,28,0.015)",
     },
 
     inputIcon: {
-      marginLeft: 0,
-      marginRight: 0,
+      marginLeft: isVerySmallScreen ? 11 : 13,
     },
 
     input: {
       flex: 1,
-      fontSize: isVerySmallScreen ? 15.5 : 16.5,
+      fontSize: isVerySmallScreen ? 16.5 : 17.5,
       color: COLORS.inputText,
       fontWeight: "700",
       paddingVertical: 0,
@@ -948,84 +745,42 @@ function createStyles({
     },
 
     eyeButton: {
-      width: isVerySmallScreen ? 30 : 32,
-      height: isVerySmallScreen ? 30 : 32,
-      borderRadius: isVerySmallScreen ? 15 : 16,
+      width: isVerySmallScreen ? 32 : 34,
+      height: isVerySmallScreen ? 32 : 34,
+      borderRadius: isVerySmallScreen ? 16 : 17,
       justifyContent: "center",
       alignItems: "center",
+      marginRight: 8,
     },
 
-    fieldErrorRow: {
-      marginTop: 6,
+    errorBox: {
+      width: "100%",
+      flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "flex-start",
-      paddingHorizontal: 8,
+      marginTop: isVerySmallScreen ? -5 : -6,
+      marginBottom: isVerySmallScreen ? 18 : 22,
+      paddingHorizontal: isVerySmallScreen ? 14 : 16,
+      paddingVertical: isVerySmallScreen ? 10 : 12,
+      borderRadius: 22,
+      backgroundColor: "rgba(154,33,28,0.07)",
+      borderWidth: 1.2,
+      borderColor: "rgba(154,33,28,0.16)",
+      shadowColor: COLORS.shadowGray,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: Platform.OS === "android" ? 0.08 : 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+      gap: 8,
     },
 
-    fieldErrorText: {
+    errorText: {
       flex: 1,
       color: COLORS.primary,
-      fontSize: isVerySmallScreen ? 12.2 : 13,
+      fontSize: isVerySmallScreen ? 13.2 : 14,
       fontWeight: "800",
       textAlign: "right",
-      lineHeight: isVerySmallScreen ? 17 : 19,
-    },
-
-    passwordSection: {
-      width: "100%",
-      marginBottom: 0,
-    },
-
-    passwordRulesBox: {
-      width: "100%",
-      height: isVerySmallScreen ? 116 : 126,
-      marginTop: 7,
-      paddingHorizontal: isVerySmallScreen ? 12 : 14,
-      paddingVertical: isVerySmallScreen ? 7 : 8,
-      borderRadius: 17,
-      backgroundColor: COLORS.rulesBackground,
-      borderWidth: 1.1,
-      borderColor: COLORS.rulesBorder,
-      overflow: "hidden",
-    },
-
-    passwordRulesBoxHidden: {
-      opacity: 0,
-    },
-
-    passwordRulesTitle: {
-      color: COLORS.rulesText,
-      fontSize: isVerySmallScreen ? 12.2 : 13,
-      fontWeight: "900",
-      textAlign: "right",
-      marginBottom: 5,
-      lineHeight: isVerySmallScreen ? 17 : 19,
-    },
-
-    passwordRuleRow: {
-      alignItems: "center",
-      justifyContent: "flex-start",
-      marginTop: 4,
-    },
-
-    passwordRuleText: {
-      flex: 1,
-      color: COLORS.rulesText,
-      fontSize: isVerySmallScreen ? 11.3 : 12.1,
-      fontWeight: "800",
-      textAlign: "right",
-      lineHeight: isVerySmallScreen ? 16 : 18,
-    },
-
-    passwordRuleTextValid: {
-      color: COLORS.success,
-    },
-
-    bottomArea: {
-      marginTop: isVerySmallScreen ? 10 : 16,
-      width: "100%",
-      paddingTop: isVerySmallScreen ? 10 : 14,
-      paddingBottom: isVerySmallScreen ? 2 : 6,
+      lineHeight: isVerySmallScreen ? 20 : 22,
     },
 
     registerButtonWrapper: {
@@ -1053,6 +808,17 @@ function createStyles({
       overflow: "hidden",
     },
 
+    registerShine: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      height: "48%",
+      backgroundColor: "rgba(255,255,255,0.10)",
+      borderTopLeftRadius: buttonRadius,
+      borderTopRightRadius: buttonRadius,
+    },
+
     loadingContent: {
       flexDirection: "row",
       alignItems: "center",
@@ -1067,13 +833,13 @@ function createStyles({
 
     registerButtonText: {
       color: COLORS.white,
-      fontSize: isVerySmallScreen ? 18 : 19.5,
+      fontSize: isVerySmallScreen ? 19 : 21,
       fontWeight: "900",
       textAlign: "center",
     },
 
     orArea: {
-      marginTop: isVerySmallScreen ? 8 : 11,
+      marginTop: isVerySmallScreen ? 34 : 40,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
@@ -1083,33 +849,22 @@ function createStyles({
     orLine: {
       flex: 1,
       height: 1,
-      backgroundColor: "rgba(150, 150, 150, 1)",
+      backgroundColor: "rgba(154,33,28,0.22)",
     },
 
     orText: {
-      marginHorizontal: 14,
-      color: "rgba(113, 113, 113, 1)",
+      marginHorizontal: 16,
+      color: COLORS.label,
       fontSize: isVerySmallScreen ? 15.5 : 16.5,
-      fontWeight: "900",
+      fontWeight: "800",
     },
 
     loginTextArea: {
-      marginTop: isVerySmallScreen ? 12 : 16,
+      marginTop: isVerySmallScreen ? 16 : 18,
       flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "center",
       flexWrap: "wrap",
-    },
-
-    loginShine: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      height: "48%",
-      backgroundColor: "rgba(255,255,255,0.10)",
-      borderTopLeftRadius: buttonRadius,
-      borderTopRightRadius: buttonRadius,
     },
 
     loginLightText: {
@@ -1121,7 +876,7 @@ function createStyles({
 
     loginBoldText: {
       color: COLORS.primary,
-      fontSize: isVerySmallScreen ? 13.8 : 14.7,
+      fontSize: isVerySmallScreen ? 15 : 16,
       fontWeight: "900",
       textAlign: "center",
     },

@@ -3,7 +3,6 @@ import {
   useContext,
   useEffect,
   useState,
-  useCallback,
   ReactNode,
 } from "react";
 import { supabase } from "../lib/supabase";
@@ -15,9 +14,6 @@ type AuthContextType = {
   profile: any | null;
   loading: boolean;
   isPasswordRecovery: boolean;
-
-  refreshProfile: () => Promise<any | null>;
-  updateProfileLocally: (updates: Record<string, any>) => void;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -25,9 +21,6 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   loading: true,
   isPasswordRecovery: false,
-
-  refreshProfile: async () => null,
-  updateProfileLocally: () => {},
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -36,9 +29,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
-  const realUserId = session?.user?.id || null;
-
-  const loadProfile = useCallback(async (userId: string) => {
+  const loadProfile = async (userId: string) => {
     try {
       console.log("Loading profile for:", userId);
 
@@ -70,31 +61,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfile(null);
       return null;
     }
-  }, []);
-
-  const refreshProfile = useCallback(async () => {
-    const currentUserId = session?.user?.id;
-
-    if (!currentUserId) {
-      setProfile(null);
-      return null;
-    }
-
-    return await loadProfile(currentUserId);
-  }, [session?.user?.id, loadProfile]);
-
-  const updateProfileLocally = useCallback((updates: Record<string, any>) => {
-    setProfile((prevProfile: any) => {
-      if (!prevProfile) {
-        return updates;
-      }
-
-      return {
-        ...prevProfile,
-        ...updates,
-      };
-    });
-  }, []);
+  };
 
   const checkRecoveryStorage = async () => {
     try {
@@ -186,19 +153,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      if (event === "USER_UPDATED") {
-        if (session?.user) {
-          setTimeout(() => {
-            if (mounted) {
-              loadProfile(session.user.id);
-            }
-          }, 0);
-        }
-
-        setLoading(false);
-        return;
-      }
-
       if (session?.user) {
         setTimeout(() => {
           if (mounted) {
@@ -216,42 +170,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [loadProfile]);
-
-  useEffect(() => {
-    if (!realUserId) return;
-
-    const channel = supabase
-      .channel(`profile-realtime-${realUserId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "profiles",
-          filter: `id=eq.${realUserId}`,
-        },
-        (payload) => {
-          console.log("Profile realtime update:", payload.eventType);
-
-          if (payload.eventType === "DELETE") {
-            setProfile(null);
-            return;
-          }
-
-          if (payload.new) {
-            setProfile(payload.new);
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log("Profile realtime status:", status);
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [realUserId]);
+  }, []);
 
   return (
     <AuthContext.Provider
@@ -260,9 +179,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         profile,
         loading,
         isPasswordRecovery,
-
-        refreshProfile,
-        updateProfileLocally,
       }}
     >
       {children}

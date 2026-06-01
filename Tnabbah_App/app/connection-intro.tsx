@@ -1,18 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import LottieView from "lottie-react-native";
-import * as Notifications from "expo-notifications";
 import {
   ActivityIndicator,
   Animated,
-  BackHandler,
   Easing,
-  FlatList,
-  Image,
-  PermissionsAndroid,
   Platform,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -28,23 +24,21 @@ import {
 import { Device, State } from "react-native-ble-plx";
 import { elmBluetoothService } from "@/services/elmBluetoothService";
 import { vehicleScannerService } from "@/services/vehicleScannerService";
-import { useLanguage } from "../providers/LanguageProvider";
-
-const START_IMAGE = require("../assets/images/obd-connection-start.webp");
 
 const COLORS = {
   screenBackground: "#FFFFFF",
 
   primary: "#9A211C",
   primaryDark: "#761713",
-  title: "#8F1D1D",
+  title: "#7B1714",
 
-  textDark: "#111111",
-  textMuted: "#737373",
+  textDark: "#1D1D1F",
+  textMuted: "#707070",
 
   grayText: "#8E8E8E",
-  borderGray: "#E8E8E8",
-  softGray: "#F4F4F4",
+  borderGray: "#EFEFEF",
+  softGray: "#F3F4F6",
+  cardPressed: "#FAFAFA",
 
   white: "#FFFFFF",
 };
@@ -60,35 +54,61 @@ type DeviceItem = {
   raw: Device;
 };
 
+const STEPS = {
+  1: {
+    title: "ابدء ربط القطعة",
+    subtitle:
+      "اتّبع الخطوات التالية لتجهيز القطعة وربطها بالتطبيق بطريقة سهلة وآمنة.",
+    icon: "cellphone-cog" as keyof typeof MaterialCommunityIcons.glyphMap,
+    instructions: ["جهّز القطعة والسيارة", "اختار اتصال البلوتوث"],
+    buttonText: "التالي",
+  },
+
+  2: {
+    title: "جهّز القطعة",
+    subtitle:
+      "ابدء بتجهيز السيارة والقطعة حتى يتمكن التطبيق من التعرف عليها قبل اختيار طريقة الاتصال.",
+    icon: "car-outline" as keyof typeof MaterialCommunityIcons.glyphMap,
+    instructions: [
+      "شغّل السيارة",
+      "ركّب القطعة في مدخل OBD",
+      "انتظر حتى تضيء لمبة القطعة",
+    ],
+    buttonText: "تم توصيل القطعة",
+  },
+
+  3: {
+    title: "اختار اتصال البلوتوث",
+    subtitle:
+      "اختار جهاز OBD من الأجهزة المتاحة. بعد نجاح الربط، ينقلك تنبّه للصفحة الرئيسية ويبدأ سحب بيانات السيارة.",
+    icon: "bluetooth" as keyof typeof MaterialCommunityIcons.glyphMap,
+    buttonText: "ربط الجهاز",
+  },
+};
+
 function isElmLikeDevice(name: string) {
   const n = name.toLowerCase();
 
   return (
-    n.includes("obd") ||
     n.includes("elm") ||
+    n.includes("obd") ||
     n.includes("vlink") ||
     n.includes("veepeak") ||
     n.includes("carista") ||
     n.includes("konnwei") ||
-    n.includes("vgate") ||
-    n.includes("icar") ||
-    n.includes("tonwon") ||
-    n.includes("lelink") ||
-    n.includes("bafx")
+    n.includes("vgate")
   );
 }
 
 export default function ConnectionIntroScreen() {
   const appRouter = useRouter();
   const { from } = useLocalSearchParams<{ from?: string }>();
-  const { t, isArabic } = useLanguage();
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
   const manager = elmBluetoothService.manager;
   const scanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const foundDeviceCountRef = useRef(0);
 
   const [currentStep, setCurrentStep] = useState<StepNumber>(1);
 
@@ -100,6 +120,7 @@ export default function ConnectionIntroScreen() {
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
+  const cardAnim = useRef(new Animated.Value(0)).current;
   const contentAnim = useRef(new Animated.Value(1)).current;
 
   const stepOneAnim = useRef(new Animated.Value(0)).current;
@@ -113,37 +134,16 @@ export default function ConnectionIntroScreen() {
 
   const isSmallScreen = height < 720;
   const isVerySmallScreen = height < 650;
-  const isTablet = width >= 768;
 
-  const horizontalPadding = clamp(width * 0.055, 20, isTablet ? 34 : 26);
-  const maxContentWidth = isTablet ? clamp(width * 0.72, 520, 680) : width;
+  const horizontalPadding = clamp(width * 0.055, 18, 24);
 
-  const lineWidth = clamp(width * 0.14, 44, isTablet ? 86 : 70);
-  const backIconSize = isVerySmallScreen ? 24 : 26;
+  const backButtonSize = isVerySmallScreen ? 42 : 44;
+  const backButtonRadius = backButtonSize / 2;
 
-  const steps = useMemo(
-    () => ({
-      1: {
-        title: t.connectionStep1Title,
-        subtitle: t.connectionStep1Subtitle,
-        icon: "cellphone-cog" as keyof typeof MaterialCommunityIcons.glyphMap,
-        buttonText: t.connectionStep1Button,
-      },
-      2: {
-        title: t.connectionStep2Title,
-        subtitle: t.connectionStep2Subtitle,
-        icon: "car-outline" as keyof typeof MaterialCommunityIcons.glyphMap,
-        buttonText: t.connectionStep2Button,
-      },
-      3: {
-        title: t.connectionStep3Title,
-        subtitle: t.connectionStep3Subtitle,
-        icon: "bluetooth" as keyof typeof MaterialCommunityIcons.glyphMap,
-        buttonText: t.connectionStep3Button,
-      },
-    }),
-    [t]
-  );
+  const stepSize = isVerySmallScreen ? 46 : 50;
+  const activeStepSize = isVerySmallScreen ? 54 : 58;
+
+  const lineWidth = clamp(width * 0.14, 46, 68);
 
   const styles = useMemo(
     () =>
@@ -151,101 +151,53 @@ export default function ConnectionIntroScreen() {
         width,
         height,
         safeTop: insets.top,
-        safeBottom: insets.bottom,
         horizontalPadding,
-        maxContentWidth,
+        backButtonSize,
+        backButtonRadius,
+        stepSize,
+        activeStepSize,
         lineWidth,
         isSmallScreen,
         isVerySmallScreen,
-        isTablet,
         currentStep,
-        isArabic,
       }),
     [
       width,
       height,
       insets.top,
-      insets.bottom,
       horizontalPadding,
-      maxContentWidth,
+      backButtonSize,
+      backButtonRadius,
+      stepSize,
+      activeStepSize,
       lineWidth,
       isSmallScreen,
       isVerySmallScreen,
-      isTablet,
       currentStep,
-      isArabic,
     ]
   );
 
-  const wait = (ms: number) =>
-    new Promise((resolve) => setTimeout(resolve, ms));
-
   const getBluetoothStateMessage = (state: State) => {
     if (state === State.PoweredOff) {
-      return t.connectionBluetoothOff;
+      return "البلوتوث مقفل. فعّله من إعدادات الجوال ثم أعيد المحاولة.";
     }
 
     if (state === State.Unauthorized) {
-      return t.connectionBluetoothUnauthorized;
+      return "التطبيق لا يملك صلاحية البلوتوث. فعّل صلاحية البلوتوث للتطبيق.";
     }
 
     if (state === State.Unsupported) {
-      return t.connectionBluetoothUnsupported;
+      return "هذا الجهاز لا يدعم نوع البلوتوث المطلوب.";
     }
 
     if (state === State.Resetting) {
-      return t.connectionBluetoothResetting;
+      return "البلوتوث يعيد التشغيل الآن. انتظر ثواني ثم أعيد المحاولة.";
     }
 
-    return t.connectionBluetoothNotReady;
+    return "البلوتوث غير جاهز الآن. انتظر ثواني ثم أعيد المحاولة.";
   };
 
-  const requestAndroidBluetoothPermissions = async () => {
-    if (Platform.OS !== "android") return true;
-
-    try {
-      if (Number(Platform.Version) >= 31) {
-        const result = await PermissionsAndroid.requestMultiple([
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        ]);
-
-        return (
-          result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN] ===
-            PermissionsAndroid.RESULTS.GRANTED &&
-          result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] ===
-            PermissionsAndroid.RESULTS.GRANTED
-        );
-      }
-
-      const result = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
-      );
-
-      return result === PermissionsAndroid.RESULTS.GRANTED;
-    } catch {
-      return false;
-    }
-  };
-
-  const requestInitialAppPermissions = async () => {
-    try {
-      await Notifications.requestPermissionsAsync();
-
-      if (Platform.OS === "android") {
-        await requestAndroidBluetoothPermissions();
-      }
-
-      if (Platform.OS === "ios") {
-        await manager.state();
-      }
-    } catch (error) {
-      console.log("Initial permissions error:", error);
-    }
-  };
-
-  const stopScan = (showNoDeviceMessage = false) => {
+  const stopScan = () => {
     manager.stopDeviceScan();
     setIsScanning(false);
 
@@ -253,54 +205,34 @@ export default function ConnectionIntroScreen() {
       clearTimeout(scanTimeoutRef.current);
       scanTimeoutRef.current = null;
     }
-
-    if (showNoDeviceMessage && foundDeviceCountRef.current === 0) {
-      setErrorMessage(t.connectionNoBluetoothDevices);
-    }
   };
 
   const startScan = async () => {
-    if (isConnecting) return;
-
     try {
       setErrorMessage("");
       setDevices([]);
       setSelectedDevice(null);
       setShowDeviceList(true);
-      foundDeviceCountRef.current = 0;
 
-      const hasPermission = await requestAndroidBluetoothPermissions();
-
-      if (!hasPermission) {
-        setErrorMessage(t.connectionBluetoothPermission);
-        return;
-      }
-
-      let state = await manager.state();
-      console.log("Bluetooth state before wait:", state);
-
-      if (state !== State.PoweredOn) {
-        await wait(1000);
-        state = await manager.state();
-        console.log("Bluetooth state after wait:", state);
-      }
+      const state = await manager.state();
 
       if (state !== State.PoweredOn) {
         setErrorMessage(getBluetoothStateMessage(state));
         return;
       }
 
-      stopScan(false);
+      stopScan();
       setIsScanning(true);
 
       manager.startDeviceScan(
         null,
         { allowDuplicates: false },
-        (error: any, device: Device | null) => {
+        (error, device) => {
           if (error) {
-            console.log("BLE scan error:", error);
-            setErrorMessage(error.message || t.connectionScanError);
-            stopScan(false);
+            setErrorMessage(
+              error.message || "صار خطأ أثناء البحث عن أجهزة البلوتوث."
+            );
+            stopScan();
             return;
           }
 
@@ -309,15 +241,11 @@ export default function ConnectionIntroScreen() {
           const deviceName =
             device.name ||
             device.localName ||
-            `${t.connectionBluetoothDeviceFallback} ${device.id.slice(-5)}`;
-
-          console.log("Found BLE device:", deviceName, device.id);
+            `جهاز بلوتوث ${device.id.slice(-5)}`;
 
           setDevices((prev) => {
             const exists = prev.some((item) => item.id === device.id);
             if (exists) return prev;
-
-            foundDeviceCountRef.current += 1;
 
             const item: DeviceItem = {
               id: device.id,
@@ -325,29 +253,24 @@ export default function ConnectionIntroScreen() {
               raw: device,
             };
 
-            const updated = [...prev, item];
+            if (isElmLikeDevice(deviceName)) {
+              return [item, ...prev];
+            }
 
-            return updated.sort((a, b) => {
-              const aObd = isElmLikeDevice(a.name) ? 0 : 1;
-              const bObd = isElmLikeDevice(b.name) ? 0 : 1;
-              return aObd - bObd;
-            });
+            return [...prev, item];
           });
         }
       );
 
-      scanTimeoutRef.current = setTimeout(() => {
-        stopScan(true);
-      }, 15000);
+      scanTimeoutRef.current = setTimeout(stopScan, 12000);
     } catch (error: any) {
-      console.log("BLE start scan catch:", error);
-      setErrorMessage(error?.message || t.connectionScanStartError);
-      stopScan(false);
+      setErrorMessage(error?.message || "تعذر تشغيل البحث عن البلوتوث.");
+      stopScan();
     }
   };
 
   const goBackToPreviousScreen = () => {
-    stopScan(false);
+    stopScan();
 
     if (from === "settings") {
       appRouter.replace("/(tabs)/settings" as any);
@@ -368,20 +291,20 @@ export default function ConnectionIntroScreen() {
   };
 
   const handleSkip = () => {
-    stopScan(false);
+    stopScan();
     appRouter.replace("/(tabs)/home" as any);
   };
 
   const handleConnectDevice = async () => {
     if (!selectedDevice) {
-      setErrorMessage(t.connectionSelectDeviceFirst);
+      setErrorMessage("اختار جهاز البلوتوث أولًا");
       return;
     }
 
     try {
       setIsConnecting(true);
       setErrorMessage("");
-      stopScan(false);
+      stopScan();
 
       const readyDevice = await elmBluetoothService.connect(selectedDevice.id);
 
@@ -405,11 +328,148 @@ export default function ConnectionIntroScreen() {
         await vehicleScannerService.stopAutoScan();
       } catch {}
 
-      setErrorMessage(error?.message || t.connectionConnectError);
+      setErrorMessage(
+        error?.message ||
+          "تعذر الاتصال بالقطعة. لو قطعتك ELM قديمة Bluetooth Classic فلن تظهر هنا، ولازم مكتبة Classic Bluetooth."
+      );
     } finally {
       setIsConnecting(false);
     }
   };
+
+  useEffect(() => {
+    cardAnim.setValue(0);
+    stepOneAnim.setValue(0);
+    stepTwoAnim.setValue(0);
+    stepThreeAnim.setValue(0);
+
+    Animated.parallel([
+      Animated.timing(cardAnim, {
+        toValue: 1,
+        duration: 420,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+
+      Animated.stagger(80, [
+        Animated.spring(stepOneAnim, {
+          toValue: 1,
+          friction: 5,
+          tension: 85,
+          useNativeDriver: true,
+        }),
+        Animated.spring(stepTwoAnim, {
+          toValue: 1,
+          friction: 5,
+          tension: 85,
+          useNativeDriver: true,
+        }),
+        Animated.spring(stepThreeAnim, {
+          toValue: 1,
+          friction: 5,
+          tension: 85,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.04,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    pulse.start();
+
+    return () => pulse.stop();
+  }, [cardAnim, stepOneAnim, stepTwoAnim, stepThreeAnim, pulseAnim]);
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(contentAnim, {
+        toValue: 0,
+        duration: 100,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(contentAnim, {
+        toValue: 1,
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    Animated.timing(firstLineAnim, {
+      toValue: currentStep >= 2 ? 1 : 0,
+      duration: 450,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+
+    Animated.timing(secondLineAnim, {
+      toValue: currentStep >= 3 ? 1 : 0,
+      duration: 450,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+
+    if (currentStep !== 3) {
+      setShowDeviceList(false);
+      setErrorMessage("");
+      stopScan();
+    }
+  }, [currentStep, contentAnim, firstLineAnim, secondLineAnim]);
+
+  useEffect(() => {
+    const subscription = manager.onStateChange((state) => {
+      if (currentStep === 3 && state === State.PoweredOn) {
+        startScan();
+      }
+
+      if (currentStep === 3 && state !== State.PoweredOn) {
+        setErrorMessage(getBluetoothStateMessage(state));
+      }
+    }, true);
+
+    return () => {
+      stopScan();
+      subscription.remove();
+    };
+  }, [currentStep]);
+
+  const cardTranslateY = cardAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [18, 0],
+  });
+
+  const contentTranslateY = contentAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [8, 0],
+  });
+
+  const firstLineWidth = firstLineAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, lineWidth],
+  });
+
+  const secondLineWidth = secondLineAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, lineWidth],
+  });
+
+  const stepData = STEPS[currentStep];
 
   const goNext = () => {
     if (currentStep === 1) {
@@ -439,151 +499,13 @@ export default function ConnectionIntroScreen() {
     }
 
     if (currentStep === 3) {
-      stopScan(false);
+      stopScan();
       setCurrentStep(2);
     }
   };
 
-  useEffect(() => {
-    requestInitialAppPermissions();
-  }, []);
-
-  useEffect(() => {
-    Image.resolveAssetSource(START_IMAGE);
-  }, []);
-
-  useEffect(() => {
-    const backSubscription = BackHandler.addEventListener(
-      "hardwareBackPress",
-      () => true
-    );
-
-    return () => backSubscription.remove();
-  }, []);
-
-  useEffect(() => {
-    stepOneAnim.setValue(0);
-    stepTwoAnim.setValue(0);
-    stepThreeAnim.setValue(0);
-    Animated.stagger(80, [
-      Animated.spring(stepOneAnim, {
-        toValue: 1,
-        friction: 5,
-        tension: 85,
-        useNativeDriver: true,
-      }),
-      Animated.spring(stepTwoAnim, {
-        toValue: 1,
-        friction: 5,
-        tension: 85,
-        useNativeDriver: true,
-      }),
-      Animated.spring(stepThreeAnim, {
-        toValue: 1,
-        friction: 5,
-        tension: 85,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.035,
-          duration: 900,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 900,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    pulse.start();
-
-    return () => pulse.stop();
-  }, [stepOneAnim, stepTwoAnim, stepThreeAnim, pulseAnim]);
-
-  useEffect(() => {
-    Animated.sequence([
-      Animated.timing(contentAnim, {
-        toValue: 0,
-        duration: 90,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(contentAnim, {
-        toValue: 1,
-        duration: 220,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    Animated.timing(firstLineAnim, {
-      toValue: currentStep >= 2 ? 1 : 0,
-      duration: 450,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-
-    Animated.timing(secondLineAnim, {
-      toValue: currentStep >= 3 ? 1 : 0,
-      duration: 450,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-
-    if (currentStep !== 3) {
-      setShowDeviceList(false);
-      setSelectedDevice(null);
-      setPassword("");
-      setErrorMessage("");
-      stopScan(false);
-    }
-  }, [currentStep]);
-
-  useEffect(() => {
-    const subscription = manager.onStateChange((state: State) => {
-      if (currentStep === 3 && state !== State.PoweredOn) {
-        setErrorMessage(getBluetoothStateMessage(state));
-      }
-    }, true);
-
-    return () => {
-      stopScan(false);
-      subscription.remove();
-    };
-  }, [currentStep]);
-
-  const contentTranslateY = contentAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [8, 0],
-  });
-
-  const firstLineWidth = firstLineAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, lineWidth],
-  });
-
-  const secondLineWidth = secondLineAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, lineWidth],
-  });
-
-  const stepData = steps[currentStep];
-
-  const isButtonDisabled =
-    currentStep === 3 && (!selectedDevice || isConnecting);
-
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ gestureEnabled: false }} />
-
       <StatusBar
         translucent
         backgroundColor="transparent"
@@ -591,198 +513,223 @@ export default function ConnectionIntroScreen() {
       />
 
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-        <View style={styles.outerContent}>
-          <View style={styles.screenContent}>
-            <View style={styles.topArea}>
+        <View style={styles.screenContent}>
+          <View style={styles.backArea}>
+            <TouchableOpacity
+              style={styles.backButtonWrapper}
+              activeOpacity={0.85}
+              onPress={handleBack}
+              disabled={isConnecting}
+            >
+              <Ionicons
+                name="chevron-back"
+                size={isVerySmallScreen ? 21 : 23}
+                color={COLORS.grayText}
+              />
+            </TouchableOpacity>
+
+            {currentStep === 3 ? (
               <TouchableOpacity
-                style={styles.backButton}
-                activeOpacity={0.75}
-                onPress={handleBack}
+                style={styles.skipButton}
+                activeOpacity={0.85}
+                onPress={handleSkip}
                 disabled={isConnecting}
               >
-                <Ionicons
-                  name="arrow-back-outline"
-                  size={backIconSize}
-                  color={COLORS.textDark}
-                />
+                <Text style={styles.skipText}>تخطي</Text>
               </TouchableOpacity>
+            ) : (
+              <View style={styles.skipPlaceholder} />
+            )}
+          </View>
 
-              {currentStep === 3 ? (
-                <TouchableOpacity
-                  style={styles.skipButton}
-                  activeOpacity={0.85}
-                  onPress={handleSkip}
-                  disabled={isConnecting}
-                >
-                  <Text style={styles.skipText}>{t.connectionSkip}</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.skipPlaceholder} />
-              )}
-            </View>
+          <View style={styles.stepsContainer}>
+            <Animated.View
+              style={{
+                opacity: stepThreeAnim,
+                transform: [
+                  {
+                    scale:
+                      currentStep === 3
+                        ? pulseAnim
+                        : stepThreeAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.9, 1],
+                          }),
+                  },
+                ],
+              }}
+            >
+              <StepItem
+                label="اختر"
+                iconName="bluetooth"
+                active={currentStep === 3}
+                completed={false}
+                styles={styles}
+              />
+            </Animated.View>
 
-            <View style={styles.stepsContainer}>
+            <View style={styles.activeLineTrack}>
               <Animated.View
-                style={{
-                  opacity: stepThreeAnim,
-                  transform: [
-                    {
-                      scale:
-                        currentStep === 3
-                          ? pulseAnim
-                          : stepThreeAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.9, 1],
-                            }),
-                    },
-                  ],
-                }}
-              >
-                <StepItem
-                  label={t.connectionStepChooseLabel}
-                  iconName="bluetooth"
-                  active={currentStep === 3}
-                  completed={false}
-                  styles={styles}
-                />
-              </Animated.View>
-
-              <View style={styles.activeLineTrack}>
-                <Animated.View
-                  style={[styles.activeLineFill, { width: secondLineWidth }]}
-                />
-              </View>
-
-              <Animated.View
-                style={{
-                  opacity: stepTwoAnim,
-                  transform: [
-                    {
-                      scale:
-                        currentStep === 2
-                          ? pulseAnim
-                          : stepTwoAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.9, 1],
-                            }),
-                    },
-                  ],
-                }}
-              >
-                <StepItem
-                  label={t.connectionStepPrepareLabel}
-                  iconName="car-outline"
-                  active={currentStep === 2}
-                  completed={currentStep > 2}
-                  styles={styles}
-                />
-              </Animated.View>
-
-              <View style={styles.activeLineTrack}>
-                <Animated.View
-                  style={[styles.activeLineFill, { width: firstLineWidth }]}
-                />
-              </View>
-
-              <Animated.View
-                style={{
-                  opacity: stepOneAnim,
-                  transform: [
-                    {
-                      scale:
-                        currentStep === 1
-                          ? pulseAnim
-                          : stepOneAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.9, 1],
-                            }),
-                    },
-                  ],
-                }}
-              >
-                <StepItem
-                  label={t.connectionStepStartLabel}
-                  iconName="cellphone-cog"
-                  active={currentStep === 1}
-                  completed={currentStep > 1}
-                  styles={styles}
-                />
-              </Animated.View>
+                style={[styles.activeLineFill, { width: secondLineWidth }]}
+              />
             </View>
 
             <Animated.View
-              style={[
-                styles.contentArea,
-                {
-                  opacity: contentAnim,
-                  transform: [{ translateY: contentTranslateY }],
-                },
-              ]}
+              style={{
+                opacity: stepTwoAnim,
+                transform: [
+                  {
+                    scale:
+                      currentStep === 2
+                        ? pulseAnim
+                        : stepTwoAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.9, 1],
+                          }),
+                  },
+                ],
+              }}
             >
-              <Text style={styles.title}>{stepData.title}</Text>
-              <Text style={styles.subtitle}>{stepData.subtitle}</Text>
-
-              {currentStep === 1 ? (
-                <StepOneContent styles={styles} />
-              ) : currentStep === 2 ? (
-                <StepTwoContent styles={styles} t={t} />
-              ) : (
-                <BluetoothContent
-                  styles={styles}
-                  devices={devices}
-                  isScanning={isScanning}
-                  isConnecting={isConnecting}
-                  selectedDevice={selectedDevice}
-                  showDeviceList={showDeviceList}
-                  password={password}
-                  errorMessage={errorMessage}
-                  startScan={startScan}
-                  setSelectedDevice={setSelectedDevice}
-                  setShowDeviceList={setShowDeviceList}
-                  setPassword={setPassword}
-                  setErrorMessage={setErrorMessage}
-                  t={t}
-                />
-              )}
+              <StepItem
+                label="جهّز"
+                iconName="car-outline"
+                active={currentStep === 2}
+                completed={currentStep > 2}
+                styles={styles}
+              />
             </Animated.View>
 
-            <View style={styles.footerArea}>
-              <TouchableOpacity
-                style={[
-                  styles.startButtonWrapper,
-                  isButtonDisabled && styles.disabledButton,
-                ]}
-                activeOpacity={0.9}
-                onPress={goNext}
-                disabled={isButtonDisabled}
-              >
-                <LinearGradient
-                  colors={[
-                    "rgba(154,33,28,0.98)",
-                    "rgba(118,23,19,0.98)",
-                  ]}
-                  start={{ x: 0.15, y: 0 }}
-                  end={{ x: 0.9, y: 1 }}
-                  style={styles.startGradient}
-                >
-                  <View style={styles.startButtonShine} />
-
-                  {currentStep === 3 && isConnecting ? (
-                    <View style={styles.connectingRow}>
-                      <ActivityIndicator color="#FFFFFF" />
-                      <Text style={styles.startButtonText}>
-                        {t.connectionConnecting}
-                      </Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.startButtonText}>
-                      {stepData.buttonText}
-                    </Text>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
+            <View style={styles.activeLineTrack}>
+              <Animated.View
+                style={[styles.activeLineFill, { width: firstLineWidth }]}
+              />
             </View>
+
+            <Animated.View
+              style={{
+                opacity: stepOneAnim,
+                transform: [
+                  {
+                    scale:
+                      currentStep === 1
+                        ? pulseAnim
+                        : stepOneAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.9, 1],
+                          }),
+                  },
+                ],
+              }}
+            >
+              <StepItem
+                label="ابدأ"
+                iconName="cellphone-cog"
+                active={currentStep === 1}
+                completed={currentStep > 1}
+                styles={styles}
+              />
+            </Animated.View>
           </View>
+
+          <Animated.View
+            style={[
+              styles.cardWrapper,
+              {
+                opacity: cardAnim,
+                transform: [{ translateY: cardTranslateY }],
+              },
+            ]}
+          >
+            <View style={styles.card}>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.cardScrollContent}
+              >
+                <Animated.View
+                  style={{
+                    opacity: contentAnim,
+                    transform: [{ translateY: contentTranslateY }],
+                  }}
+                >
+                  <View style={styles.cardHeader}>
+                    <View style={styles.cardIconCircle}>
+                      <MaterialCommunityIcons
+                        name={stepData.icon}
+                        size={isVerySmallScreen ? 28 : 31}
+                        color={COLORS.primary}
+                      />
+                    </View>
+
+                    <View style={styles.headerTextBox}>
+                      <Text style={styles.title}>{stepData.title}</Text>
+                      <Text style={styles.subtitle}>{stepData.subtitle}</Text>
+                    </View>
+                  </View>
+
+                  {currentStep === 1 ? (
+                    <StepOneContent styles={styles} />
+                  ) : currentStep === 2 ? (
+                    <StepTwoContent styles={styles} />
+                  ) : (
+                    <BluetoothContent
+                      styles={styles}
+                      devices={devices}
+                      isScanning={isScanning}
+                      isConnecting={isConnecting}
+                      selectedDevice={selectedDevice}
+                      showDeviceList={showDeviceList}
+                      password={password}
+                      errorMessage={errorMessage}
+                      startScan={startScan}
+                      setSelectedDevice={setSelectedDevice}
+                      setShowDeviceList={setShowDeviceList}
+                      setPassword={setPassword}
+                      setErrorMessage={setErrorMessage}
+                    />
+                  )}
+                </Animated.View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.startButtonWrapper,
+                    currentStep === 3 &&
+                      (!selectedDevice || isConnecting) &&
+                      styles.disabledButton,
+                  ]}
+                  activeOpacity={0.9}
+                  onPress={goNext}
+                  disabled={currentStep === 3 && (!selectedDevice || isConnecting)}
+                >
+                  <LinearGradient
+                    colors={[
+                      "rgba(154,33,28,0.98)",
+                      "rgba(118,23,19,0.98)",
+                    ]}
+                    start={{ x: 0.15, y: 0 }}
+                    end={{ x: 0.9, y: 1 }}
+                    style={styles.startGradient}
+                  >
+                    <View style={styles.startGlassTop} />
+
+                    {currentStep === 3 && isConnecting ? (
+                      <View style={styles.connectingRow}>
+                        <ActivityIndicator color="#FFFFFF" />
+                        <Text style={styles.startButtonText}>
+                          جاري الربط...
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.startButtonText}>
+                        {stepData.buttonText}
+                      </Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </Animated.View>
         </View>
       </SafeAreaView>
     </View>
@@ -795,41 +742,27 @@ function StepOneContent({
   styles: ReturnType<typeof createStyles>;
 }) {
   return (
-    <View style={styles.stepOneBody}>
-      <Image
-        source={START_IMAGE}
-        style={styles.startImage}
-        resizeMode="contain"
-        fadeDuration={0}
-        progressiveRenderingEnabled
-      />
+    <View style={styles.instructionsBox}>
+      <InstructionRow number="1" text="جهّز القطعة والسيارة" styles={styles} />
+      <InstructionRow number="2" text="اختار اتصال البلوتوث" styles={styles} />
     </View>
   );
 }
 
 function StepTwoContent({
   styles,
-  t,
 }: {
   styles: ReturnType<typeof createStyles>;
-  t: any;
 }) {
   return (
-    <View style={styles.prepareCard}>
-      <View style={styles.stepTwoTopRows}>
+    <>
+      <View style={styles.instructionsBox}>
+        <InstructionRow number="1" text="شغّل السيارة" styles={styles} />
         <InstructionRow
-          number="1"
-          text={t.connectionInstructionStartCar}
+          number="2"
+          text="ركّب القطعة في مدخل OBD"
           styles={styles}
         />
-
-        <View style={styles.secondInstructionOffset}>
-          <InstructionRow
-            number="2"
-            text={t.connectionInstructionPlugObd}
-            styles={styles}
-          />
-        </View>
       </View>
 
       <View style={styles.animationBox}>
@@ -842,14 +775,14 @@ function StepTwoContent({
         />
       </View>
 
-      <View style={styles.thirdInstructionOffset}>
+      <View style={styles.lastInstructionBox}>
         <InstructionRow
           number="3"
-          text={t.connectionInstructionWaitLight}
+          text="انتظر حتى تضيء لمبة القطعة"
           styles={styles}
         />
       </View>
-    </View>
+    </>
   );
 }
 
@@ -867,7 +800,6 @@ function BluetoothContent({
   setShowDeviceList,
   setPassword,
   setErrorMessage,
-  t,
 }: {
   styles: ReturnType<typeof createStyles>;
   devices: DeviceItem[];
@@ -882,151 +814,86 @@ function BluetoothContent({
   setShowDeviceList: (value: boolean) => void;
   setPassword: (value: string) => void;
   setErrorMessage: (value: string) => void;
-  t: any;
 }) {
   return (
-    <View style={styles.bluetoothCard}>
-      <Text style={styles.inputLabel}>{t.connectionAvailableDevices}</Text>
+    <View style={styles.bluetoothArea}>
+      <Text style={styles.inputLabel}>الأجهزة المتاحة</Text>
 
       <TouchableOpacity
         style={styles.deviceSelectBox}
         activeOpacity={0.85}
-        onPress={() => {
-          if (showDeviceList && devices.length > 0 && !isScanning) {
-            setShowDeviceList(false);
-            return;
-          }
-
-          startScan();
-        }}
+        onPress={startScan}
         disabled={isConnecting}
       >
-        <Ionicons
-          name={showDeviceList ? "chevron-up" : "chevron-down"}
-          size={22}
-          color={COLORS.grayText}
-        />
+        <Ionicons name="chevron-down" size={22} color={COLORS.grayText} />
 
         <Text style={styles.deviceSelectText}>
           {isScanning
-            ? t.connectionSearching
+            ? "جاري البحث..."
             : selectedDevice
             ? selectedDevice.name
-            : t.connectionSelectObdDevice}
+            : "اختار الجهاز"}
         </Text>
       </TouchableOpacity>
 
       {showDeviceList ? (
         <View style={styles.dropdownBox}>
-          <View style={styles.dropdownHeader}>
-            <Text style={styles.dropdownTitle}>
-              {devices.length > 0
-                ? `${t.connectionDiscoveredDevices} (${devices.length})`
-                : t.connectionDeviceList}
-            </Text>
-
-            <TouchableOpacity
-              activeOpacity={0.75}
-              onPress={startScan}
-              disabled={isConnecting || isScanning}
-              style={styles.refreshButton}
-            >
-              {isScanning ? (
-                <ActivityIndicator size="small" color={COLORS.primary} />
-              ) : (
-                <Ionicons name="refresh" size={16} color={COLORS.primary} />
-              )}
-
-              <Text style={styles.refreshText}>
-                {isScanning
-                  ? t.connectionRefreshSearching
-                  : t.connectionRefresh}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {isScanning && devices.length === 0 ? (
+          {isScanning ? (
             <View style={styles.loadingRow}>
               <ActivityIndicator color={COLORS.primary} />
-              <Text style={styles.loadingText}>
-                {t.connectionSearchingNearby}
-              </Text>
+              <Text style={styles.loadingText}>جار البحث عن الأجهزة...</Text>
             </View>
           ) : null}
 
-          {!isScanning && devices.length === 0 ? (
+          {devices.length === 0 && !isScanning ? (
             <TouchableOpacity
               style={styles.emptyBox}
               onPress={startScan}
               activeOpacity={0.8}
             >
-              <Text style={styles.emptyText}>{t.connectionNoDevicesFound}</Text>
+              <Text style={styles.emptyText}>
+                ما ظهرت أجهزة. لو قطعتك ELM قديمة Bluetooth Classic فهي قد لا
+                تظهر هنا بمكتبة BLE.
+              </Text>
             </TouchableOpacity>
           ) : (
-            <FlatList
-              data={devices}
-              keyExtractor={(item) => item.id}
-              showsVerticalScrollIndicator
-              nestedScrollEnabled
-              style={styles.deviceList}
-              contentContainerStyle={styles.deviceListContent}
-              renderItem={({ item }) => {
-                const isObd = isElmLikeDevice(item.name);
+            devices.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[
+                  styles.deviceItem,
+                  selectedDevice?.id === item.id && styles.deviceItemSelected,
+                ]}
+                disabled={isConnecting}
+                onPress={() => {
+                  setSelectedDevice(item);
+                  setShowDeviceList(false);
+                  setErrorMessage("");
+                }}
+              >
+                <View style={styles.deviceIconBox}>
+                  <Feather name="bluetooth" size={18} color={COLORS.primary} />
+                </View>
 
-                return (
-                  <TouchableOpacity
-                    style={[
-                      styles.deviceItem,
-                      selectedDevice?.id === item.id &&
-                        styles.deviceItemSelected,
-                    ]}
-                    disabled={isConnecting}
-                    onPress={() => {
-                      setSelectedDevice(item);
-                      setShowDeviceList(false);
-                      setErrorMessage("");
-                    }}
-                  >
-                    <View style={styles.deviceIconBox}>
-                      <Feather
-                        name="bluetooth"
-                        size={18}
-                        color={COLORS.primary}
-                      />
-                    </View>
-
-                    <View style={styles.deviceInfo}>
-                      <View style={styles.deviceNameRow}>
-                        {isObd ? (
-                          <View style={styles.obdBadge}>
-                            <Text style={styles.obdBadgeText}>OBD</Text>
-                          </View>
-                        ) : null}
-
-                        <Text style={styles.deviceName}>{item.name}</Text>
-                      </View>
-
-                      <Text style={styles.deviceId}>
-                        {t.connectionDeviceId}: {item.id}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              }}
-            />
+                <View style={styles.deviceInfo}>
+                  <Text style={styles.deviceName}>{item.name}</Text>
+                  <Text style={styles.deviceId}>ID: {item.id}</Text>
+                </View>
+              </TouchableOpacity>
+            ))
           )}
         </View>
       ) : null}
 
-      <Text style={styles.inputLabel}>{t.connectionObdPassword}</Text>
+      <Text style={styles.inputLabel}>كلمة مرور القطعة</Text>
 
       <View style={styles.passwordBox}>
-        <Feather name="lock" size={20} color={COLORS.grayText} />
+        <Feather name="lock" size={20} color={COLORS.primary} />
 
         <TextInput
           style={styles.passwordInput}
-          placeholder={t.connectionObdPasswordPlaceholder}
-          placeholderTextColor="#B6B6B6"
+          placeholder="اختيار: 1234 أو 0000"
+          placeholderTextColor="#B0B0B0"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -1036,16 +903,17 @@ function BluetoothContent({
         />
       </View>
 
-      <Text style={styles.noteText}>{t.connectionObdPasswordNote}</Text>
+      <Text style={styles.noteText}>
+        تقدر تتخطى الصفحة. وقتها الهوم يفتح عادي، وراح يبان إن قطعة OBD غير
+        متصلة.
+      </Text>
 
       {!!errorMessage ? (
-        <View style={styles.messageBox}>
+        <View style={styles.errorBox}>
           <Feather name="alert-circle" size={18} color={COLORS.primary} />
-          <Text style={styles.messageText}>{errorMessage}</Text>
+          <Text style={styles.errorText}>{errorMessage}</Text>
         </View>
-      ) : (
-        <View style={styles.messagePlaceholder} />
-      )}
+      ) : null}
     </View>
   );
 }
@@ -1063,6 +931,8 @@ function StepItem({
   completed: boolean;
   styles: ReturnType<typeof createStyles>;
 }) {
+  const isRed = active || completed;
+
   return (
     <View style={styles.stepItem}>
       <View
@@ -1074,8 +944,8 @@ function StepItem({
       >
         <MaterialCommunityIcons
           name={completed ? "check" : iconName}
-          size={completed ? 22 : active ? 22 : 20}
-          color={active || completed ? COLORS.white : COLORS.grayText}
+          size={active ? 25 : 23}
+          color={active ? COLORS.white : isRed ? COLORS.primary : COLORS.grayText}
         />
       </View>
 
@@ -1116,53 +986,37 @@ function createStyles({
   width,
   height,
   safeTop,
-  safeBottom,
   horizontalPadding,
-  maxContentWidth,
+  backButtonSize,
+  backButtonRadius,
+  stepSize,
+  activeStepSize,
   lineWidth,
   isSmallScreen,
   isVerySmallScreen,
-  isTablet,
   currentStep,
-  isArabic,
 }: {
   width: number;
   height: number;
   safeTop: number;
-  safeBottom: number;
   horizontalPadding: number;
-  maxContentWidth: number;
+  backButtonSize: number;
+  backButtonRadius: number;
+  stepSize: number;
+  activeStepSize: number;
   lineWidth: number;
   isSmallScreen: boolean;
   isVerySmallScreen: boolean;
-  isTablet: boolean;
   currentStep: StepNumber;
-  isArabic: boolean;
 }) {
-  const stepSize = isVerySmallScreen ? 35 : 38;
-  const stepItemWidth = isVerySmallScreen ? 50 : 54;
+  const isStepOne = currentStep === 1;
+  const isLongStep = currentStep === 2 || currentStep === 3;
 
-  const buttonHeight = isVerySmallScreen ? 54 : 58;
-  const buttonRadius = 30;
-
-  const topPadding = Platform.OS === "ios" ? safeTop - 18 : safeTop - 8;
-  const bottomPadding = Math.max(safeBottom, isVerySmallScreen ? 8 : 12);
-
-  const bluetoothListMaxHeight = isTablet
-    ? height * 0.34
-    : isVerySmallScreen
-    ? height * 0.25
+  const longCardMaxHeight = isVerySmallScreen
+    ? height * 0.56
     : isSmallScreen
-    ? height * 0.29
-    : height * 0.33;
-
-  const firstImageWidth = isTablet
-    ? clamp(width * 0.56, 410, 550)
-    : clamp(width * 1.02, 350, 480);
-
-  const firstImageHeight = isTablet
-    ? clamp(height * 0.49, 380, 500)
-    : clamp(height * 0.49, 365, 500);
+    ? height * 0.58
+    : height * 0.61;
 
   return StyleSheet.create({
     container: {
@@ -1176,43 +1030,43 @@ function createStyles({
       backgroundColor: COLORS.screenBackground,
     },
 
-    outerContent: {
-      flex: 1,
-      width: "100%",
-      alignItems: "center",
-      backgroundColor: COLORS.screenBackground,
-    },
-
     screenContent: {
       flex: 1,
-      width: "100%",
-      maxWidth: maxContentWidth,
+      minHeight: height,
       backgroundColor: COLORS.screenBackground,
       paddingHorizontal: horizontalPadding,
-      paddingTop: topPadding,
-      paddingBottom: bottomPadding,
+      paddingTop: safeTop + 2,
+      paddingBottom: isVerySmallScreen ? 22 : 30,
     },
 
-    topArea: {
-      height: isVerySmallScreen ? 26 : 30,
+    backArea: {
       width: "100%",
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      marginBottom: 0,
+      marginBottom: isVerySmallScreen ? 22 : 28,
     },
 
-    backButton: {
-      width: 44,
-      height: 30,
+    backButtonWrapper: {
+      width: backButtonSize,
+      height: backButtonSize,
+      borderRadius: backButtonRadius,
+      alignItems: "center",
       justifyContent: "center",
-      alignItems: "flex-start",
+      backgroundColor: COLORS.white,
+      borderWidth: 1,
+      borderColor: COLORS.borderGray,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 6,
+      elevation: 1,
     },
 
     skipButton: {
-      minWidth: 62,
-      height: 30,
-      borderRadius: 15,
+      minWidth: 64,
+      height: 38,
+      borderRadius: 19,
       backgroundColor: COLORS.softGray,
       justifyContent: "center",
       alignItems: "center",
@@ -1221,29 +1075,27 @@ function createStyles({
       borderColor: COLORS.borderGray,
     },
 
-    skipText: {
-      color: COLORS.primary,
-      fontSize: 12.5,
-      fontWeight: "900",
-      includeFontPadding: false,
+    skipPlaceholder: {
+      width: 64,
+      height: 38,
     },
 
-    skipPlaceholder: {
-      width: 62,
-      height: 30,
+    skipText: {
+      color: COLORS.primary,
+      fontSize: 13,
+      fontWeight: "900",
     },
 
     stepsContainer: {
       width: "100%",
-      height: isVerySmallScreen ? 46 : 50,
       flexDirection: "row",
       alignItems: "flex-start",
       justifyContent: "center",
-      marginBottom: isVerySmallScreen ? 20 : 26,
+      marginBottom: isVerySmallScreen ? 22 : isSmallScreen ? 26 : 30,
     },
 
     stepItem: {
-      width: stepItemWidth,
+      width: activeStepSize,
       alignItems: "center",
       justifyContent: "flex-start",
     },
@@ -1257,30 +1109,37 @@ function createStyles({
       backgroundColor: COLORS.softGray,
       borderWidth: 1,
       borderColor: COLORS.borderGray,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 6,
+      elevation: 1,
     },
 
     stepCircleActive: {
+      width: activeStepSize,
+      height: activeStepSize,
+      borderRadius: activeStepSize / 2,
       backgroundColor: COLORS.primary,
       borderColor: COLORS.primary,
       shadowColor: COLORS.primaryDark,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: Platform.OS === "android" ? 0.12 : 0.18,
-      shadowRadius: 10,
-      elevation: 4,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: Platform.OS === "android" ? 0.14 : 0.2,
+      shadowRadius: 12,
+      elevation: 5,
     },
 
     stepCircleCompleted: {
-      backgroundColor: COLORS.primary,
-      borderColor: COLORS.primary,
+      backgroundColor: "rgba(154,33,28,0.08)",
+      borderColor: "rgba(154,33,28,0.16)",
     },
 
     stepLabel: {
-      marginTop: 5,
-      fontSize: 11,
+      marginTop: 8,
+      fontSize: isVerySmallScreen ? 11.5 : 12.5,
       color: COLORS.grayText,
       fontWeight: "800",
       textAlign: "center",
-      includeFontPadding: false,
     },
 
     stepLabelActive: {
@@ -1295,262 +1154,243 @@ function createStyles({
 
     activeLineTrack: {
       width: lineWidth,
-      height: 2,
+      height: 2.4,
       marginTop: stepSize / 2,
-      borderRadius: 2,
-      backgroundColor: "#E4E4E4",
+      borderRadius: 3,
+      backgroundColor: "#E6E6E6",
       overflow: "hidden",
       alignItems: "flex-end",
     },
 
     activeLineFill: {
-      height: 2,
-      borderRadius: 2,
+      height: 2.4,
+      borderRadius: 3,
       backgroundColor: COLORS.primary,
     },
 
-    contentArea: {
-      flex: 1,
+    cardWrapper: {
       width: "100%",
-      alignItems: "center",
-      paddingTop: currentStep === 1 ? 30 : currentStep === 3 ? 26 : 24,
+      marginBottom: isLongStep ? 34 : isVerySmallScreen ? 6 : 10,
+      maxHeight: isLongStep ? longCardMaxHeight : undefined,
     },
 
-    title: {
-      fontSize: isVerySmallScreen ? 19.5 : isTablet ? 25 : 22,
-      fontWeight: "900",
-      color: COLORS.title,
-      textAlign: "center",
-      marginTop: 0,
-      marginBottom: 8,
-      letterSpacing: -0.2,
-      includeFontPadding: false,
-    },
-
-    subtitle: {
+    card: {
       width: "100%",
-      fontSize: isVerySmallScreen ? 13.5 : isTablet ? 16 : 15,
-      color: COLORS.textMuted,
-      fontWeight: "800",
-      textAlign: "center",
-      lineHeight: isVerySmallScreen ? 21 : isTablet ? 27 : 24,
-      paddingHorizontal: currentStep === 3 ? 2 : 8,
-      marginBottom: currentStep === 1 ? 18 : currentStep === 3 ? 16 : 12,
-      includeFontPadding: false,
-    },
-
-    stepOneBody: {
-      flex: 1,
-      width: "100%",
-      justifyContent: "center",
-      alignItems: "center",
-      paddingBottom: isVerySmallScreen ? 0 : 4,
-    },
-
-    startImage: {
-      width: firstImageWidth,
-      height: firstImageHeight,
-    },
-
-    prepareCard: {
-      width: "100%",
-      flex: 1,
+      maxHeight: isLongStep ? longCardMaxHeight : undefined,
       borderRadius: 24,
       borderWidth: 1,
       borderColor: COLORS.borderGray,
       backgroundColor: COLORS.white,
-      paddingHorizontal: isVerySmallScreen ? 18 : isTablet ? 30 : 22,
-      paddingTop: isVerySmallScreen ? 18 : 22,
-      paddingBottom: isVerySmallScreen ? 14 : 18,
-      justifyContent: "flex-start",
-      shadowColor: COLORS.grayText,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: Platform.OS === "android" ? 0.06 : 0.09,
-      shadowRadius: 4,
-      elevation: 2,
+      overflow: "hidden",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 6,
+      elevation: 1,
     },
 
-    stepTwoTopRows: {
+    cardScrollContent: {
+      paddingHorizontal: isVerySmallScreen ? 17 : 19,
+      paddingTop: isVerySmallScreen ? 24 : 28,
+      paddingBottom: isLongStep
+        ? isVerySmallScreen
+          ? 34
+          : 42
+        : isVerySmallScreen
+        ? 22
+        : 26,
+    },
+
+    cardHeader: {
       width: "100%",
-      gap: isVerySmallScreen ? 6 : 8,
-      marginBottom: isVerySmallScreen ? 8 : 10,
+      flexDirection: "row-reverse",
+      alignItems: "flex-start",
+      zIndex: 2,
     },
 
-    secondInstructionOffset: {
-      marginTop: isVerySmallScreen ? 3 : 5,
-    },
-
-    thirdInstructionOffset: {
-      width: "100%",
-      marginTop: isVerySmallScreen ? -2 : -4,
-    },
-
-    instructionRow: {
-      width: "100%",
-      flexDirection: isArabic ? "row-reverse" : "row",
-      alignItems: "center",
-      justifyContent: "flex-start",
-    },
-
-    numberCircle: {
-      width: isVerySmallScreen ? 33 : 36,
-      height: isVerySmallScreen ? 33 : 36,
-      borderRadius: isVerySmallScreen ? 16.5 : 18,
+    cardIconCircle: {
+      width: isVerySmallScreen ? 52 : 56,
+      height: isVerySmallScreen ? 52 : 56,
+      borderRadius: isVerySmallScreen ? 26 : 28,
       justifyContent: "center",
       alignItems: "center",
-      marginLeft: isArabic ? 10 : 0,
-      marginRight: isArabic ? 0 : 10,
+      marginLeft: 12,
       backgroundColor: COLORS.softGray,
       borderWidth: 1,
       borderColor: COLORS.borderGray,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 6,
+      elevation: 1,
+    },
+
+    headerTextBox: {
+      flex: 1,
+      alignItems: "flex-end",
+      paddingTop: 2,
+    },
+
+    title: {
+      fontSize: isVerySmallScreen ? 18.5 : 20,
+      fontWeight: "900",
+      color: COLORS.title,
+      textAlign: "right",
+      marginBottom: 10,
+      letterSpacing: -0.2,
+    },
+
+    subtitle: {
+      fontSize: isVerySmallScreen ? 13.8 : 14.8,
+      color: COLORS.textMuted,
+      fontWeight: "700",
+      textAlign: "right",
+      lineHeight: isVerySmallScreen ? 23 : 25,
+    },
+
+    instructionsBox: {
+      width: "100%",
+      alignItems: "flex-end",
+      marginTop: isStepOne ? 22 : isVerySmallScreen ? 22 : 28,
+      gap: isVerySmallScreen ? 12 : 15,
+      zIndex: 2,
+    },
+
+    instructionRow: {
+      flexDirection: "row-reverse",
+      alignItems: "center",
+      justifyContent: "flex-start",
+      width: "100%",
+      paddingRight: 4,
+    },
+
+    numberCircle: {
+      width: isVerySmallScreen ? 34 : 36,
+      height: isVerySmallScreen ? 34 : 36,
+      borderRadius: isVerySmallScreen ? 17 : 18,
+      justifyContent: "center",
+      alignItems: "center",
+      marginLeft: 10,
+      backgroundColor: COLORS.softGray,
+      borderWidth: 1,
+      borderColor: COLORS.borderGray,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 6,
+      elevation: 1,
     },
 
     numberText: {
       color: COLORS.primary,
       fontSize: isVerySmallScreen ? 16 : 17,
       fontWeight: "900",
-      includeFontPadding: false,
     },
 
     instructionText: {
       flex: 1,
-      fontSize: isVerySmallScreen ? 15 : isTablet ? 18 : 16,
+      fontSize: isVerySmallScreen ? 15.5 : 16.5,
       fontWeight: "900",
       color: COLORS.textDark,
-      textAlign: isArabic ? "right" : "left",
+      textAlign: "right",
       lineHeight: isVerySmallScreen ? 23 : 25,
-      includeFontPadding: false,
     },
 
     animationBox: {
       width: "100%",
-      height: isVerySmallScreen ? 168 : isSmallScreen ? 195 : 225,
+      height: isVerySmallScreen ? 170 : 215,
       justifyContent: "center",
       alignItems: "center",
-      marginVertical: isVerySmallScreen ? 4 : 8,
+      marginTop: isVerySmallScreen ? 8 : 12,
+      zIndex: 2,
     },
 
     lottie: {
-      width: isVerySmallScreen ? 195 : isTablet ? 265 : 240,
-      height: isVerySmallScreen ? 195 : isTablet ? 265 : 240,
+      width: isVerySmallScreen ? 185 : 225,
+      height: isVerySmallScreen ? 185 : 225,
     },
 
-    bluetoothCard: {
+    lastInstructionBox: {
       width: "100%",
-      flex: 1,
-      borderRadius: 24,
-      borderWidth: 1,
-      borderColor: COLORS.borderGray,
-      backgroundColor: COLORS.white,
-      paddingHorizontal: isVerySmallScreen ? 16 : isTablet ? 26 : 20,
-      paddingTop: isVerySmallScreen ? 16 : 20,
-      paddingBottom: isVerySmallScreen ? 12 : 16,
-      shadowColor: COLORS.grayText,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: Platform.OS === "android" ? 0.06 : 0.09,
-      shadowRadius: 4,
-      elevation: 2,
+      alignItems: "flex-end",
+      marginTop: isVerySmallScreen ? 4 : 8,
+      marginBottom: isVerySmallScreen ? 20 : 28,
+      zIndex: 2,
+    },
+
+    bluetoothArea: {
+      width: "100%",
+      marginTop: isVerySmallScreen ? 24 : 30,
     },
 
     inputLabel: {
       fontSize: isVerySmallScreen ? 13 : 13.5,
       color: COLORS.grayText,
       fontWeight: "800",
-      textAlign: isArabic ? "right" : "left",
+      textAlign: "right",
       marginBottom: 8,
-      includeFontPadding: false,
     },
 
     deviceSelectBox: {
       width: "100%",
-      height: isVerySmallScreen ? 48 : 52,
-      borderRadius: 16,
+      height: isVerySmallScreen ? 54 : 58,
+      borderRadius: 18,
       backgroundColor: COLORS.white,
       borderWidth: 1,
       borderColor: COLORS.borderGray,
       paddingHorizontal: 16,
-      flexDirection: isArabic ? "row" : "row-reverse",
+      flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      marginBottom: 12,
+      marginBottom: 14,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 6,
+      elevation: 1,
     },
 
     deviceSelectText: {
       flex: 1,
-      fontSize: isVerySmallScreen ? 14.5 : 15.5,
+      fontSize: isVerySmallScreen ? 15.5 : 16.5,
       color: COLORS.textDark,
       fontWeight: "900",
-      textAlign: isArabic ? "right" : "left",
-      marginHorizontal: 8,
-      includeFontPadding: false,
+      textAlign: "right",
     },
 
     dropdownBox: {
       width: "100%",
-      maxHeight: bluetoothListMaxHeight,
+      maxHeight: isVerySmallScreen ? 145 : 165,
       borderRadius: 18,
       borderWidth: 1,
       borderColor: COLORS.borderGray,
       backgroundColor: "#FFFFFF",
-      marginBottom: 12,
+      marginTop: -5,
+      marginBottom: 16,
       overflow: "hidden",
-    },
-
-    dropdownHeader: {
-      minHeight: 42,
-      paddingHorizontal: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: "#F0F0F0",
-      flexDirection: isArabic ? "row-reverse" : "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      backgroundColor: "#FFFFFF",
-    },
-
-    dropdownTitle: {
-      color: COLORS.textDark,
-      fontSize: 13,
-      fontWeight: "900",
-      textAlign: isArabic ? "right" : "left",
-      includeFontPadding: false,
-    },
-
-    refreshButton: {
-      minHeight: 30,
-      borderRadius: 15,
-      paddingHorizontal: 10,
-      backgroundColor: "rgba(154,33,28,0.06)",
-      flexDirection: isArabic ? "row-reverse" : "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 5,
-    },
-
-    refreshText: {
-      color: COLORS.primary,
-      fontSize: 12,
-      fontWeight: "900",
-      includeFontPadding: false,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 6,
+      elevation: 1,
     },
 
     loadingRow: {
-      minHeight: 54,
-      flexDirection: isArabic ? "row-reverse" : "row",
+      minHeight: 46,
+      flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "center",
       gap: 8,
-      paddingHorizontal: 12,
     },
 
     loadingText: {
       color: COLORS.grayText,
       fontSize: 13,
       fontWeight: "800",
-      includeFontPadding: false,
     },
 
     emptyBox: {
-      minHeight: 72,
+      minHeight: 68,
       justifyContent: "center",
       alignItems: "center",
       paddingHorizontal: 14,
@@ -1562,24 +1402,15 @@ function createStyles({
       textAlign: "center",
       lineHeight: 20,
       fontWeight: "700",
-      includeFontPadding: false,
-    },
-
-    deviceList: {
-      maxHeight: bluetoothListMaxHeight - 42,
-    },
-
-    deviceListContent: {
-      paddingBottom: 4,
     },
 
     deviceItem: {
-      minHeight: isVerySmallScreen ? 56 : 60,
+      minHeight: 58,
       paddingHorizontal: 14,
-      paddingVertical: 9,
+      paddingVertical: 10,
       borderBottomWidth: 1,
       borderBottomColor: "#F0F0F0",
-      flexDirection: isArabic ? "row-reverse" : "row",
+      flexDirection: "row-reverse",
       alignItems: "center",
       gap: 10,
     },
@@ -1594,136 +1425,102 @@ function createStyles({
       borderRadius: 17,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "rgba(154,33,28,0.06)",
+      backgroundColor: COLORS.softGray,
       borderWidth: 1,
-      borderColor: "rgba(154,33,28,0.12)",
+      borderColor: COLORS.borderGray,
     },
 
     deviceInfo: {
       flex: 1,
-      alignItems: isArabic ? "flex-end" : "flex-start",
-    },
-
-    deviceNameRow: {
-      width: "100%",
-      flexDirection: isArabic ? "row" : "row-reverse",
-      alignItems: "center",
-      justifyContent: isArabic ? "flex-end" : "flex-start",
-      gap: 8,
     },
 
     deviceName: {
-      flexShrink: 1,
       fontSize: 14.5,
       color: COLORS.textDark,
       fontWeight: "900",
-      textAlign: isArabic ? "right" : "left",
-      includeFontPadding: false,
-    },
-
-    obdBadge: {
-      borderRadius: 10,
-      paddingHorizontal: 7,
-      paddingVertical: 2,
-      backgroundColor: "rgba(154,33,28,0.08)",
-      borderWidth: 1,
-      borderColor: "rgba(154,33,28,0.13)",
-    },
-
-    obdBadgeText: {
-      color: COLORS.primary,
-      fontSize: 10,
-      fontWeight: "900",
-      includeFontPadding: false,
+      textAlign: "right",
     },
 
     deviceId: {
-      marginTop: 4,
+      marginTop: 3,
       fontSize: 10.5,
       color: "#A0A0A0",
-      textAlign: isArabic ? "right" : "left",
-      includeFontPadding: false,
+      textAlign: "right",
     },
 
     passwordBox: {
       width: "100%",
-      height: isVerySmallScreen ? 48 : 52,
-      borderRadius: 16,
+      height: isVerySmallScreen ? 50 : 54,
+      borderRadius: 18,
       borderWidth: 1,
       borderColor: COLORS.borderGray,
       backgroundColor: "#FFFFFF",
       paddingHorizontal: 16,
-      flexDirection: isArabic ? "row-reverse" : "row",
+      flexDirection: "row-reverse",
       alignItems: "center",
-      marginBottom: 8,
+      marginBottom: 12,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 6,
+      elevation: 1,
     },
 
     passwordInput: {
       flex: 1,
-      fontSize: isVerySmallScreen ? 14 : 14.5,
+      fontSize: 14.5,
       color: COLORS.textDark,
       fontWeight: "700",
       paddingVertical: 0,
-      marginRight: isArabic ? 10 : 0,
-      marginLeft: isArabic ? 0 : 10,
-      includeFontPadding: false,
+      marginRight: 10,
     },
 
     noteText: {
       color: "#777777",
-      fontSize: isVerySmallScreen ? 11.8 : 12.2,
-      textAlign: isArabic ? "right" : "left",
-      lineHeight: isVerySmallScreen ? 18 : 19,
-      marginBottom: 7,
+      fontSize: 12.5,
+      textAlign: "right",
+      lineHeight: 20,
+      marginBottom: 10,
       fontWeight: "700",
-      includeFontPadding: false,
     },
 
-    messageBox: {
+    errorBox: {
       width: "100%",
-      minHeight: isVerySmallScreen ? 40 : 44,
-      flexDirection: isArabic ? "row-reverse" : "row",
+      flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "flex-start",
       paddingHorizontal: 14,
-      paddingVertical: 9,
-      borderRadius: 16,
+      paddingVertical: 10,
+      borderRadius: 18,
       backgroundColor: "rgba(154,33,28,0.07)",
       borderWidth: 1,
       borderColor: "rgba(154,33,28,0.14)",
       gap: 8,
+      marginTop: 4,
     },
 
-    messageText: {
+    errorText: {
       flex: 1,
       color: COLORS.primary,
-      fontSize: isVerySmallScreen ? 12.5 : 13,
-      textAlign: isArabic ? "right" : "left",
-      lineHeight: isVerySmallScreen ? 18 : 20,
+      fontSize: 13,
+      textAlign: "right",
+      lineHeight: 20,
       fontWeight: "800",
-      includeFontPadding: false,
-    },
-
-    messagePlaceholder: {
-      minHeight: isVerySmallScreen ? 40 : 44,
-    },
-
-    footerArea: {
-      width: "100%",
-      paddingTop: isVerySmallScreen ? 8 : 10,
     },
 
     startButtonWrapper: {
       width: "100%",
-      height: buttonHeight,
-      borderRadius: buttonRadius,
+      height: isVerySmallScreen ? 60 : 66,
+      borderRadius: 33,
       overflow: "hidden",
+      marginTop: isStepOne ? 24 : isVerySmallScreen ? 24 : 30,
       shadowColor: COLORS.primaryDark,
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
       shadowRadius: 14,
       elevation: 6,
       backgroundColor: COLORS.primary,
+      zIndex: 2,
     },
 
     disabledButton: {
@@ -1732,26 +1529,26 @@ function createStyles({
 
     startGradient: {
       flex: 1,
-      borderRadius: buttonRadius,
+      borderRadius: 33,
       justifyContent: "center",
       alignItems: "center",
       overflow: "hidden",
     },
 
-    startButtonShine: {
+    startGlassTop: {
       position: "absolute",
       top: 0,
       left: 0,
       right: 0,
-      height: "48%",
-      borderTopLeftRadius: buttonRadius,
-      borderTopRightRadius: buttonRadius,
+      height: "46%",
+      borderTopLeftRadius: 33,
+      borderTopRightRadius: 33,
       backgroundColor: "rgba(255,255,255,0.10)",
       zIndex: 1,
     },
 
     connectingRow: {
-      flexDirection: isArabic ? "row-reverse" : "row",
+      flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "center",
       gap: 10,
@@ -1761,9 +1558,8 @@ function createStyles({
     startButtonText: {
       color: COLORS.white,
       textAlign: "center",
-      fontSize: isVerySmallScreen ? 18 : 19.5,
+      fontSize: isVerySmallScreen ? 19 : 20.5,
       fontWeight: "900",
-      includeFontPadding: false,
       zIndex: 5,
     },
   });
