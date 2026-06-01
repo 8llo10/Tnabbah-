@@ -16,7 +16,9 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSBluetoothAlwaysUsageDescription": "Tnabbah needs Bluetooth access to connect to the OBD device and read car data.",
         "NSBluetoothPeripheralUsageDescription": "Tnabbah needs Bluetooth access to connect to the OBD device.",
-        "UIBackgroundModes": ["bluetooth-central"]
+        "UIBackgroundModes": [
+          "bluetooth-central"
+        ]
       }
     },
     "android": {
@@ -29,7 +31,6 @@
         "ACCESS_FINE_LOCATION",
         "POST_NOTIFICATIONS"
       ],
-
       "adaptiveIcon": {
         "backgroundColor": "#EFE7DE",
         "foregroundImage": "./assets/images/logoG.png"
@@ -64,18 +65,20 @@
           }
         }
       ],
-      "expo-font",
       "expo-secure-store",
       [
         "react-native-ble-plx",
         {
           "isBackgroundEnabled": true,
-          "modes": ["central"],
+          "modes": [
+            "central"
+          ],
           "bluetoothAlwaysPermission": "Tnabbah needs Bluetooth access to connect to the OBD device and read car data."
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-asset"
+      "expo-asset",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,

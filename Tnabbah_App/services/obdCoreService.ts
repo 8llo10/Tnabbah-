@@ -48,12 +48,7 @@ function cleanRaw(raw: string) {
 function extractHexFrames(raw: string) {
   return cleanRaw(raw)
     .split("\n")
-    .map((line) =>
-      line
-        .trim()
-        .replace(/^[0-9A-Fa-f]+:/, "")
-        .replace(/\s+/g, "")
-    )
+    .map((line) => line.trim().replace(/\s+/g, ""))
     .filter((line) => line.length > 0)
     .filter((line) => /^[0-9A-Fa-f]+$/.test(line));
 }
@@ -222,28 +217,24 @@ function parseSupportedPidBlock(raw: string, command: string) {
 }
 
 function parseVin(raw: string) {
-  const text = cleanRaw(raw).replace(/\s+/g, "").toUpperCase();
-
-  const vinChars: number[] = [];
   const frames = extractHexFrames(raw);
+  const asciiBytes: number[] = [];
 
   for (const frame of frames) {
-    const idx = frame.indexOf("4902");
-    if (idx === -1) continue;
+    if (!frame.startsWith("4902")) continue;
 
-    const useful = frame.slice(idx + 4);
-    const bytes = hexToBytes(useful);
+    const frameBytes = hexToBytes(frame);
 
-    for (const b of bytes) {
-      if (b >= 32 && b <= 126) vinChars.push(b);
+    for (const b of frameBytes) {
+      if (b >= 32 && b <= 126) {
+        asciiBytes.push(b);
+      }
     }
   }
 
-  let vin = String.fromCharCode(...vinChars)
+  const vin = String.fromCharCode(...asciiBytes)
     .replace(/[^A-HJ-NPR-Z0-9]/g, "")
     .trim();
-
-  if (vin.length > 17) vin = vin.slice(-17);
 
   return vin.length >= 11 ? vin : null;
 }
@@ -279,27 +270,6 @@ function parseDtcRaw(raw: string) {
   }
 
   return Array.from(new Set(dtcs));
-}
-
-function parseMode09Text(raw: string, servicePid: string) {
-  const frames = extractHexFrames(raw);
-  const chars: number[] = [];
-
-  for (const frame of frames) {
-    const idx = frame.indexOf(servicePid);
-    if (idx === -1) continue;
-
-    const useful = frame.slice(idx + servicePid.length);
-    const bytes = hexToBytes(useful);
-
-    for (const b of bytes) {
-      if (b >= 32 && b <= 126) chars.push(b);
-    }
-  }
-
-  return String.fromCharCode(...chars)
-    .replace(/[^\x20-\x7E]/g, "")
-    .trim();
 }
 
 export const obdCoreService = {
@@ -455,9 +425,6 @@ export const obdCoreService = {
     return {
       raw,
       vin: parseVin(raw["0902"]),
-      calibrationId: parseMode09Text(raw["0904"], "4904"),
-      cvn: parseMode09Text(raw["0906"], "4906"),
-      ecuName: parseMode09Text(raw["090A"], "490A"),
       timestamp: Date.now(),
     };
   },
