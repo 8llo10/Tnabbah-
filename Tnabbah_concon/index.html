@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TNABBAH | Smart Vehicle Diagnostics</title>
+  <meta name="description" content="TNABBAH smart vehicle diagnostics landing page." />
+  <style>
+    :root{
+      --burgundy:#871B17;
+      --burgundy2:#B12620;
+      --dark:#08090b;
+      --ink:#151515;
+      --soft:#f6f6f4;
+      --gray:#8b8b8b;
+      --glass:rgba(255,255,255,.72);
+      --stroke:rgba(135,27,23,.22);
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0;
+      font-family: Inter, Arial, "Segoe UI", sans-serif;
+      color:var(--ink);
+      background:#f7f7f5;
+      overflow-x:hidden;
+    }
+    a{text-decoration:none;color:inherit}
+    .hero{
+      min-height:100vh;
+      position:relative;
+      display:flex;
+      align-items:center;
+      overflow:hidden;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.96) 0%, rgba(255,255,255,.86) 42%, rgba(255,255,255,.28) 100%),
+        url("assets/asset-3.png") center/cover no-repeat;
+    }
+    .hero:before{
+      content:"";
+      position:absolute; inset:0;
+      background:
+        radial-gradient(circle at 75% 30%, rgba(135,27,23,.18), transparent 32%),
+        linear-gradient(135deg, rgba(255,255,255,.3), transparent 40%);
+      pointer-events:none;
+    }
+    .dots{
+      position:absolute; right:0; top:0; bottom:0; width:22%;
+      background:radial-gradient(circle, rgba(20,20,20,.25) 1.4px, transparent 2px);
+      background-size:13px 13px;
+      opacity:.55;
+      mask-image:linear-gradient(to left, #000, transparent);
+    }
+    canvas#particles{
+      position:absolute; inset:0;
+      width:100%; height:100%;
+      opacity:.85;
+      pointer-events:none;
+    }
+    .nav{
+      position:absolute; top:26px; left:50%; transform:translateX(-50%);
+      width:min(1120px, calc(100% - 34px));
+      display:flex; align-items:center; justify-content:space-between;
+      z-index:5;
+      padding:10px 14px;
+      border:1px solid rgba(255,255,255,.7);
+      background:rgba(255,255,255,.58);
+      backdrop-filter: blur(16px);
+      border-radius:999px;
+      box-shadow:0 12px 35px rgba(0,0,0,.08);
+    }
+    .brand{display:flex; align-items:center; gap:12px; font-weight:900; letter-spacing:5px; color:var(--burgundy)}
+    .brand img{height:25px; width:auto; max-width:150px; object-fit:contain}
+    .nav-links{display:flex; gap:8px; align-items:center}
+    .nav-links a{
+      padding:10px 14px; border-radius:999px; font-size:13px; color:#333;
+    }
+    .nav-links a:hover{background:rgba(135,27,23,.09); color:var(--burgundy)}
+    .hero-content{
+      position:relative; z-index:3;
+      width:min(1120px, calc(100% - 34px));
+      margin:0 auto;
+      padding:130px 0 70px;
+      display:grid; grid-template-columns:1.05fr .95fr; gap:40px; align-items:center;
+    }
+    .badge{
+      display:inline-flex; align-items:center; gap:9px;
+      padding:9px 13px;
+      border:1px solid var(--stroke);
+      background:rgba(255,255,255,.75);
+      border-radius:999px;
+      color:var(--burgundy);
+      font-weight:800;
+      box-shadow:0 12px 35px rgba(135,27,23,.08);
+    }
+    .pulse{width:9px;height:9px;border-radius:50%;background:var(--burgundy);box-shadow:0 0 0 0 rgba(135,27,23,.6);animation:pulse 1.6s infinite}
+    @keyframes pulse{70%{box-shadow:0 0 0 14px rgba(135,27,23,0)}100%{box-shadow:0 0 0 0 rgba(135,27,23,0)}}
+    h1{
+      margin:22px 0 14px;
+      font-size:clamp(42px, 6vw, 86px);
+      line-height:.9;
+      letter-spacing:-4px;
+      color:#111;
+    }
+    h1 span{color:var(--burgundy); display:block}
+    .lead{
+      max-width:620px;
+      font-size:clamp(16px,2vw,21px);
+      line-height:1.65;
+      color:#3b3b3b;
+      margin:0 0 26px;
+    }
+    .cta{display:flex; flex-wrap:wrap; gap:13px; margin-top:24px}
+    .btn{
+      display:inline-flex; align-items:center; justify-content:center; gap:10px;
+      min-height:52px; padding:0 22px;
+      border-radius:16px;
+      font-weight:900;
+      border:1px solid transparent;
+      transition:.25s ease;
+      cursor:pointer;
+    }
+    .btn.primary{background:linear-gradient(135deg,var(--burgundy),var(--burgundy2)); color:white; box-shadow:0 18px 40px rgba(135,27,23,.25)}
+    .btn.secondary{background:rgba(255,255,255,.75); color:#151515; border-color:rgba(0,0,0,.09); backdrop-filter:blur(14px)}
+    .btn:hover{transform:translateY(-3px)}
+    .device-card{
+      position:relative;
+      min-height:520px;
+      border-radius:42px;
+      overflow:hidden;
+      background:
+        linear-gradient(180deg, rgba(10,10,10,.28), rgba(10,10,10,.86)),
+        url("assets/asset-9.png") center/cover no-repeat;
+      box-shadow:0 30px 80px rgba(0,0,0,.32);
+      border:1px solid rgba(255,255,255,.18);
+    }
+    .scan-ring{
+      position:absolute; inset:8%;
+      border:1px solid rgba(177,38,32,.35);
+      border-radius:34px;
+      opacity:.9;
+      animation:float 4s ease-in-out infinite;
+    }
+    .hud{
+      position:absolute; left:24px; right:24px; bottom:24px;
+      padding:20px;
+      border-radius:26px;
+      background:rgba(0,0,0,.52);
+      border:1px solid rgba(255,255,255,.16);
+      backdrop-filter:blur(18px);
+      color:white;
+    }
+    .hud-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px}
+    .status{color:#ffcbc8; font-weight:900; letter-spacing:1px}
+    .meter{height:10px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;margin:12px 0}
+    .meter span{display:block;height:100%;width:72%;background:linear-gradient(90deg,var(--burgundy),#ff4a42);border-radius:999px;animation:meter 2.7s ease-in-out infinite}
+    @keyframes meter{50%{width:92%}}
+    @keyframes float{50%{transform:translateY(-12px)}}
+    .section{padding:92px 18px; position:relative}
+    .wrap{width:min(1120px,100%); margin:0 auto}
+    .section-title{text-align:center; margin-bottom:42px}
+    .eyebrow{color:var(--burgundy); font-weight:900; letter-spacing:2px; text-transform:uppercase; font-size:13px}
+    h2{font-size:clamp(32px,4.6vw,58px); line-height:1; margin:12px 0; letter-spacing:-2px}
+    .muted{color:#666; line-height:1.7; font-size:17px}
+    .features{display:grid; grid-template-columns:repeat(3,1fr); gap:18px}
+    .feature{
+      padding:26px;
+      border-radius:28px;
+      background:rgba(255,255,255,.82);
+      border:1px solid rgba(0,0,0,.06);
+      box-shadow:0 18px 45px rgba(0,0,0,.06);
+      min-height:190px;
+      position:relative;
+      overflow:hidden;
+    }
+    .feature:after{
+      content:""; position:absolute; right:-30px; bottom:-30px;
+      width:120px;height:120px;border-radius:50%;
+      background:radial-gradient(circle, rgba(135,27,23,.15), transparent 65%);
+    }
+    .icon{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;background:rgba(135,27,23,.1);color:var(--burgundy);font-size:24px;margin-bottom:18px}
+    .feature h3{margin:0 0 10px;font-size:22px}
+    .download{
+      background:
+        linear-gradient(90deg, rgba(9,10,12,.92), rgba(9,10,12,.78)),
+        url("assets/asset-1.png") center/cover no-repeat;
+      color:white;
+      border-radius:46px;
+      padding:46px;
+      display:grid; grid-template-columns:1fr .9fr; gap:28px; align-items:center;
+      overflow:hidden; position:relative;
+    }
+    .download:before{
+      content:""; position:absolute; inset:0;
+      background:radial-gradient(circle at 75% 20%, rgba(177,38,32,.32), transparent 35%);
+    }
+    .download>*{position:relative;z-index:2}
+    .store-grid{display:grid; gap:14px}
+    .store{
+      padding:18px 20px;
+      border-radius:20px;
+      background:rgba(255,255,255,.1);
+      border:1px solid rgba(255,255,255,.18);
+      backdrop-filter:blur(18px);
+      display:flex; justify-content:space-between; align-items:center;
+      transition:.25s;
+    }
+    .store:hover{transform:translateX(6px);background:rgba(255,255,255,.16)}
+    .store small{display:block;color:#d2d2d2;margin-top:5px}
+    .contact-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px}
+    .person{
+      border-radius:24px;
+      padding:20px;
+      background:white;
+      border:1px solid rgba(0,0,0,.07);
+      box-shadow:0 16px 40px rgba(0,0,0,.05);
+    }
+    .avatar{
+      width:42px;height:42px;border-radius:15px;
+      background:linear-gradient(135deg,var(--burgundy),#c7c7c7);
+      color:white;font-weight:900;display:grid;place-items:center;margin-bottom:13px;
+    }
+    .person h3{margin:0 0 10px;font-size:19px}
+    .person p{margin:7px 0;color:#606060;font-size:14px;word-break:break-word}
+    footer{
+      padding:35px 18px;
+      background:#08090b;color:white;text-align:center;
+    }
+    .reveal{opacity:0; transform:translateY(24px); transition:.7s ease}
+    .reveal.show{opacity:1; transform:none}
+    @media (max-width:900px){
+      .hero-content{grid-template-columns:1fr; padding-top:120px}
+      .device-card{min-height:430px}
+      .features,.contact-grid{grid-template-columns:1fr}
+      .download{grid-template-columns:1fr; padding:30px; border-radius:32px}
+      .nav-links{display:none}
+      h1{letter-spacing:-2px}
+    }
+  </style>
+</head>
+<body>
+  <section class="hero" id="top">
+    <canvas id="particles"></canvas>
+    <div class="dots"></div>
+
+    <nav class="nav">
+      <a class="brand" href="#top">
+        <img src="assets/asset-12.png" alt="TNABBAH logo">
+        <span>TNABBAH</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#download">Download</a>
+        <a href="#contact">Contact Us</a>
+      </div>
+    </nav>
+
+    <div class="hero-content">
+      <div>
+        <div class="badge"><span class="pulse"></span> AI-Powered Vehicle Diagnostics</div>
+        <h1>Scan. Detect. <span>Drive Safer.</span></h1>
+        <p class="lead">
+          TNABBAH connects with your vehicle using an OBD-II adapter, monitors live data,
+          detects issues, and explains them clearly through smart AI diagnostics.
+        </p>
+        <div class="cta">
+          <a class="btn primary" href="#download">Download App</a>
+          <a class="btn secondary" href="#contact">Contact Us</a>
+        </div>
+      </div>
+
+      <div class="device-card reveal">
+        <div class="scan-ring"></div>
+        <div class="hud">
+          <div class="hud-top">
+            <strong>Vehicle Scan</strong>
+            <span class="status">LIVE</span>
+          </div>
+          <div>Engine Health</div>
+          <div class="meter"><span></span></div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px">
+            <span class="badge" style="background:rgba(255,255,255,.08);color:white;border-color:rgba(255,255,255,.18)">OBD-II</span>
+            <span class="badge" style="background:rgba(255,255,255,.08);color:white;border-color:rgba(255,255,255,.18)">Bluetooth</span>
+            <span class="badge" style="background:rgba(255,255,255,.08);color:white;border-color:rgba(255,255,255,.18)">AI Report</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features">
+    <div class="wrap">
+      <div class="section-title reveal">
+        <div class="eyebrow">Futuristic Automotive UI</div>
+        <h2>Smart diagnostics in one place</h2>
+        <p class="muted">Clean, fast, and made for real drivers — not only mechanics.</p>
+      </div>
+      <div class="features">
+        <div class="feature reveal">
+          <div class="icon">⌁</div>
+          <h3>Live Telemetry</h3>
+          <p class="muted">Track key vehicle readings and connection status in real time.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="icon">⚠</div>
+          <h3>Fault Detection</h3>
+          <p class="muted">Detect diagnostic trouble codes and understand the severity.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="icon">AI</div>
+          <h3>AI Reports</h3>
+          <p class="muted">Get clear explanations, possible causes, and suggested actions.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="download">
+    <div class="wrap">
+      <div class="download reveal">
+        <div>
+          <div class="eyebrow" style="color:#ffcbc8">Install TNABBAH</div>
+          <h2>Download or open the app</h2>
+          <p class="muted" style="color:#e8e8e8">
+            Use one QR code for this page. Update the links here anytime without changing the QR.
+          </p>
+        </div>
+        <div class="store-grid">
+          <a class="store" href="ANDROID_APP_LINK_HERE" target="_blank" rel="noopener">
+            <div><strong>Android</strong><small>Download APK / Preview Build</small></div><span>→</span>
+          </a>
+          <a class="store" href="IOS_APP_LINK_HERE" target="_blank" rel="noopener">
+            <div><strong>iPhone</strong><small>TestFlight / Web Preview Link</small></div><span>→</span>
+          </a>
+          <a class="store" href="WEB_DEMO_LINK_HERE" target="_blank" rel="noopener">
+            <div><strong>Web Demo</strong><small>Open from browser</small></div><span>→</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="contact">
+    <div class="wrap">
+      <div class="section-title reveal">
+        <div class="eyebrow">Contact Us</div>
+        <h2>TNABBAH Team</h2>
+        <p class="muted">Replace the placeholders with your six team contacts.</p>
+      </div>
+
+      <div class="contact-grid">
+        <div class="person reveal"><div class="avatar">1</div><h3>Person One</h3><p>0500000000</p><p>person1@email.com</p></div>
+        <div class="person reveal"><div class="avatar">2</div><h3>Person Two</h3><p>0500000000</p><p>person2@email.com</p></div>
+        <div class="person reveal"><div class="avatar">3</div><h3>Person Three</h3><p>0500000000</p><p>person3@email.com</p></div>
+        <div class="person reveal"><div class="avatar">4</div><h3>Person Four</h3><p>0500000000</p><p>person4@email.com</p></div>
+        <div class="person reveal"><div class="avatar">5</div><h3>Person Five</h3><p>0500000000</p><p>person5@email.com</p></div>
+        <div class="person reveal"><div class="avatar">6</div><h3>Person Six</h3><p>0500000000</p><p>person6@email.com</p></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <strong>TNABBAH</strong> — Smart Vehicle Diagnostics & Monitoring System
+  </footer>
+
+<script>
+  const canvas = document.getElementById("particles");
+  const ctx = canvas.getContext("2d");
+  let w, h, particles = [];
+  function resize(){
+    w = canvas.width = window.innerWidth * devicePixelRatio;
+    h = canvas.height = window.innerHeight * devicePixelRatio;
+    canvas.style.width = window.innerWidth + "px";
+    canvas.style.height = window.innerHeight + "px";
+    particles = Array.from({length: Math.min(120, Math.floor(window.innerWidth/9))}, () => ({
+      x: Math.random()*w, y: Math.random()*h,
+      tx: (0.18+Math.random()*0.56)*w, ty: (0.15+Math.random()*0.55)*h,
+      vx: 0, vy: 0, r: (1+Math.random()*2.4)*devicePixelRatio,
+      a: .16 + Math.random()*.42
+    }));
+  }
+  function animate(){
+    ctx.clearRect(0,0,w,h);
+    for(const p of particles){
+      p.vx += (p.tx - p.x) * 0.0009 + (Math.random()-.5)*0.22;
+      p.vy += (p.ty - p.y) * 0.0009 + (Math.random()-.5)*0.22;
+      p.vx *= .94; p.vy *= .94;
+      p.x += p.vx; p.y += p.vy;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle = `rgba(135,27,23,${p.a})`;
+      ctx.fill();
+    }
+    for(let i=0;i<particles.length;i++){
+      for(let j=i+1;j<particles.length;j++){
+        const a=particles[i], b=particles[j];
+        const dx=a.x-b.x, dy=a.y-b.y, d=Math.sqrt(dx*dx+dy*dy);
+        if(d < 120*devicePixelRatio){
+          ctx.strokeStyle = `rgba(135,27,23,${(1-d/(120*devicePixelRatio))*0.16})`;
+          ctx.lineWidth = devicePixelRatio;
+          ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(animate);
+  }
+  window.addEventListener("resize", resize);
+  resize(); animate();
+
+  const observer = new IntersectionObserver(entries=>{
+    entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add("show") })
+  }, {threshold:.14});
+  document.querySelectorAll(".reveal").forEach(el=>observer.observe(el));
+</script>
+</body>
+</html>
