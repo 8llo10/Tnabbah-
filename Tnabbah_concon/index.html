@@ -1947,6 +1947,527 @@
       }
     }
 
+
+    /* =========================================================
+       FINAL PHONE FIX — prevents crowding on real mobile screens
+       Keeps design, scales it properly for graduation QR preview.
+    ========================================================= */
+
+    @media (max-width:900px){
+      body{
+        overflow-x:hidden;
+      }
+
+      .nav{
+        width:calc(100% - 24px)!important;
+        min-height:52px!important;
+        max-height:52px!important;
+        padding:6px 8px!important;
+        display:grid!important;
+        grid-template-columns:40px minmax(72px,1fr) 42px!important;
+        gap:7px!important;
+        border-radius:22px!important;
+      }
+
+      .brand{
+        width:40px!important;
+        height:40px!important;
+        border-radius:14px!important;
+        overflow:hidden!important;
+      }
+
+      .brand img{
+        width:100%!important;
+        height:100%!important;
+        max-width:100%!important;
+        object-fit:cover!important;
+        border-radius:14px!important;
+      }
+
+      .project-title{
+        min-width:0!important;
+        display:flex!important;
+        flex-direction:column!important;
+        gap:0!important;
+        justify-content:center!important;
+        align-items:center!important;
+        overflow:hidden!important;
+        white-space:nowrap!important;
+      }
+
+      .project-title b{
+        font-size:13px!important;
+        line-height:1!important;
+      }
+
+      .project-title span{
+        font-size:8px!important;
+        letter-spacing:2px!important;
+        line-height:1!important;
+        max-width:100%!important;
+        overflow:hidden!important;
+        text-overflow:ellipsis!important;
+      }
+
+      .nav-right{
+        min-width:0!important;
+        justify-content:flex-end!important;
+        gap:0!important;
+      }
+
+      .theme-toggle{
+        width:40px!important;
+        height:40px!important;
+        flex:0 0 40px!important;
+      }
+
+      /* move nav chips under bar but keep them tiny and not crowded */
+      .nav-links{
+        position:absolute!important;
+        left:0!important;
+        right:0!important;
+        top:58px!important;
+        width:100%!important;
+        display:flex!important;
+        justify-content:center!important;
+        gap:5px!important;
+        overflow-x:auto!important;
+        padding:0 4px 4px!important;
+        scrollbar-width:none!important;
+      }
+
+      .nav-links::-webkit-scrollbar{
+        display:none!important;
+      }
+
+      .nav-links a{
+        flex:0 0 auto!important;
+        font-size:9px!important;
+        padding:6px 8px!important;
+        border-radius:999px!important;
+        max-width:82px!important;
+        overflow:hidden!important;
+        text-overflow:ellipsis!important;
+        white-space:nowrap!important;
+        background:var(--nav)!important;
+        border:1px solid var(--line)!important;
+      }
+
+      .nav-links a.voice-link{
+        max-width:92px!important;
+        color:#fff!important;
+        background:linear-gradient(135deg,var(--burgundy),var(--burgundy-2))!important;
+      }
+
+      /* HOME: keep the good split but smaller */
+      .hero-content{
+        width:calc(100% - 26px)!important;
+        min-height:88svh!important;
+        grid-template-columns:54% 46%!important;
+        gap:7px!important;
+        padding:104px 0 30px!important;
+        align-items:center!important;
+      }
+
+      .hero-content > div:first-child{
+        transform:scale(.82)!important;
+        transform-origin:left center!important;
+        width:100%!important;
+      }
+
+      .hero .badge{
+        font-size:7.4px!important;
+        padding:5px 7px!important;
+      }
+
+      .hero h1{
+        font-size:clamp(22px, 7.1vw, 31px)!important;
+        line-height:.88!important;
+        letter-spacing:-1.4px!important;
+        margin:9px 0 7px!important;
+      }
+
+      .hero .lead{
+        font-size:8.6px!important;
+        line-height:1.38!important;
+        margin-bottom:9px!important;
+      }
+
+      .hero .btn{
+        min-height:29px!important;
+        padding:0 7px!important;
+        border-radius:10px!important;
+        font-size:8px!important;
+      }
+
+      .device-card{
+        width:98%!important;
+        min-height:196px!important;
+        margin-left:-6px!important;
+        border-radius:20px!important;
+        opacity:.82!important;
+      }
+
+      .scan-ring{
+        border-radius:16px!important;
+      }
+
+      .scan-ring:after{
+        border-radius:13px!important;
+      }
+
+      .hud{
+        left:6px!important;
+        right:6px!important;
+        bottom:6px!important;
+        padding:6px!important;
+        border-radius:14px!important;
+      }
+
+      .hud-top{
+        font-size:8px!important;
+        margin-bottom:4px!important;
+      }
+
+      .status{
+        font-size:7px!important;
+      }
+
+      .hud > div:nth-child(2){
+        font-size:8px!important;
+      }
+
+      .meter{
+        height:4px!important;
+        margin:4px 0!important;
+      }
+
+      .hud .badge{
+        font-size:4.8px!important;
+        padding:2.5px 3.5px!important;
+      }
+
+      .hud div[style*="display:flex"]{
+        gap:2.5px!important;
+        margin-top:4px!important;
+      }
+
+      /* CONTACT: single column, readable, no half cut panels */
+      .contact-section{
+        min-height:auto!important;
+        padding:84px 12px 58px!important;
+        overflow:hidden!important;
+      }
+
+      .contact-section .section-title{
+        margin-bottom:16px!important;
+      }
+
+      .contact-section h2{
+        font-size:28px!important;
+        line-height:1!important;
+        letter-spacing:-1.1px!important;
+      }
+
+      .contact-section .muted{
+        max-width:310px!important;
+        font-size:12px!important;
+        line-height:1.45!important;
+      }
+
+      .contact-shell{
+        width:100%!important;
+        max-width:420px!important;
+        margin:0 auto!important;
+        grid-template-columns:1fr!important;
+        gap:12px!important;
+        min-height:0!important;
+      }
+
+      .contact-shell:before{
+        inset:42px 0 8px!important;
+        border-radius:30px!important;
+      }
+
+      .contact-core{
+        min-height:auto!important;
+        height:auto!important;
+        border-radius:28px!important;
+        padding:16px!important;
+      }
+
+      .official-top{
+        gap:10px!important;
+      }
+
+      .official-mark{
+        width:46px!important;
+        height:46px!important;
+        border-radius:16px!important;
+      }
+
+      .official-mark img{
+        border-radius:16px!important;
+      }
+
+      .official-top h3{
+        font-size:17px!important;
+      }
+
+      .official-top p{
+        font-size:10px!important;
+      }
+
+      .official-big{
+        margin-top:28px!important;
+      }
+
+      .official-big .eyebrow{
+        font-size:8px!important;
+        letter-spacing:2.5px!important;
+      }
+
+      .official-big h2{
+        font-size:28px!important;
+        line-height:.98!important;
+        letter-spacing:-1.1px!important;
+        margin:9px 0!important;
+      }
+
+      .official-big p{
+        font-size:11.5px!important;
+        line-height:1.5!important;
+      }
+
+      .official-actions{
+        margin-top:18px!important;
+        gap:8px!important;
+      }
+
+      .official-pill{
+        min-height:48px!important;
+        border-radius:18px!important;
+        padding:0 12px!important;
+        font-size:12px!important;
+      }
+
+      .official-pill small{
+        font-size:9px!important;
+      }
+
+      .team-board{
+        min-height:auto!important;
+        border-radius:28px!important;
+        padding:15px!important;
+      }
+
+      .team-head{
+        gap:10px!important;
+        margin-bottom:12px!important;
+      }
+
+      .team-head h3{
+        font-size:24px!important;
+        line-height:1!important;
+        letter-spacing:-.8px!important;
+      }
+
+      .team-head p{
+        font-size:11px!important;
+        line-height:1.45!important;
+      }
+
+      .team-badge{
+        min-height:28px!important;
+        padding:0 8px!important;
+        font-size:9px!important;
+      }
+
+      .team-stream{
+        gap:8px!important;
+      }
+
+      .member-row{
+        width:100%!important;
+        min-height:60px!important;
+        grid-template-columns:32px 1fr 26px!important;
+        gap:8px!important;
+        padding:7px 8px!important;
+        border-radius:20px!important;
+        margin-left:0!important;
+        margin-right:0!important;
+      }
+
+      .member-row:nth-child(even){
+        margin-left:10px!important;
+        width:calc(100% - 10px)!important;
+      }
+
+      .member-row:nth-child(odd){
+        margin-right:10px!important;
+        width:calc(100% - 10px)!important;
+      }
+
+      .member-dot{
+        width:32px!important;
+        height:32px!important;
+      }
+
+      .member-row h4{
+        font-size:10.2px!important;
+        line-height:1.15!important;
+        margin-bottom:3px!important;
+      }
+
+      .member-row p{
+        font-size:7.6px!important;
+        line-height:1.25!important;
+      }
+
+      .member-action{
+        width:26px!important;
+        height:26px!important;
+        font-size:11px!important;
+      }
+
+      .voice-placeholder{
+        min-height:54px!important;
+        padding:11px!important;
+        border-radius:19px!important;
+        margin-top:12px!important;
+      }
+
+      .voice-placeholder strong{
+        font-size:13px!important;
+      }
+
+      .voice-placeholder small{
+        font-size:9px!important;
+      }
+
+      .voice-placeholder span{
+        width:32px!important;
+        height:32px!important;
+      }
+
+      /* DOWNLOAD: shrink on phone */
+      .download{
+        padding:18px!important;
+        border-radius:28px!important;
+        gap:14px!important;
+      }
+
+      .download h2{
+        font-size:27px!important;
+      }
+
+      .download .muted{
+        font-size:12px!important;
+      }
+
+      .store{
+        min-height:58px!important;
+        padding:9px!important;
+        border-radius:18px!important;
+      }
+
+      .store-icon{
+        width:34px!important;
+        height:34px!important;
+        border-radius:12px!important;
+      }
+
+      .store-icon svg{
+        width:18px!important;
+        height:18px!important;
+      }
+
+      .store strong{
+        font-size:12.5px!important;
+      }
+
+      .store small{
+        font-size:9px!important;
+      }
+
+      .store-arrow{
+        width:25px!important;
+        height:25px!important;
+      }
+    }
+
+    @media (max-width:380px){
+      .nav{
+        width:calc(100% - 18px)!important;
+        grid-template-columns:38px minmax(64px,1fr) 38px!important;
+      }
+
+      .brand,
+      .theme-toggle{
+        width:38px!important;
+        height:38px!important;
+      }
+
+      .project-title b{
+        font-size:12px!important;
+      }
+
+      .project-title span{
+        font-size:7px!important;
+        letter-spacing:1.6px!important;
+      }
+
+      .nav-links a{
+        font-size:8px!important;
+        padding:5px 7px!important;
+        max-width:74px!important;
+      }
+
+      .hero-content{
+        width:calc(100% - 18px)!important;
+        grid-template-columns:56% 44%!important;
+        padding-top:100px!important;
+      }
+
+      .hero-content > div:first-child{
+        transform:scale(.78)!important;
+      }
+
+      .hero h1{
+        font-size:clamp(20px, 6.6vw, 27px)!important;
+      }
+
+      .hero .lead{
+        font-size:8px!important;
+      }
+
+      .device-card{
+        min-height:180px!important;
+        border-radius:18px!important;
+      }
+
+      .contact-section{
+        padding-left:10px!important;
+        padding-right:10px!important;
+      }
+
+      .contact-section h2{
+        font-size:25px!important;
+      }
+
+      .official-big h2{
+        font-size:25px!important;
+      }
+
+      .member-row h4{
+        font-size:9.5px!important;
+      }
+
+      .member-row p{
+        font-size:7px!important;
+      }
+    }
+
     @media (prefers-reduced-motion:reduce){
       *,*:before,*:after{animation:none!important;transition:none!important}
     }
