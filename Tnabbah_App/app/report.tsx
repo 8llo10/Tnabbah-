@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  SafeAreaView,
   ScrollView,
   View,
   Text,
@@ -13,54 +12,96 @@ import {
   BackHandler,
   Platform,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather as Icon, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../providers/AuthProvider';
+import { useAppSettings } from '../providers/AppSettingsProvider';
 import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 
 const API_URL = process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://127.0.0.1:8001";
 
 // Project colour palette (matches home.tsx / wallet.tsx)
-const COLORS = {
+const LIGHT_COLORS = {
   primary: "#871B17",
   primaryLight: "#9A211C",
   primaryDark: "#761713",
+  buttonGradientStart: "#9A211C",
+  buttonGradientEnd: "#761713",
   bg: "#F8F8F8",
   surface: "#FFFFFF",
   soft: "#F8F8F8",
+  softRed: "#F2D7DA",
   border: "#EDEDED",
-  ink: "#1D1D1F",
-  gray: "#707070",
-  success: "#1F8A4C",
+  text: "#1D1D1F",
+  muted: "#7A7A7A",
+  danger: "#C62828",
   warning: "#B7791F",
+  success: "#1F8A4C",
+  modalOverlay: "rgba(0, 0, 0, 0.40)",
+  notificationUnreadBg: "#FFF8F8",
+  floatingBg: "#871B17",
+  floatingIcon: "#FFFFFF",
+  floatingBorder: "rgba(255,255,255,0.82)",
+  floatingTitle: "#FFFFFF",
+  floatingSubtitle: "rgba(255,255,255,0.86)",
+  floatingIconBg: "rgba(255,255,255,0.18)",
+  floatingGlow: "rgba(135,27,23,0.24)",
+  floatingGlowBorder: "rgba(135,27,23,0.32)",
+  floatingMarkBg: "rgba(255,255,255,0.18)",
+  floatingTypingBg: "#FFFFFF",
+  floatingTypingBorder: "rgba(135,27,23,0.24)",
+  floatingTypingDot: "#871B17",
+  connectedBg: "#EFFAF3",
+  connectedBorder: "#D6F0DF",
+  disconnectedBg: "#FFF1F1",
+  disconnectedBorder: "#FFD9D9",
+  rawText: "#555555",
+  // report.tsx aliases
+  ink: "#1D1D1F",
+  gray: "#7A7A7A",
   error: "#C62828",
-  red: "#871B17",          // backward-compat alias
 };
 
-const SHADOWS = {
-  card: Platform.select({
-    ios: {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.03,
-      shadowRadius: 6,
-    },
-    android: {
-      elevation: 1,
-    },
-  }),
-  icon: Platform.select({
-    ios: {
-      shadowColor: COLORS.primary,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.2,
-      shadowRadius: 8,
-    },
-    android: {
-      elevation: 4,
-    },
-  }),
+const DARK_COLORS = {
+  primary: "#B63A34",
+  primaryLight: "#B63A34",
+  primaryDark: "#871B17",
+  buttonGradientStart: "#B63A34",
+  buttonGradientEnd: "#871B17",
+  bg: "#151515",
+  surface: "#202020",
+  soft: "#292929",
+  softRed: "rgba(182,58,52,0.16)",
+  border: "#383838",
+  text: "#FFFFFF",
+  muted: "#C7C7C7",
+  danger: "#B63A34",
+  warning: "#F0B45B",
+  success: "#66BB6A",
+  modalOverlay: "rgba(0, 0, 0, 0.62)",
+  notificationUnreadBg: "rgba(182,58,52,0.14)",
+  floatingBg: "#B63A34",
+  floatingIcon: "#FFFFFF",
+  floatingBorder: "rgba(255,255,255,0.30)",
+  floatingTitle: "#FFFFFF",
+  floatingSubtitle: "rgba(255,255,255,0.90)",
+  floatingIconBg: "rgba(255,255,255,0.20)",
+  floatingGlow: "rgba(182,58,52,0.30)",
+  floatingGlowBorder: "rgba(182,58,52,0.34)",
+  floatingMarkBg: "rgba(255,255,255,0.18)",
+  floatingTypingBg: "#2A2A2A",
+  floatingTypingBorder: "rgba(182,58,52,0.40)",
+  floatingTypingDot: "#B63A34",
+  connectedBg: "rgba(46,125,50,0.18)",
+  connectedBorder: "rgba(102,187,106,0.22)",
+  disconnectedBg: "rgba(182,58,52,0.12)",
+  disconnectedBorder: "rgba(182,58,52,0.32)",
+  rawText: "#D7D7D7",
+  // report.tsx aliases
+  ink: "#FFFFFF",
+  gray: "#C7C7C7",
+  error: "#B63A34",
 };
 
 // Static UI labels for AR/EN. Dynamic content (PID names, AI text, DTC text)
@@ -363,6 +404,10 @@ const ReportScreen = () => {
   const [lang, setLang] = useState<'AR' | 'EN'>('AR');
   const [trMap, setTrMap] = useState<Record<string, string>>({});
   const [translating, setTranslating] = useState(false);
+
+  const { darkModeEnabled } = useAppSettings();
+  const COLORS = darkModeEnabled ? DARK_COLORS : LIGHT_COLORS;
+  const styles = useMemo(() => createStyles(COLORS), [COLORS]);
 
   const t = UI[lang];
   const isAR = lang === 'AR';
@@ -902,8 +947,8 @@ const ReportScreen = () => {
 
   return (
     <>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
-      <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle={darkModeEnabled ? 'light-content' : 'dark-content'} backgroundColor={COLORS.bg} />
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}
@@ -1255,7 +1300,8 @@ const ReportScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(COLORS: typeof LIGHT_COLORS) {
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.bg,
@@ -1276,13 +1322,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
   headerButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: 14,
     backgroundColor: COLORS.soft,
     borderWidth: 1,
@@ -1313,8 +1360,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   headerIcon: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: 14,
     backgroundColor: COLORS.soft,
     borderWidth: 1,
@@ -1389,7 +1436,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.border,
-    ...SHADOWS.card,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
   mainCardIcon: {
     width: 64,
@@ -1399,7 +1450,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-    ...SHADOWS.icon,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   mainCardTitle: {
     fontSize: 22,
@@ -1962,6 +2017,7 @@ const styles = StyleSheet.create({
 
     fontWeight: '700',
   },
-});
+  });
+}
 
 export default ReportScreen;
