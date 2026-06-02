@@ -633,13 +633,113 @@
     .reveal.show{opacity:1;transform:none}
 
     @media (max-width:900px){
+      /* ===== HERO MOBILE: keep desktop composition side-by-side ===== */
+      .hero{
+        min-height:100svh;
+        align-items:center;
+      }
+
       .hero-content{
-        grid-template-columns:1fr;
-        padding-top:122px;
+        width:calc(100% - 22px);
+        grid-template-columns:54% 46%;
+        gap:10px;
+        align-items:center;
+        padding:88px 0 28px;
+      }
+
+      .hero-content > div:first-child{
+        min-width:0;
+      }
+
+      .badge{
+        font-size:9.5px;
+        padding:7px 9px;
+        gap:6px;
+        max-width:100%;
+        white-space:nowrap;
+      }
+
+      .pulse-dot{
+        width:7px;
+        height:7px;
+      }
+
+      h1{
+        font-size:clamp(30px, 10.5vw, 48px);
+        line-height:.88;
+        letter-spacing:-2.3px;
+        margin:14px 0 10px;
+      }
+
+      .lead{
+        font-size:12.2px;
+        line-height:1.45;
+        margin:0 0 12px;
+        max-width:100%;
+      }
+
+      .cta{
+        gap:7px;
+        margin-top:14px;
+      }
+
+      .btn{
+        min-height:38px;
+        padding:0 11px;
+        border-radius:13px;
+        font-size:11px;
       }
 
       .device-card{
-        min-height:430px;
+        min-height:310px;
+        border-radius:26px;
+        width:100%;
+      }
+
+      .scan-ring{
+        inset:8%;
+        border-radius:22px;
+      }
+
+      .scan-ring:after{
+        border-radius:18px;
+      }
+
+      .hud{
+        left:10px;
+        right:10px;
+        bottom:10px;
+        padding:11px;
+        border-radius:19px;
+      }
+
+      .hud-top{
+        margin-bottom:8px;
+        font-size:12px;
+      }
+
+      .status{
+        font-size:11px;
+      }
+
+      .hud > div:nth-child(2){
+        font-size:12px;
+      }
+
+      .meter{
+        height:7px;
+        margin:8px 0;
+      }
+
+      .hud .badge{
+        font-size:8.5px;
+        padding:5px 7px;
+        border-radius:999px;
+      }
+
+      .hud div[style*="display:flex"]{
+        gap:5px!important;
+        margin-top:8px!important;
       }
 
       .nav-links a{
@@ -647,16 +747,12 @@
       }
 
       .nav{
-        padding:9px 12px;
-        width:calc(100% - 24px);
+        padding:8px 11px;
+        width:calc(100% - 22px);
       }
 
       .brand img{
-        height:34px;
-      }
-
-      h1{
-        letter-spacing:-2px;
+        height:32px;
       }
 
       .features{
@@ -680,9 +776,10 @@
         border-radius:32px;
       }
 
+      /* ===== CONTACT MOBILE FIT ===== */
       .contact-section{
-        min-height:auto;
-        padding:58px 12px 74px;
+        min-height:100svh;
+        padding:42px 10px 46px;
         overflow:hidden;
       }
 
@@ -691,32 +788,35 @@
       }
 
       .contact-section .section-title{
-        margin-bottom:8px;
+        margin-bottom:4px;
       }
 
       .contact-section .eyebrow{
-        font-size:11px;
-        letter-spacing:4px;
+        font-size:10px;
+        letter-spacing:3.6px;
       }
 
       .contact-section h2{
-        font-size:31px;
-        letter-spacing:-1.4px;
-        margin:9px auto 8px;
-        max-width:330px;
+        font-size:28px;
+        line-height:.95;
+        letter-spacing:-1.2px;
+        margin:7px auto 6px;
+        max-width:310px;
       }
 
       .contact-section .muted{
-        font-size:13px;
-        line-height:1.48;
-        max-width:300px;
+        font-size:12px;
+        line-height:1.38;
+        max-width:280px;
         margin:0 auto;
       }
 
       .contact-orbit{
         width:100%;
-        max-width:420px;
-        min-height:565px;
+        max-width:390px;
+        height:calc(100svh - 190px);
+        min-height:455px;
+        max-height:555px;
         border-radius:0;
         overflow:visible;
         margin:0 auto;
@@ -724,9 +824,9 @@
       }
 
       .contact-orbit:before{
-        inset:82px 0 8px;
-        border-radius:32px;
-        opacity:.20;
+        inset:70px 2px 4px;
+        border-radius:30px;
+        opacity:.18;
       }
 
       .radar-grid{
@@ -734,104 +834,104 @@
       }
 
       .radar-grid:before{
-        width:345px;
-        height:345px;
-        top:51.5%;
-        opacity:.50;
+        width:min(330px, 88vw);
+        height:min(330px, 88vw);
+        top:51%;
+        opacity:.48;
       }
 
       .radar-grid:after{
-        background-size:19px 19px;
-        opacity:.23;
+        background-size:18px 18px;
+        opacity:.20;
       }
 
       .signal-lines{
-        opacity:.30;
-        background-size:190px 190px;
+        opacity:.28;
+        background-size:180px 180px;
       }
 
       .orbit-sparks{
-        opacity:.55;
+        opacity:.52;
       }
 
       .contact-lines span{
-        opacity:.42;
+        opacity:.38;
       }
 
       .contact-lines span:nth-child(1){
-        width:132px;
-        left:75px;
-        top:188px;
+        width:118px;
+        left:72px;
+        top:158px;
         transform:rotate(28deg);
       }
 
       .contact-lines span:nth-child(2){
-        width:128px;
-        right:75px;
-        top:176px;
+        width:118px;
+        right:72px;
+        top:150px;
         transform:rotate(154deg);
       }
 
       .contact-lines span:nth-child(3){
-        width:128px;
-        right:75px;
-        bottom:124px;
+        width:112px;
+        right:72px;
+        bottom:106px;
         transform:rotate(206deg);
       }
 
       .contact-lines span:nth-child(4){
-        width:128px;
-        left:75px;
-        bottom:132px;
+        width:112px;
+        left:72px;
+        bottom:112px;
         transform:rotate(-27deg);
       }
 
       .contact-lines span:nth-child(5){
-        width:86px;
+        width:74px;
         left:50%;
-        bottom:104px;
+        bottom:88px;
         transform:translateX(-50%) rotate(90deg);
       }
 
       .orbit-actions{
-        top:4px;
+        top:0;
         width:100%;
-        gap:8px;
+        gap:7px;
       }
 
       .orbit-action{
-        min-height:42px;
-        padding:0 9px;
-        font-size:11px;
+        min-height:39px;
+        padding:0 8px;
+        font-size:10.5px;
         border-radius:999px;
-        box-shadow:0 12px 24px rgba(0,0,0,.04);
+        box-shadow:0 10px 22px rgba(0,0,0,.04);
       }
 
       .orbit-action svg{
-        width:16px;
-        height:16px;
+        width:15px;
+        height:15px;
       }
 
       .orbit-center{
-        width:136px;
-        min-height:136px;
-        padding:9px;
-        top:51%;
-        box-shadow:0 22px 58px rgba(135,27,23,.28),0 0 0 6px rgba(135,27,23,.05);
+        width:126px;
+        min-height:126px;
+        padding:8px;
+        top:50.5%;
+        box-shadow:0 20px 52px rgba(135,27,23,.27),0 0 0 5px rgba(135,27,23,.05);
       }
 
       .center-logo{
-        width:35px;
-        height:35px;
-        border-radius:12px;
-        margin-bottom:6px;
+        width:32px;
+        height:32px;
+        border-radius:11px;
+        margin-bottom:5px;
       }
 
       .orbit-center h3{
-        font-size:14px;
-        line-height:1.03;
-        margin-bottom:5px;
-        letter-spacing:-.4px;
+        font-size:12.6px;
+        line-height:1.02;
+        margin-bottom:4px;
+        letter-spacing:-.35px;
       }
 
       .orbit-center p{
@@ -839,123 +939,214 @@
       }
 
       .orbit-center a{
-        max-width:108px;
-        min-height:23px;
-        padding:0 6px;
-        font-size:7.2px;
+        max-width:100px;
+        min-height:21px;
+        padding:0 5px;
+        font-size:6.6px;
         line-height:1;
       }
 
       .orbit-member{
-        width:102px;
-        min-height:92px;
-        border-radius:22px;
-        padding:7px 6px;
-        gap:4px;
-        box-shadow:0 12px 28px rgba(0,0,0,.045);
+        width:96px;
+        min-height:84px;
+        border-radius:21px;
+        padding:6px 5px;
+        gap:3px;
+        box-shadow:0 10px 24px rgba(0,0,0,.04);
       }
 
       .member-pulse{
-        width:24px;
-        height:24px;
+        width:22px;
+        height:22px;
       }
 
       .orbit-member strong{
-        font-size:8.9px;
-        line-height:1.08;
+        font-size:8.1px;
+        line-height:1.06;
       }
 
       .orbit-member span:last-child{
-        font-size:7px;
-        line-height:1.16;
+        font-size:6.2px;
+        line-height:1.13;
         margin-top:1px;
       }
 
       .orbit-member:nth-child(1){
-        left:4px;
-        top:166px;
-      }
-
-      .orbit-member:nth-child(2){
-        right:2px;
-        top:312px;
+        left:2px;
+        top:136px;
       }
 
       .orbit-member:nth-child(3){
+        right:2px;
+        top:126px;
+      }
+
+      .orbit-member:nth-child(2){
         right:4px;
-        top:150px;
+        top:265px;
       }
 
       .orbit-member:nth-child(4){
-        left:10px;
-        top:320px;
+        left:8px;
+        top:282px;
         bottom:auto;
       }
 
       .orbit-member:nth-child(5){
         left:50%;
         right:auto;
-        bottom:4px;
+        bottom:0;
         translate:-50% 0;
       }
     }
 
     @media (max-width:380px){
+      .hero-content{
+        width:calc(100% - 18px);
+        grid-template-columns:55% 45%;
+        gap:8px;
+        padding-top:82px;
+        padding-bottom:24px;
+      }
+
+      .badge{
+        font-size:8.7px;
+        padding:6px 8px;
+      }
+
+      h1{
+        font-size:clamp(28px, 10vw, 40px);
+        letter-spacing:-2px;
+      }
+
+      .lead{
+        font-size:11.2px;
+        line-height:1.42;
+      }
+
+      .btn{
+        min-height:35px;
+        padding:0 9px;
+        font-size:10px;
+      }
+
+      .device-card{
+        min-height:286px;
+        border-radius:23px;
+      }
+
+      .hud{
+        left:8px;
+        right:8px;
+        bottom:8px;
+        padding:9px;
+        border-radius:17px;
+      }
+
+      .hud .badge{
+        font-size:7.6px;
+        padding:4px 6px;
+      }
+
+      .contact-section{
+        padding-top:36px;
+        padding-bottom:40px;
+      }
+
+      .contact-section h2{
+        font-size:26px;
+      }
+
+      .contact-section .muted{
+        font-size:11.5px;
+      }
+
       .contact-orbit{
-        max-width:360px;
-        min-height:548px;
+        max-width:350px;
+        height:calc(100svh - 176px);
+        min-height:438px;
+        max-height:530px;
       }
 
       .orbit-center{
-        width:128px;
-        min-height:128px;
+        width:118px;
+        min-height:118px;
+      }
+
+      .center-logo{
+        width:30px;
+        height:30px;
       }
 
       .orbit-center h3{
-        font-size:13px;
+        font-size:12px;
       }
 
       .orbit-center a{
-        max-width:102px;
-        font-size:6.8px;
+        max-width:94px;
+        font-size:6.2px;
       }
 
       .orbit-member{
-        width:96px;
-        min-height:88px;
-        padding:7px 5px;
+        width:90px;
+        min-height:80px;
+        padding:6px 4px;
       }
 
       .orbit-member strong{
-        font-size:8.4px;
+        font-size:7.7px;
       }
 
       .orbit-member span:last-child{
-        font-size:6.5px;
+        font-size:5.9px;
       }
 
       .orbit-member:nth-child(1){
         left:0;
-        top:166px;
-      }
-
-      .orbit-member:nth-child(2){
-        right:0;
-        top:306px;
+        top:132px;
       }
 
       .orbit-member:nth-child(3){
         right:0;
-        top:150px;
+        top:122px;
+      }
+
+      .orbit-member:nth-child(2){
+        right:0;
+        top:258px;
       }
 
       .orbit-member:nth-child(4){
-        left:4px;
-        top:312px;
+        left:2px;
+        top:272px;
       }
 
       .orbit-member:nth-child(5){
-        bottom:2px;
+        bottom:0;
+      }
+
+      .contact-lines span:nth-child(1){
+        left:62px;
+        top:152px;
+        width:110px;
+      }
+
+      .contact-lines span:nth-child(2){
+        right:62px;
+        top:144px;
+        width:110px;
+      }
+
+      .contact-lines span:nth-child(3){
+        right:62px;
+        bottom:100px;
+        width:104px;
+      }
+
+      .contact-lines span:nth-child(4){
+        left:62px;
+        bottom:104px;
+        width:104px;
       }
     }
 
