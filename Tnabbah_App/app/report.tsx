@@ -1,31 +1,66 @@
-import { Feather as Icon, MaterialCommunityIcons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  BackHandler,
   SafeAreaView,
   ScrollView,
-  StatusBar,
-  StyleSheet,
+  View,
   Text,
   TouchableOpacity,
-  View
+  StatusBar,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  BackHandler,
+  Platform,
 } from 'react-native';
-import { supabase } from '../lib/supabase';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Feather as Icon, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../providers/AuthProvider';
+import { router, useLocalSearchParams } from 'expo-router';
+import { supabase } from '../lib/supabase';
 
 const API_URL = process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://127.0.0.1:8001";
 
+// Project colour palette (matches home.tsx / wallet.tsx)
 const COLORS = {
-  red: "#871B17",
-  bg: "#F9FAFB",
-  ink: "#111827",
-  gray: "#6B7280",
-  success: "#10B981",
-  warning: "#F59E0B",
-  error: "#EF4444"
+  primary: "#871B17",
+  primaryLight: "#9A211C",
+  primaryDark: "#761713",
+  bg: "#F8F8F8",
+  surface: "#FFFFFF",
+  soft: "#F8F8F8",
+  border: "#EDEDED",
+  ink: "#1D1D1F",
+  gray: "#707070",
+  success: "#1F8A4C",
+  warning: "#B7791F",
+  error: "#C62828",
+  red: "#871B17",          // backward-compat alias
+};
+
+const SHADOWS = {
+  card: Platform.select({
+    ios: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.03,
+      shadowRadius: 6,
+    },
+    android: {
+      elevation: 1,
+    },
+  }),
+  icon: Platform.select({
+    ios: {
+      shadowColor: COLORS.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 8,
+    },
+    android: {
+      elevation: 4,
+    },
+  }),
 };
 
 // Static UI labels for AR/EN. Dynamic content (PID names, AI text, DTC text)
@@ -35,20 +70,20 @@ const UI = {
     headerTitle: 'تقرير تنبّه الذكي',
     reportId: 'رقم التقرير:',
     carName: 'السيارة:',
-    sensorReadings: 'قراءات المستشعرات',
+    sensorReadings: 'قراءات مستشعرات السيارة',
     sensorsCount: (n: number) => `${n} حساس`,
-    dtcs: 'أكواد الأعطال المكتشفة',
+    dtcs: 'رموز الأعطال المكتشفة',
+    dtcsCount: (n: number) => `${n} رمز`,
     causes: 'الأسباب المحتملة',
     likelihood: 'احتمالية',
     confidence: 'ثقة',
-    smartAnalysisOn: 'تحليل ذكي مُفعَّل',
     smartAnalysis: 'تحليل ذكي',
     smartInsight: 'تفسير ذكي',
     explanation: 'التفسير',
     smartRecommendation: 'التوصية الذكية',
     needsMechanic: 'تحتاج لزيارة فنّي/ميكانيكي مختص',
     healthyTitle: 'سيارتك بحالة ممتازة',
-    issuesTitle: 'تم اكتشاف ملاحظات',
+    issuesTitle: 'نتائج الفحص',
     aiSummary: 'تحليل تنبّه الذكي',
     plainSummary: 'ملخص التحليل',
     statusWarning: 'تحذير',
@@ -82,20 +117,20 @@ const UI = {
     headerTitle: 'Tnabbah Smart Report',
     reportId: 'Report ID:',
     carName: 'Car:',
-    sensorReadings: 'Sensor Readings',
+    sensorReadings: 'Car Sensor Readings',
     sensorsCount: (n: number) => `${n} sensors`,
     dtcs: 'Detected Trouble Codes',
+    dtcsCount: (n: number) => `${n} ${n === 1 ? 'code' : 'codes'}`,
     causes: 'Likely Causes',
     likelihood: 'Likelihood',
     confidence: 'Confidence',
-    smartAnalysisOn: 'Smart Analysis Enabled',
     smartAnalysis: 'Smart Analysis',
     smartInsight: 'Smart Insight',
     explanation: 'Explanation',
     smartRecommendation: 'Smart Recommendation',
     needsMechanic: 'Visit a qualified technician/mechanic',
     healthyTitle: 'Your car is in excellent condition',
-    issuesTitle: 'Issues Detected',
+    issuesTitle: 'Scan Results',
     aiSummary: 'Tnabbah Smart Analysis',
     plainSummary: 'Analysis Summary',
     statusWarning: 'Warning',
@@ -312,7 +347,8 @@ const DtcGlyph = ({
 const ReportScreen = () => {
   const params = useLocalSearchParams();
   const { session } = useAuth();
-  
+  const insets = useSafeAreaInsets();
+
   const [report, setReport] = useState<any>(null);
   const [sensorData, setSensorData] = useState<any[]>([]);
   const [dtcItems, setDtcItems] = useState<any[]>([]);
@@ -755,7 +791,7 @@ const ReportScreen = () => {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.red} />
+          <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
       </SafeAreaView>
     );
@@ -794,23 +830,56 @@ const ReportScreen = () => {
   const pidInterp = userFriendly.pid_mechanical_interpretation || {};
   const dtcInterp = userFriendly.dtc_mechanical_interpretation || {};
 
-  // Build intro line: "تم تحليل N مؤشرات حيوية. يوجد ..."
+  // Build intro line with proper Arabic/English pluralization.
   const nPids = userFriendly.pid_count || (report.all_pid_readings || []).length || 0;
   const nDtcs = (report.detected_dtcs || []).length;
   const nAnom = (report.detected_anomalies || []).length;
+
+  const dtcPhraseAR = (n: number) => {
+    if (n === 0) return '';
+    if (n === 1) return 'رمز عطل واحد';
+    if (n === 2) return 'رمزي عطل';
+    return `${n} رموز عطل`; // 3–10 plural; 11+ uses singular in formal Arabic,
+                           // but "رموز" reads naturally across all counts in UI.
+  };
+  const anomPhraseAR = (n: number) => {
+    if (n === 0) return '';
+    if (n === 1) return 'تنبيه واحد';
+    if (n === 2) return 'تنبيهان';
+    return `${n} تنبيهات`;
+  };
+  const pidCountAR = (n: number) => {
+    if (n === 1) return 'قراءة واحدة';
+    if (n === 2) return 'قراءتين';
+    return `${n} قراءات`;
+  };
+
+  const dtcPhraseEN = (n: number) =>
+    n === 1 ? '1 trouble code' : `${n} trouble codes`;
+  const anomPhraseEN = (n: number) =>
+    n === 1 ? '1 alert' : `${n} alerts`;
+
   let introLine = '';
   if (isAR) {
-    if (nPids > 0) introLine = `تم تحليل ${nPids} مؤشرات حيوية لسيارتك. `;
-    if (isHealthy) introLine += 'جميع القراءات ضمن النطاق الطبيعي.';
-    else if (nDtcs > 0 && nAnom > 0) introLine += `يوجد ${nDtcs} كود عطل و${nAnom} تنبيه يتطلب المتابعة.`;
-    else if (nDtcs > 0) introLine += `يوجد ${nDtcs === 1 ? 'كود عطل واحد' : nDtcs + ' أكواد أعطال'} يتطلب المتابعة.`;
-    else if (nAnom > 0) introLine += `يوجد ${nAnom === 1 ? 'تنبيه واحد' : nAnom + ' تنبيهات'} يتطلب الملاحظة.`;
+    if (isHealthy) {
+      introLine = `تم تحليل ${pidCountAR(nPids)}. جميع القراءات طبيعية ولا توجد أي ملاحظات تستدعي المتابعة.`;
+    } else if (nDtcs > 0 && nAnom > 0) {
+      introLine = `تم رصد ${dtcPhraseAR(nDtcs)} و ${anomPhraseAR(nAnom)} تستدعي المتابعة لضمان سلامة وأمان سيارتك.`;
+    } else if (nDtcs > 0) {
+      introLine = `تم رصد ${dtcPhraseAR(nDtcs)} يستدعي المتابعة لضمان سلامة وأمان سيارتك.`;
+    } else if (nAnom > 0) {
+      introLine = `تم رصد ${anomPhraseAR(nAnom)} تستدعي المتابعة لضمان سلامة وأمان سيارتك.`;
+    }
   } else {
-    if (nPids > 0) introLine = `Analyzed ${nPids} vital readings for your car. `;
-    if (isHealthy) introLine += 'All readings are within the normal range.';
-    else if (nDtcs > 0 && nAnom > 0) introLine += `Found ${nDtcs} trouble code(s) and ${nAnom} alert(s) requiring attention.`;
-    else if (nDtcs > 0) introLine += `Found ${nDtcs === 1 ? '1 trouble code' : nDtcs + ' trouble codes'} requiring attention.`;
-    else if (nAnom > 0) introLine += `Found ${nAnom === 1 ? '1 alert' : nAnom + ' alerts'} to monitor.`;
+    if (isHealthy) {
+      introLine = `Analyzed ${nPids} reading${nPids === 1 ? '' : 's'}. All readings are normal with no issues requiring attention.`;
+    } else if (nDtcs > 0 && nAnom > 0) {
+      introLine = `Detected ${dtcPhraseEN(nDtcs)} and ${anomPhraseEN(nAnom)} requiring attention to ensure your car's safety.`;
+    } else if (nDtcs > 0) {
+      introLine = `Detected ${dtcPhraseEN(nDtcs)} requiring attention to ensure your car's safety.`;
+    } else if (nAnom > 0) {
+      introLine = `Detected ${anomPhraseEN(nAnom)} requiring attention to ensure your car's safety.`;
+    }
   }
 
   // Final AI recommendation (holistic, generated by DeepSeek)
@@ -835,7 +904,10 @@ const ReportScreen = () => {
     <>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}
+        >
           {/* رأس الصفحة */}
           <View style={styles.header}>
             <TouchableOpacity 
@@ -858,10 +930,10 @@ const ReportScreen = () => {
               activeOpacity={0.8}
             >
               {translating ? (
-                <ActivityIndicator size="small" color={COLORS.red} />
+                <ActivityIndicator size="small" color={COLORS.primary} />
               ) : (
                 <>
-                  <Icon name="globe" size={14} color={COLORS.red} />
+                  <Icon name="globe" size={14} color={COLORS.primary} />
                   <Text style={styles.langButtonText}>{isAR ? 'EN' : 'AR'}</Text>
                 </>
               )}
@@ -889,7 +961,11 @@ const ReportScreen = () => {
                 </View>
               </View>
               <View style={styles.mainCardIcon}>
-                <Icon name={isHealthy ? "check-circle" : "alert-circle"} size={32} color="#fff" />
+                {isHealthy ? (
+                  <Icon name="check-circle" size={32} color="#fff" />
+                ) : (
+                  <MaterialCommunityIcons name="car-search" size={32} color="#fff" />
+                )}
               </View>
               <Text style={styles.mainCardTitle}>
                 {isHealthy ? t.healthyTitle : t.issuesTitle}
@@ -931,7 +1007,7 @@ const ReportScreen = () => {
                     </Text>
                     {needsMechanic && (
                       <View style={styles.mechanicBox}>
-                        <Icon name="tool" size={16} color={COLORS.red} />
+                        <Icon name="tool" size={16} color={COLORS.primary} />
                         <View style={{ flex: 1 }}>
                           <Text style={styles.mechanicTitle}>{t.needsMechanic}</Text>
                           {!!mechanicNote && (
@@ -951,7 +1027,7 @@ const ReportScreen = () => {
                 <View style={styles.listHeader}>
                   <Text style={styles.listTitle}>{t.dtcs}</Text>
                   <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{dtcItems.length}</Text>
+                    <Text style={styles.badgeText}>{t.dtcsCount(dtcItems.length)}</Text>
                   </View>
                 </View>
                 {dtcItems.map((dtc: any, idx: number) => {
@@ -960,7 +1036,7 @@ const ReportScreen = () => {
                   const aiSentence = dtc.aiInterpretation?.smart_insight_ar?.trim();
                   const urgency = dtc.aiInterpretation?.urgency_ar;
                   return (
-                    <View key={idx} style={[styles.dtcCard, { borderLeftColor: dStyle.fg, backgroundColor: dStyle.bg }]}>
+                    <View key={idx} style={[styles.dtcCard, { borderColor: dStyle.border, backgroundColor: dStyle.bg }]}>
                       <View style={styles.dtcHeader}>
                         <View style={[styles.dtcIconBox, { borderColor: dStyle.border }]}>
                           <DtcGlyph
@@ -982,7 +1058,7 @@ const ReportScreen = () => {
                           )}
                         </View>
                         {urgency && (
-                          <View style={[styles.severityBadge, { backgroundColor: '#fff', borderColor: dStyle.border, borderWidth: 1 }]}>
+                          <View style={[styles.severityBadge, { backgroundColor: COLORS.surface, borderColor: dStyle.border, borderWidth: 1 }]}>
                             <Text style={[styles.severityText, { color: dStyle.fg }]}>{tr(urgency)}</Text>
                           </View>
                         )}
@@ -1011,12 +1087,6 @@ const ReportScreen = () => {
                     <Text style={styles.badgeText}>{t.sensorsCount(sensorData.length)}</Text>
                   </View>
                 </View>
-                {sensorData.some(s => s.aiInterpretation) && (
-                  <View style={styles.aiEnabledBanner}>
-                    <Text style={styles.aiEnabledText}>{t.smartAnalysisOn}</Text>
-                  </View>
-                )}
-
             {sensorData.map((item, idx) => {
               const isOpen = openIndex === idx;
               const sevLevel: string = item.severityLevel || (item.status === 'WARNING' ? 'MEDIUM' : 'NORMAL');
@@ -1054,7 +1124,7 @@ const ReportScreen = () => {
                       <View>
                         <View style={styles.labelRow}>
                           <Text style={styles.sensorLabel}>{tr(item.label)}</Text>
-                          {hasAI && <Icon name="zap" size={12} color={COLORS.red} style={styles.aiIndicator} />}
+                          {hasAI && <Icon name="zap" size={12} color={COLORS.primary} style={styles.aiIndicator} />}
                         </View>
                         <View style={styles.statusRow}>
                           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
@@ -1158,10 +1228,10 @@ const ReportScreen = () => {
                   <ActivityIndicator color="white" size="small" />
                 ) : (
                   <>
-                    <Icon 
-                      name={saved ? "check-circle" : "save"} 
-                      size={18} 
-                      color="white" 
+                    <Icon
+                      name={saved ? "check-circle" : "save"}
+                      size={18}
+                      color="white"
                     />
                     <Text style={styles.buttonText}>
                       {saved ? t.saved : t.save}
@@ -1173,7 +1243,7 @@ const ReportScreen = () => {
 
             {/* تذييل */}
             <View style={styles.footer}>
-              <Icon name="shield-off" size={20} color="#E5E7EB" />
+              <Icon name="shield-off" size={20} color={COLORS.border} />
               <Text style={styles.footerText}>
                 {t.footer}
               </Text>
@@ -1197,23 +1267,26 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
+
     color: COLORS.error,
   },
   header: {
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.surface,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: COLORS.border,
   },
   headerButton: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    backgroundColor: '#F9FAFB',
+    borderRadius: 14,
+    backgroundColor: COLORS.soft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1222,6 +1295,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
+
     fontWeight: '900',
     color: COLORS.ink,
   },
@@ -1233,6 +1307,7 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 10,
+
     fontWeight: 'bold',
     color: COLORS.gray,
     letterSpacing: 1,
@@ -1240,8 +1315,10 @@ const styles = StyleSheet.create({
   headerIcon: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    backgroundColor: '#871B1710',
+    borderRadius: 14,
+    backgroundColor: COLORS.soft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1249,8 +1326,10 @@ const styles = StyleSheet.create({
     minWidth: 56,
     height: 40,
     paddingHorizontal: 10,
-    borderRadius: 12,
-    backgroundColor: '#871B1710',
+    borderRadius: 14,
+    backgroundColor: COLORS.soft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -1258,8 +1337,9 @@ const styles = StyleSheet.create({
   },
   langButtonText: {
     fontSize: 12,
+
     fontWeight: '900',
-    color: COLORS.red,
+    color: COLORS.primary,
     letterSpacing: 0.5,
   },
   content: {
@@ -1268,11 +1348,11 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   healthBar: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#F3F4F6',
+    borderColor: COLORS.border,
   },
   healthHeader: {
     flexDirection: 'row',
@@ -1282,17 +1362,19 @@ const styles = StyleSheet.create({
   },
   healthLabel: {
     fontSize: 14,
+
     fontWeight: '700',
     color: COLORS.ink,
   },
   healthPercent: {
     fontSize: 18,
+
     fontWeight: '900',
   },
   healthProgressContainer: {
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: COLORS.border,
     overflow: 'hidden',
   },
   healthProgress: {
@@ -1300,34 +1382,28 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   mainCard: {
-    backgroundColor: '#fff',
-    borderRadius: 32,
+    backgroundColor: COLORS.surface,
+    borderRadius: 24,
     paddingVertical: 28,
     paddingHorizontal: 20,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#F9FAFB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
+    borderColor: COLORS.border,
+    ...SHADOWS.card,
   },
   mainCardIcon: {
     width: 64,
     height: 64,
     borderRadius: 16,
-    backgroundColor: COLORS.red,
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-    shadowColor: COLORS.red,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    ...SHADOWS.icon,
   },
   mainCardTitle: {
     fontSize: 22,
+
     fontWeight: '900',
     marginBottom: 8,
     color: COLORS.ink,
@@ -1335,6 +1411,7 @@ const styles = StyleSheet.create({
   mainCardSubtitle: {
     fontSize: 13,
     color: COLORS.gray,
+
     fontWeight: '500',
     textAlign: 'center',
     lineHeight: 20,
@@ -1348,35 +1425,33 @@ const styles = StyleSheet.create({
   },
   listTitle: {
     fontSize: 12,
+
     fontWeight: '900',
     color: COLORS.gray,
     letterSpacing: 1,
   },
   badge: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: COLORS.soft,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
   },
   badgeText: {
     fontSize: 10,
+
     fontWeight: 'bold',
     color: COLORS.gray,
   },
   sensorItem: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#F3F4F6',
+    borderColor: COLORS.border,
     marginBottom: 12,
     overflow: 'hidden',
   },
   sensorItemOpen: {
-    borderColor: 'rgba(135,27,23,0.3)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    borderColor: 'rgba(135,27,23,0.25)',
   },
   sensorButton: {
     flexDirection: 'row',
@@ -1390,18 +1465,22 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   iconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    backgroundColor: '#F9FAFB',
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    backgroundColor: COLORS.soft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconBoxOpen: {
-    backgroundColor: '#871B1710',
+    backgroundColor: 'rgba(135,27,23,0.08)',
+    borderColor: 'rgba(135,27,23,0.2)',
   },
   sensorLabel: {
     fontSize: 13,
+
     fontWeight: '900',
     color: COLORS.ink,
     marginBottom: 4,
@@ -1418,6 +1497,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 9,
+
     fontWeight: 'bold',
   },
   sensorRight: {
@@ -1432,6 +1512,7 @@ const styles = StyleSheet.create({
   },
   value: {
     fontSize: 17,
+
     fontWeight: '900',
     color: COLORS.ink,
   },
@@ -1440,8 +1521,9 @@ const styles = StyleSheet.create({
   },
   unit: {
     fontSize: 9,
+
     fontWeight: 'bold',
-    color: '#D1D5DB',
+    color: COLORS.border,
   },
   explanationBox: {
     paddingHorizontal: 18,
@@ -1457,20 +1539,22 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: COLORS.red,
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   explanationTitle: {
     fontSize: 10,
+
     fontWeight: '900',
-    color: COLORS.red,
+    color: COLORS.primary,
     letterSpacing: 0.5,
   },
   explanationText: {
     fontSize: 11,
+
     fontWeight: 'bold',
-    color: '#4B5563',
+    color: COLORS.gray,
     lineHeight: 18,
   },
   labelRow: {
@@ -1489,29 +1573,15 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#FED7AA',
+    borderTopColor: COLORS.border,
   },
   recommendationText: {
     flex: 1,
     fontSize: 10,
+
     fontWeight: '600',
     color: COLORS.warning,
     lineHeight: 15,
-  },
-  aiEnabledBanner: {
-    backgroundColor: '#F0F9FF',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-  },
-  aiEnabledText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0369A1',
-    textAlign: 'center',
   },
   mainCardTopRow: {
     width: '100%',
@@ -1522,23 +1592,26 @@ const styles = StyleSheet.create({
   },
   reportIdText: {
     fontSize: 10,
-    color: '#9CA3AF',
+
+    color: COLORS.gray,
   },
   reportIdMono: {
     fontFamily: 'monospace',
-    color: '#6B7280',
+    color: COLORS.gray,
   },
   mainCardMetaCol: {
     flex: 1,
   },
   carNameText: {
     fontSize: 11,
-    color: '#6B7280',
+
+    color: COLORS.gray,
     marginTop: 2,
   },
   carNameMono: {
+
     fontWeight: '700',
-    color: '#374151',
+    color: COLORS.ink,
   },
   severityBadgeMain: {
     paddingHorizontal: 12,
@@ -1548,11 +1621,13 @@ const styles = StyleSheet.create({
   },
   severityBadgeMainText: {
     fontSize: 12,
+
     fontWeight: '700',
   },
   introLine: {
     fontSize: 13,
-    color: '#374151',
+    color: COLORS.ink,
+
     fontWeight: '600',
     textAlign: 'center',
     lineHeight: 20,
@@ -1560,8 +1635,9 @@ const styles = StyleSheet.create({
   },
   urgencyText: {
     fontSize: 11,
+
     fontWeight: '700',
-    color: '#7C3AED',
+    color: COLORS.primary,
     marginTop: 8,
   },
   dtcAiBox: {
@@ -1572,6 +1648,7 @@ const styles = StyleSheet.create({
   },
   dtcAiTitle: {
     fontSize: 11,
+
     fontWeight: '700',
     color: COLORS.ink,
     marginBottom: 4,
@@ -1579,53 +1656,54 @@ const styles = StyleSheet.create({
   },
   dtcAiText: {
     fontSize: 12,
+
     fontWeight: '600',
     color: COLORS.ink,
     lineHeight: 18,
   },
   dtcAiUrgency: {
     fontSize: 10,
+
     color: COLORS.ink,
     opacity: 0.8,
     marginTop: 4,
   },
   dtcCategory: {
     fontSize: 10,
+
     color: COLORS.gray,
     marginTop: 8,
   },
   causeEvidence: {
     fontSize: 11,
-    color: '#92400E',
+
+    color: COLORS.warning,
     marginTop: 4,
     opacity: 0.85,
   },
   maintenanceMeta: {
     fontSize: 12,
+
     color: COLORS.gray,
     marginBottom: 12,
   },
   maintenanceMetaBold: {
+
     fontWeight: '700',
     color: COLORS.ink,
   },
   recCard: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#FCA5A5',
-    shadowColor: COLORS.red,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 2,
+    borderColor: COLORS.border,
   },
   recHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: COLORS.red,
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
@@ -1635,11 +1713,13 @@ const styles = StyleSheet.create({
   recHeaderText: {
     color: '#fff',
     fontSize: 12,
+
     fontWeight: '900',
     letterSpacing: 0.5,
   },
   recText: {
     fontSize: 14,
+
     fontWeight: '700',
     color: COLORS.ink,
     lineHeight: 22,
@@ -1647,6 +1727,7 @@ const styles = StyleSheet.create({
   },
   unifiedBodyText: {
     fontSize: 14,
+
     fontWeight: '700',
     color: COLORS.ink,
     lineHeight: 22,
@@ -1654,13 +1735,14 @@ const styles = StyleSheet.create({
   },
   unifiedDivider: {
     height: 1,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: COLORS.border,
     marginVertical: 14,
   },
   unifiedSubLabel: {
     fontSize: 11,
+
     fontWeight: '900',
-    color: COLORS.red,
+    color: COLORS.primary,
     letterSpacing: 0.5,
     marginBottom: 6,
     textAlign: 'right',
@@ -1672,16 +1754,18 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#FEE2E2',
+    borderTopColor: COLORS.border,
   },
   mechanicTitle: {
     fontSize: 13,
+
     fontWeight: '900',
-    color: COLORS.red,
+    color: COLORS.primary,
     marginBottom: 4,
   },
   mechanicNote: {
     fontSize: 12,
+
     color: COLORS.gray,
     lineHeight: 18,
   },
@@ -1692,8 +1776,9 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 9,
+
     fontWeight: 'bold',
-    color: '#9CA3AF',
+    color: COLORS.gray,
     textAlign: 'center',
     marginTop: 10,
     lineHeight: 14,
@@ -1710,16 +1795,17 @@ const styles = StyleSheet.create({
   },
   dtcCategoryPillText: {
     fontSize: 11,
+
     fontWeight: '800',
     color: COLORS.ink,
   },
   dtcCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
     padding: 14,
     marginBottom: 10,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.error,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   dtcHeader: {
     flexDirection: 'row',
@@ -1733,26 +1819,28 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 12,
     borderWidth: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dtcCode: {
     fontSize: 14,
+
     fontWeight: '900',
     color: COLORS.ink,
   },
   dtcName: {
     fontSize: 12,
+
     fontWeight: '600',
     color: COLORS.gray,
     marginTop: 2,
   },
   severityBadge: {
     backgroundColor: '#FEE2E2',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 999,
   },
   severityCritical: {
     backgroundColor: '#FEE2E2',
@@ -1762,23 +1850,27 @@ const styles = StyleSheet.create({
   },
   severityText: {
     fontSize: 9,
+
     fontWeight: '700',
     color: COLORS.error,
   },
   dtcDescription: {
     fontSize: 11,
+
     fontWeight: '600',
     color: COLORS.gray,
     lineHeight: 16,
   },
   causeCard: {
-    backgroundColor: '#FFFBEB',
-    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
     padding: 12,
     marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   causeContent: {
     flex: 1,
@@ -1786,20 +1878,22 @@ const styles = StyleSheet.create({
   causeText: {
     flex: 1,
     fontSize: 12,
+
     fontWeight: '600',
-    color: '#92400E',
+    color: COLORS.warning,
   },
   causeMetrics: {
     fontSize: 10,
-    color: '#B45309',
+
+    color: COLORS.warning,
     marginTop: 4,
   },
   maintenanceCard: {
-    backgroundColor: '#FEF2F2',
-    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#FEE2E2',
+    borderColor: COLORS.border,
   },
   maintenanceHeader: {
     flexDirection: 'row',
@@ -1809,17 +1903,20 @@ const styles = StyleSheet.create({
   },
   maintenanceTitle: {
     fontSize: 14,
+
     fontWeight: '700',
     color: COLORS.ink,
   },
   maintenanceAction: {
     fontSize: 13,
+
     fontWeight: '600',
     color: COLORS.ink,
     marginBottom: 12,
   },
   measuresTitle: {
     fontSize: 12,
+
     fontWeight: '600',
     color: COLORS.gray,
     marginBottom: 8,
@@ -1831,12 +1928,14 @@ const styles = StyleSheet.create({
   },
   measureBullet: {
     fontSize: 14,
-    color: COLORS.red,
+    color: COLORS.primary,
+
     fontWeight: 'bold',
   },
   measureText: {
     flex: 1,
     fontSize: 12,
+
     color: COLORS.ink,
   },
   buttonGroup: {
@@ -1846,17 +1945,13 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: COLORS.red,
+    backgroundColor: COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
     borderRadius: 16,
     gap: 8,
-    shadowColor: COLORS.red,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
   },
   primaryButtonDisabled: {
     backgroundColor: COLORS.success,
@@ -1864,6 +1959,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 14,
+
     fontWeight: '700',
   },
 });
