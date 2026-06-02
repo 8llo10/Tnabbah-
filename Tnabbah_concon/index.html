@@ -89,9 +89,6 @@
     }
     .brand{display:flex;align-items:center;gap:10px;font-weight:950;letter-spacing:2px;color:var(--burgundy)}
     .brand img{height:42px;width:auto;max-width:160px;object-fit:contain;filter:drop-shadow(0 9px 20px rgba(135,27,23,.15))}
-    .brand{
-      min-width:0;
-    }
     .nav-links{display:flex;align-items:center;gap:8px}
     .nav-links a{font-size:13px;font-weight:800;padding:10px 14px;border-radius:999px;color:var(--ink)}
     .nav-links a:hover{background:rgba(135,27,23,.10);color:var(--burgundy)}
@@ -245,12 +242,7 @@
     .download:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 75% 20%,rgba(177,38,32,.35),transparent 35%)}
     .download>*{position:relative;z-index:2}
     .store-grid{display:grid;gap:14px}
-    .store{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 20px;border-radius:20px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(18px);transition:.25s;position:relative;overflow:hidden}
-    .store:before{content:"";position:absolute;inset:0;background:linear-gradient(120deg,transparent,rgba(255,255,255,.14),transparent);transform:translateX(-120%);transition:.45s}
-    .store:hover:before{transform:translateX(120%)}
-    .store-icon{width:42px;height:42px;border-radius:15px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);display:grid;place-items:center;flex:0 0 auto}
-    .store-icon svg{width:21px;height:21px;stroke:#ffcbc8;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-    .store-main{display:flex;align-items:center;gap:12px;min-width:0}
+    .store{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 20px;border-radius:20px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(18px);transition:.25s}
     .store:hover{transform:translateX(6px);background:rgba(255,255,255,.16)}
     .store small{display:block;color:#d2d2d2;margin-top:5px}
 
@@ -641,7 +633,8 @@
     .reveal.show{opacity:1;transform:none}
 
     @media (max-width:900px){
-      /* ===== GLOBAL MOBILE CLEANUP ===== */
+      /* ===== MOBILE: clean, comfortable, graduation-ready ===== */
+
       .nav-links a{
         display:none;
       }
@@ -649,8 +642,8 @@
       .nav{
         top:max(12px, env(safe-area-inset-top));
         width:calc(100% - 24px);
-        padding:8px 11px;
         min-height:54px;
+        padding:8px 11px;
       }
 
       .brand img{
@@ -663,31 +656,29 @@
         height:42px;
       }
 
-      /* ===== HERO MOBILE: balanced, phone-first side-by-side composition ===== */
+      /* Hero: no crowding, no overlap */
       .hero{
         min-height:100svh;
-        align-items:center;
+        align-items:flex-start;
         overflow:hidden;
       }
 
       .hero-content{
         width:calc(100% - 28px);
-        min-height:100svh;
         margin:0 auto;
         display:grid;
         grid-template-columns:1fr;
-        align-items:center;
-        padding:86px 0 34px;
-        position:relative;
+        gap:18px;
+        padding:92px 0 38px;
       }
 
       .hero-content > div:first-child{
-        width:62%;
-        min-width:0;
+        width:100%;
+        max-width:390px;
+        margin:0 auto;
+        text-align:left;
         position:relative;
         z-index:8;
-        align-self:center;
-        transform:translateY(-12px);
       }
 
       .badge{
@@ -704,38 +695,36 @@
       }
 
       h1{
-        font-size:clamp(46px, 13.2vw, 64px);
-        line-height:.86;
-        letter-spacing:-3px;
-        margin:14px 0 10px;
+        font-size:clamp(44px, 12.5vw, 56px);
+        line-height:.87;
+        letter-spacing:-2.8px;
+        margin:16px 0 12px;
       }
 
       .lead{
-        font-size:13.6px;
-        line-height:1.48;
-        margin:0 0 14px;
-        max-width:100%;
+        font-size:14px;
+        line-height:1.5;
+        max-width:360px;
+        margin:0 0 16px;
       }
 
       .cta{
-        gap:8px;
-        margin-top:14px;
+        gap:9px;
+        margin-top:16px;
       }
 
       .btn{
         min-height:42px;
-        padding:0 13px;
+        padding:0 14px;
         border-radius:15px;
         font-size:12px;
       }
 
       .device-card{
-        position:absolute;
-        right:0;
-        top:50%;
-        transform:translateY(-47%);
-        width:47%;
-        min-height:350px;
+        position:relative;
+        width:min(92%, 360px);
+        min-height:330px;
+        margin:0 auto;
         border-radius:30px;
         z-index:5;
       }
@@ -750,16 +739,16 @@
       }
 
       .hud{
-        left:10px;
-        right:10px;
-        bottom:10px;
-        padding:11px;
-        border-radius:19px;
+        left:12px;
+        right:12px;
+        bottom:12px;
+        padding:12px;
+        border-radius:20px;
       }
 
       .hud-top{
         margin-bottom:8px;
-        font-size:12.5px;
+        font-size:13px;
       }
 
       .status{
@@ -767,7 +756,7 @@
       }
 
       .hud > div:nth-child(2){
-        font-size:12px;
+        font-size:12.5px;
       }
 
       .meter{
@@ -777,15 +766,16 @@
 
       .hud .badge{
         font-size:8px;
-        padding:4px 6px;
+        padding:4px 7px;
+        border-radius:999px;
       }
 
       .hud div[style*="display:flex"]{
-        gap:4px!important;
+        gap:5px!important;
         margin-top:8px!important;
       }
 
-      /* ===== FEATURES MOBILE: premium swipe row instead of plain stack ===== */
+      /* Sections */
       .section{
         padding:72px 14px;
       }
@@ -803,6 +793,7 @@
         font-size:14px;
       }
 
+      /* Features: comfortable swipe cards */
       .features{
         display:flex;
         gap:12px;
@@ -827,7 +818,7 @@
         scroll-snap-align:center;
       }
 
-      /* ===== DOWNLOAD MOBILE: premium compact app dock ===== */
+      /* Download: premium compact app dock */
       .download{
         grid-template-columns:1fr;
         padding:26px;
@@ -849,21 +840,11 @@
         border-radius:20px;
       }
 
-      .store-icon{
-        width:38px;
-        height:38px;
-        border-radius:14px;
-      }
-
-      .store strong{
-        font-size:14px;
-      }
-
       .store small{
         font-size:10.5px;
       }
 
-      /* ===== CONTACT MOBILE: fit on phone and look premium ===== */
+      /* Contact: fit phone screen */
       .contact-section{
         min-height:100svh;
         padding:44px 10px 48px;
@@ -1088,36 +1069,29 @@
 
     @media (max-width:430px){
       .hero-content{
-        width:calc(100% - 24px);
-      }
-
-      .hero-content > div:first-child{
-        width:63%;
+        padding-top:88px;
+        gap:16px;
       }
 
       h1{
-        font-size:clamp(43px, 12.4vw, 58px);
+        font-size:clamp(42px, 12vw, 52px);
       }
 
       .lead{
-        font-size:13px;
+        font-size:13.4px;
       }
 
       .device-card{
-        width:47%;
-        min-height:330px;
+        width:min(90%, 340px);
+        min-height:315px;
       }
     }
 
     @media (max-width:380px){
       .hero-content{
-        width:calc(100% - 20px);
-        min-height:640px;
+        width:calc(100% - 24px);
         padding-top:82px;
-      }
-
-      .hero-content > div:first-child{
-        width:64%;
+        gap:14px;
       }
 
       .badge{
@@ -1126,12 +1100,12 @@
       }
 
       h1{
-        font-size:clamp(38px, 12vw, 48px);
+        font-size:clamp(38px, 11.5vw, 46px);
         letter-spacing:-2.4px;
       }
 
       .lead{
-        font-size:12px;
+        font-size:12.5px;
         line-height:1.42;
       }
 
@@ -1142,9 +1116,8 @@
       }
 
       .device-card{
-        right:0;
-        width:46%;
-        min-height:300px;
+        width:min(88%, 310px);
+        min-height:286px;
         border-radius:24px;
       }
 
@@ -1349,27 +1322,9 @@
           <p class="muted" style="color:#e8e8e8">Use one QR code for this page. Update the links here anytime without changing the QR.</p>
         </div>
         <div class="store-grid">
-          <a class="store" href="ANDROID_APP_LINK_HERE" target="_blank" rel="noopener">
-            <div class="store-main">
-              <span class="store-icon"><svg viewBox="0 0 24 24"><path d="M7 8h10v11a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V8Z"/><path d="M9 8 7.7 5.8"/><path d="m15 8 1.3-2.2"/><path d="M9 12h.01"/><path d="M15 12h.01"/></svg></span>
-              <div><strong>Android</strong><small>Download APK / Preview Build</small></div>
-            </div>
-            <span>→</span>
-          </a>
-          <a class="store" href="IOS_APP_LINK_HERE" target="_blank" rel="noopener">
-            <div class="store-main">
-              <span class="store-icon"><svg viewBox="0 0 24 24"><path d="M16 2c-.7 1.7-1.9 2.8-3.8 2.8"/><path d="M18.5 17.2c-.8 1.9-1.8 3.8-3.3 3.8-1.4 0-1.8-.9-3.4-.9s-2.1.9-3.4.9c-1.5 0-2.7-2.2-3.5-4.2-1.6-4-.4-8.2 2.9-8.2 1.5 0 2.5 1 3.8 1s2.1-1 3.8-1c1.2 0 2.4.6 3.1 1.5-2.7 1.6-2.3 5.3 0 7.1Z"/></svg></span>
-              <div><strong>iPhone</strong><small>TestFlight / Web Preview Link</small></div>
-            </div>
-            <span>→</span>
-          </a>
-          <a class="store" href="WEB_DEMO_LINK_HERE" target="_blank" rel="noopener">
-            <div class="store-main">
-              <span class="store-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.3 2.5 3.5 5.5 3.5 9S14.3 18.5 12 21c-2.3-2.5-3.5-5.5-3.5-9S9.7 5.5 12 3Z"/></svg></span>
-              <div><strong>Web Demo</strong><small>Open from browser</small></div>
-            </div>
-            <span>→</span>
-          </a>
+          <a class="store" href="ANDROID_APP_LINK_HERE" target="_blank" rel="noopener"><div><strong>Android</strong><small>Download APK / Preview Build</small></div><span>→</span></a>
+          <a class="store" href="IOS_APP_LINK_HERE" target="_blank" rel="noopener"><div><strong>iPhone</strong><small>TestFlight / Web Preview Link</small></div><span>→</span></a>
+          <a class="store" href="WEB_DEMO_LINK_HERE" target="_blank" rel="noopener"><div><strong>Web Demo</strong><small>Open from browser</small></div><span>→</span></a>
         </div>
       </div>
     </div>
