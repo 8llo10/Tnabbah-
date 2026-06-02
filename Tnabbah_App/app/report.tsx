@@ -35,6 +35,7 @@ const UI = {
   AR: {
     headerTitle: 'تقرير تنبّه الذكي',
     reportId: 'رقم التقرير:',
+    carName: 'السيارة:',
     sensorReadings: 'قراءات المستشعرات',
     sensorsCount: (n: number) => `${n} حساس`,
     dtcs: 'أكواد الأعطال المكتشفة',
@@ -81,6 +82,7 @@ const UI = {
   EN: {
     headerTitle: 'Tnabbah Smart Report',
     reportId: 'Report ID:',
+    carName: 'Car:',
     sensorReadings: 'Sensor Readings',
     sensorsCount: (n: number) => `${n} sensors`,
     dtcs: 'Detected Trouble Codes',
@@ -148,6 +150,7 @@ const ReportScreen = () => {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [supabaseRowId, setSupabaseRowId] = useState<string | null>(null);
+  const [carName, setCarName] = useState<string | null>(null);
   const autoSaveTriedRef = useRef<string | null>(null);
   const [lang, setLang] = useState<'AR' | 'EN'>('AR');
   const [trMap, setTrMap] = useState<Record<string, string>>({});
@@ -350,6 +353,48 @@ const ReportScreen = () => {
       }
     })();
   }, [report, session?.user?.id, supabaseRowId]);
+
+  // Resolve the car's display name for the report header. The MQTT car_id
+  // (text) is stored in the report content; map it to the user's saved car
+  // (user_cars.display_name) and fall back to the raw car_id.
+  useEffect(() => {
+    if (!report || !session?.user?.id) {
+      setCarName(null);
+      return;
+    }
+    const carIdText =
+      report?.mqtt_snapshot?.car_id ||
+      report?.analysis_metadata?.mqtt_snapshot?.car_id ||
+      null;
+    if (!carIdText) {
+      setCarName(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_cars')
+          .select('display_name, car_id')
+          .eq('user_id', session.user.id)
+          .eq('car_id', carIdText)
+          .eq('is_deleted', false)
+          .limit(1)
+          .maybeSingle();
+        if (cancelled) return;
+        if (!error && data) {
+          setCarName(data.display_name || data.car_id || carIdText);
+        } else {
+          setCarName(carIdText);
+        }
+      } catch {
+        if (!cancelled) setCarName(carIdText);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [report, session?.user?.id]);
 
   const handleSaveReport = async () => {
     if (!report || !session?.user?.id) {
@@ -603,11 +648,11 @@ const ReportScreen = () => {
   const mechanicNote = String(finalRec?.mechanic_note_ar || '').trim();
 
   // Smart summary card ("تحليل تنبّه الذكي").
-  // The PID `overview_ar` is a *holistic* sentence written by the model that
-  // describes the overall state (normal/abnormal readings + any DTC context),
-  // e.g. "جميع القراءات طبيعية باستثناء حرارة المحرك ... مع وجود كود P0104 ...".
-  // It is intentionally different from the per-DTC `smart_insight_ar` shown on
-  // each DTC card below, so we always surface it when present.
+  // Holistic one-liner: normal vs abnormal readings + DTC code with a brief
+  // meaning — the deeper root-cause story still lives on each DTC card's
+  // smart_insight_ar.
+  // e.g. "جميع القراءات طبيعية باستثناء حرارة المحرك ... مع وجود كود P0104
+  //       الذي يشير إلى خلل في حساس تدفق الهواء".
   const rawPidOverview = String(pidInterp.overview_ar || pidInterp.summary_ar || '').trim();
   const dtcInterpList: any[] = (dtcInterp.interpretations || []);
   const pidOverview = rawPidOverview;
@@ -655,11 +700,18 @@ const ReportScreen = () => {
             {/* البطاقة الرئيسية */}
             <View style={styles.mainCard}>
               <View style={styles.mainCardTopRow}>
-                {report.report_id ? (
-                  <Text style={styles.reportIdText}>
-                    {t.reportId} <Text style={styles.reportIdMono}>{report.report_id}</Text>
-                  </Text>
-                ) : <View />}
+                <View style={styles.mainCardMetaCol}>
+                  {report.report_id ? (
+                    <Text style={styles.reportIdText}>
+                      {t.reportId} <Text style={styles.reportIdMono}>{report.report_id}</Text>
+                    </Text>
+                  ) : null}
+                  {carName ? (
+                    <Text style={styles.carNameText}>
+                      {t.carName} <Text style={styles.carNameMono}>{carName}</Text>
+                    </Text>
+                  ) : null}
+                </View>
                 <View style={[styles.severityBadgeMain, { backgroundColor: sevStyle.bg, borderColor: sevStyle.border }]}>
                   <Text style={[styles.severityBadgeMainText, { color: sevStyle.fg }]}>{sevLabel}</Text>
                 </View>
@@ -1316,6 +1368,18 @@ const styles = StyleSheet.create({
   reportIdMono: {
     fontFamily: 'monospace',
     color: '#6B7280',
+  },
+  mainCardMetaCol: {
+    flex: 1,
+  },
+  carNameText: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  carNameMono: {
+    fontWeight: '700',
+    color: '#374151',
   },
   severityBadgeMain: {
     paddingHorizontal: 12,
