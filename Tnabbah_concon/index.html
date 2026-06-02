@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TNABBAH | Smart Vehicle Diagnostics</title>
   <meta name="description" content="TNABBAH smart vehicle diagnostics landing page." />
-  <link rel="icon" type="image/png" href="assets/asset-12.png" />
+  <link rel="icon" type="image/png" href="assets/asset-2.png" />
   <style>
     :root {
       --burgundy: #871B17;
@@ -17,6 +17,20 @@
       --gray: #8b8b8b;
       --glass: rgba(255, 255, 255, .72);
       --stroke: rgba(135, 27, 23, .22);
+      --page-bg: #f7f7f5;
+      --card-bg: rgba(255, 255, 255, .84);
+      --text-main: #151515;
+      --text-soft: #666;
+      --nav-bg: rgba(255, 255, 255, .58);
+    }
+
+    body.dark {
+      --page-bg: #07080a;
+      --card-bg: rgba(13, 14, 17, .78);
+      --text-main: #f5f5f5;
+      --text-soft: #b8b8b8;
+      --nav-bg: rgba(10, 10, 12, .66);
+      --stroke: rgba(255, 255, 255, .12);
     }
 
     * {
@@ -30,8 +44,9 @@
     body {
       margin: 0;
       font-family: Inter, Arial, "Segoe UI", sans-serif;
-      color: var(--ink);
-      background: #f7f7f5;
+      color: var(--text-main);
+      background: var(--page-bg);
+      transition: background .35s ease, color .35s ease;
       overflow-x: hidden;
     }
 
@@ -94,7 +109,7 @@
       z-index: 5;
       padding: 10px 14px;
       border: 1px solid rgba(255, 255, 255, .7);
-      background: rgba(255, 255, 255, .58);
+      background: var(--nav-bg);
       backdrop-filter: blur(16px);
       border-radius: 999px;
       box-shadow: 0 12px 35px rgba(0, 0, 0, .08);
@@ -110,10 +125,46 @@
     }
 
     .brand img {
-      height: 25px;
+      height: 42px;
       width: auto;
-      max-width: 150px;
-      object-fit: contain
+      max-width: 170px;
+      object-fit: contain;
+      filter: drop-shadow(0 10px 22px rgba(135, 27, 23, .14));
+    }
+
+    .theme-toggle {
+      width: 44px;
+      height: 44px;
+      border: 1px solid rgba(135, 27, 23, .18);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .62);
+      color: var(--burgundy);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: .25s ease;
+      backdrop-filter: blur(14px);
+    }
+
+    body.dark .theme-toggle {
+      background: rgba(255, 255, 255, .08);
+      border-color: rgba(255, 255, 255, .16);
+      color: #fff;
+    }
+
+    .theme-toggle:hover {
+      transform: translateY(-2px) rotate(8deg);
+      box-shadow: 0 16px 34px rgba(135, 27, 23, .12);
+    }
+
+    .theme-toggle svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .nav-links {
@@ -126,7 +177,7 @@
       padding: 10px 14px;
       border-radius: 999px;
       font-size: 13px;
-      color: #333;
+      color: var(--text-main);
     }
 
     .nav-links a:hover {
@@ -183,7 +234,7 @@
       font-size: clamp(42px, 6vw, 86px);
       line-height: .9;
       letter-spacing: -4px;
-      color: #111;
+      color: var(--text-main);
     }
 
     h1 span {
@@ -195,7 +246,7 @@
       max-width: 620px;
       font-size: clamp(16px, 2vw, 21px);
       line-height: 1.65;
-      color: #3b3b3b;
+      color: var(--text-soft);
       margin: 0 0 26px;
     }
 
@@ -344,7 +395,7 @@
     }
 
     .muted {
-      color: #666;
+      color: var(--text-soft);
       line-height: 1.7;
       font-size: 17px
     }
@@ -449,266 +500,399 @@
       margin-top: 5px
     }
 
-    .contact-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 14px
-    }
-
-    .person {
-      border-radius: 24px;
-      padding: 20px;
-      background: white;
-      border: 1px solid rgba(0, 0, 0, .07);
-      box-shadow: 0 16px 40px rgba(0, 0, 0, .05);
-    }
-
-    .avatar {
-      width: 46px;
-      height: 46px;
-      border-radius: 16px;
-      background: linear-gradient(135deg, var(--burgundy), #c7c7c7);
-      color: white;
-      display: grid;
-      place-items: center;
-      margin-bottom: 13px;
-      font-size: 22px;
-    }
-
-    .person h3 {
-      margin: 0 0 10px;
-      font-size: 19px
-    }
-
-    .person p {
-      margin: 7px 0;
-      color: #606060;
-      font-size: 14px;
-      word-break: break-word
-    }
-
     .contact-section {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
       background:
-        radial-gradient(circle at 50% 0%, rgba(135, 27, 23, .11), transparent 34%),
-        linear-gradient(180deg, #f7f7f5 0%, #ffffff 100%);
+        radial-gradient(circle at 50% 0%, rgba(135, 27, 23, .14), transparent 34%),
+        linear-gradient(180deg, var(--page-bg) 0%, rgba(255, 255, 255, .04) 100%);
       overflow: hidden;
     }
 
-    .contact-hub {
-      width: min(840px, 100%);
+    .contact-stage {
+      width: min(1060px, 100%);
       margin: 0 auto;
       position: relative;
-      padding: 24px;
-      border-radius: 42px;
+      border-radius: 48px;
+      padding: 28px;
       overflow: hidden;
-      background: rgba(255, 255, 255, .78);
-      border: 1px solid rgba(135, 27, 23, .13);
-      backdrop-filter: blur(22px);
-      box-shadow: 0 28px 80px rgba(0, 0, 0, .075);
+      isolation: isolate;
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, .88), rgba(255, 255, 255, .54));
+      border: 1px solid rgba(135, 27, 23, .14);
+      box-shadow: 0 40px 110px rgba(0, 0, 0, .10);
+      backdrop-filter: blur(24px);
+      transform-style: preserve-3d;
     }
 
-    .contact-hub:before {
+    body.dark .contact-stage {
+      background:
+        linear-gradient(135deg, rgba(14, 15, 18, .86), rgba(9, 10, 12, .64));
+      border-color: rgba(255, 255, 255, .10);
+      box-shadow: 0 40px 110px rgba(0, 0, 0, .42);
+    }
+
+    .contact-stage:before {
       content: "";
       position: absolute;
-      inset: -55%;
-      background: conic-gradient(from 160deg,
-          transparent,
-          rgba(135, 27, 23, .18),
-          transparent,
-          rgba(135, 27, 23, .08),
-          transparent);
-      animation: contactSpin 10s linear infinite;
-      opacity: .8;
+      inset: -40%;
+      z-index: -3;
+      background:
+        conic-gradient(from 220deg, transparent, rgba(135, 27, 23, .22), transparent, rgba(255, 255, 255, .12), transparent);
+      animation: stageSpin 12s linear infinite;
+      opacity: .95;
     }
 
-    .contact-hub:after {
+    .contact-stage:after {
       content: "";
       position: absolute;
       inset: 1px;
-      border-radius: 41px;
+      z-index: -2;
+      border-radius: 47px;
       background:
-        radial-gradient(circle at 82% 8%, rgba(135, 27, 23, .10), transparent 30%),
-        rgba(255, 255, 255, .94);
+        radial-gradient(circle at var(--mx, 70%) var(--my, 30%), rgba(135, 27, 23, .20), transparent 24%),
+        linear-gradient(135deg, rgba(255, 255, 255, .94), rgba(255, 255, 255, .70));
     }
 
-    @keyframes contactSpin {
+    body.dark .contact-stage:after {
+      background:
+        radial-gradient(circle at var(--mx, 70%) var(--my, 30%), rgba(135, 27, 23, .34), transparent 24%),
+        linear-gradient(135deg, rgba(10, 11, 14, .96), rgba(14, 15, 18, .78));
+    }
+
+    @keyframes stageSpin {
       to {
         transform: rotate(360deg);
       }
     }
 
-    .official-panel,
-    .team-cloud,
-    .contact-actions {
+    .radar-field {
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      overflow: hidden;
+      border-radius: inherit;
+      pointer-events: none;
+    }
+
+    .radar-field:before {
+      content: "";
+      position: absolute;
+      width: 520px;
+      height: 520px;
+      right: -180px;
+      top: -180px;
+      border-radius: 50%;
+      border: 1px solid rgba(135, 27, 23, .18);
+      background:
+        repeating-radial-gradient(circle, transparent 0 42px, rgba(135, 27, 23, .08) 43px 44px),
+        conic-gradient(from 0deg, rgba(135, 27, 23, .28), transparent 22%, transparent 100%);
+      animation: radarSweep 5.5s linear infinite;
+      opacity: .75;
+    }
+
+    .radar-field:after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, transparent 0 49%, rgba(135, 27, 23, .10) 50%, transparent 51%),
+        linear-gradient(0deg, transparent 0 49%, rgba(135, 27, 23, .08) 50%, transparent 51%);
+      background-size: 80px 80px;
+      mask-image: radial-gradient(circle at 78% 18%, #000, transparent 50%);
+      opacity: .38;
+    }
+
+    @keyframes radarSweep {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .contact-layout {
+      display: grid;
+      grid-template-columns: .86fr 1.14fr;
+      gap: 28px;
+      align-items: stretch;
+    }
+
+    .contact-identity {
+      padding: 28px;
+      border-radius: 34px;
+      color: white;
+      background:
+        radial-gradient(circle at 90% 10%, rgba(255, 255, 255, .20), transparent 30%),
+        linear-gradient(135deg, var(--burgundy), #260807);
+      box-shadow: 0 24px 60px rgba(135, 27, 23, .25);
+      position: relative;
+      overflow: hidden;
+      min-height: 360px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .contact-identity:before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle, rgba(255, 255, 255, .18) 1.2px, transparent 1.8px);
+      background-size: 17px 17px;
+      mask-image: linear-gradient(to left, #000, transparent);
+      opacity: .45;
+    }
+
+    .official-logo {
+      width: 96px;
+      height: 96px;
+      border-radius: 30px;
+      background: rgba(255, 255, 255, .10);
+      border: 1px solid rgba(255, 255, 255, .18);
+      display: grid;
+      place-items: center;
+      backdrop-filter: blur(12px);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), 0 20px 50px rgba(0, 0, 0, .18);
       position: relative;
       z-index: 2;
     }
 
-    .official-panel {
-      display: grid;
-      grid-template-columns: 54px 1fr;
-      gap: 16px;
-      align-items: center;
-      padding: 18px;
-      border-radius: 30px;
-      color: white;
-      background:
-        radial-gradient(circle at 85% 15%, rgba(255, 255, 255, .20), transparent 28%),
-        linear-gradient(135deg, var(--burgundy), #260807);
-      box-shadow: 0 18px 46px rgba(135, 27, 23, .24);
-      margin-bottom: 20px;
+    .official-logo img {
+      max-width: 82%;
+      max-height: 82%;
+      object-fit: contain;
+      filter: drop-shadow(0 10px 22px rgba(0, 0, 0, .22));
     }
 
-    .official-orb {
-      width: 54px;
-      height: 54px;
-      border-radius: 50%;
+    .identity-text {
       position: relative;
-      border: 1px solid rgba(255, 255, 255, .55);
-      background:
-        radial-gradient(circle, rgba(255, 255, 255, .98) 0 4px, transparent 5px),
-        radial-gradient(circle, rgba(255, 255, 255, .22), transparent 64%);
-      box-shadow: 0 0 34px rgba(255, 255, 255, .23);
+      z-index: 2;
     }
 
-    .official-orb:before,
-    .official-orb:after {
-      content: "";
-      position: absolute;
-      border-radius: 50%;
-      border: 1px solid rgba(255, 255, 255, .50);
+    .identity-text h3 {
+      margin: 0 0 10px;
+      font-size: clamp(30px, 4vw, 46px);
+      line-height: .95;
+      letter-spacing: -2px;
     }
 
-    .official-orb:before {
-      inset: 9px;
-    }
-
-    .official-orb:after {
-      inset: 18px;
-      border: 0;
-      background: rgba(255, 255, 255, .95);
-    }
-
-    .official-panel h3 {
-      margin: 0 0 5px;
-      font-size: 20px;
-      letter-spacing: -.2px;
-    }
-
-    .official-panel p {
-      margin: 0 0 8px;
+    .identity-text p {
+      margin: 0 0 18px;
       color: rgba(255, 255, 255, .78);
+      line-height: 1.65;
+      max-width: 320px;
+    }
+
+    .identity-email {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 44px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .12);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, .18);
+      font-weight: 900;
       font-size: 13px;
-    }
-
-    .official-panel a {
-      color: #ffd9d7;
-      font-size: 14px;
       word-break: break-word;
-      font-weight: 800;
     }
 
-    .contact-actions {
+    .contact-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .quick-actions {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
-      margin-bottom: 20px;
+      gap: 12px;
     }
 
-    .contact-action {
+    .quick-action {
+      min-height: 72px;
+      padding: 16px;
+      border-radius: 24px;
+      background: var(--card-bg);
+      border: 1px solid rgba(135, 27, 23, .12);
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 9px;
-      min-height: 48px;
-      border-radius: 18px;
-      background: rgba(135, 27, 23, .07);
-      border: 1px solid rgba(135, 27, 23, .12);
-      color: var(--burgundy);
-      font-weight: 900;
-      font-size: 14px;
+      gap: 13px;
       transition: .25s ease;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, .055);
     }
 
-    .contact-action:hover {
-      transform: translateY(-2px);
-      background: rgba(135, 27, 23, .11);
+    body.dark .quick-action {
+      border-color: rgba(255, 255, 255, .10);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, .22);
     }
 
-    .contact-action svg {
-      width: 18px;
-      height: 18px;
+    .quick-action:hover {
+      transform: translateY(-4px);
+      border-color: rgba(135, 27, 23, .35);
+      box-shadow: 0 22px 48px rgba(135, 27, 23, .13);
+    }
+
+    .action-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      color: var(--burgundy);
+      background: rgba(135, 27, 23, .08);
+      flex: 0 0 auto;
+    }
+
+    .action-icon svg {
+      width: 21px;
+      height: 21px;
       stroke: currentColor;
-      stroke-width: 2;
       fill: none;
+      stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
     }
 
-    .team-cloud {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      justify-content: center;
-      padding: 4px 0 2px;
+    .quick-action strong {
+      display: block;
+      color: var(--text-main);
+      font-size: 16px;
+      line-height: 1.1;
     }
 
-    .team-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      min-height: 46px;
-      padding: 10px 13px 10px 10px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, .82);
-      border: 1px solid rgba(135, 27, 23, .12);
-      box-shadow: 0 12px 30px rgba(0, 0, 0, .045);
+    .quick-action span {
+      display: block;
+      margin-top: 5px;
+      color: var(--text-soft);
+      font-size: 12px;
+    }
+
+    .team-network {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      padding-top: 2px;
+    }
+
+    .team-network:before {
+      content: "";
+      position: absolute;
+      inset: 18px;
+      border-radius: 30px;
+      background:
+        linear-gradient(90deg, transparent 0 49%, rgba(135, 27, 23, .14) 50%, transparent 51%),
+        linear-gradient(0deg, transparent 0 49%, rgba(135, 27, 23, .10) 50%, transparent 51%);
+      opacity: .45;
+      pointer-events: none;
+    }
+
+    .member-link {
+      position: relative;
+      min-height: 92px;
+      padding: 15px;
+      border-radius: 26px;
+      background: var(--card-bg);
+      border: 1px solid rgba(135, 27, 23, .11);
+      box-shadow: 0 18px 42px rgba(0, 0, 0, .05);
+      transition: .25s ease;
+      overflow: hidden;
+    }
+
+    body.dark .member-link {
+      border-color: rgba(255, 255, 255, .10);
+      box-shadow: 0 18px 42px rgba(0, 0, 0, .24);
+    }
+
+    .member-link:before {
+      content: "";
+      position: absolute;
+      width: 86px;
+      height: 86px;
+      right: -30px;
+      bottom: -30px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(135, 27, 23, .13), transparent 65%);
       transition: .25s ease;
     }
 
-    .team-chip:hover {
-      transform: translateY(-2px);
-      border-color: rgba(135, 27, 23, .28);
-      box-shadow: 0 16px 36px rgba(135, 27, 23, .08);
+    .member-link:hover {
+      transform: translateY(-4px) scale(1.01);
+      border-color: rgba(135, 27, 23, .34);
+      box-shadow: 0 24px 52px rgba(135, 27, 23, .12);
     }
 
-    .team-dot {
-      width: 28px;
-      height: 28px;
+    .member-link:hover:before {
+      transform: scale(1.35);
+    }
+
+    .member-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .member-pulse {
+      width: 34px;
+      height: 34px;
       border-radius: 50%;
+      position: relative;
       flex: 0 0 auto;
       background:
-        radial-gradient(circle, var(--burgundy) 0 4px, #ffffff 5px 100%);
-      border: 1px solid rgba(135, 27, 23, .20);
-      box-shadow: 0 8px 18px rgba(135, 27, 23, .12);
+        radial-gradient(circle, var(--burgundy) 0 4px, #fff 5px 100%);
+      border: 1px solid rgba(135, 27, 23, .19);
+      box-shadow: 0 0 0 0 rgba(135, 27, 23, .35);
+      animation: nodePulse 2.8s ease-in-out infinite;
+    }
+
+    .member-link:nth-child(2) .member-pulse {
+      animation-delay: .3s;
+    }
+
+    .member-link:nth-child(3) .member-pulse {
+      animation-delay: .6s;
+    }
+
+    .member-link:nth-child(4) .member-pulse {
+      animation-delay: .9s;
+    }
+
+    .member-link:nth-child(5) .member-pulse {
+      animation-delay: 1.2s;
+    }
+
+    @keyframes nodePulse {
+      55% {
+        box-shadow: 0 0 0 10px rgba(135, 27, 23, 0);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0 rgba(135, 27, 23, 0);
+      }
+    }
+
+    .member-link strong {
+      color: var(--text-main);
+      font-size: 15px;
+      line-height: 1.2;
+      display: block;
+    }
+
+    .member-link span {
       position: relative;
-    }
-
-    .team-dot:after {
-      content: "";
-      position: absolute;
-      inset: 7px;
-      border-radius: 50%;
-      border: 1px solid rgba(135, 27, 23, .25);
-    }
-
-    .team-info strong {
+      z-index: 2;
       display: block;
-      font-size: 13.5px;
-      line-height: 1.15;
-      color: #171717;
-      white-space: nowrap;
-    }
-
-    .team-info span {
-      display: block;
-      font-size: 11.5px;
+      margin-top: 9px;
+      color: var(--text-soft);
+      font-size: 12px;
       line-height: 1.45;
-      color: #777;
-      white-space: nowrap;
+      word-break: break-word;
     }
-
-
 
     footer {
       padding: 35px 18px;
@@ -748,139 +932,95 @@
         border-radius: 32px
       }
 
-      .nav-links {
-        display: none
+      .nav-links a {
+        display: none;
+      }
+
+      .nav {
+        padding: 9px 12px;
+      }
+
+      .brand img {
+        height: 36px;
       }
 
       h1 {
         letter-spacing: -2px
       }
 
-      .team-flow {
-        padding: 18px 15px;
+      .contact-section {
+        min-height: auto;
+      }
+
+      .contact-stage {
+        padding: 14px;
         border-radius: 32px;
       }
 
-      .team-flow:after {
+      .contact-stage:after {
         border-radius: 31px;
       }
 
-      .official-contact {
-        align-items: flex-start;
-        border-radius: 25px;
-        padding: 16px;
-      }
-
-      .official-mark {
-        width: 42px;
-        height: 42px;
-      }
-
-      .official-contact h3 {
-        font-size: 18px;
-      }
-
-      .official-contact a {
-        font-size: 13px;
-      }
-
-      .member {
-        grid-template-columns: 38px 1fr;
-        gap: 12px;
-        padding: 13px 0;
-      }
-
-      .member-node {
-        width: 38px;
-        height: 38px;
-      }
-
-      .team-line:before {
-        left: 19px;
-      }
-
-      .member strong {
-        font-size: 15px;
-      }
-
-      .member a {
-        font-size: 13px;
-      }
-
-      .contact-hub {
-        padding: 15px;
-        border-radius: 30px;
-      }
-
-      .contact-hub:after {
-        border-radius: 29px;
-      }
-
-      .official-panel {
-        grid-template-columns: 42px 1fr;
-        gap: 12px;
-        padding: 15px;
-        border-radius: 24px;
-        margin-bottom: 14px;
-      }
-
-      .official-orb {
-        width: 42px;
-        height: 42px;
-      }
-
-      .official-panel h3 {
-        font-size: 17px;
-      }
-
-      .official-panel p,
-      .official-panel a {
-        font-size: 12.5px;
-      }
-
-      .contact-actions {
+      .contact-layout {
         grid-template-columns: 1fr;
-        gap: 8px;
-        margin-bottom: 16px;
+        gap: 14px;
       }
 
-      .contact-action {
-        min-height: 45px;
-        border-radius: 16px;
+      .contact-identity {
+        min-height: 270px;
+        border-radius: 26px;
+        padding: 22px;
       }
 
-      .team-cloud {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 9px;
-        justify-content: initial;
-      }
-
-      .team-chip {
-        width: 100%;
-        min-height: 74px;
+      .official-logo {
+        width: 74px;
+        height: 74px;
         border-radius: 22px;
-        align-items: flex-start;
-        padding: 12px;
-        gap: 9px;
       }
 
-      .team-dot {
-        width: 26px;
-        height: 26px;
-        margin-top: 1px;
+      .identity-text h3 {
+        font-size: 34px;
       }
 
-      .team-info strong {
-        white-space: normal;
-        font-size: 12.5px;
+      .identity-text p {
+        font-size: 14px;
       }
 
-      .team-info span {
-        white-space: normal;
-        font-size: 10.8px;
+      .identity-email {
+        font-size: 12px;
+        max-width: 100%;
       }
 
+      .quick-actions {
+        grid-template-columns: 1fr;
+      }
+
+      .quick-action {
+        min-height: 64px;
+        border-radius: 20px;
+      }
+
+      .team-network {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+
+      .team-network:before {
+        display: none;
+      }
+
+      .member-link {
+        min-height: 82px;
+        border-radius: 22px;
+      }
+
+      .member-link strong {
+        font-size: 14px;
+      }
+
+      .member-link span {
+        font-size: 11.5px;
+      }
     }
   </style>
 </head>
@@ -892,13 +1032,17 @@
 
     <nav class="nav">
       <a class="brand" href="#top">
-        <img src="assets/asset-12.png" alt="TNABBAH logo">
-        <span>TNABBAH</span>
+        <img src="assets/asset-2.png" alt="TNABBAH logo">
       </a>
       <div class="nav-links">
         <a href="#features">Features</a>
         <a href="#download">Download</a>
         <a href="#contact">Contact Us</a>
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle color mode">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 3a6 6 0 0 0 9 7.4A9 9 0 1 1 12 3z" />
+          </svg>
+        </button>
       </div>
     </nav>
 
@@ -994,78 +1138,78 @@
     <div class="wrap">
       <div class="section-title reveal">
         <div class="eyebrow">Contact Us</div>
-        <h2>TNABBAH Contact Hub</h2>
-        <p class="muted">Download the app or reach the TNABBAH team anytime.</p>
+        <h2>Connect with TNABBAH</h2>
+        <p class="muted">Open the app links or reach the team through one clean contact hub.</p>
       </div>
 
-      <div class="contact-hub reveal">
-        <div class="official-panel">
-          <span class="official-orb"></span>
-          <div>
-            <h3>TNABBAH Official Account</h3>
-            <p>Main contact for app access, collaboration, and project inquiries.</p>
-            <a href="mailto:tanbbahteem@gmail.com">tanbbahteem@gmail.com</a>
+      <div class="contact-stage reveal">
+        <div class="radar-field"></div>
+
+        <div class="contact-layout">
+          <div class="contact-identity" data-float>
+            <div class="official-logo">
+              <img src="assets/asset-2.png" alt="TNABBAH logo">
+            </div>
+
+            <div class="identity-text">
+              <h3>TNABBAH Official</h3>
+              <p>Main account for app access, collaboration, demo requests, and project inquiries.</p>
+              <a class="identity-email" href="mailto:tanbbahteem@gmail.com">tanbbahteem@gmail.com</a>
+            </div>
           </div>
-        </div>
 
-        <div class="contact-actions">
-          <a class="contact-action" href="mailto:tanbbahteem@gmail.com">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 6h16v12H4z" />
-              <path d="m4 7 8 6 8-6" />
-            </svg>
-            Email Us
-          </a>
-          <a class="contact-action" href="#download">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3v12" />
-              <path d="m7 10 5 5 5-5" />
-              <path d="M5 21h14" />
-            </svg>
-            Download App
-          </a>
-        </div>
+          <div class="contact-panel">
+            <div class="quick-actions">
+              <a class="quick-action" href="mailto:tanbbahteem@gmail.com">
+                <span class="action-icon">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M4 6h16v12H4z" />
+                    <path d="m4 7 8 6 8-6" />
+                  </svg>
+                </span>
+                <span><strong>Email Us</strong><span>Official project contact</span></span>
+              </a>
 
-        <div class="team-cloud">
-          <a class="team-chip" href="mailto:ghalaalhashmi80@gmail.com">
-            <span class="team-dot"></span>
-            <span class="team-info">
-              <strong>Ghala Abdulla Alameer</strong>
-              <span>0560602239 · ghalaalhashmi80@gmail.com</span>
-            </span>
-          </a>
+              <a class="quick-action" href="#download">
+                <span class="action-icon">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 3v12" />
+                    <path d="m7 10 5 5 5-5" />
+                    <path d="M5 21h14" />
+                  </svg>
+                </span>
+                <span><strong>Download App</strong><span>Android / iPhone links</span></span>
+              </a>
+            </div>
 
-          <a class="team-chip" href="mailto:rawanamoodi@gmail.com">
-            <span class="team-dot"></span>
-            <span class="team-info">
-              <strong>Rawan Abdulrahman Bashanam</strong>
-              <span>0556787665 · rawanamoodi@gmail.com</span>
-            </span>
-          </a>
+            <div class="team-network">
+              <a class="member-link" href="mailto:ghalaalhashmi80@gmail.com">
+                <div class="member-top"><span class="member-pulse"></span><strong>Ghala Abdulla Alameer</strong></div>
+                <span>0560602239 · ghalaalhashmi80@gmail.com</span>
+              </a>
 
-          <a class="team-chip" href="mailto:person3@email.com">
-            <span class="team-dot"></span>
-            <span class="team-info">
-              <strong>Person Three</strong>
-              <span>0500000000 · person3@email.com</span>
-            </span>
-          </a>
+              <a class="member-link" href="mailto:rawanamoodi@gmail.com">
+                <div class="member-top"><span class="member-pulse"></span><strong>Rawan Abdulrahman Bashanam</strong>
+                </div>
+                <span>0556787665 · rawanamoodi@gmail.com</span>
+              </a>
 
-          <a class="team-chip" href="mailto:person4@email.com">
-            <span class="team-dot"></span>
-            <span class="team-info">
-              <strong>Person Four</strong>
-              <span>0500000000 · person4@email.com</span>
-            </span>
-          </a>
+              <a class="member-link" href="mailto:person3@email.com">
+                <div class="member-top"><span class="member-pulse"></span><strong>Person Three</strong></div>
+                <span>0500000000 · person3@email.com</span>
+              </a>
 
-          <a class="team-chip" href="mailto:person5@email.com">
-            <span class="team-dot"></span>
-            <span class="team-info">
-              <strong>Person Five</strong>
-              <span>0500000000 · person5@email.com</span>
-            </span>
-          </a>
+              <a class="member-link" href="mailto:person4@email.com">
+                <div class="member-top"><span class="member-pulse"></span><strong>Person Four</strong></div>
+                <span>0500000000 · person4@email.com</span>
+              </a>
+
+              <a class="member-link" href="mailto:person5@email.com">
+                <div class="member-top"><span class="member-pulse"></span><strong>Person Five</strong></div>
+                <span>0500000000 · person5@email.com</span>
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1123,6 +1267,38 @@
       entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("show") })
     }, { threshold: .14 });
     document.querySelectorAll(".reveal").forEach(el => observer.observe(el));
+
+    const themeToggle = document.getElementById("themeToggle");
+    const savedTheme = localStorage.getItem("tnabbah-theme");
+    if (savedTheme === "dark") document.body.classList.add("dark");
+
+    themeToggle?.addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+      localStorage.setItem("tnabbah-theme", document.body.classList.contains("dark") ? "dark" : "light");
+    });
+
+    const stage = document.querySelector(".contact-stage");
+    function moveContactGlow(clientX, clientY) {
+      if (!stage) return;
+      const rect = stage.getBoundingClientRect();
+      const x = ((clientX - rect.left) / rect.width) * 100;
+      const y = ((clientY - rect.top) / rect.height) * 100;
+      stage.style.setProperty("--mx", x + "%");
+      stage.style.setProperty("--my", y + "%");
+      const rx = (y - 50) * -0.035;
+      const ry = (x - 50) * 0.035;
+      stage.style.transform = `perspective(1100px) rotateX(${rx}deg) rotateY(${ry}deg)`;
+    }
+
+    stage?.addEventListener("mousemove", (e) => moveContactGlow(e.clientX, e.clientY));
+    stage?.addEventListener("touchmove", (e) => {
+      const t = e.touches[0];
+      if (t) moveContactGlow(t.clientX, t.clientY);
+    }, { passive: true });
+    stage?.addEventListener("mouseleave", () => {
+      stage.style.transform = "perspective(1100px) rotateX(0deg) rotateY(0deg)";
+    });
+
   </script>
 </body>
 
