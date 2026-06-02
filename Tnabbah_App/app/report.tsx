@@ -1,21 +1,20 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Feather as Icon, MaterialCommunityIcons } from '@expo/vector-icons';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  SafeAreaView,
-  ScrollView,
-  View,
-  Text,
-  TouchableOpacity,
-  StatusBar,
-  StyleSheet,
   ActivityIndicator,
   Alert,
-  Dimensions,
   BackHandler,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { Feather as Icon } from '@expo/vector-icons';
-import { useAuth } from '../providers/AuthProvider';
-import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../providers/AuthProvider';
 
 const API_URL = process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://127.0.0.1:8001";
 
@@ -42,41 +41,41 @@ const UI = {
     causes: 'الأسباب المحتملة',
     likelihood: 'احتمالية',
     confidence: 'ثقة',
-    smartAnalysisOn: '✨ تحليل ذكي مُفعَّل',
+    smartAnalysisOn: 'تحليل ذكي مُفعَّل',
     smartAnalysis: 'تحليل ذكي',
-    smartInsight: '✨ تفسير ذكي',
+    smartInsight: 'تفسير ذكي',
     explanation: 'التفسير',
-    smartRecommendation: '✨ التوصية الذكية',
+    smartRecommendation: 'التوصية الذكية',
     needsMechanic: 'تحتاج لزيارة فنّي/ميكانيكي مختص',
-    healthyTitle: 'سيارتك بحالة ممتازة 🎉',
+    healthyTitle: 'سيارتك بحالة ممتازة',
     issuesTitle: 'تم اكتشاف ملاحظات',
-    aiSummary: '✨ تحليل تنبّه الذكي',
-    plainSummary: '📋 ملخص التحليل',
+    aiSummary: 'تحليل تنبّه الذكي',
+    plainSummary: 'ملخص التحليل',
     statusWarning: 'تحذير',
     statusNormal: 'طبيعي',
-    saved: '✅ محفوظ',
-    save: '💾 حفظ دائم',
+    saved: 'محفوظ',
+    save: 'حفظ دائم',
     footer: 'ملاحظة: هذا التقرير مقدم من "تنبّه" كدليل استرشادي ذكي.',
     notLoaded: 'لم يتم تحميل التقرير',
     saveError: 'فشل حفظ التقرير',
     saveSuccess: 'تم حفظ التقرير بنجاح',
-    saveErrorTitle: '❌ خطأ',
-    saveSuccessTitle: '✅ تم الحفظ',
+    saveErrorTitle: 'خطأ',
+    saveSuccessTitle: 'تم الحفظ',
     loginRequired: 'يجب تسجيل الدخول أولاً',
     error: 'خطأ',
-    translateFailedTitle: '❌ فشل الترجمة',
+    translateFailedTitle: 'فشل الترجمة',
     translateFailedMsg: 'تعذّر ترجمة التقرير، حاول لاحقاً',
     unsavedTitle: 'لم يتم حفظ التقرير',
     unsavedMessage: 'سيتم الاحتفاظ بهذا التقرير لمدة 24 ساعة فقط ثم سيُحذف تلقائياً إذا لم تقم بحفظه بشكل دائم.',
-    unsavedSave: '💾 حفظ دائم',
+    unsavedSave: 'حفظ دائم',
     unsavedLeave: 'خروج بدون حفظ',
     unsavedCancel: 'إلغاء',
     severity: {
-      NORMAL: '✅ طبيعي',
-      LOW: '🟢 تنبيه بسيط',
-      MEDIUM: '🟡 تحذير',
-      HIGH: '🟠 خطر',
-      CRITICAL: '🔴 خطر شديد',
+      NORMAL: 'طبيعي',
+      LOW: 'تنبيه بسيط',
+      MEDIUM: 'تحذير',
+      HIGH: 'خطر',
+      CRITICAL: 'خطر شديد',
     } as Record<string, string>,
   },
   EN: {
@@ -89,41 +88,41 @@ const UI = {
     causes: 'Likely Causes',
     likelihood: 'Likelihood',
     confidence: 'Confidence',
-    smartAnalysisOn: '✨ Smart Analysis Enabled',
+    smartAnalysisOn: 'Smart Analysis Enabled',
     smartAnalysis: 'Smart Analysis',
-    smartInsight: '✨ Smart Insight',
+    smartInsight: 'Smart Insight',
     explanation: 'Explanation',
-    smartRecommendation: '✨ Smart Recommendation',
+    smartRecommendation: 'Smart Recommendation',
     needsMechanic: 'Visit a qualified technician/mechanic',
-    healthyTitle: 'Your car is in excellent condition 🎉',
+    healthyTitle: 'Your car is in excellent condition',
     issuesTitle: 'Issues Detected',
-    aiSummary: '✨ Tnabbah Smart Analysis',
-    plainSummary: '📋 Analysis Summary',
+    aiSummary: 'Tnabbah Smart Analysis',
+    plainSummary: 'Analysis Summary',
     statusWarning: 'Warning',
     statusNormal: 'Normal',
-    saved: '✅ Saved',
-    save: '💾 Save Permanently',
+    saved: 'Saved',
+    save: 'Save Permanently',
     footer: 'Note: This report is provided by "Tnabbah" as a smart guidance reference.',
     notLoaded: 'Report not loaded',
     saveError: 'Failed to save the report',
     saveSuccess: 'Report saved successfully',
-    saveErrorTitle: '❌ Error',
-    saveSuccessTitle: '✅ Saved',
+    saveErrorTitle: 'Error',
+    saveSuccessTitle: 'Saved',
     loginRequired: 'You must log in first',
     error: 'Error',
-    translateFailedTitle: '❌ Translation Failed',
+    translateFailedTitle: 'Translation Failed',
     translateFailedMsg: 'Could not translate the report. Try again later.',
     unsavedTitle: 'Report not saved',
     unsavedMessage: 'This report will be kept for only 24 hours and then automatically deleted if you do not save it permanently.',
-    unsavedSave: '💾 Save Permanently',
+    unsavedSave: 'Save Permanently',
     unsavedLeave: 'Leave without saving',
     unsavedCancel: 'Cancel',
     severity: {
-      NORMAL: '✅ Normal',
-      LOW: '🟢 Minor Notice',
-      MEDIUM: '🟡 Warning',
-      HIGH: '🟠 Risk',
-      CRITICAL: '🔴 Severe Risk',
+      NORMAL: 'Normal',
+      LOW: 'Minor Notice',
+      MEDIUM: 'Warning',
+      HIGH: 'Risk',
+      CRITICAL: 'Severe Risk',
     } as Record<string, string>,
   },
 } as const;
@@ -135,6 +134,179 @@ const DTC_CATEGORY_LABEL_AR: Record<'stored' | 'pending' | 'permanent', string> 
   stored: 'أعطال موجودة فعلاً',
   pending: 'مشكلة بدأت تظهر',
   permanent: 'أعطال محفوظة بالنظام',
+};
+
+// ─────────────────────────────────────────────────────────────
+// PID → icon mapping (same icon library as Home/Wallet:
+// @expo/vector-icons — Feather + MaterialCommunityIcons).
+// Picks a context-relevant glyph from the PID code, unit, and label
+// (Arabic or English), e.g. thermometer for temperature, gauge for
+// pressure/RPM, zap for voltage.
+// ─────────────────────────────────────────────────────────────
+type PidGlyphSpec = { pack: 'feather' | 'material'; name: string };
+
+const PID_CODE_ICON: Record<string, PidGlyphSpec> = {
+  '0X05': { pack: 'feather', name: 'thermometer' }, // engine coolant temp
+  '0X0F': { pack: 'feather', name: 'thermometer' }, // intake air temp
+  '0X46': { pack: 'feather', name: 'thermometer' }, // ambient air temp
+  '0X5C': { pack: 'feather', name: 'thermometer' }, // engine oil temp
+  '0X0C': { pack: 'material', name: 'gauge' },        // engine RPM
+  '0X0D': { pack: 'feather', name: 'navigation' },    // vehicle speed
+  '0X42': { pack: 'feather', name: 'zap' },           // control module voltage
+  '0X04': { pack: 'feather', name: 'percent' },       // engine load
+  '0X11': { pack: 'feather', name: 'percent' },       // throttle position
+  '0X10': { pack: 'feather', name: 'wind' },          // MAF air flow
+  '0X0B': { pack: 'material', name: 'gauge' },        // intake manifold pressure
+  '0X0A': { pack: 'material', name: 'gauge' },        // fuel pressure
+  '0X33': { pack: 'material', name: 'gauge' },        // barometric pressure
+  '0X2F': { pack: 'material', name: 'fuel' },         // fuel level
+};
+
+const getPidIcon = (item: any): PidGlyphSpec => {
+  const code = String(item?.pidCode || '').toUpperCase();
+  if (PID_CODE_ICON[code]) return PID_CODE_ICON[code];
+
+  const unit = String(item?.unit || '').toLowerCase();
+  const label = String(item?.label || '').toLowerCase();
+  const has = (...words: string[]) => words.some((w) => label.includes(w) || unit.includes(w));
+
+  // Temperature
+  if (unit.includes('°c') || unit.includes('°f') || has('حرار', 'temp', 'coolant', 'تبريد'))
+    return { pack: 'feather', name: 'thermometer' };
+  // RPM / engine speed
+  if (unit.includes('rpm') || has('دوران', 'rpm', 'دورة'))
+    return { pack: 'material', name: 'gauge' };
+  // Vehicle speed
+  if (unit.includes('km/h') || unit.includes('mph') || has('سرعة', 'speed'))
+    return { pack: 'feather', name: 'navigation' };
+  // Voltage / battery
+  if (unit === 'v' || unit.includes('volt') || has('جهد', 'بطار', 'voltage', 'battery'))
+    return { pack: 'feather', name: 'zap' };
+  // Pressure
+  if (has('kpa', 'psi', 'bar', 'ضغط', 'pressure'))
+    return { pack: 'material', name: 'gauge' };
+  // Air flow / intake
+  if (has('g/s', 'هواء', 'تدفق', 'maf', 'air', 'flow', 'intake'))
+    return { pack: 'feather', name: 'wind' };
+  // Fuel
+  if (has('وقود', 'fuel', 'بنزين'))
+    return { pack: 'material', name: 'fuel' };
+  // Percentage-based loads
+  if (unit.includes('%') || has('حمل', 'load', 'throttle', 'خانق'))
+    return { pack: 'feather', name: 'percent' };
+
+  // Default: generic signal/activity glyph
+  return { pack: 'feather', name: 'activity' };
+};
+
+const PidGlyph = ({ item, size = 18, color }: { item: any; size?: number; color: string }) => {
+  const { pack, name } = getPidIcon(item);
+  return pack === 'material' ? (
+    <MaterialCommunityIcons name={name as any} size={size} color={color} />
+  ) : (
+    <Icon name={name as any} size={size} color={color} />
+  );
+};
+
+// ─────────────────────────────────────────────────────────────
+// DTC → icon mapping. Prioritizes real dashboard warning lights
+// (الطبلون) by matching the OBD-II code range and/or the fault
+// meaning (Arabic + English keywords). Falls back to the generic
+// P/C/B/U prefix glyph only when nothing specific matches.
+// All glyphs verified to exist in the bundled MaterialCommunityIcons set.
+// ─────────────────────────────────────────────────────────────
+const getDtcIcon = (code: string, meaning: string = ''): PidGlyphSpec => {
+  const c = String(code || '').trim().toUpperCase();
+  const text = `${c} ${meaning}`.toLowerCase();
+  const has = (...kw: string[]) => kw.some((k) => text.includes(k));
+
+  // Cooling system / overheating (e.g. P0115-P0128, P0217, P0480-P0485)
+  if (
+    has('حرار', 'تبريد', 'رديتر', 'ثرموستات', 'مروحة',
+        'coolant', 'overheat', 'thermostat', 'radiator', 'cooling') ||
+    /^P0(11[5-9]|12[0-8]|217|48[0-5])/.test(c)
+  )
+    return { pack: 'material', name: 'coolant-temperature' };
+
+  // Oil pressure / lubrication (e.g. P0520-P0524)
+  if (has('زيت', 'oil', 'lubric') || /^P052[0-4]/.test(c))
+    return { pack: 'material', name: 'oil' };
+
+  // Battery / charging / alternator / system voltage
+  if (
+    has('بطار', 'شحن', 'مولد', 'دينمو',
+        'battery', 'charging', 'alternator', 'generator', 'voltage') ||
+    /^P0(56[0-9]|62[0-5]|A0)/.test(c)
+  )
+    return { pack: 'material', name: 'car-battery' };
+
+  // Tire pressure monitoring (TPMS)
+  if (has('إطار', 'الاطار', 'tpms', 'tire', 'tyre') || /^C0(75|76)/.test(c))
+    return { pack: 'material', name: 'car-tire-alert' };
+
+  // ABS / brakes (ABS gets the dedicated glyph)
+  if (has('abs', 'مكابح', 'فرامل', 'brake'))
+    return { pack: 'material', name: has('abs') ? 'car-brake-abs' : 'car-brake-alert' };
+
+  // Airbag / SRS
+  if (has('وساد', 'هوائية', 'airbag', 'srs', 'restraint'))
+    return { pack: 'material', name: 'airbag' };
+
+  // Steering
+  if (has('توجيه', 'مقود', 'steering', 'eps'))
+    return { pack: 'material', name: 'steering' };
+
+  // Traction / stability control
+  if (has('جر', 'ثبات', 'انزلاق', 'traction', 'stability', 'esp', 'esc'))
+    return { pack: 'material', name: 'car-traction-control' };
+
+  // Air intake / MAF / air filter (e.g. P0100-P0104)
+  if (has('تدفق الهواء', 'سحب الهواء', 'فلتر الهواء', 'maf', 'air flow', 'airflow', 'intake', 'air filter') || /^P010[0-4]/.test(c))
+    return { pack: 'material', name: 'air-filter' };
+
+  // Fuel system / mixture / injectors (e.g. P0087, P0171-P0174, P0190-P0193)
+  if (
+    has('وقود', 'بنزين', 'خليط', 'حاقن', 'fuel', 'mixture', 'lean', 'rich', 'injector') ||
+    /^P0(08[0-9]|17[0-4]|19[0-3])/.test(c)
+  )
+    return { pack: 'material', name: 'fuel' };
+
+  // Misfire / ignition → check-engine light
+  if (has('احتراق', 'إشعال', 'شمعات', 'misfire', 'ignition', 'spark') || /^P03(0[0-9]|1[0-2])/.test(c))
+    return { pack: 'material', name: 'engine' };
+
+  // Generic OBD-II prefix fallback
+  switch (c.charAt(0)) {
+    case 'P':
+      return { pack: 'material', name: 'engine' };          // Powertrain
+    case 'C':
+      return { pack: 'material', name: 'car-brake-alert' };  // Chassis
+    case 'B':
+      return { pack: 'material', name: 'car-door' };         // Body
+    case 'U':
+      return { pack: 'material', name: 'lan-connect' };      // Network
+    default:
+      return { pack: 'feather', name: 'alert-triangle' };
+  }
+};
+
+const DtcGlyph = ({
+  code,
+  meaning = '',
+  size = 18,
+  color,
+}: {
+  code: string;
+  meaning?: string;
+  size?: number;
+  color: string;
+}) => {
+  const { pack, name } = getDtcIcon(code, meaning);
+  return pack === 'material' ? (
+    <MaterialCommunityIcons name={name as any} size={size} color={color} />
+  ) : (
+    <Icon name={name as any} size={size} color={color} />
+  );
 };
 
 const ReportScreen = () => {
@@ -727,20 +899,49 @@ const ReportScreen = () => {
               )}
             </View>
 
-            {/* الملخص الذكي (PID overview + DTC insights) */}
-            {aiNarrativeParts.length > 0 && (
-              <View style={styles.insightCard}>
-                <View style={styles.insightHeader}>
+            {/* الملخص الذكي + التوصية (قسم موحّد: التحليل ثم الإجراء المطلوب) */}
+            {(aiNarrativeParts.length > 0 || !!finalRecText) && (
+              <View style={styles.recCard}>
+                <View style={styles.recHeader}>
                   <Icon name="zap" size={18} color="#fff" />
-                  <Text style={styles.insightLabel}>
+                  <Text style={styles.recHeaderText}>
                     {aiActive ? t.aiSummary : t.plainSummary}
                   </Text>
                 </View>
+
+                {/* التحليل الميكانيكي */}
                 {aiNarrativeParts.map((part, i) => (
-                  <Text key={i} style={[styles.insightText, i > 0 && { marginTop: 8 }]}>
+                  <Text
+                    key={i}
+                    style={[styles.unifiedBodyText, !isAR && { textAlign: 'left' }, i > 0 && { marginTop: 8 }]}
+                  >
                     {tr(part)}
                   </Text>
                 ))}
+
+                {/* التوصية تتبع التحليل مباشرة */}
+                {!!finalRecText && (
+                  <>
+                    {aiNarrativeParts.length > 0 && <View style={styles.unifiedDivider} />}
+                    <Text style={[styles.unifiedSubLabel, !isAR && { textAlign: 'left' }]}>
+                      {t.smartRecommendation}
+                    </Text>
+                    <Text style={[styles.recText, !isAR && { textAlign: 'left' }]}>
+                      {tr(finalRecText)}
+                    </Text>
+                    {needsMechanic && (
+                      <View style={styles.mechanicBox}>
+                        <Icon name="tool" size={16} color={COLORS.red} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.mechanicTitle}>{t.needsMechanic}</Text>
+                          {!!mechanicNote && (
+                            <Text style={styles.mechanicNote}>{tr(mechanicNote)}</Text>
+                          )}
+                        </View>
+                      </View>
+                    )}
+                  </>
+                )}
               </View>
             )}
 
@@ -761,6 +962,14 @@ const ReportScreen = () => {
                   return (
                     <View key={idx} style={[styles.dtcCard, { borderLeftColor: dStyle.fg, backgroundColor: dStyle.bg }]}>
                       <View style={styles.dtcHeader}>
+                        <View style={[styles.dtcIconBox, { borderColor: dStyle.border }]}>
+                          <DtcGlyph
+                            code={dtc.code}
+                            meaning={`${dtc.name || ''} ${dtc.description || ''}`}
+                            size={20}
+                            color={dStyle.fg}
+                          />
+                        </View>
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.dtcCode, { color: dStyle.fg }]}>{dtc.code}</Text>
                           <Text style={styles.dtcName}>{tr(dtc.name)}</Text>
@@ -813,8 +1022,8 @@ const ReportScreen = () => {
               const sevLevel: string = item.severityLevel || (item.status === 'WARNING' ? 'MEDIUM' : 'NORMAL');
               const sevColors = SEVERITY_MAP[sevLevel] || SEVERITY_MAP.NORMAL;
               const statusColor = sevColors.fg;
-              // Default per-level label (without emoji) derived from t.severity.
-              const defaultLevelLabel = (t.severity[sevLevel] || t.severity.NORMAL).replace(/^\S+\s+/, '');
+              // Default per-level label derived from t.severity.
+              const defaultLevelLabel = t.severity[sevLevel] || t.severity.NORMAL;
               const rawAiUrgency = item.aiInterpretation?.urgency_ar;
               // Trust the diagnostics engine status over the AI label.
               // - If engine says non-NORMAL, never show "طبيعي/آمن" from the AI.
@@ -827,7 +1036,7 @@ const ReportScreen = () => {
                 aiUrgency = 'طبيعي';
               }
               const statusText = aiUrgency
-                ? `✨ ${tr(aiUrgency)}`
+                ? tr(aiUrgency)
                 : defaultLevelLabel;
               const hasAI = !!item.aiInterpretation;
 
@@ -840,12 +1049,12 @@ const ReportScreen = () => {
                   >
                     <View style={styles.sensorLeft}>
                       <View style={[styles.iconBox, isOpen && styles.iconBoxOpen]}>
-                        <Icon name="zap" size={18} color={statusColor} />
+                        <PidGlyph item={item} size={18} color={statusColor} />
                       </View>
                       <View>
                         <View style={styles.labelRow}>
                           <Text style={styles.sensorLabel}>{tr(item.label)}</Text>
-                          {hasAI && <Text style={styles.aiIndicator}>✨</Text>}
+                          {hasAI && <Icon name="zap" size={12} color={COLORS.red} style={styles.aiIndicator} />}
                         </View>
                         <View style={styles.statusRow}>
                           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
@@ -876,7 +1085,7 @@ const ReportScreen = () => {
                         <>
                           <View style={styles.explanationHeader}>
                             <View style={styles.explanationIcon}>
-                              <Text style={styles.sparkle}>✨</Text>
+                              <Icon name="zap" size={10} color="#fff" />
                             </View>
                             <Text style={styles.explanationTitle}>{t.smartAnalysis}</Text>
                           </View>
@@ -936,27 +1145,7 @@ const ReportScreen = () => {
               </View>
             )}
 
-            {/* التوصية النهائية من DeepSeek */}
-            {!!finalRecText && (
-              <View style={styles.recCard}>
-                <View style={styles.recHeader}>
-                  <Icon name="zap" size={18} color="#fff" />
-                  <Text style={styles.recHeaderText}>{t.smartRecommendation}</Text>
-                </View>
-                <Text style={[styles.recText, !isAR && { textAlign: 'left' }]}>{tr(finalRecText)}</Text>
-                {needsMechanic && (
-                  <View style={styles.mechanicBox}>
-                    <Icon name="tool" size={16} color={COLORS.red} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.mechanicTitle}>{t.needsMechanic}</Text>
-                      {!!mechanicNote && (
-                        <Text style={styles.mechanicNote}>{tr(mechanicNote)}</Text>
-                      )}
-                    </View>
-                  </View>
-                )}
-              </View>
-            )}
+            {/* التوصية النهائية مدمجة الآن في القسم الموحّد بالأعلى */}
 
             {/* أزرار الحفظ */}
             <View style={styles.buttonGroup}>
@@ -1150,33 +1339,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  insightCard: {
-    backgroundColor: COLORS.red,
-    borderRadius: 24,
-    padding: 20,
-    shadowColor: COLORS.red,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-  },
-  insightHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
-  },
-  insightLabel: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: 'rgba(255,255,255,0.8)',
-    letterSpacing: 1,
-  },
-  insightText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: 'bold',
-    lineHeight: 20,
-  },
   listHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1318,7 +1480,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   aiIndicator: {
-    fontSize: 12,
+    marginHorizontal: 4,
   },
   recommendationBox: {
     flexDirection: 'row',
@@ -1335,9 +1497,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.warning,
     lineHeight: 15,
-  },
-  sparkle: {
-    fontSize: 14,
   },
   aiEnabledBanner: {
     backgroundColor: '#F0F9FF',
@@ -1486,6 +1645,26 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlign: 'right',
   },
+  unifiedBodyText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.ink,
+    lineHeight: 22,
+    textAlign: 'right',
+  },
+  unifiedDivider: {
+    height: 1,
+    backgroundColor: '#FEE2E2',
+    marginVertical: 14,
+  },
+  unifiedSubLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: COLORS.red,
+    letterSpacing: 0.5,
+    marginBottom: 6,
+    textAlign: 'right',
+  },
   mechanicBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1547,6 +1726,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 8,
+    gap: 12,
+  },
+  dtcIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dtcCode: {
     fontSize: 14,
