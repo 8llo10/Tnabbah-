@@ -1,13 +1,15 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Notifications from "expo-notifications";
 import { router, Stack } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
-    TouchableOpacity,
     Alert,
+    Animated,
     Modal,
+    PanResponder,
     Platform,
     Pressable,
     ScrollView,
@@ -15,17 +17,14 @@ import {
     StyleSheet,
     Text,
     useWindowDimensions,
-    View,
-    Animated,
-    PanResponder,
+    View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../lib/supabase";
-import { useCars } from "../../providers/CarsProvider";
-import { useVehicleRealtime } from "../../providers/VehicleRealtimeProvider";
 import { useAppSettings } from "../../providers/AppSettingsProvider";
+import { useCars } from "../../providers/CarsProvider";
 import { useLanguage } from "../../providers/LanguageProvider";
+import { useVehicleRealtime } from "../../providers/VehicleRealtimeProvider";
 
 const FONT_REGULAR = "Alexandria-Regular";
 const FONT_SEMIBOLD = "Alexandria-SemiBold";
@@ -828,6 +827,28 @@ export default function HomeScreen() {
                 return;
             }
 
+            // Try to get token from session, fallback to user if needed
+            let token: string | null = null;
+            
+            try {
+                const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+                if (sessionError || !sessionData?.session?.access_token) {
+                    // If getSession fails, try refreshing the session
+                    const { data: refreshData } = await supabase.auth.refreshSession();
+                    token = refreshData?.session?.access_token || null;
+                } else {
+                    token = sessionData.session.access_token;
+                }
+            } catch (err) {
+                console.log("Session retrieval error, trying alternative method:", err);
+                // If all else fails, continue without token
+                token = null;
+            }
+
+            if (!token) {
+                console.warn("⚠️ No auth token available, attempting request anyway");
+            }
+
             const scannedCarId = activeCarId;
 
             if (!scannedCarId) {
@@ -836,31 +857,56 @@ export default function HomeScreen() {
                 return;
             }
 
+            const requestUrl = `${API_URL}/api/scan-from-mqtt`;
+            const requestBody = {
+                user_id: userId,
+                car_id: scannedCarId,
+                freshness_seconds: 120,
+                wait_ms: 0,
+                vehicle_info: null,
+            };
 
-            const response = await fetch(`${API_URL}/api/scan-from-mqtt`, {
+            console.log("🔵 Sending scan request to:", requestUrl);
+            console.log("📤 Request body:", requestBody);
+            console.log("🔐 Authorization token:", token ? `Present (${token.substring(0, 20)}...)` : "Missing");
+            console.log("📋 Token type:", typeof token);
+            console.log("📏 Token length:", token?.length);
+
+            const headers: any = {
+                "Content-Type": "application/json",
+            };
+
+            if (token) {
+                headers["Authorization"] = `Bearer ${token}`;
+            }
+
+            console.log("📨 Full headers:", JSON.stringify({
+                "Content-Type": "application/json",
+                "Authorization": token ? `Bearer ${token.substring(0, 20)}...` : "Missing"
+            }));
+
+            const response = await fetch(requestUrl, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    user_id: userId,
-                    car_id: scannedCarId,
-                    freshness_seconds: 120,
-                    wait_ms: 0,
-                    vehicle_info: null,
-                }),
+                headers,
+                body: JSON.stringify(requestBody),
             });
+
+            console.log("📥 Response status:", response.status);
 
             if (!response.ok) {
                 let detail = t.homeScanFailed;
 
                 try {
                     const errBody = await response.json();
+                    console.log("❌ Error response body:", errBody);
                     detail =
                         typeof errBody?.detail === "string"
                             ? errBody.detail
                             : typeof errBody?.error === "string"
                                 ? errBody.error
                                 : JSON.stringify(errBody);
-                } catch {
+                } catch (parseError) {
+                    console.log("❌ Could not parse error response:", parseError);
                     detail = `HTTP ${response.status}`;
                 }
 
@@ -868,6 +914,7 @@ export default function HomeScreen() {
             }
 
             const report = await response.json();
+            console.log("✅ Scan report received:", report);
 
             router.push({
                 pathname: "/report",
@@ -879,6 +926,7 @@ export default function HomeScreen() {
                     ? e.message
                     : JSON.stringify(e?.message || e || "خطأ غير متوقع");
 
+            console.log("🔴 Scan error:", errorMsg);
             setDebugText(errorMsg);
             Alert.alert(t.errorTitle, errorMsg);
         } finally {
