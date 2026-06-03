@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  SafeAreaView,
   ScrollView,
   View,
   Text,
@@ -11,22 +10,98 @@ import {
   Alert,
   Dimensions,
   BackHandler,
+  Platform,
 } from 'react-native';
-import { Feather as Icon } from '@expo/vector-icons';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Feather as Icon, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../providers/AuthProvider';
+import { useAppSettings } from '../providers/AppSettingsProvider';
 import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 
 const API_URL = process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://127.0.0.1:8001";
 
-const COLORS = {
-  red: "#871B17",
-  bg: "#F9FAFB",
-  ink: "#111827",
-  gray: "#6B7280",
-  success: "#10B981",
-  warning: "#F59E0B",
-  error: "#EF4444"
+// Project colour palette (matches home.tsx / wallet.tsx)
+const LIGHT_COLORS = {
+  primary: "#871B17",
+  primaryLight: "#9A211C",
+  primaryDark: "#761713",
+  buttonGradientStart: "#9A211C",
+  buttonGradientEnd: "#761713",
+  bg: "#F8F8F8",
+  surface: "#FFFFFF",
+  soft: "#F8F8F8",
+  softRed: "#F2D7DA",
+  border: "#EDEDED",
+  text: "#1D1D1F",
+  muted: "#7A7A7A",
+  danger: "#C62828",
+  warning: "#B7791F",
+  success: "#1F8A4C",
+  modalOverlay: "rgba(0, 0, 0, 0.40)",
+  notificationUnreadBg: "#FFF8F8",
+  floatingBg: "#871B17",
+  floatingIcon: "#FFFFFF",
+  floatingBorder: "rgba(255,255,255,0.82)",
+  floatingTitle: "#FFFFFF",
+  floatingSubtitle: "rgba(255,255,255,0.86)",
+  floatingIconBg: "rgba(255,255,255,0.18)",
+  floatingGlow: "rgba(135,27,23,0.24)",
+  floatingGlowBorder: "rgba(135,27,23,0.32)",
+  floatingMarkBg: "rgba(255,255,255,0.18)",
+  floatingTypingBg: "#FFFFFF",
+  floatingTypingBorder: "rgba(135,27,23,0.24)",
+  floatingTypingDot: "#871B17",
+  connectedBg: "#EFFAF3",
+  connectedBorder: "#D6F0DF",
+  disconnectedBg: "#FFF1F1",
+  disconnectedBorder: "#FFD9D9",
+  rawText: "#555555",
+  // report.tsx aliases
+  ink: "#1D1D1F",
+  gray: "#7A7A7A",
+  error: "#C62828",
+};
+
+const DARK_COLORS = {
+  primary: "#B63A34",
+  primaryLight: "#B63A34",
+  primaryDark: "#871B17",
+  buttonGradientStart: "#B63A34",
+  buttonGradientEnd: "#871B17",
+  bg: "#151515",
+  surface: "#202020",
+  soft: "#292929",
+  softRed: "rgba(182,58,52,0.16)",
+  border: "#383838",
+  text: "#FFFFFF",
+  muted: "#C7C7C7",
+  danger: "#B63A34",
+  warning: "#F0B45B",
+  success: "#66BB6A",
+  modalOverlay: "rgba(0, 0, 0, 0.62)",
+  notificationUnreadBg: "rgba(182,58,52,0.14)",
+  floatingBg: "#B63A34",
+  floatingIcon: "#FFFFFF",
+  floatingBorder: "rgba(255,255,255,0.30)",
+  floatingTitle: "#FFFFFF",
+  floatingSubtitle: "rgba(255,255,255,0.90)",
+  floatingIconBg: "rgba(255,255,255,0.20)",
+  floatingGlow: "rgba(182,58,52,0.30)",
+  floatingGlowBorder: "rgba(182,58,52,0.34)",
+  floatingMarkBg: "rgba(255,255,255,0.18)",
+  floatingTypingBg: "#2A2A2A",
+  floatingTypingBorder: "rgba(182,58,52,0.40)",
+  floatingTypingDot: "#B63A34",
+  connectedBg: "rgba(46,125,50,0.18)",
+  connectedBorder: "rgba(102,187,106,0.22)",
+  disconnectedBg: "rgba(182,58,52,0.12)",
+  disconnectedBorder: "rgba(182,58,52,0.32)",
+  rawText: "#D7D7D7",
+  // report.tsx aliases
+  ink: "#FFFFFF",
+  gray: "#C7C7C7",
+  error: "#B63A34",
 };
 
 // Static UI labels for AR/EN. Dynamic content (PID names, AI text, DTC text)
@@ -36,94 +111,94 @@ const UI = {
     headerTitle: 'تقرير تنبّه الذكي',
     reportId: 'رقم التقرير:',
     carName: 'السيارة:',
-    sensorReadings: 'قراءات المستشعرات',
+    sensorReadings: 'قراءات مستشعرات السيارة',
     sensorsCount: (n: number) => `${n} حساس`,
-    dtcs: 'أكواد الأعطال المكتشفة',
+    dtcs: 'رموز الأعطال المكتشفة',
+    dtcsCount: (n: number) => `${n} رمز`,
     causes: 'الأسباب المحتملة',
     likelihood: 'احتمالية',
     confidence: 'ثقة',
-    smartAnalysisOn: '✨ تحليل ذكي مُفعَّل',
     smartAnalysis: 'تحليل ذكي',
-    smartInsight: '✨ تفسير ذكي',
+    smartInsight: 'تفسير ذكي',
     explanation: 'التفسير',
-    smartRecommendation: '✨ التوصية الذكية',
+    smartRecommendation: 'التوصية الذكية',
     needsMechanic: 'تحتاج لزيارة فنّي/ميكانيكي مختص',
-    healthyTitle: 'سيارتك بحالة ممتازة 🎉',
-    issuesTitle: 'تم اكتشاف ملاحظات',
-    aiSummary: '✨ تحليل تنبّه الذكي',
-    plainSummary: '📋 ملخص التحليل',
+    healthyTitle: 'سيارتك بحالة ممتازة',
+    issuesTitle: 'نتائج الفحص',
+    aiSummary: 'تحليل تنبّه الذكي',
+    plainSummary: 'ملخص التحليل',
     statusWarning: 'تحذير',
     statusNormal: 'طبيعي',
-    saved: '✅ محفوظ',
-    save: '💾 حفظ دائم',
+    saved: 'محفوظ',
+    save: 'حفظ دائم',
     footer: 'ملاحظة: هذا التقرير مقدم من "تنبّه" كدليل استرشادي ذكي.',
     notLoaded: 'لم يتم تحميل التقرير',
     saveError: 'فشل حفظ التقرير',
     saveSuccess: 'تم حفظ التقرير بنجاح',
-    saveErrorTitle: '❌ خطأ',
-    saveSuccessTitle: '✅ تم الحفظ',
+    saveErrorTitle: 'خطأ',
+    saveSuccessTitle: 'تم الحفظ',
     loginRequired: 'يجب تسجيل الدخول أولاً',
     error: 'خطأ',
-    translateFailedTitle: '❌ فشل الترجمة',
+    translateFailedTitle: 'فشل الترجمة',
     translateFailedMsg: 'تعذّر ترجمة التقرير، حاول لاحقاً',
     unsavedTitle: 'لم يتم حفظ التقرير',
     unsavedMessage: 'سيتم الاحتفاظ بهذا التقرير لمدة 24 ساعة فقط ثم سيُحذف تلقائياً إذا لم تقم بحفظه بشكل دائم.',
-    unsavedSave: '💾 حفظ دائم',
+    unsavedSave: 'حفظ دائم',
     unsavedLeave: 'خروج بدون حفظ',
     unsavedCancel: 'إلغاء',
     severity: {
-      NORMAL: '✅ طبيعي',
-      LOW: '🟢 تنبيه بسيط',
-      MEDIUM: '🟡 تحذير',
-      HIGH: '🟠 خطر',
-      CRITICAL: '🔴 خطر شديد',
+      NORMAL: 'طبيعي',
+      LOW: 'تنبيه بسيط',
+      MEDIUM: 'تحذير',
+      HIGH: 'خطر',
+      CRITICAL: 'خطر شديد',
     } as Record<string, string>,
   },
   EN: {
     headerTitle: 'Tnabbah Smart Report',
     reportId: 'Report ID:',
     carName: 'Car:',
-    sensorReadings: 'Sensor Readings',
+    sensorReadings: 'Car Sensor Readings',
     sensorsCount: (n: number) => `${n} sensors`,
     dtcs: 'Detected Trouble Codes',
+    dtcsCount: (n: number) => `${n} ${n === 1 ? 'code' : 'codes'}`,
     causes: 'Likely Causes',
     likelihood: 'Likelihood',
     confidence: 'Confidence',
-    smartAnalysisOn: '✨ Smart Analysis Enabled',
     smartAnalysis: 'Smart Analysis',
-    smartInsight: '✨ Smart Insight',
+    smartInsight: 'Smart Insight',
     explanation: 'Explanation',
-    smartRecommendation: '✨ Smart Recommendation',
+    smartRecommendation: 'Smart Recommendation',
     needsMechanic: 'Visit a qualified technician/mechanic',
-    healthyTitle: 'Your car is in excellent condition 🎉',
-    issuesTitle: 'Issues Detected',
-    aiSummary: '✨ Tnabbah Smart Analysis',
-    plainSummary: '📋 Analysis Summary',
+    healthyTitle: 'Your car is in excellent condition',
+    issuesTitle: 'Scan Results',
+    aiSummary: 'Tnabbah Smart Analysis',
+    plainSummary: 'Analysis Summary',
     statusWarning: 'Warning',
     statusNormal: 'Normal',
-    saved: '✅ Saved',
-    save: '💾 Save Permanently',
+    saved: 'Saved',
+    save: 'Save Permanently',
     footer: 'Note: This report is provided by "Tnabbah" as a smart guidance reference.',
     notLoaded: 'Report not loaded',
     saveError: 'Failed to save the report',
     saveSuccess: 'Report saved successfully',
-    saveErrorTitle: '❌ Error',
-    saveSuccessTitle: '✅ Saved',
+    saveErrorTitle: 'Error',
+    saveSuccessTitle: 'Saved',
     loginRequired: 'You must log in first',
     error: 'Error',
-    translateFailedTitle: '❌ Translation Failed',
+    translateFailedTitle: 'Translation Failed',
     translateFailedMsg: 'Could not translate the report. Try again later.',
     unsavedTitle: 'Report not saved',
     unsavedMessage: 'This report will be kept for only 24 hours and then automatically deleted if you do not save it permanently.',
-    unsavedSave: '💾 Save Permanently',
+    unsavedSave: 'Save Permanently',
     unsavedLeave: 'Leave without saving',
     unsavedCancel: 'Cancel',
     severity: {
-      NORMAL: '✅ Normal',
-      LOW: '🟢 Minor Notice',
-      MEDIUM: '🟡 Warning',
-      HIGH: '🟠 Risk',
-      CRITICAL: '🔴 Severe Risk',
+      NORMAL: 'Normal',
+      LOW: 'Minor Notice',
+      MEDIUM: 'Warning',
+      HIGH: 'Risk',
+      CRITICAL: 'Severe Risk',
     } as Record<string, string>,
   },
 } as const;
@@ -137,10 +212,184 @@ const DTC_CATEGORY_LABEL_AR: Record<'stored' | 'pending' | 'permanent', string> 
   permanent: 'أعطال محفوظة بالنظام',
 };
 
+// ─────────────────────────────────────────────────────────────
+// PID → icon mapping (same icon library as Home/Wallet:
+// @expo/vector-icons — Feather + MaterialCommunityIcons).
+// Picks a context-relevant glyph from the PID code, unit, and label
+// (Arabic or English), e.g. thermometer for temperature, gauge for
+// pressure/RPM, zap for voltage.
+// ─────────────────────────────────────────────────────────────
+type PidGlyphSpec = { pack: 'feather' | 'material'; name: string };
+
+const PID_CODE_ICON: Record<string, PidGlyphSpec> = {
+  '0X05': { pack: 'feather', name: 'thermometer' }, // engine coolant temp
+  '0X0F': { pack: 'feather', name: 'thermometer' }, // intake air temp
+  '0X46': { pack: 'feather', name: 'thermometer' }, // ambient air temp
+  '0X5C': { pack: 'feather', name: 'thermometer' }, // engine oil temp
+  '0X0C': { pack: 'material', name: 'gauge' },        // engine RPM
+  '0X0D': { pack: 'feather', name: 'navigation' },    // vehicle speed
+  '0X42': { pack: 'feather', name: 'zap' },           // control module voltage
+  '0X04': { pack: 'feather', name: 'percent' },       // engine load
+  '0X11': { pack: 'feather', name: 'percent' },       // throttle position
+  '0X10': { pack: 'feather', name: 'wind' },          // MAF air flow
+  '0X0B': { pack: 'material', name: 'gauge' },        // intake manifold pressure
+  '0X0A': { pack: 'material', name: 'gauge' },        // fuel pressure
+  '0X33': { pack: 'material', name: 'gauge' },        // barometric pressure
+  '0X2F': { pack: 'material', name: 'fuel' },         // fuel level
+};
+
+const getPidIcon = (item: any): PidGlyphSpec => {
+  const code = String(item?.pidCode || '').toUpperCase();
+  if (PID_CODE_ICON[code]) return PID_CODE_ICON[code];
+
+  const unit = String(item?.unit || '').toLowerCase();
+  const label = String(item?.label || '').toLowerCase();
+  const has = (...words: string[]) => words.some((w) => label.includes(w) || unit.includes(w));
+
+  // Temperature
+  if (unit.includes('°c') || unit.includes('°f') || has('حرار', 'temp', 'coolant', 'تبريد'))
+    return { pack: 'feather', name: 'thermometer' };
+  // RPM / engine speed
+  if (unit.includes('rpm') || has('دوران', 'rpm', 'دورة'))
+    return { pack: 'material', name: 'gauge' };
+  // Vehicle speed
+  if (unit.includes('km/h') || unit.includes('mph') || has('سرعة', 'speed'))
+    return { pack: 'feather', name: 'navigation' };
+  // Voltage / battery
+  if (unit === 'v' || unit.includes('volt') || has('جهد', 'بطار', 'voltage', 'battery'))
+    return { pack: 'feather', name: 'zap' };
+  // Pressure
+  if (has('kpa', 'psi', 'bar', 'ضغط', 'pressure'))
+    return { pack: 'material', name: 'gauge' };
+  // Air flow / intake
+  if (has('g/s', 'هواء', 'تدفق', 'maf', 'air', 'flow', 'intake'))
+    return { pack: 'feather', name: 'wind' };
+  // Fuel
+  if (has('وقود', 'fuel', 'بنزين'))
+    return { pack: 'material', name: 'fuel' };
+  // Percentage-based loads
+  if (unit.includes('%') || has('حمل', 'load', 'throttle', 'خانق'))
+    return { pack: 'feather', name: 'percent' };
+
+  // Default: generic signal/activity glyph
+  return { pack: 'feather', name: 'activity' };
+};
+
+const PidGlyph = ({ item, size = 18, color }: { item: any; size?: number; color: string }) => {
+  const { pack, name } = getPidIcon(item);
+  return pack === 'material' ? (
+    <MaterialCommunityIcons name={name as any} size={size} color={color} />
+  ) : (
+    <Icon name={name as any} size={size} color={color} />
+  );
+};
+
+// ─────────────────────────────────────────────────────────────
+// DTC → icon mapping. Prioritizes real dashboard warning lights
+// (الطبلون) by matching the OBD-II code range and/or the fault
+// meaning (Arabic + English keywords). Falls back to the generic
+// P/C/B/U prefix glyph only when nothing specific matches.
+// All glyphs verified to exist in the bundled MaterialCommunityIcons set.
+// ─────────────────────────────────────────────────────────────
+const getDtcIcon = (code: string, meaning: string = ''): PidGlyphSpec => {
+  const c = String(code || '').trim().toUpperCase();
+  const text = `${c} ${meaning}`.toLowerCase();
+  const has = (...kw: string[]) => kw.some((k) => text.includes(k));
+
+  // Cooling system / overheating (e.g. P0115-P0128, P0217, P0480-P0485)
+  if (
+    has('حرار', 'تبريد', 'رديتر', 'ثرموستات', 'مروحة',
+        'coolant', 'overheat', 'thermostat', 'radiator', 'cooling') ||
+    /^P0(11[5-9]|12[0-8]|217|48[0-5])/.test(c)
+  )
+    return { pack: 'material', name: 'coolant-temperature' };
+
+  // Oil pressure / lubrication (e.g. P0520-P0524)
+  if (has('زيت', 'oil', 'lubric') || /^P052[0-4]/.test(c))
+    return { pack: 'material', name: 'oil' };
+
+  // Battery / charging / alternator / system voltage
+  if (
+    has('بطار', 'شحن', 'مولد', 'دينمو',
+        'battery', 'charging', 'alternator', 'generator', 'voltage') ||
+    /^P0(56[0-9]|62[0-5]|A0)/.test(c)
+  )
+    return { pack: 'material', name: 'car-battery' };
+
+  // Tire pressure monitoring (TPMS)
+  if (has('إطار', 'الاطار', 'tpms', 'tire', 'tyre') || /^C0(75|76)/.test(c))
+    return { pack: 'material', name: 'car-tire-alert' };
+
+  // ABS / brakes (ABS gets the dedicated glyph)
+  if (has('abs', 'مكابح', 'فرامل', 'brake'))
+    return { pack: 'material', name: has('abs') ? 'car-brake-abs' : 'car-brake-alert' };
+
+  // Airbag / SRS
+  if (has('وساد', 'هوائية', 'airbag', 'srs', 'restraint'))
+    return { pack: 'material', name: 'airbag' };
+
+  // Steering
+  if (has('توجيه', 'مقود', 'steering', 'eps'))
+    return { pack: 'material', name: 'steering' };
+
+  // Traction / stability control
+  if (has('جر', 'ثبات', 'انزلاق', 'traction', 'stability', 'esp', 'esc'))
+    return { pack: 'material', name: 'car-traction-control' };
+
+  // Air intake / MAF / air filter (e.g. P0100-P0104)
+  if (has('تدفق الهواء', 'سحب الهواء', 'فلتر الهواء', 'maf', 'air flow', 'airflow', 'intake', 'air filter') || /^P010[0-4]/.test(c))
+    return { pack: 'material', name: 'air-filter' };
+
+  // Fuel system / mixture / injectors (e.g. P0087, P0171-P0174, P0190-P0193)
+  if (
+    has('وقود', 'بنزين', 'خليط', 'حاقن', 'fuel', 'mixture', 'lean', 'rich', 'injector') ||
+    /^P0(08[0-9]|17[0-4]|19[0-3])/.test(c)
+  )
+    return { pack: 'material', name: 'fuel' };
+
+  // Misfire / ignition → check-engine light
+  if (has('احتراق', 'إشعال', 'شمعات', 'misfire', 'ignition', 'spark') || /^P03(0[0-9]|1[0-2])/.test(c))
+    return { pack: 'material', name: 'engine' };
+
+  // Generic OBD-II prefix fallback
+  switch (c.charAt(0)) {
+    case 'P':
+      return { pack: 'material', name: 'engine' };          // Powertrain
+    case 'C':
+      return { pack: 'material', name: 'car-brake-alert' };  // Chassis
+    case 'B':
+      return { pack: 'material', name: 'car-door' };         // Body
+    case 'U':
+      return { pack: 'material', name: 'lan-connect' };      // Network
+    default:
+      return { pack: 'feather', name: 'alert-triangle' };
+  }
+};
+
+const DtcGlyph = ({
+  code,
+  meaning = '',
+  size = 18,
+  color,
+}: {
+  code: string;
+  meaning?: string;
+  size?: number;
+  color: string;
+}) => {
+  const { pack, name } = getDtcIcon(code, meaning);
+  return pack === 'material' ? (
+    <MaterialCommunityIcons name={name as any} size={size} color={color} />
+  ) : (
+    <Icon name={name as any} size={size} color={color} />
+  );
+};
+
 const ReportScreen = () => {
   const params = useLocalSearchParams();
   const { session } = useAuth();
-  
+  const insets = useSafeAreaInsets();
+
   const [report, setReport] = useState<any>(null);
   const [sensorData, setSensorData] = useState<any[]>([]);
   const [dtcItems, setDtcItems] = useState<any[]>([]);
@@ -155,6 +404,10 @@ const ReportScreen = () => {
   const [lang, setLang] = useState<'AR' | 'EN'>('AR');
   const [trMap, setTrMap] = useState<Record<string, string>>({});
   const [translating, setTranslating] = useState(false);
+
+  const { darkModeEnabled } = useAppSettings();
+  const COLORS = darkModeEnabled ? DARK_COLORS : LIGHT_COLORS;
+  const styles = useMemo(() => createStyles(COLORS), [COLORS]);
 
   const t = UI[lang];
   const isAR = lang === 'AR';
@@ -583,7 +836,7 @@ const ReportScreen = () => {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.red} />
+          <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
       </SafeAreaView>
     );
@@ -622,23 +875,56 @@ const ReportScreen = () => {
   const pidInterp = userFriendly.pid_mechanical_interpretation || {};
   const dtcInterp = userFriendly.dtc_mechanical_interpretation || {};
 
-  // Build intro line: "تم تحليل N مؤشرات حيوية. يوجد ..."
+  // Build intro line with proper Arabic/English pluralization.
   const nPids = userFriendly.pid_count || (report.all_pid_readings || []).length || 0;
   const nDtcs = (report.detected_dtcs || []).length;
   const nAnom = (report.detected_anomalies || []).length;
+
+  const dtcPhraseAR = (n: number) => {
+    if (n === 0) return '';
+    if (n === 1) return 'رمز عطل واحد';
+    if (n === 2) return 'رمزي عطل';
+    return `${n} رموز عطل`; // 3–10 plural; 11+ uses singular in formal Arabic,
+                           // but "رموز" reads naturally across all counts in UI.
+  };
+  const anomPhraseAR = (n: number) => {
+    if (n === 0) return '';
+    if (n === 1) return 'تنبيه واحد';
+    if (n === 2) return 'تنبيهان';
+    return `${n} تنبيهات`;
+  };
+  const pidCountAR = (n: number) => {
+    if (n === 1) return 'قراءة واحدة';
+    if (n === 2) return 'قراءتين';
+    return `${n} قراءات`;
+  };
+
+  const dtcPhraseEN = (n: number) =>
+    n === 1 ? '1 trouble code' : `${n} trouble codes`;
+  const anomPhraseEN = (n: number) =>
+    n === 1 ? '1 alert' : `${n} alerts`;
+
   let introLine = '';
   if (isAR) {
-    if (nPids > 0) introLine = `تم تحليل ${nPids} مؤشرات حيوية لسيارتك. `;
-    if (isHealthy) introLine += 'جميع القراءات ضمن النطاق الطبيعي.';
-    else if (nDtcs > 0 && nAnom > 0) introLine += `يوجد ${nDtcs} كود عطل و${nAnom} تنبيه يتطلب المتابعة.`;
-    else if (nDtcs > 0) introLine += `يوجد ${nDtcs === 1 ? 'كود عطل واحد' : nDtcs + ' أكواد أعطال'} يتطلب المتابعة.`;
-    else if (nAnom > 0) introLine += `يوجد ${nAnom === 1 ? 'تنبيه واحد' : nAnom + ' تنبيهات'} يتطلب الملاحظة.`;
+    if (isHealthy) {
+      introLine = `تم تحليل ${pidCountAR(nPids)}. جميع القراءات طبيعية ولا توجد أي ملاحظات تستدعي المتابعة.`;
+    } else if (nDtcs > 0 && nAnom > 0) {
+      introLine = `تم رصد ${dtcPhraseAR(nDtcs)} و ${anomPhraseAR(nAnom)} تستدعي المتابعة لضمان سلامة وأمان سيارتك.`;
+    } else if (nDtcs > 0) {
+      introLine = `تم رصد ${dtcPhraseAR(nDtcs)} يستدعي المتابعة لضمان سلامة وأمان سيارتك.`;
+    } else if (nAnom > 0) {
+      introLine = `تم رصد ${anomPhraseAR(nAnom)} تستدعي المتابعة لضمان سلامة وأمان سيارتك.`;
+    }
   } else {
-    if (nPids > 0) introLine = `Analyzed ${nPids} vital readings for your car. `;
-    if (isHealthy) introLine += 'All readings are within the normal range.';
-    else if (nDtcs > 0 && nAnom > 0) introLine += `Found ${nDtcs} trouble code(s) and ${nAnom} alert(s) requiring attention.`;
-    else if (nDtcs > 0) introLine += `Found ${nDtcs === 1 ? '1 trouble code' : nDtcs + ' trouble codes'} requiring attention.`;
-    else if (nAnom > 0) introLine += `Found ${nAnom === 1 ? '1 alert' : nAnom + ' alerts'} to monitor.`;
+    if (isHealthy) {
+      introLine = `Analyzed ${nPids} reading${nPids === 1 ? '' : 's'}. All readings are normal with no issues requiring attention.`;
+    } else if (nDtcs > 0 && nAnom > 0) {
+      introLine = `Detected ${dtcPhraseEN(nDtcs)} and ${anomPhraseEN(nAnom)} requiring attention to ensure your car's safety.`;
+    } else if (nDtcs > 0) {
+      introLine = `Detected ${dtcPhraseEN(nDtcs)} requiring attention to ensure your car's safety.`;
+    } else if (nAnom > 0) {
+      introLine = `Detected ${anomPhraseEN(nAnom)} requiring attention to ensure your car's safety.`;
+    }
   }
 
   // Final AI recommendation (holistic, generated by DeepSeek)
@@ -661,9 +947,12 @@ const ReportScreen = () => {
 
   return (
     <>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
-      <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+      <StatusBar barStyle={darkModeEnabled ? 'light-content' : 'dark-content'} backgroundColor={COLORS.bg} />
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}
+        >
           {/* رأس الصفحة */}
           <View style={styles.header}>
             <TouchableOpacity 
@@ -686,10 +975,10 @@ const ReportScreen = () => {
               activeOpacity={0.8}
             >
               {translating ? (
-                <ActivityIndicator size="small" color={COLORS.red} />
+                <ActivityIndicator size="small" color={COLORS.primary} />
               ) : (
                 <>
-                  <Icon name="globe" size={14} color={COLORS.red} />
+                  <Icon name="globe" size={14} color={COLORS.primary} />
                   <Text style={styles.langButtonText}>{isAR ? 'EN' : 'AR'}</Text>
                 </>
               )}
@@ -717,7 +1006,11 @@ const ReportScreen = () => {
                 </View>
               </View>
               <View style={styles.mainCardIcon}>
-                <Icon name={isHealthy ? "check-circle" : "alert-circle"} size={32} color="#fff" />
+                {isHealthy ? (
+                  <Icon name="check-circle" size={32} color="#fff" />
+                ) : (
+                  <MaterialCommunityIcons name="car-search" size={32} color="#fff" />
+                )}
               </View>
               <Text style={styles.mainCardTitle}>
                 {isHealthy ? t.healthyTitle : t.issuesTitle}
@@ -727,20 +1020,49 @@ const ReportScreen = () => {
               )}
             </View>
 
-            {/* الملخص الذكي (PID overview + DTC insights) */}
-            {aiNarrativeParts.length > 0 && (
-              <View style={styles.insightCard}>
-                <View style={styles.insightHeader}>
+            {/* الملخص الذكي + التوصية (قسم موحّد: التحليل ثم الإجراء المطلوب) */}
+            {(aiNarrativeParts.length > 0 || !!finalRecText) && (
+              <View style={styles.recCard}>
+                <View style={styles.recHeader}>
                   <Icon name="zap" size={18} color="#fff" />
-                  <Text style={styles.insightLabel}>
+                  <Text style={styles.recHeaderText}>
                     {aiActive ? t.aiSummary : t.plainSummary}
                   </Text>
                 </View>
+
+                {/* التحليل الميكانيكي */}
                 {aiNarrativeParts.map((part, i) => (
-                  <Text key={i} style={[styles.insightText, i > 0 && { marginTop: 8 }]}>
+                  <Text
+                    key={i}
+                    style={[styles.unifiedBodyText, !isAR && { textAlign: 'left' }, i > 0 && { marginTop: 8 }]}
+                  >
                     {tr(part)}
                   </Text>
                 ))}
+
+                {/* التوصية تتبع التحليل مباشرة */}
+                {!!finalRecText && (
+                  <>
+                    {aiNarrativeParts.length > 0 && <View style={styles.unifiedDivider} />}
+                    <Text style={[styles.unifiedSubLabel, !isAR && { textAlign: 'left' }]}>
+                      {t.smartRecommendation}
+                    </Text>
+                    <Text style={[styles.recText, !isAR && { textAlign: 'left' }]}>
+                      {tr(finalRecText)}
+                    </Text>
+                    {needsMechanic && (
+                      <View style={styles.mechanicBox}>
+                        <Icon name="tool" size={16} color={COLORS.primary} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.mechanicTitle}>{t.needsMechanic}</Text>
+                          {!!mechanicNote && (
+                            <Text style={styles.mechanicNote}>{tr(mechanicNote)}</Text>
+                          )}
+                        </View>
+                      </View>
+                    )}
+                  </>
+                )}
               </View>
             )}
 
@@ -750,7 +1072,7 @@ const ReportScreen = () => {
                 <View style={styles.listHeader}>
                   <Text style={styles.listTitle}>{t.dtcs}</Text>
                   <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{dtcItems.length}</Text>
+                    <Text style={styles.badgeText}>{t.dtcsCount(dtcItems.length)}</Text>
                   </View>
                 </View>
                 {dtcItems.map((dtc: any, idx: number) => {
@@ -759,8 +1081,16 @@ const ReportScreen = () => {
                   const aiSentence = dtc.aiInterpretation?.smart_insight_ar?.trim();
                   const urgency = dtc.aiInterpretation?.urgency_ar;
                   return (
-                    <View key={idx} style={[styles.dtcCard, { borderLeftColor: dStyle.fg, backgroundColor: dStyle.bg }]}>
+                    <View key={idx} style={[styles.dtcCard, { borderColor: dStyle.border, backgroundColor: dStyle.bg }]}>
                       <View style={styles.dtcHeader}>
+                        <View style={[styles.dtcIconBox, { borderColor: dStyle.border }]}>
+                          <DtcGlyph
+                            code={dtc.code}
+                            meaning={`${dtc.name || ''} ${dtc.description || ''}`}
+                            size={20}
+                            color={dStyle.fg}
+                          />
+                        </View>
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.dtcCode, { color: dStyle.fg }]}>{dtc.code}</Text>
                           <Text style={styles.dtcName}>{tr(dtc.name)}</Text>
@@ -773,7 +1103,7 @@ const ReportScreen = () => {
                           )}
                         </View>
                         {urgency && (
-                          <View style={[styles.severityBadge, { backgroundColor: '#fff', borderColor: dStyle.border, borderWidth: 1 }]}>
+                          <View style={[styles.severityBadge, { backgroundColor: COLORS.surface, borderColor: dStyle.border, borderWidth: 1 }]}>
                             <Text style={[styles.severityText, { color: dStyle.fg }]}>{tr(urgency)}</Text>
                           </View>
                         )}
@@ -802,19 +1132,13 @@ const ReportScreen = () => {
                     <Text style={styles.badgeText}>{t.sensorsCount(sensorData.length)}</Text>
                   </View>
                 </View>
-                {sensorData.some(s => s.aiInterpretation) && (
-                  <View style={styles.aiEnabledBanner}>
-                    <Text style={styles.aiEnabledText}>{t.smartAnalysisOn}</Text>
-                  </View>
-                )}
-
             {sensorData.map((item, idx) => {
               const isOpen = openIndex === idx;
               const sevLevel: string = item.severityLevel || (item.status === 'WARNING' ? 'MEDIUM' : 'NORMAL');
               const sevColors = SEVERITY_MAP[sevLevel] || SEVERITY_MAP.NORMAL;
               const statusColor = sevColors.fg;
-              // Default per-level label (without emoji) derived from t.severity.
-              const defaultLevelLabel = (t.severity[sevLevel] || t.severity.NORMAL).replace(/^\S+\s+/, '');
+              // Default per-level label derived from t.severity.
+              const defaultLevelLabel = t.severity[sevLevel] || t.severity.NORMAL;
               const rawAiUrgency = item.aiInterpretation?.urgency_ar;
               // Trust the diagnostics engine status over the AI label.
               // - If engine says non-NORMAL, never show "طبيعي/آمن" from the AI.
@@ -827,7 +1151,7 @@ const ReportScreen = () => {
                 aiUrgency = 'طبيعي';
               }
               const statusText = aiUrgency
-                ? `✨ ${tr(aiUrgency)}`
+                ? tr(aiUrgency)
                 : defaultLevelLabel;
               const hasAI = !!item.aiInterpretation;
 
@@ -840,12 +1164,12 @@ const ReportScreen = () => {
                   >
                     <View style={styles.sensorLeft}>
                       <View style={[styles.iconBox, isOpen && styles.iconBoxOpen]}>
-                        <Icon name="zap" size={18} color={statusColor} />
+                        <PidGlyph item={item} size={18} color={statusColor} />
                       </View>
                       <View>
                         <View style={styles.labelRow}>
                           <Text style={styles.sensorLabel}>{tr(item.label)}</Text>
-                          {hasAI && <Text style={styles.aiIndicator}>✨</Text>}
+                          {hasAI && <Icon name="zap" size={12} color={COLORS.primary} style={styles.aiIndicator} />}
                         </View>
                         <View style={styles.statusRow}>
                           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
@@ -876,7 +1200,7 @@ const ReportScreen = () => {
                         <>
                           <View style={styles.explanationHeader}>
                             <View style={styles.explanationIcon}>
-                              <Text style={styles.sparkle}>✨</Text>
+                              <Icon name="zap" size={10} color="#fff" />
                             </View>
                             <Text style={styles.explanationTitle}>{t.smartAnalysis}</Text>
                           </View>
@@ -936,27 +1260,7 @@ const ReportScreen = () => {
               </View>
             )}
 
-            {/* التوصية النهائية من DeepSeek */}
-            {!!finalRecText && (
-              <View style={styles.recCard}>
-                <View style={styles.recHeader}>
-                  <Icon name="zap" size={18} color="#fff" />
-                  <Text style={styles.recHeaderText}>{t.smartRecommendation}</Text>
-                </View>
-                <Text style={[styles.recText, !isAR && { textAlign: 'left' }]}>{tr(finalRecText)}</Text>
-                {needsMechanic && (
-                  <View style={styles.mechanicBox}>
-                    <Icon name="tool" size={16} color={COLORS.red} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.mechanicTitle}>{t.needsMechanic}</Text>
-                      {!!mechanicNote && (
-                        <Text style={styles.mechanicNote}>{tr(mechanicNote)}</Text>
-                      )}
-                    </View>
-                  </View>
-                )}
-              </View>
-            )}
+            {/* التوصية النهائية مدمجة الآن في القسم الموحّد بالأعلى */}
 
             {/* أزرار الحفظ */}
             <View style={styles.buttonGroup}>
@@ -969,10 +1273,10 @@ const ReportScreen = () => {
                   <ActivityIndicator color="white" size="small" />
                 ) : (
                   <>
-                    <Icon 
-                      name={saved ? "check-circle" : "save"} 
-                      size={18} 
-                      color="white" 
+                    <Icon
+                      name={saved ? "check-circle" : "save"}
+                      size={18}
+                      color="white"
                     />
                     <Text style={styles.buttonText}>
                       {saved ? t.saved : t.save}
@@ -984,7 +1288,7 @@ const ReportScreen = () => {
 
             {/* تذييل */}
             <View style={styles.footer}>
-              <Icon name="shield-off" size={20} color="#E5E7EB" />
+              <Icon name="shield-off" size={20} color={COLORS.border} />
               <Text style={styles.footerText}>
                 {t.footer}
               </Text>
@@ -996,7 +1300,8 @@ const ReportScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(COLORS: typeof LIGHT_COLORS) {
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.bg,
@@ -1008,23 +1313,27 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
+
     color: COLORS.error,
   },
   header: {
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.surface,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: COLORS.border,
   },
   headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#F9FAFB',
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    backgroundColor: COLORS.soft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1033,6 +1342,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
+
     fontWeight: '900',
     color: COLORS.ink,
   },
@@ -1044,15 +1354,18 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 10,
+
     fontWeight: 'bold',
     color: COLORS.gray,
     letterSpacing: 1,
   },
   headerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#871B1710',
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    backgroundColor: COLORS.soft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1060,8 +1373,10 @@ const styles = StyleSheet.create({
     minWidth: 56,
     height: 40,
     paddingHorizontal: 10,
-    borderRadius: 12,
-    backgroundColor: '#871B1710',
+    borderRadius: 14,
+    backgroundColor: COLORS.soft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -1069,8 +1384,9 @@ const styles = StyleSheet.create({
   },
   langButtonText: {
     fontSize: 12,
+
     fontWeight: '900',
-    color: COLORS.red,
+    color: COLORS.primary,
     letterSpacing: 0.5,
   },
   content: {
@@ -1079,11 +1395,11 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   healthBar: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#F3F4F6',
+    borderColor: COLORS.border,
   },
   healthHeader: {
     flexDirection: 'row',
@@ -1093,17 +1409,19 @@ const styles = StyleSheet.create({
   },
   healthLabel: {
     fontSize: 14,
+
     fontWeight: '700',
     color: COLORS.ink,
   },
   healthPercent: {
     fontSize: 18,
+
     fontWeight: '900',
   },
   healthProgressContainer: {
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: COLORS.border,
     overflow: 'hidden',
   },
   healthProgress: {
@@ -1111,34 +1429,36 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   mainCard: {
-    backgroundColor: '#fff',
-    borderRadius: 32,
+    backgroundColor: COLORS.surface,
+    borderRadius: 24,
     paddingVertical: 28,
     paddingHorizontal: 20,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#F9FAFB',
+    borderColor: COLORS.border,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
   mainCardIcon: {
     width: 64,
     height: 64,
     borderRadius: 16,
-    backgroundColor: COLORS.red,
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-    shadowColor: COLORS.red,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
+    elevation: 4,
   },
   mainCardTitle: {
     fontSize: 22,
+
     fontWeight: '900',
     marginBottom: 8,
     color: COLORS.ink,
@@ -1146,35 +1466,9 @@ const styles = StyleSheet.create({
   mainCardSubtitle: {
     fontSize: 13,
     color: COLORS.gray,
+
     fontWeight: '500',
     textAlign: 'center',
-    lineHeight: 20,
-  },
-  insightCard: {
-    backgroundColor: COLORS.red,
-    borderRadius: 24,
-    padding: 20,
-    shadowColor: COLORS.red,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-  },
-  insightHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
-  },
-  insightLabel: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: 'rgba(255,255,255,0.8)',
-    letterSpacing: 1,
-  },
-  insightText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: 'bold',
     lineHeight: 20,
   },
   listHeader: {
@@ -1186,35 +1480,33 @@ const styles = StyleSheet.create({
   },
   listTitle: {
     fontSize: 12,
+
     fontWeight: '900',
     color: COLORS.gray,
     letterSpacing: 1,
   },
   badge: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: COLORS.soft,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
   },
   badgeText: {
     fontSize: 10,
+
     fontWeight: 'bold',
     color: COLORS.gray,
   },
   sensorItem: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#F3F4F6',
+    borderColor: COLORS.border,
     marginBottom: 12,
     overflow: 'hidden',
   },
   sensorItemOpen: {
-    borderColor: 'rgba(135,27,23,0.3)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    borderColor: 'rgba(135,27,23,0.25)',
   },
   sensorButton: {
     flexDirection: 'row',
@@ -1228,18 +1520,22 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   iconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    backgroundColor: '#F9FAFB',
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    backgroundColor: COLORS.soft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconBoxOpen: {
-    backgroundColor: '#871B1710',
+    backgroundColor: 'rgba(135,27,23,0.08)',
+    borderColor: 'rgba(135,27,23,0.2)',
   },
   sensorLabel: {
     fontSize: 13,
+
     fontWeight: '900',
     color: COLORS.ink,
     marginBottom: 4,
@@ -1256,6 +1552,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 9,
+
     fontWeight: 'bold',
   },
   sensorRight: {
@@ -1270,6 +1567,7 @@ const styles = StyleSheet.create({
   },
   value: {
     fontSize: 17,
+
     fontWeight: '900',
     color: COLORS.ink,
   },
@@ -1278,8 +1576,9 @@ const styles = StyleSheet.create({
   },
   unit: {
     fontSize: 9,
+
     fontWeight: 'bold',
-    color: '#D1D5DB',
+    color: COLORS.border,
   },
   explanationBox: {
     paddingHorizontal: 18,
@@ -1295,20 +1594,22 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: COLORS.red,
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   explanationTitle: {
     fontSize: 10,
+
     fontWeight: '900',
-    color: COLORS.red,
+    color: COLORS.primary,
     letterSpacing: 0.5,
   },
   explanationText: {
     fontSize: 11,
+
     fontWeight: 'bold',
-    color: '#4B5563',
+    color: COLORS.gray,
     lineHeight: 18,
   },
   labelRow: {
@@ -1318,7 +1619,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   aiIndicator: {
-    fontSize: 12,
+    marginHorizontal: 4,
   },
   recommendationBox: {
     flexDirection: 'row',
@@ -1327,32 +1628,15 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#FED7AA',
+    borderTopColor: COLORS.border,
   },
   recommendationText: {
     flex: 1,
     fontSize: 10,
+
     fontWeight: '600',
     color: COLORS.warning,
     lineHeight: 15,
-  },
-  sparkle: {
-    fontSize: 14,
-  },
-  aiEnabledBanner: {
-    backgroundColor: '#F0F9FF',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-  },
-  aiEnabledText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0369A1',
-    textAlign: 'center',
   },
   mainCardTopRow: {
     width: '100%',
@@ -1363,23 +1647,26 @@ const styles = StyleSheet.create({
   },
   reportIdText: {
     fontSize: 10,
-    color: '#9CA3AF',
+
+    color: COLORS.gray,
   },
   reportIdMono: {
     fontFamily: 'monospace',
-    color: '#6B7280',
+    color: COLORS.gray,
   },
   mainCardMetaCol: {
     flex: 1,
   },
   carNameText: {
     fontSize: 11,
-    color: '#6B7280',
+
+    color: COLORS.gray,
     marginTop: 2,
   },
   carNameMono: {
+
     fontWeight: '700',
-    color: '#374151',
+    color: COLORS.ink,
   },
   severityBadgeMain: {
     paddingHorizontal: 12,
@@ -1389,11 +1676,13 @@ const styles = StyleSheet.create({
   },
   severityBadgeMainText: {
     fontSize: 12,
+
     fontWeight: '700',
   },
   introLine: {
     fontSize: 13,
-    color: '#374151',
+    color: COLORS.ink,
+
     fontWeight: '600',
     textAlign: 'center',
     lineHeight: 20,
@@ -1401,8 +1690,9 @@ const styles = StyleSheet.create({
   },
   urgencyText: {
     fontSize: 11,
+
     fontWeight: '700',
-    color: '#7C3AED',
+    color: COLORS.primary,
     marginTop: 8,
   },
   dtcAiBox: {
@@ -1413,6 +1703,7 @@ const styles = StyleSheet.create({
   },
   dtcAiTitle: {
     fontSize: 11,
+
     fontWeight: '700',
     color: COLORS.ink,
     marginBottom: 4,
@@ -1420,53 +1711,54 @@ const styles = StyleSheet.create({
   },
   dtcAiText: {
     fontSize: 12,
+
     fontWeight: '600',
     color: COLORS.ink,
     lineHeight: 18,
   },
   dtcAiUrgency: {
     fontSize: 10,
+
     color: COLORS.ink,
     opacity: 0.8,
     marginTop: 4,
   },
   dtcCategory: {
     fontSize: 10,
+
     color: COLORS.gray,
     marginTop: 8,
   },
   causeEvidence: {
     fontSize: 11,
-    color: '#92400E',
+
+    color: COLORS.warning,
     marginTop: 4,
     opacity: 0.85,
   },
   maintenanceMeta: {
     fontSize: 12,
+
     color: COLORS.gray,
     marginBottom: 12,
   },
   maintenanceMetaBold: {
+
     fontWeight: '700',
     color: COLORS.ink,
   },
   recCard: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#FCA5A5',
-    shadowColor: COLORS.red,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 2,
+    borderColor: COLORS.border,
   },
   recHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: COLORS.red,
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
@@ -1476,14 +1768,38 @@ const styles = StyleSheet.create({
   recHeaderText: {
     color: '#fff',
     fontSize: 12,
+
     fontWeight: '900',
     letterSpacing: 0.5,
   },
   recText: {
     fontSize: 14,
+
     fontWeight: '700',
     color: COLORS.ink,
     lineHeight: 22,
+    textAlign: 'right',
+  },
+  unifiedBodyText: {
+    fontSize: 14,
+
+    fontWeight: '700',
+    color: COLORS.ink,
+    lineHeight: 22,
+    textAlign: 'right',
+  },
+  unifiedDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 14,
+  },
+  unifiedSubLabel: {
+    fontSize: 11,
+
+    fontWeight: '900',
+    color: COLORS.primary,
+    letterSpacing: 0.5,
+    marginBottom: 6,
     textAlign: 'right',
   },
   mechanicBox: {
@@ -1493,16 +1809,18 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#FEE2E2',
+    borderTopColor: COLORS.border,
   },
   mechanicTitle: {
     fontSize: 13,
+
     fontWeight: '900',
-    color: COLORS.red,
+    color: COLORS.primary,
     marginBottom: 4,
   },
   mechanicNote: {
     fontSize: 12,
+
     color: COLORS.gray,
     lineHeight: 18,
   },
@@ -1513,8 +1831,9 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 9,
+
     fontWeight: 'bold',
-    color: '#9CA3AF',
+    color: COLORS.gray,
     textAlign: 'center',
     marginTop: 10,
     lineHeight: 14,
@@ -1531,39 +1850,52 @@ const styles = StyleSheet.create({
   },
   dtcCategoryPillText: {
     fontSize: 11,
+
     fontWeight: '800',
     color: COLORS.ink,
   },
   dtcCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
     padding: 14,
     marginBottom: 10,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.error,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   dtcHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 8,
+    gap: 12,
+  },
+  dtcIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dtcCode: {
     fontSize: 14,
+
     fontWeight: '900',
     color: COLORS.ink,
   },
   dtcName: {
     fontSize: 12,
+
     fontWeight: '600',
     color: COLORS.gray,
     marginTop: 2,
   },
   severityBadge: {
     backgroundColor: '#FEE2E2',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 999,
   },
   severityCritical: {
     backgroundColor: '#FEE2E2',
@@ -1573,23 +1905,27 @@ const styles = StyleSheet.create({
   },
   severityText: {
     fontSize: 9,
+
     fontWeight: '700',
     color: COLORS.error,
   },
   dtcDescription: {
     fontSize: 11,
+
     fontWeight: '600',
     color: COLORS.gray,
     lineHeight: 16,
   },
   causeCard: {
-    backgroundColor: '#FFFBEB',
-    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
     padding: 12,
     marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   causeContent: {
     flex: 1,
@@ -1597,20 +1933,22 @@ const styles = StyleSheet.create({
   causeText: {
     flex: 1,
     fontSize: 12,
+
     fontWeight: '600',
-    color: '#92400E',
+    color: COLORS.warning,
   },
   causeMetrics: {
     fontSize: 10,
-    color: '#B45309',
+
+    color: COLORS.warning,
     marginTop: 4,
   },
   maintenanceCard: {
-    backgroundColor: '#FEF2F2',
-    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#FEE2E2',
+    borderColor: COLORS.border,
   },
   maintenanceHeader: {
     flexDirection: 'row',
@@ -1620,17 +1958,20 @@ const styles = StyleSheet.create({
   },
   maintenanceTitle: {
     fontSize: 14,
+
     fontWeight: '700',
     color: COLORS.ink,
   },
   maintenanceAction: {
     fontSize: 13,
+
     fontWeight: '600',
     color: COLORS.ink,
     marginBottom: 12,
   },
   measuresTitle: {
     fontSize: 12,
+
     fontWeight: '600',
     color: COLORS.gray,
     marginBottom: 8,
@@ -1642,12 +1983,14 @@ const styles = StyleSheet.create({
   },
   measureBullet: {
     fontSize: 14,
-    color: COLORS.red,
+    color: COLORS.primary,
+
     fontWeight: 'bold',
   },
   measureText: {
     flex: 1,
     fontSize: 12,
+
     color: COLORS.ink,
   },
   buttonGroup: {
@@ -1657,17 +2000,13 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: COLORS.red,
+    backgroundColor: COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
     borderRadius: 16,
     gap: 8,
-    shadowColor: COLORS.red,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
   },
   primaryButtonDisabled: {
     backgroundColor: COLORS.success,
@@ -1675,8 +2014,10 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 14,
+
     fontWeight: '700',
   },
-});
+  });
+}
 
 export default ReportScreen;
