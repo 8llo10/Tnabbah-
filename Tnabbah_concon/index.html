@@ -3456,7 +3456,7 @@
                   Open app links
                   <small>Android, iPhone, and web preview</small>
                 </span>
-                <b>↓</b>
+                <b>↑</b>
               </a>
             </div>
           </div>
@@ -3480,13 +3480,6 @@
                 <p>0560602239 · ghalaalhashmi80@gmail.com</p>
               </div>
               <div class="member-action">→</div>
-            </a>
-            <a class="official-pill" href="https://x.com/TnabbahTeem?s=20" target="_blank" rel="noopener">
-              <span>
-                X / Twitter
-                <small>@TnabbahTeem</small>
-              </span>
-              <b>↗</b>
             </a>
 
             <a class="member-row reveal contact-person" href="#" data-name="Rawan Abdulrahman Bashanam"
@@ -3668,43 +3661,56 @@
       });
     });
 
-    const contactModal = document.getElementById("contactModal");
-    const modalName = document.getElementById("modalName");
-    const modalInfo = document.getElementById("modalInfo");
-    const modalCall = document.getElementById("modalCall");
-    const modalWhatsapp = document.getElementById("modalWhatsapp");
-    const modalEmail = document.getElementById("modalEmail");
-    const modalClose = document.getElementById("modalClose");
+    window.addEventListener("DOMContentLoaded", () => {
+      const contactModal = document.getElementById("contactModal");
+      const modalName = document.getElementById("modalName");
+      const modalInfo = document.getElementById("modalInfo");
+      const modalEmail = document.getElementById("modalEmail");
+      const modalClose = document.getElementById("modalClose");
 
-    function openContactSheet(name, phone, email) {
-      const cleanPhone = (phone || "").replace(/\D/g, "");
-      const intlPhone = cleanPhone.startsWith("966") ? cleanPhone : "966" + cleanPhone.replace(/^0/, "");
-      modalName.textContent = name;
-      modalInfo.textContent = `${phone} · ${email}`;
-      modalCall.href = `tel:${phone}`;
-      modalWhatsapp.href = `https://wa.me/${intlPhone}`;
-      modalEmail.href = `mailto:${email}`;
-      contactModal.classList.add("show");
-      contactModal.setAttribute("aria-hidden", "false");
-    }
+      const modalCall = document.getElementById("modalCall");
+      const modalWhatsapp = document.getElementById("modalWhatsapp");
 
-    document.querySelectorAll(".contact-person").forEach(card => {
-      card.addEventListener("click", e => {
-        e.preventDefault();
-        openContactSheet(card.dataset.name, card.dataset.phone, card.dataset.email);
+      if (modalWhatsapp) modalWhatsapp.remove();
+
+      if (modalCall) {
+        modalCall.removeAttribute("href");
+        modalCall.textContent = "Phone";
+        modalCall.innerHTML = "Phone <span>عرض الرقم</span>";
+      }
+
+      function openContactSheet(name, phone, email) {
+        modalName.textContent = name;
+        modalInfo.textContent = "Choose contact method";
+
+        modalEmail.href = `mailto:${email}`;
+
+        modalCall.onclick = () => {
+          modalInfo.textContent = phone;
+        };
+
+        contactModal.classList.add("show");
+        contactModal.setAttribute("aria-hidden", "false");
+      }
+
+      document.querySelectorAll(".contact-person").forEach(card => {
+        card.addEventListener("click", e => {
+          e.preventDefault();
+          openContactSheet(card.dataset.name, card.dataset.phone, card.dataset.email);
+        });
       });
-    });
 
-    modalClose?.addEventListener("click", () => {
-      contactModal.classList.remove("show");
-      contactModal.setAttribute("aria-hidden", "true");
-    });
-
-    contactModal?.addEventListener("click", e => {
-      if (e.target === contactModal) {
+      modalClose?.addEventListener("click", () => {
         contactModal.classList.remove("show");
         contactModal.setAttribute("aria-hidden", "true");
-      }
+      });
+
+      contactModal?.addEventListener("click", e => {
+        if (e.target === contactModal) {
+          contactModal.classList.remove("show");
+          contactModal.setAttribute("aria-hidden", "true");
+        }
+      });
     });
 
   </script>
