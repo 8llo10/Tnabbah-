@@ -123,6 +123,11 @@ async function writeToChar(char: Characteristic, command: string) {
   const fullCommand = command.endsWith("\r") ? command : `${command}\r`;
   const data = toBase64(fullCommand);
 
+  if (Platform.OS === "ios" && char.isWritableWithResponse) {
+    await char.writeWithResponse(data);
+    return;
+  }
+
   if (char.isWritableWithoutResponse) {
     await char.writeWithoutResponse(data);
     return;
@@ -187,10 +192,15 @@ export const elmBluetoothService = {
 
     await this.disconnect(false);
 
-    const device = await getBleManager().connectToDevice(deviceId, {
-      timeout: 20000,
-      autoConnect: true,
-    });
+    const connectOptions =
+      Platform.OS === "android"
+        ? { timeout: 20000, autoConnect: true }
+        : { timeout: 20000 };
+
+    const device = await getBleManager().connectToDevice(
+      deviceId,
+      connectOptions
+    );
 
     connectedDevice = await device.discoverAllServicesAndCharacteristics();
 
@@ -417,13 +427,31 @@ export const elmBluetoothService = {
     await writeToChar(writeChar, command);
   },
 
-  async send(command: string, waitMs = 1200) {
+  /* async send(command: string, waitMs = 1200) {
     return runExclusive(async () => {
       await this.assertConnected();
 
       rxBuffer = "";
 
       await this.write(command);
+
+      const response = await waitForResponse(waitMs);
+
+      return cleanResponse(response);
+    });
+  } */
+
+  async send(command: string, waitMs = 1200) {
+    return runExclusive(async () => {
+      await this.assertConnected();
+
+      rxBuffer = "";
+
+      if (!writeChar) {
+        throw new Error("قناة الإرسال غير جاهزة.");
+      }
+
+      await writeToChar(writeChar, command);
 
       const response = await waitForResponse(waitMs);
 

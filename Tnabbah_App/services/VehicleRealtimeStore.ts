@@ -3,6 +3,20 @@ export type VehicleMetrics = {
     speed: number | string | null;
     voltage: number | string | null;
     coolant: number | string | null;
+
+    oilTemp: number | string | null;
+    fuelPressure: number | string | null;
+    manifoldPressure: number | string | null;
+
+    intakeAirTemp: number | string | null;
+    fuelLevel: number | string | null;
+    fuelRate: number | string | null;
+
+    torque: number | string | null;
+    engineLoad: number | string | null;
+
+   /*  oilPressure: number | string | null;
+    tirePressure: number | string | null; */
 };
 
 export type VehicleSnapshot = {
@@ -25,6 +39,20 @@ const emptyMetrics: VehicleMetrics = {
     speed: null,
     voltage: null,
     coolant: null,
+
+    oilTemp: null,
+    fuelPressure: null,
+    manifoldPressure: null,
+
+    intakeAirTemp: null,
+    fuelLevel: null,
+    fuelRate: null,
+
+    torque: null,
+    engineLoad: null,
+
+    /* oilPressure: null,
+    tirePressure: null, */
 };
 
 const snapshotsByCarId: Record<string, VehicleSnapshot> = {};
@@ -149,10 +177,31 @@ export const vehicleRealtimeStore = {
                 ...snapshot,
                 metrics: {
                     ...snapshot.metrics,
+
                     rpm: pid === "010C" ? value : snapshot.metrics.rpm,
                     speed: pid === "010D" ? value : snapshot.metrics.speed,
                     voltage: pid === "0142" ? value : snapshot.metrics.voltage,
                     coolant: pid === "0105" ? value : snapshot.metrics.coolant,
+
+                    oilTemp: pid === "015C" ? value : snapshot.metrics.oilTemp,
+                    /* oilPressure:
+                        pid === "015B" || pid === "0167"
+                            ? value
+                            : snapshot.metrics.oilPressure,
+
+                    tirePressure:
+                        pid === "017C"
+                            ? value
+                            : snapshot.metrics.tirePressure, */
+                    fuelPressure: pid === "010A" ? value : snapshot.metrics.fuelPressure,
+                    manifoldPressure: pid === "010B" ? value : snapshot.metrics.manifoldPressure,
+
+                    intakeAirTemp: pid === "010F" ? value : snapshot.metrics.intakeAirTemp,
+                    fuelLevel: pid === "012F" ? value : snapshot.metrics.fuelLevel,
+                    fuelRate: pid === "015E" ? value : snapshot.metrics.fuelRate,
+
+                    torque: pid === "0162" ? value : snapshot.metrics.torque,
+                    engineLoad: pid === "0104" ? value : snapshot.metrics.engineLoad,
                 },
             };
         });

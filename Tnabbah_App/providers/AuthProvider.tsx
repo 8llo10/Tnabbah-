@@ -27,7 +27,7 @@ const AuthContext = createContext<AuthContextType>({
   isPasswordRecovery: false,
 
   refreshProfile: async () => null,
-  updateProfileLocally: () => {},
+  updateProfileLocally: () => { },
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {

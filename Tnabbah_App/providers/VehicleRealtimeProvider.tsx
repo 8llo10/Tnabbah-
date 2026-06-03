@@ -15,6 +15,17 @@ type MetricsState = {
     speed: number | string | null;
     voltage: number | string | null;
     coolant: number | string | null;
+
+    oilTemp: number | string | null;
+    fuelPressure: number | string | null;
+    manifoldPressure: number | string | null;
+
+    intakeAirTemp: number | string | null;
+    fuelLevel: number | string | null;
+    fuelRate: number | string | null;
+
+    torque: number | string | null;
+    engineLoad: number | string | null;
 };
 
 type VehicleRealtimeContextType = {
@@ -26,6 +37,7 @@ type VehicleRealtimeContextType = {
     statusText: string;
     isConnected: boolean;
     isAutoRunning: boolean;
+    hasLiveData: boolean;
 };
 
 const VehicleRealtimeContext =
@@ -43,6 +55,12 @@ export function VehicleRealtimeProvider({
     const [, forceUpdate] = useState(0);
 
     const snapshot = vehicleRealtimeStore.getSnapshot(activeCarId);
+
+    const hasLiveData =
+        snapshot?.metrics?.rpm !== null &&
+        snapshot?.metrics?.speed !== null &&
+        snapshot?.metrics?.voltage !== null &&
+        snapshot?.metrics?.coolant !== null;
 
     useEffect(() => {
         activeCarIdRef.current =
@@ -188,6 +206,17 @@ export function VehicleRealtimeProvider({
                     speed: null,
                     voltage: null,
                     coolant: null,
+
+                    oilTemp: null,
+                    fuelPressure: null,
+                    manifoldPressure: null,
+
+                    intakeAirTemp: null,
+                    fuelLevel: null,
+                    fuelRate: null,
+
+                    torque: null,
+                    engineLoad: null,
                 },
                 vin: snapshot?.vin || null,
                 dtcCount: snapshot?.dtcCount || 0,
@@ -196,6 +225,7 @@ export function VehicleRealtimeProvider({
                 statusText: snapshot?.statusText || "جاهز للفحص",
                 isConnected: snapshot?.isConnected || false,
                 isAutoRunning: snapshot?.isAutoRunning || false,
+                hasLiveData,
             }}
         >
             {children}

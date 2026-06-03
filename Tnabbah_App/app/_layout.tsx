@@ -91,50 +91,51 @@ export default function RootLayout() {
   return (
     <View style={styles.root}>
       <AuthProvider>
-        <LanguageProvider>
-        <WalletProvider>
-          <AppSettingsProvider>
-            <AccountSettingsProvider>
-              <NotificationsProvider>
-                <CarsProvider>
-                  <VehicleRealtimeProvider>
-                    <NavigationThemeProvider
-                      value={colorScheme === "dark" ? AppDarkTheme : LightTheme}
-                    >
-                      <Stack
-                        screenOptions={{
-                          headerShown: false,
-                          animation: "none",
-                          contentStyle: {
-                            backgroundColor: "#FFFFFF",
-                          },
-                        }}
+        <CarsProvider>
+          <LanguageProvider>
+            <WalletProvider>
+              <AppSettingsProvider>
+                <AccountSettingsProvider>
+                  <NotificationsProvider>
+
+                    <VehicleRealtimeProvider>
+                      <NavigationThemeProvider
+                        value={colorScheme === "dark" ? AppDarkTheme : LightTheme}
                       >
-                        <Stack.Screen name="index" />
-                        <Stack.Screen name="start" />
-                        <Stack.Screen name="login" />
-                        <Stack.Screen name="register" />
-                        <Stack.Screen name="forgot-password" />
+                        <Stack
+                          screenOptions={{
+                            headerShown: false,
+                            animation: "none",
+                            contentStyle: {
+                              backgroundColor: "#FFFFFF",
+                            },
+                          }}
+                        >
+                          <Stack.Screen name="index" />
+                          <Stack.Screen name="start" />
+                          <Stack.Screen name="login" />
+                          <Stack.Screen name="register" />
+                          <Stack.Screen name="forgot-password" />
 
 
-                        <Stack.Screen name="connection-intro" />
-                        <Stack.Screen name="connection-success" />
+                          <Stack.Screen name="connection-intro" />
+                          <Stack.Screen name="connection-success" />
 
-                        <Stack.Screen name="auth/reset-password" />
-                        <Stack.Screen name="auth/new-password" />
+                          <Stack.Screen name="auth/reset-password" />
+                          <Stack.Screen name="auth/new-password" />
 
-                        <Stack.Screen name="(tabs)" />
-                      </Stack>
+                          <Stack.Screen name="(tabs)" />
+                        </Stack>
 
-                      <StatusBar style="dark" translucent backgroundColor="transparent" />
-                    </NavigationThemeProvider>
-                  </VehicleRealtimeProvider>
-                </CarsProvider>
-              </NotificationsProvider>
-            </AccountSettingsProvider>
-          </AppSettingsProvider>
-        </WalletProvider>
-        </LanguageProvider>
+                        <StatusBar style="dark" translucent backgroundColor="transparent" />
+                      </NavigationThemeProvider>
+                    </VehicleRealtimeProvider>
+                  </NotificationsProvider>
+                </AccountSettingsProvider>
+              </AppSettingsProvider>
+            </WalletProvider>
+          </LanguageProvider>
+        </CarsProvider>
       </AuthProvider>
     </View>
   );

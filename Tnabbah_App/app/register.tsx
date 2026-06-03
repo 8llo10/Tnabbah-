@@ -326,7 +326,7 @@ export default function RegisterScreen() {
         }),
       ]).start();
 
-      return () => {};
+      return () => { };
     }, [screenOpacity, screenTranslateY, transitionAnim, keyboardTranslateY])
   );
 
@@ -1021,10 +1021,10 @@ function createStyles({
       marginBottom: isVerySmallScreen
         ? 18
         : isSmallScreen
-        ? 22
-        : isTabletLike
-        ? 34
-        : 28,
+          ? 22
+          : isTabletLike
+            ? 34
+            : 28,
       paddingHorizontal: clamp(width * 0.02, 8, 14),
     },
 

@@ -601,7 +601,7 @@ function DeleteAccountModal({
       animationType="fade"
       onRequestClose={loading ? undefined : onCancel}
     >
-      <View style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}> 
+      <View style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}>
         <View
           style={[
             styles.confirmModal,
@@ -611,7 +611,7 @@ function DeleteAccountModal({
             },
           ]}
         >
-          <Text style={[styles.confirmTitle, { color: theme.danger }]}> 
+          <Text style={[styles.confirmTitle, { color: theme.danger }]}>
             {isRTL ? "حذف الحساب" : "Delete account"}
           </Text>
 
@@ -629,7 +629,7 @@ function DeleteAccountModal({
               : "Deleting the account will permanently remove the account and its data. This action cannot be undone and the account cannot be restored after deletion."}
           </Text>
 
-          <Text style={[styles.deletePasswordLabel, { color: theme.textSecondary, textAlign }]}> 
+          <Text style={[styles.deletePasswordLabel, { color: theme.textSecondary, textAlign }]}>
             {isRTL ? "أدخل كلمة المرور الحالية للتأكيد" : "Enter the current password to confirm"}
           </Text>
 
@@ -652,7 +652,7 @@ function DeleteAccountModal({
             ]}
           />
 
-          <View style={[styles.confirmButtons, { flexDirection: rowDirection }]}> 
+          <View style={[styles.confirmButtons, { flexDirection: rowDirection }]}>
             <Pressable
               onPress={onCancel}
               disabled={loading}
@@ -665,7 +665,7 @@ function DeleteAccountModal({
                 },
               ]}
             >
-              <Text style={[styles.confirmSecondaryText, { color: theme.textPrimary }]}> 
+              <Text style={[styles.confirmSecondaryText, { color: theme.textPrimary }]}>
                 {isRTL ? "إلغاء" : "Cancel"}
               </Text>
             </Pressable>
@@ -684,7 +684,7 @@ function DeleteAccountModal({
               {loading ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Text style={styles.confirmPrimaryText}> 
+                <Text style={styles.confirmPrimaryText}>
                   {isRTL ? "حذف الحساب" : "Delete account"}
                 </Text>
               )}
@@ -915,252 +915,252 @@ function BottomEditSheet({
               },
             ]}
           >
-          <View style={styles.bottomSheetHandleArea} {...panResponder.panHandlers}>
-            <View
-              style={[
-                styles.bottomSheetHandle,
-                { backgroundColor: theme.border },
-              ]}
-            />
-          </View>
-
-          {mode === "success" ? (
-            <View style={styles.bottomSheetSuccessContent}>
-              <LottieView
-                ref={lottieRef}
-                source={require("../../assets/animations/success-check.json")}
-                loop={false}
-                speed={1.12}
-                style={styles.bottomSheetSuccessLottie}
-              />
-
-              <Text
+            <View style={styles.bottomSheetHandleArea} {...panResponder.panHandlers}>
+              <View
                 style={[
-                  styles.bottomSheetTitle,
-                  { color: theme.textPrimary, textAlign: "center" },
+                  styles.bottomSheetHandle,
+                  { backgroundColor: theme.border },
                 ]}
-              >
-                {successTitle}
-              </Text>
+              />
+            </View>
 
-              {!!successMessage?.trim() && (
+            {mode === "success" ? (
+              <View style={styles.bottomSheetSuccessContent}>
+                <LottieView
+                  ref={lottieRef}
+                  source={require("../../assets/animations/success-check.json")}
+                  loop={false}
+                  speed={1.12}
+                  style={styles.bottomSheetSuccessLottie}
+                />
+
                 <Text
                   style={[
-                    styles.bottomSheetSubtitle,
-                    { color: theme.textSecondary, textAlign: "center" },
+                    styles.bottomSheetTitle,
+                    { color: theme.textPrimary, textAlign: "center" },
                   ]}
                 >
-                  {successMessage}
+                  {successTitle}
                 </Text>
-              )}
 
-              {!!successActionText?.trim() && (
-                <Pressable
-                  onPress={onSuccessAction || closeWithAnimation}
-                  style={({ pressed }) => [
-                    styles.bottomSheetSuccessButton,
-                    { opacity: pressed ? 0.86 : 1 },
-                  ]}
-                >
-                  <LinearGradient
-                    colors={[theme.accent, theme.accentPressed]}
-                    start={{ x: 0.15, y: 0 }}
-                    end={{ x: 0.9, y: 1 }}
-                    style={styles.bottomSheetSuccessButtonGradient}
-                  >
-                    <Text style={styles.bottomSheetPrimaryText}>
-                      {successActionText}
-                    </Text>
-                  </LinearGradient>
-                </Pressable>
-              )}
-
-              {!!successInfoText?.trim() && (
-                <Text
-                  style={[
-                    styles.bottomSheetSuccessInfoText,
-                    { color: theme.textSecondary, textAlign: "center" },
-                  ]}
-                >
-                  {successInfoText}
-                </Text>
-              )}
-
-              {!!successResendQuestion?.trim() && !!successResendText?.trim() && (
-                <View style={styles.bottomSheetResendArea}>
+                {!!successMessage?.trim() && (
                   <Text
                     style={[
-                      styles.bottomSheetResendQuestion,
+                      styles.bottomSheetSubtitle,
                       { color: theme.textSecondary, textAlign: "center" },
                     ]}
                   >
-                    {successResendQuestion}
+                    {successMessage}
                   </Text>
+                )}
 
-                  {(successResendTimer || 0) > 0 ? (
-                    <Text style={styles.bottomSheetResendTimerText}>
-                      {isRTL
-                        ? `يمكنك إعادة الإرسال بعد ${successResendTimer} ثانية`
-                        : `You can resend after ${successResendTimer} seconds`}
-                    </Text>
-                  ) : (
-                    <Pressable
-                      onPress={onSuccessResend}
-                      disabled={successResending}
-                      style={({ pressed }) => [
-                        styles.bottomSheetResendButton,
-                        {
-                          borderColor: theme.cardBorder,
-                          backgroundColor: theme.subtle,
-                          opacity: pressed ? 0.8 : successResending ? 0.7 : 1,
-                        },
-                      ]}
-                    >
-                      {successResending ? (
-                        <ActivityIndicator size="small" color={theme.accent} />
-                      ) : (
-                        <Text style={styles.bottomSheetResendButtonText}>
-                          {successResendText}
-                        </Text>
-                      )}
-                    </Pressable>
-                  )}
-                </View>
-              )}
-            </View>
-          ) : (
-            <View>
-              <View
-                style={[
-                  styles.bottomSheetHeader,
-                  { flexDirection: rowDirection },
-                ]}
-              >
-                <View style={styles.bottomSheetHeaderTextBlock}>
-                  <Text
-                    style={[
-                      styles.bottomSheetTitle,
-                      { color: theme.textPrimary, textAlign },
+                {!!successActionText?.trim() && (
+                  <Pressable
+                    onPress={onSuccessAction || closeWithAnimation}
+                    style={({ pressed }) => [
+                      styles.bottomSheetSuccessButton,
+                      { opacity: pressed ? 0.86 : 1 },
                     ]}
                   >
-                    {title}
-                  </Text>
+                    <LinearGradient
+                      colors={[theme.accent, theme.accentPressed]}
+                      start={{ x: 0.15, y: 0 }}
+                      end={{ x: 0.9, y: 1 }}
+                      style={styles.bottomSheetSuccessButtonGradient}
+                    >
+                      <Text style={styles.bottomSheetPrimaryText}>
+                        {successActionText}
+                      </Text>
+                    </LinearGradient>
+                  </Pressable>
+                )}
 
-                  {!!subtitle?.trim() && (
+                {!!successInfoText?.trim() && (
+                  <Text
+                    style={[
+                      styles.bottomSheetSuccessInfoText,
+                      { color: theme.textSecondary, textAlign: "center" },
+                    ]}
+                  >
+                    {successInfoText}
+                  </Text>
+                )}
+
+                {!!successResendQuestion?.trim() && !!successResendText?.trim() && (
+                  <View style={styles.bottomSheetResendArea}>
                     <Text
                       style={[
-                        styles.bottomSheetSubtitle,
-                        { color: theme.textSecondary, textAlign },
+                        styles.bottomSheetResendQuestion,
+                        { color: theme.textSecondary, textAlign: "center" },
                       ]}
                     >
-                      {subtitle}
+                      {successResendQuestion}
                     </Text>
-                  )}
-                </View>
 
+                    {(successResendTimer || 0) > 0 ? (
+                      <Text style={styles.bottomSheetResendTimerText}>
+                        {isRTL
+                          ? `يمكنك إعادة الإرسال بعد ${successResendTimer} ثانية`
+                          : `You can resend after ${successResendTimer} seconds`}
+                      </Text>
+                    ) : (
+                      <Pressable
+                        onPress={onSuccessResend}
+                        disabled={successResending}
+                        style={({ pressed }) => [
+                          styles.bottomSheetResendButton,
+                          {
+                            borderColor: theme.cardBorder,
+                            backgroundColor: theme.subtle,
+                            opacity: pressed ? 0.8 : successResending ? 0.7 : 1,
+                          },
+                        ]}
+                      >
+                        {successResending ? (
+                          <ActivityIndicator size="small" color={theme.accent} />
+                        ) : (
+                          <Text style={styles.bottomSheetResendButtonText}>
+                            {successResendText}
+                          </Text>
+                        )}
+                      </Pressable>
+                    )}
+                  </View>
+                )}
               </View>
-
-              <TextInput
-                value={value}
-                onChangeText={onChangeText}
-                placeholder={placeholder}
-                placeholderTextColor="#A9A9A9"
-                keyboardType={keyboardType}
-                autoCapitalize={
-                  keyboardType === "email-address" ? "none" : "words"
-                }
-                autoCorrect={keyboardType !== "email-address"}
-                maxLength={maxLength}
-                editable={!saving}
-                selectionColor={theme.accent}
-                textAlign={textAlign}
-                style={[
-                  styles.bottomSheetInput,
-                  {
-                    color: theme.textPrimary,
-                    backgroundColor: theme.subtle,
-                    borderColor: theme.cardBorder,
-                  },
-                ]}
-              />
-
-              {!!errorMessage?.trim() && (
+            ) : (
+              <View>
                 <View
                   style={[
-                    styles.bottomSheetErrorBox,
+                    styles.bottomSheetHeader,
                     { flexDirection: rowDirection },
                   ]}
                 >
-                  <Feather
-                    name="alert-circle"
-                    size={22}
-                    color={theme.danger}
-                  />
-                  <Text
-                    style={[
-                      styles.bottomSheetErrorText,
-                      { textAlign, color: theme.danger },
-                    ]}
-                  >
-                    {errorMessage}
-                  </Text>
-                </View>
-              )}
+                  <View style={styles.bottomSheetHeaderTextBlock}>
+                    <Text
+                      style={[
+                        styles.bottomSheetTitle,
+                        { color: theme.textPrimary, textAlign },
+                      ]}
+                    >
+                      {title}
+                    </Text>
 
-              <View
-                style={[
-                  styles.bottomSheetActions,
-                  { flexDirection: rowDirection },
-                ]}
-              >
-                <Pressable
-                  onPress={closeWithAnimation}
-                  disabled={saving}
-                  style={({ pressed }) => [
-                    styles.bottomSheetSecondaryButton,
-                    {
-                      borderColor: theme.cardBorder,
-                      backgroundColor: theme.subtle,
-                      opacity: pressed ? 0.78 : 1,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.bottomSheetSecondaryText,
-                      { color: theme.textPrimary },
-                    ]}
-                  >
-                    {cancelText}
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={onSave}
-                  disabled={saving}
-                  style={({ pressed }) => [
-                    styles.bottomSheetPrimaryButton,
-                    { opacity: pressed || saving ? 0.78 : 1 },
-                  ]}
-                >
-                  <LinearGradient
-                    colors={[theme.accent, theme.accentPressed]}
-                    start={{ x: 0.15, y: 0 }}
-                    end={{ x: 0.9, y: 1 }}
-                    style={styles.bottomSheetPrimaryGradient}
-                  >
-                    {saving ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <Text style={styles.bottomSheetPrimaryText}>
-                        {confirmText}
+                    {!!subtitle?.trim() && (
+                      <Text
+                        style={[
+                          styles.bottomSheetSubtitle,
+                          { color: theme.textSecondary, textAlign },
+                        ]}
+                      >
+                        {subtitle}
                       </Text>
                     )}
-                  </LinearGradient>
-                </Pressable>
+                  </View>
+
+                </View>
+
+                <TextInput
+                  value={value}
+                  onChangeText={onChangeText}
+                  placeholder={placeholder}
+                  placeholderTextColor="#A9A9A9"
+                  keyboardType={keyboardType}
+                  autoCapitalize={
+                    keyboardType === "email-address" ? "none" : "words"
+                  }
+                  autoCorrect={keyboardType !== "email-address"}
+                  maxLength={maxLength}
+                  editable={!saving}
+                  selectionColor={theme.accent}
+                  textAlign={textAlign}
+                  style={[
+                    styles.bottomSheetInput,
+                    {
+                      color: theme.textPrimary,
+                      backgroundColor: theme.subtle,
+                      borderColor: theme.cardBorder,
+                    },
+                  ]}
+                />
+
+                {!!errorMessage?.trim() && (
+                  <View
+                    style={[
+                      styles.bottomSheetErrorBox,
+                      { flexDirection: rowDirection },
+                    ]}
+                  >
+                    <Feather
+                      name="alert-circle"
+                      size={22}
+                      color={theme.danger}
+                    />
+                    <Text
+                      style={[
+                        styles.bottomSheetErrorText,
+                        { textAlign, color: theme.danger },
+                      ]}
+                    >
+                      {errorMessage}
+                    </Text>
+                  </View>
+                )}
+
+                <View
+                  style={[
+                    styles.bottomSheetActions,
+                    { flexDirection: rowDirection },
+                  ]}
+                >
+                  <Pressable
+                    onPress={closeWithAnimation}
+                    disabled={saving}
+                    style={({ pressed }) => [
+                      styles.bottomSheetSecondaryButton,
+                      {
+                        borderColor: theme.cardBorder,
+                        backgroundColor: theme.subtle,
+                        opacity: pressed ? 0.78 : 1,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.bottomSheetSecondaryText,
+                        { color: theme.textPrimary },
+                      ]}
+                    >
+                      {cancelText}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={onSave}
+                    disabled={saving}
+                    style={({ pressed }) => [
+                      styles.bottomSheetPrimaryButton,
+                      { opacity: pressed || saving ? 0.78 : 1 },
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={[theme.accent, theme.accentPressed]}
+                      start={{ x: 0.15, y: 0 }}
+                      end={{ x: 0.9, y: 1 }}
+                      style={styles.bottomSheetPrimaryGradient}
+                    >
+                      {saving ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.bottomSheetPrimaryText}>
+                          {confirmText}
+                        </Text>
+                      )}
+                    </LinearGradient>
+                  </Pressable>
+                </View>
               </View>
-            </View>
-          )}
+            )}
           </Animated.View>
         </KeyboardAvoidingView>
       </View>
@@ -1183,6 +1183,7 @@ export default function Settings() {
     obdConnected,
     scannerRunning,
     mqttConnected,
+    detectingCar,
     lastConnectionTime,
     activeCarId,
     selectedCarId,
@@ -1260,6 +1261,9 @@ export default function Settings() {
 
   const [confirmDeleteCarVisible, setConfirmDeleteCarVisible] = useState(false);
   const [carToDelete, setCarToDelete] = useState<UserCar | null>(null);
+
+  const [deleteCarPassword, setDeleteCarPassword] = useState("");
+  const [deletingCar, setDeletingCar] = useState(false);
 
   const selectedLanguage = language;
   const t = translations[selectedLanguage];
@@ -1524,7 +1528,10 @@ export default function Settings() {
   };
 
   const activeSelectedCarId =
-    optimisticSelectedCarId || connectedCarId || selectedCarId || activeCarId;
+    connectedCarId ||
+    optimisticSelectedCarId ||
+    selectedCarId ||
+    activeCarId;
 
   const userName =
     profile?.full_name || session?.user?.user_metadata?.full_name || "مستخدم";
@@ -1542,19 +1549,16 @@ export default function Settings() {
     if (switchingCarId) return;
     if (carId === activeSelectedCarId) return;
 
-    const previousCarId = activeSelectedCarId;
-
     setSwitchingCarId(carId);
     setOptimisticSelectedCarId(carId);
 
     try {
       await selectDefaultCar(carId);
-
       setOptimisticSelectedCarId(null);
     } catch (error) {
       console.log("Select car error:", error);
 
-      setOptimisticSelectedCarId(previousCarId);
+      setOptimisticSelectedCarId(null);
 
       showMessage({
         title: t.errorTitle,
@@ -1612,14 +1616,39 @@ export default function Settings() {
   };
 
   const handleDeleteCar = async (car: UserCar) => {
+    if (!deleteCarPassword.trim()) {
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "اكتبي كلمة مرور الحساب."
+            : "Enter your account password.",
+        icon: "alert-circle",
+      });
+      return;
+    }
+
+    setDeletingCar(true);
+
     try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: userEmail,
+        password: deleteCarPassword,
+      });
+
+      if (signInError) throw signInError;
+
       await deleteCar(car);
+
+      setConfirmDeleteCarVisible(false);
+      setCarToDelete(null);
+      setDeleteCarPassword("");
 
       showMessage({
         title:
           selectedLanguage === "AR"
-            ? "تم حذف السيارة من القائمة"
-            : "Car removed from list",
+            ? "تم حذف السيارة بالكامل"
+            : "Car deleted completely",
         body: "",
         icon: "check-circle",
       });
@@ -1630,10 +1659,12 @@ export default function Settings() {
         title: t.errorTitle,
         body:
           selectedLanguage === "AR"
-            ? "تعذر حذف السيارة."
-            : "Could not delete car.",
+            ? "كلمة المرور غير صحيحة أو تعذر حذف السيارة."
+            : "Wrong password or could not delete car.",
         icon: "alert-circle",
       });
+    } finally {
+      setDeletingCar(false);
     }
   };
 
@@ -2728,7 +2759,7 @@ Describe the issue:
                 ]}
               >
                 <Ionicons
-                  name="car-outline"
+                  name="car-sport-outline"
                   size={20}
                   color={theme.iconColor}
                 />
@@ -2821,14 +2852,12 @@ Describe the issue:
           >
             {connectedCarId
               ? selectedLanguage === "AR"
-                ? `السيارة المتصلة الآن: ${
-                    userCars.find((car) => car.car_id === connectedCarId)
-                      ?.display_name || connectedCarId
-                  }`
-                : `Connected now: ${
-                    userCars.find((car) => car.car_id === connectedCarId)
-                      ?.display_name || connectedCarId
-                  }`
+                ? `السيارة المتصلة الآن: ${userCars.find((car) => car.car_id === connectedCarId)
+                  ?.display_name || connectedCarId
+                }`
+                : `Connected now: ${userCars.find((car) => car.car_id === connectedCarId)
+                  ?.display_name || connectedCarId
+                }`
               : selectedLanguage === "AR"
                 ? "لا توجد سيارة متصلة الآن"
                 : "No car is connected now"}
@@ -2865,18 +2894,42 @@ Describe the issue:
                 const isSwitchingThisCar = switchingCarId === car.car_id;
                 const isConnectedNow = connectedCarId === car.car_id;
 
+                const isLockedByConnectedCar =
+                  (!!connectedCarId || (detectingCar && !obdConnected)) &&
+                  !isConnectedNow;
+
+                const canSelectThisCar =
+                  !isCurrent && !isLockedByConnectedCar && !switchingCarId;
+
                 return (
-                  <View
+                  <Pressable
                     key={car.id}
-                    style={[
-                      styles.card,
+                    onPress={() => {
+                      if (canSelectThisCar) {
+                        handleSelectDefaultCar(car.car_id);
+                      }
+                    }}
+                    disabled={!canSelectThisCar}
+                    style={({ pressed }) => [
+                      styles.carCard,
                       {
-                        backgroundColor: theme.subtle,
+                        backgroundColor: isCurrent
+                          ? "rgba(135,27,23,0.08)"
+                          : theme.subtle,
+
                         borderColor: isCurrent
-                          ? theme.accent
+                          ? "#5F201D"
                           : theme.cardBorder,
-                        borderWidth: isCurrent ? 1.4 : 1,
-                        marginBottom: 0,
+
+                        transform: [{ scale: isCurrent ? 1.01 : 1 }],
+                        shadowOpacity: isCurrent ? 0.12 : 0.03,
+                        shadowRadius: isCurrent ? 10 : 6,
+                        elevation: isCurrent ? 4 : 1,
+
+                        opacity: isLockedByConnectedCar ? 0.45 : 1,
+                      }, ,
+                      pressed && canSelectThisCar && {
+                        backgroundColor: "rgba(135,27,23,0.12)",
                       },
                     ]}
                   >
@@ -2908,7 +2961,7 @@ Describe the issue:
                           ]}
                         >
                           <Ionicons
-                            name="car-outline"
+                            name="car-sport-outline"
                             size={18}
                             color={theme.iconColor}
                           />
@@ -2934,8 +2987,7 @@ Describe the issue:
                             ]}
                           >
                             {car.display_name ||
-                              `${
-                                selectedLanguage === "AR" ? "سيارة" : "Car"
+                              `${selectedLanguage === "AR" ? "سيارة" : "Car"
                               } ${car.car_id}`}
                           </Text>
 
@@ -2960,6 +3012,29 @@ Describe the issue:
                                 {selectedLanguage === "AR"
                                   ? "متصلة الآن"
                                   : "Connected now"}
+                              </Text>
+                            </View>
+                          )}
+
+                          {isCurrent && !isConnectedNow && (
+                            <View
+                              style={{
+                                alignSelf: isRTL ? "flex-end" : "flex-start",
+                                backgroundColor: "rgba(135,27,23,0.10)",
+                                borderRadius: 999,
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                                marginTop: 6,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: theme.accent,
+                                  fontSize: 11,
+                                  fontFamily: FONT_EXTRABOLD,
+                                }}
+                              >
+                                {selectedLanguage === "AR" ? "مختارة حاليًا" : "Selected now"}
                               </Text>
                             </View>
                           )}
@@ -3009,33 +3084,7 @@ Describe the issue:
                         marginTop: 14,
                       }}
                     >
-                      {!isCurrent && (
-                        <Pressable
-                          onPress={() => handleSelectDefaultCar(car.car_id)}
-                          disabled={!!switchingCarId}
-                          style={{
-                            backgroundColor: theme.accent,
-                            paddingHorizontal: 12,
-                            paddingVertical: 10,
-                            borderRadius: 12,
-                            opacity: switchingCarId ? 0.65 : 1,
-                          }}
-                        >
-                          {isSwitchingThisCar ? (
-                            <ActivityIndicator size="small" color="#FFF" />
-                          ) : (
-                            <Text
-                              style={{
-                                color: "#FFF",
-                                fontSize: 12,
-                                fontFamily: FONT_BOLD,
-                              }}
-                            >
-                              {selectedLanguage === "AR" ? "تعيين" : "Set"}
-                            </Text>
-                          )}
-                        </Pressable>
-                      )}
+
 
                       <Pressable
                         onPress={() => openEditCarName(car)}
@@ -3080,7 +3129,7 @@ Describe the issue:
                         </Text>
                       </Pressable>
                     </View>
-                  </View>
+                  </Pressable>
                 );
               })}
             </View>
@@ -3269,8 +3318,8 @@ Describe the issue:
 
                   <Text
                     numberOfLines={1}
-                  ellipsizeMode="tail"
-                  style={[
+                    ellipsizeMode="tail"
+                    style={[
                       styles.settingHint,
                       { color: theme.textSecondary, textAlign },
                     ]}
@@ -3303,9 +3352,9 @@ Describe the issue:
                 borderColor: theme.cardBorder,
               },
               pressed &&
-                scannerRunning && {
-                  backgroundColor: theme.cardPressed,
-                },
+              scannerRunning && {
+                backgroundColor: theme.cardPressed,
+              },
               !scannerRunning && { opacity: 0.45 },
             ]}
             onPress={handleStopScanner}
@@ -3344,8 +3393,8 @@ Describe the issue:
 
                   <Text
                     numberOfLines={1}
-                  ellipsizeMode="tail"
-                  style={[
+                    ellipsizeMode="tail"
+                    style={[
                       styles.settingHint,
                       { color: theme.textSecondary, textAlign },
                     ]}
@@ -3371,9 +3420,9 @@ Describe the issue:
                 borderColor: theme.cardBorder,
               },
               pressed &&
-                obdConnected && {
-                  backgroundColor: theme.cardPressed,
-                },
+              obdConnected && {
+                backgroundColor: theme.cardPressed,
+              },
               !obdConnected && { opacity: 0.45 },
             ]}
             onPress={() => {
@@ -3411,8 +3460,8 @@ Describe the issue:
 
                   <Text
                     numberOfLines={1}
-                  ellipsizeMode="tail"
-                  style={[
+                    ellipsizeMode="tail"
+                    style={[
                       styles.settingHint,
                       { color: theme.textSecondary, textAlign },
                     ]}
@@ -3623,6 +3672,27 @@ Describe the issue:
               {selectedLanguage === "AR"
                 ? "جاري تبديل السيارة..."
                 : "Switching vehicle..."}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {detectingCar && (
+        <View style={styles.fullScreenBlockingOverlay}>
+          <View
+            style={[
+              styles.blockingOverlayCard,
+              { backgroundColor: theme.surface },
+            ]}
+          >
+            <ActivityIndicator size="small" color={theme.accent} />
+
+            <Text
+              style={[styles.blockingOverlayText, { color: theme.textPrimary }]}
+            >
+              {selectedLanguage === "AR"
+                ? "جاري التعرف على السيارة..."
+                : "Detecting vehicle..."}
             </Text>
           </View>
         </View>
@@ -5222,5 +5292,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: FONT_EXTRABOLD,
   },
-  
+
+  carCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 0,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+  },
+
 });

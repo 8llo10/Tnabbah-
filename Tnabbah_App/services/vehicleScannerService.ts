@@ -13,6 +13,7 @@ let isSlowLoopRunning = false;
 let liveTimer: ReturnType<typeof setTimeout> | null = null;
 let slowTimer: ReturnType<typeof setTimeout> | null = null;
 let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let allPidsTimer: ReturnType<typeof setTimeout> | null = null;
 
 let cachedUserId: string | null = null;
 let cachedCarId: string | null = null;
@@ -22,11 +23,13 @@ let lastMode09: any = null;
 let lastSupportedPids: string[] = [];
 
 let scannerQueue: Promise<unknown> = Promise.resolve();
+let currentSessionId = 0;
 
 /* const LIVE_LOOP_DELAY_MS = 50; */
 const LIVE_LOOP_DELAY_MS = 1200;
 const SLOW_SCAN_INTERVAL_MS = 5 * 60 * 1000;
 const DISCONNECT_CHECK_MS = 1200;
+const ALL_PIDS_INTERVAL_MS = 60 * 1000;
 
 const READ_ONLY_SRS_REQUESTS = ["1902FF", "1902FFFFFF", "03"];
 
@@ -80,6 +83,24 @@ async function getUserId() {
 }
 
 async function getIdentity(forceRefresh = false) {
+
+  if (forceRefresh) {
+    currentSessionId++;
+    cachedCarId = null;
+    cachedIdentity = null;
+
+    carIdentityService.resetCache();
+  }
+
+  const stillConnected = await elmBluetoothService
+    .isActuallyConnected?.()
+    .catch(() => false);
+
+  if (!stillConnected) {
+    cachedCarId = null;
+    cachedIdentity = null;
+  }
+
   if (cachedCarId && cachedIdentity) {
     return {
       userId: await getUserId(),
@@ -164,10 +185,19 @@ async function handleDisconnect(reason = "obd_disconnected") {
     isLiveLoopRunning = false;
     isSlowLoopRunning = false;
 
+    cachedCarId = null;
+    cachedIdentity = null;
+
+    carIdentityService.resetCache();
+
+    currentSessionId++;
+
     if (liveTimer) clearTimeout(liveTimer);
     if (slowTimer) clearTimeout(slowTimer);
     if (disconnectTimer) clearTimeout(disconnectTimer);
+    if (allPidsTimer) clearTimeout(allPidsTimer);
 
+    allPidsTimer = null;
     liveTimer = null;
     slowTimer = null;
     disconnectTimer = null;
@@ -178,6 +208,10 @@ async function handleDisconnect(reason = "obd_disconnected") {
         obdConnected: false,
         streaming: false,
       });
+
+      await mqttService.clearRetainedAsync(
+        topic(userId, carId, "status")
+      );
     }
   } catch (error) {
     console.log("handleDisconnect error:", error);
@@ -293,7 +327,7 @@ async function publishAllSupportedPidValues(userId: string, carId: string) {
   return all;
 }
 
-async function publishContinuousAllSupportedPids(userId: string, carId: string) {
+/* async function publishContinuousAllSupportedPids(userId: string, carId: string) {
   await publishStatus(userId, carId, "streaming_all_supported_pids");
 
   const all = await obdCoreService.readAllSupportedPidValues({
@@ -308,6 +342,22 @@ async function publishContinuousAllSupportedPids(userId: string, carId: string) 
   await publish(userId, carId, "pids/all", all, { retain: true });
 
   return all;
+} */
+
+async function publishContinuousAllSupportedPids(userId: string, carId: string) {
+  await publishStatus(userId, carId, "streaming_live_pids");
+
+  const live = await obdCoreService.readLiveImportantPids({
+    supportedPids: lastSupportedPids,
+    onValue: async (pid, value) => {
+      if (!isRunning || !isLiveLoopRunning) return;
+      await publishPidValue(userId, carId, pid, value);
+    },
+  });
+
+  await publish(userId, carId, "pids/live", live, { retain: true });
+
+  return live;
 }
 
 async function trySrsReadOnlyScan(userId: string, carId: string) {
@@ -415,6 +465,7 @@ export const vehicleScannerService = {
     }
 
     const { userId, carId, identity } = await getIdentity(!!options?.forceFull);
+    const sessionId = ++currentSessionId;
 
     isRunning = true;
 
@@ -423,17 +474,23 @@ export const vehicleScannerService = {
       identity,
     });
 
-    if (options?.forceFull) {
-      await runExclusive(() => this.runFullDiscovery());
-    } else {
-      await runExclusive(() => this.runInitialDiscovery());
-    }
+    await publishIdentity(userId, carId, identity);
 
-    this.startLiveStreaming();
-    this.startSlowScanLoop();
+    // مهم: نسحب كل أنواع DTC أول شيء قبل زحمة اللايف/allPids
+    await publishDtcs(userId, carId);
+
+    this.startLiveStreaming(sessionId);
+    this.startAllPidsLoop(sessionId);
+    this.startSlowScanLoop(sessionId);
     this.startDisconnectWatch();
 
     await publishStatus(userId, carId, "running");
+
+    if (options?.forceFull) {
+      void runExclusive(() => this.runFullDiscovery());
+    } else {
+      void runExclusive(() => this.runInitialDiscovery());
+    }
 
     return {
       userId,
@@ -451,7 +508,6 @@ export const vehicleScannerService = {
     const mode09 = await publishMode09(userId, carId, false);
     const dtcs = await publishDtcs(userId, carId);
     const supported = await publishSupportedPids(userId, carId);
-    const allPids = await publishAllSupportedPidValues(userId, carId);
     const srs = await trySrsReadOnlyScan(userId, carId);
 
     const result = {
@@ -459,7 +515,6 @@ export const vehicleScannerService = {
       mode09,
       dtcs,
       supported,
-      allPids,
       srs,
       timestamp: Date.now(),
     };
@@ -497,12 +552,13 @@ export const vehicleScannerService = {
     return result;
   },
 
-  startLiveStreaming() {
+  startLiveStreaming(sessionId: number) {
     if (isLiveLoopRunning) return;
 
     isLiveLoopRunning = true;
 
     const loop = async () => {
+      if (sessionId !== currentSessionId) return;
       if (!isRunning || !isLiveLoopRunning) return;
 
       try {
@@ -533,12 +589,46 @@ export const vehicleScannerService = {
     loop();
   },
 
-  startSlowScanLoop() {
+  startAllPidsLoop(sessionId: number) {
+    if (allPidsTimer) return;
+
+    const loop = async () => {
+      if (sessionId !== currentSessionId) return;
+      if (!isRunning) {
+        allPidsTimer = null;
+        return;
+      }
+
+      try {
+        if (!elmBluetoothService.isConnected()) {
+          await handleDisconnect("obd_disconnected_all_pids_loop");
+          return;
+        }
+
+        const { userId, carId } = await getIdentity();
+
+        await runExclusive(async () => {
+          await publishAllSupportedPidValues(userId, carId);
+        });
+      } catch (error: any) {
+        console.log("All PIDs loop error:", error?.message || error);
+      }
+
+      if (!isRunning) return;
+
+      allPidsTimer = setTimeout(loop, ALL_PIDS_INTERVAL_MS);
+    };
+
+    allPidsTimer = setTimeout(loop, ALL_PIDS_INTERVAL_MS);
+  },
+
+  startSlowScanLoop(sessionId: number) {
     if (isSlowLoopRunning) return;
 
     isSlowLoopRunning = true;
 
     const loop = async () => {
+      if (sessionId !== currentSessionId) return;
       if (!isRunning || !isSlowLoopRunning) return;
 
       try {
@@ -603,11 +693,13 @@ export const vehicleScannerService = {
     }
 
     isRunning = true;
+    const sessionId = ++currentSessionId;
 
     const result = await runExclusive(() => this.runFullDiscovery());
 
-    this.startLiveStreaming();
-    this.startSlowScanLoop();
+    this.startLiveStreaming(sessionId);
+    this.startAllPidsLoop(sessionId);
+    this.startSlowScanLoop(sessionId);
     this.startDisconnectWatch();
 
     return result;
@@ -623,10 +715,13 @@ export const vehicleScannerService = {
     if (liveTimer) clearTimeout(liveTimer);
     if (slowTimer) clearTimeout(slowTimer);
     if (disconnectTimer) clearTimeout(disconnectTimer);
+    if (allPidsTimer) clearTimeout(allPidsTimer);
+
 
     liveTimer = null;
     slowTimer = null;
     disconnectTimer = null;
+    allPidsTimer = null;
 
     if (wasRunning && cachedUserId && cachedCarId) {
       await publishStatus(cachedUserId, cachedCarId, "stopped", {

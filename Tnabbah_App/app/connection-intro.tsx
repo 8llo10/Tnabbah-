@@ -283,9 +283,9 @@ export default function ConnectionIntroScreen() {
 
         return (
           result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN] ===
-            PermissionsAndroid.RESULTS.GRANTED &&
+          PermissionsAndroid.RESULTS.GRANTED &&
           result[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] ===
-            PermissionsAndroid.RESULTS.GRANTED
+          PermissionsAndroid.RESULTS.GRANTED
         );
       }
 
@@ -473,7 +473,7 @@ export default function ConnectionIntroScreen() {
       try {
         await elmBluetoothService.disconnect();
         await vehicleScannerService.stopAutoScan();
-      } catch {}
+      } catch { }
 
       setErrorMessage(error?.message || t.connectionConnectError);
     } finally {
@@ -707,9 +707,9 @@ export default function ConnectionIntroScreen() {
                         currentStep === 1
                           ? pulseAnim
                           : stepOneAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.9, 1],
-                            }),
+                            inputRange: [0, 1],
+                            outputRange: [0.9, 1],
+                          }),
                     },
                   ],
                 }}
@@ -739,9 +739,9 @@ export default function ConnectionIntroScreen() {
                         currentStep === 2
                           ? pulseAnim
                           : stepTwoAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.9, 1],
-                            }),
+                            inputRange: [0, 1],
+                            outputRange: [0.9, 1],
+                          }),
                     },
                   ],
                 }}
@@ -771,9 +771,9 @@ export default function ConnectionIntroScreen() {
                         currentStep === 3
                           ? pulseAnim
                           : stepThreeAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.9, 1],
-                            }),
+                            inputRange: [0, 1],
+                            outputRange: [0.9, 1],
+                          }),
                     },
                   ],
                 }}
@@ -1021,8 +1021,8 @@ function BluetoothContent({
           {isScanning
             ? t.connectionSearching
             : selectedDevice
-            ? selectedDevice.name
-            : t.connectionSelectObdDevice}
+              ? selectedDevice.name
+              : t.connectionSelectObdDevice}
         </Text>
       </TouchableOpacity>
 
@@ -1088,7 +1088,7 @@ function BluetoothContent({
                     style={[
                       styles.deviceItem,
                       selectedDevice?.id === item.id &&
-                        styles.deviceItemSelected,
+                      styles.deviceItemSelected,
                     ]}
                     disabled={isConnecting}
                     onPress={() => {
@@ -1198,7 +1198,7 @@ function StepItem({
           active && styles.stepLabelActive,
           completed && styles.stepLabelCompleted,
         ]}
-       allowFontScaling={false}>
+        allowFontScaling={false}>
         {label}
       </Text>
     </View>
@@ -1267,28 +1267,28 @@ function createStyles({
   const bluetoothListMaxHeight = isTablet
     ? height * 0.34
     : isVerySmallScreen
-    ? height * 0.25
-    : isSmallScreen
-    ? height * 0.29
-    : height * 0.33;
+      ? height * 0.25
+      : isSmallScreen
+        ? height * 0.29
+        : height * 0.33;
 
- const firstImageWidth = isTablet
-  ? clamp(width * 0.72, 500, 680)
-  : clamp(width * 1.18, 420, 590);
+  const firstImageWidth = isTablet
+    ? clamp(width * 0.72, 500, 680)
+    : clamp(width * 1.18, 420, 590);
 
-const firstImageHeight = isTablet
-  ? clamp(height * 0.56, 430, 600)
-  : clamp(height * 0.52, 390, 550);
+  const firstImageHeight = isTablet
+    ? clamp(height * 0.56, 430, 600)
+    : clamp(height * 0.52, 390, 550);
 
   // صورة اللايت مود أصلها داخل الملف نازلة أكثر من الدارك مود،
   // لذلك نرفعها فقط بدون ما نغير مكان صورة الدارك.
   const lightImageTranslateY = isTablet
     ? -34
     : isVerySmallScreen
-    ? -24
-    : isSmallScreen
-    ? -28
-    : -32;
+      ? -24
+      : isSmallScreen
+        ? -28
+        : -32;
 
   return StyleSheet.create({
     container: {

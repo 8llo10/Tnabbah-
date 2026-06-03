@@ -433,9 +433,9 @@ export default function HomeScreen() {
                 Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.05,
             onShouldBlockNativeResponder: () => true,
             onPanResponderTerminationRequest: () => false,
-            onPanResponderMove: () => {},
-            onPanResponderRelease: () => {},
-            onPanResponderTerminate: () => {},
+            onPanResponderMove: () => { },
+            onPanResponderRelease: () => { },
+            onPanResponderTerminate: () => { },
         }),
     ).current;
 
@@ -829,7 +829,7 @@ export default function HomeScreen() {
 
             // Try to get token from session, fallback to user if needed
             let token: string | null = null;
-            
+
             try {
                 const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
                 if (sessionError || !sessionData?.session?.access_token) {
@@ -1182,7 +1182,7 @@ export default function HomeScreen() {
                                                                     style={({ pressed }) => [
                                                                         styles.readButton,
                                                                         (pressed || pendingNotificationActionIds.has(item.id)) &&
-                                                                            styles.notificationActionPressed,
+                                                                        styles.notificationActionPressed,
                                                                     ]}
                                                                     hitSlop={12}
                                                                     android_ripple={{ color: COLORS.soft }}
@@ -1197,7 +1197,7 @@ export default function HomeScreen() {
                                                                 style={({ pressed }) => [
                                                                     styles.deleteButton,
                                                                     (pressed || pendingNotificationActionIds.has(item.id)) &&
-                                                                        styles.notificationActionPressed,
+                                                                    styles.notificationActionPressed,
                                                                 ]}
                                                                 hitSlop={12}
                                                                 android_ripple={{ color: COLORS.soft }}
@@ -1326,28 +1326,8 @@ export default function HomeScreen() {
                         styles={styles}
                         COLORS={COLORS}
                         width={metricWidth}
-                        icon="activity"
-                        label={t.homeRpmLabel}
-                        value={safeValue(metrics.rpm)}
-                        unit={t.homeRpmUnit}
-                    />
-
-                    <MetricCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        width={metricWidth}
-                        icon="navigation"
-                        label={t.homeSpeed}
-                        value={safeValue(metrics.speed)}
-                        unit={t.homeSpeedUnit}
-                    />
-
-                    <MetricCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        width={metricWidth}
                         icon="battery"
-                        label={t.homeVoltage}
+                        label="جهد البطارية"
                         value={safeValue(metrics.voltage)}
                         unit="V"
                     />
@@ -1356,9 +1336,29 @@ export default function HomeScreen() {
                         styles={styles}
                         COLORS={COLORS}
                         width={metricWidth}
+                        icon="activity"
+                        label="RPM"
+                        value={safeValue(metrics.rpm)}
+                        unit="لفة/دقيقة"
+                    />
+
+                    <MetricCard
+                        styles={styles}
+                        COLORS={COLORS}
+                        width={metricWidth}
                         icon="thermometer"
-                        label={t.homeCoolantTemp}
+                        label="حرارة المحرك"
                         value={safeValue(metrics.coolant)}
+                        unit="°C"
+                    />
+
+                    <MetricCard
+                        styles={styles}
+                        COLORS={COLORS}
+                        width={metricWidth}
+                        icon="thermometer"
+                        label="حرارة الزيت"
+                        value={safeValue(metrics.oilTemp)}
                         unit="°C"
                     />
                 </View>
@@ -1366,34 +1366,15 @@ export default function HomeScreen() {
                 <Text style={styles.sectionTitle}>{t.homeVehicleInfo}</Text>
 
                 <View style={styles.metricsGrid}>
-                    <MetricCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        width={metricWidth}
-                        icon="hash"
-                        label={t.homeCarIdLabel}
-                        value={carId ? t.homeAvailable : "--"}
-                        unit={carId || t.homeWaitingConnection}
-                    />
 
                     <MetricCard
                         styles={styles}
                         COLORS={COLORS}
                         width={metricWidth}
-                        icon="file-text"
-                        label={t.homeVinLabel}
-                        value={vin ? t.homeAvailable : "--"}
-                        unit={vin || t.homeMode09}
-                    />
-
-                    <MetricCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        width={metricWidth}
-                        icon="list"
-                        label={t.homeSupportedLabel}
-                        value={String(supportedCount)}
-                        unit={t.homePidUnit}
+                        icon="wind"
+                        label="ضغط الوقود"
+                        value={safeValue(metrics.fuelPressure)}
+                        unit="kPa"
                     />
 
                     <MetricCard
@@ -1401,9 +1382,9 @@ export default function HomeScreen() {
                         COLORS={COLORS}
                         width={metricWidth}
                         icon="alert-triangle"
-                        label={t.homeDtcLabel}
+                        label="رموز الأعطال"
                         value={String(dtcCount)}
-                        unit={t.homeFaultsUnit}
+                        unit="DTC"
                     />
                 </View>
 
@@ -1625,988 +1606,988 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
     const alignSelf = isArabic ? "flex-end" : "flex-start";
 
     return StyleSheet.create({
-    inAppNotificationCard: {
-        position: "absolute",
-        top: 58,
-        left: 18,
-        right: 18,
-        zIndex: 100,
-        elevation: 12,
-        borderRadius: 20,
-        backgroundColor: COLORS.surface,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        padding: 12,
-        flexDirection: rowDirection,
-        alignItems: "center",
-        gap: 10,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.14,
-        shadowRadius: 16,
-    },
-
-    inAppNotificationIcon: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        backgroundColor: COLORS.primary,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-
-    inAppNotificationTextBox: {
-        flex: 1,
-        alignItems,
-    },
-
-    inAppNotificationTitle: {
-        fontSize: 13,
-        fontWeight: "900",
-        color: COLORS.text,
-        textAlign,
-        fontFamily: FONT_BOLD,
-    },
-
-    inAppNotificationBody: {
-        marginTop: 3,
-        fontSize: 12,
-        fontWeight: "700",
-        color: COLORS.muted,
-        textAlign,
-        lineHeight: 18,
-        fontFamily: FONT_SEMIBOLD,
-    },
-
-    inAppNotificationClose: {
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-        backgroundColor: COLORS.soft,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-
-    safeArea: {
-        flex: 1,
-        backgroundColor: COLORS.bg,
-    },
-
-    scrollView: {
-        flex: 1,
-        backgroundColor: COLORS.bg,
-    },
-
-    scrollContent: {
-        paddingHorizontal: 18,
-        paddingTop: 32,
-        paddingBottom: 130,
-    },
-
-    scrollContentWide: {
-        paddingHorizontal: 26,
-        paddingTop: 40,
-    },
-
-    header: {
-        width: "100%",
-        flexDirection: rowDirection,
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        gap: 10,
-        marginBottom: 24,
-    },
-
-    headerWide: {
-        alignSelf: "center",
-        maxWidth: 980,
-    },
-
-    headerTextBox: {
-        flex: 1,
-        minWidth: 0,
-        alignItems,
-        paddingTop: 1,
-    },
-
-    headerRightArea: {
-        position: "relative",
-    },
-
-    notificationButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: COLORS.soft,
-        justifyContent: "center",
-        alignItems: "center",
-        borderWidth: 1,
-        borderColor: COLORS.border,
-    },
-
-    notificationDot: {
-        position: "absolute",
-        top: 6,
-        right: 6,
-        width: 13,
-        height: 13,
-        borderRadius: 6.5,
-        backgroundColor: COLORS.danger,
-        borderWidth: 2,
-        borderColor: COLORS.surface,
-        zIndex: 5,
-        elevation: 5,
-    },
-
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: COLORS.modalOverlay,
-        justifyContent: "center",
-        alignItems: "center",
-        paddingHorizontal: 20,
-        paddingVertical: 24,
-    },
-
-    modalContainer: {
-        width: "100%",
-        maxWidth: 380,
-        backgroundColor: COLORS.surface,
-        borderRadius: 24,
-        padding: 20,
-        maxHeight: "78%",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.15,
-        shadowRadius: 20,
-        elevation: 10,
-    },
-
-    modalHeader: {
-        flexDirection: rowDirection,
-        justifyContent: "space-between",
-        alignItems: "center",
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
-        paddingBottom: 12,
-        marginBottom: 10,
-    },
-
-    closeButton: {
-        width: 34,
-        height: 34,
-        borderRadius: 17,
-        backgroundColor: "transparent",
-        justifyContent: "center",
-        alignItems: "center",
-        borderWidth: 0,
-    },
-
-    notificationsTitle: {
-        flex: 1,
-        fontSize: 16,
-        fontWeight: "900",
-        color: COLORS.text,
-        textAlign,
-        fontFamily: FONT_BOLD,
-        includeFontPadding: true,
-    },
-
-    emptyNotificationText: {
-        fontSize: 13,
-        color: COLORS.muted,
-        textAlign: "center",
-        fontWeight: "700",
-        paddingVertical: 30,
-        fontFamily: FONT_SEMIBOLD,
-    },
-
-    notificationItem: {
-        paddingVertical: 12,
-        paddingHorizontal: 2,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
-    },
-
-    notificationText: {
-        fontSize: 13,
-        color: COLORS.text,
-        textAlign,
-        lineHeight: 22,
-        fontWeight: "700",
-        fontFamily: FONT_SEMIBOLD,
-    },
-
-    helloText: {
-        fontSize: 16.5,
-        color: COLORS.text,
-        fontWeight: "900",
-        textAlign,
-        lineHeight: 25,
-        fontFamily: FONT_EXTRABOLD,
-        includeFontPadding: true,
-    },
-
-    headerTitle: {
-        marginTop: 3,
-        fontSize: 12.5,
-        color: COLORS.muted,
-        fontWeight: "700",
-        textAlign,
-        lineHeight: 19,
-        fontFamily: FONT_SEMIBOLD,
-        includeFontPadding: true,
-    },
-
-    headerActions: {
-        flexDirection: rowDirection,
-        alignItems: "center",
-        justifyContent: "flex-start",
-        gap: 8,
-        flexShrink: 0,
-        paddingTop: 0,
-    },
-
-    notificationItemText: {
-        flex: 1,
-        textAlign,
-        fontSize: 13,
-        fontWeight: "700",
-        color: COLORS.text,
-        fontFamily: FONT_SEMIBOLD,
-    },
-
-    emptyNotificationsText: {
-        textAlign: "center",
-        fontSize: 13,
-        color: COLORS.muted,
-        fontWeight: "700",
-        fontFamily: FONT_SEMIBOLD,
-    },
-
-    redDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: COLORS.danger,
-    },
-
-    notificationBadge: {
-        position: "absolute",
-        top: -4,
-        right: -2,
-        minWidth: 18,
-        height: 18,
-        borderRadius: 9,
-        backgroundColor: COLORS.danger,
-        alignItems: "center",
-        justifyContent: "center",
-        paddingHorizontal: 4,
-    },
-
-    notificationBadgeText: {
-        color: "#FFFFFF",
-        fontSize: 10,
-        fontWeight: "900",
-        fontFamily: FONT_BOLD,
-    },
-
-    connectionBadge: {
-        height: 38,
-        borderRadius: 19,
-        paddingHorizontal: 13,
-        flexDirection: rowDirection,
-        alignItems: "center",
-        gap: 7,
-        borderWidth: 1,
-    },
-
-    connectedBadge: {
-        backgroundColor: COLORS.connectedBg,
-        borderColor: COLORS.connectedBorder,
-    },
-
-    disconnectedBadge: {
-        backgroundColor: COLORS.disconnectedBg,
-        borderColor: COLORS.disconnectedBorder,
-    },
-
-    connectionDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-    },
-
-    connectionText: {
-        fontSize: 12,
-        fontWeight: "900",
-        fontFamily: FONT_BOLD,
-        includeFontPadding: true,
-    },
-    quickSummaryRow: {
-        width: "100%",
-        maxWidth: 980,
-        alignSelf: "center",
-        flexDirection: rowDirection,
-        alignItems: "stretch",
-        justifyContent: "space-between",
-        gap: 8,
-        marginTop: 12,
-        marginBottom: 4,
-    },
-
-    quickSummaryRowWide: {
-        maxWidth: 980,
-        alignSelf: "center",
-    },
-
-    quickSummaryCard: {
-        flex: 1,
-        minHeight: 126,
-        borderRadius: 22,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        backgroundColor: COLORS.surface,
-        paddingHorizontal: 10,
-        paddingVertical: 12,
-        alignItems: "center",
-        justifyContent: "flex-start",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.035,
-        shadowRadius: 6,
-        elevation: 1,
-    },
-
-    quickSummaryIconCircle: {
-        width: 36,
-        height: 36,
-        borderRadius: 14,
-        backgroundColor: COLORS.soft,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        alignItems: "center",
-        justifyContent: "center",
-        marginBottom: 8,
-    },
-
-    quickSummaryTitle: {
-        color: COLORS.text,
-        fontSize: 11.2,
-        lineHeight: 17,
-        fontFamily: FONT_BOLD,
-        textAlign: "center",
-        includeFontPadding: true,
-    },
-
-    quickSummaryValue: {
-        marginTop: 4,
-        color: COLORS.primary,
-        fontSize: 18,
-        lineHeight: 24,
-        fontFamily: FONT_EXTRABOLD,
-        textAlign: "center",
-        includeFontPadding: true,
-    },
-
-    quickSummarySubtitle: {
-        marginTop: 2,
-        color: COLORS.muted,
-        fontSize: 9.4,
-        lineHeight: 14,
-        fontFamily: FONT_REGULAR,
-        textAlign: "center",
-        includeFontPadding: true,
-    },
-
-    heroCard: {
-        width: "100%",
-        maxWidth: 980,
-        alignSelf: "center",
-        borderRadius: 28,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        backgroundColor: COLORS.surface,
-        paddingHorizontal: 20,
-        paddingVertical: 18,
-        alignItems: "center",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 6,
-        elevation: 1,
-        marginTop: 8,
-        marginBottom: 0,
-    },
-
-    heroCardWide: {
-        maxWidth: 980,
-        alignSelf: "center",
-    },
-
-    heroContent: {
-        alignItems: "center",
-        maxWidth: 460,
-    },
-
-    heroTitle: {
-        fontSize: 21,
-        fontWeight: "900",
-        color: COLORS.text,
-        textAlign: "center",
-        fontFamily: FONT_EXTRABOLD,
-    },
-
-    heroSubtitle: {
-        marginTop: 8,
-        fontSize: 14,
-        color: COLORS.muted,
-        fontWeight: "600",
-        textAlign: "center",
-        lineHeight: 24,
-        fontFamily: FONT_REGULAR,
-    },
-
-    heroButtons: {
-        width: "100%",
-        alignItems: "center",
-        marginTop: 18,
-    },
-
-    mainButton: {
-        width: "100%",
-        height: 56,
-        borderRadius: 28,
-        overflow: "hidden",
-        shadowColor: COLORS.primaryDark,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.14,
-        shadowRadius: 14,
-        elevation: 4,
-    },
-
-    mainButtonGradient: {
-        flex: 1,
-        borderRadius: 28,
-        flexDirection: rowDirection,
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-    },
-
-    mainButtonText: {
-        color: "#FFFFFF",
-        fontSize: 17,
-        fontWeight: "900",
-        fontFamily: FONT_BOLD,
-        includeFontPadding: true,
-    },
-
-    sectionTitle: {
-        marginTop: 24,
-        marginBottom: 12,
-        fontSize: 15,
-        fontWeight: "900",
-        color: COLORS.text,
-        textAlign,
-        alignSelf: "stretch",
-        fontFamily: FONT_BOLD,
-        includeFontPadding: true,
-    },
-
-    metricsGrid: {
-        width: "100%",
-        maxWidth: 980,
-        alignSelf: "center",
-        flexDirection: rowDirection,
-        flexWrap: "wrap",
-        gap: 10,
-        justifyContent: "center",
-    },
-
-    metricCard: {
-        minHeight: 138,
-        borderRadius: 24,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        backgroundColor: COLORS.soft,
-        paddingHorizontal: 14,
-        paddingVertical: 14,
-        justifyContent: "space-between",
-    },
-
-    metricHeader: {
-        flexDirection: rowDirection,
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 8,
-    },
-
-    metricIconCircle: {
-        width: 36,
-        height: 36,
-        borderRadius: 14,
-        backgroundColor: COLORS.surface,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-
-    metricLabel: {
-        flex: 1,
-        fontSize: 13,
-        color: COLORS.muted,
-        fontWeight: "800",
-        textAlign,
-        fontFamily: FONT_SEMIBOLD,
-    },
-
-    metricValue: {
-        marginTop: 10,
-        fontSize: 30,
-        color: COLORS.text,
-        fontWeight: "900",
-        textAlign,
-        fontFamily: FONT_EXTRABOLD,
-        includeFontPadding: true,
-    },
-
-    metricUnit: {
-        fontSize: 12,
-        color: COLORS.muted,
-        fontWeight: "700",
-        textAlign,
-        fontFamily: FONT_SEMIBOLD,
-        includeFontPadding: true,
-    },
-
-    statusCard: {
-        width: "100%",
-        maxWidth: 980,
-        alignSelf: "center",
-        marginTop: 12,
-        borderRadius: 24,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        backgroundColor: COLORS.surface,
-        padding: 16,
-    },
-
-    statusHeader: {
-        flexDirection: rowDirection,
-        alignItems: "center",
-        gap: 8,
-    },
-
-    statusIconCircle: {
-        width: 36,
-        height: 36,
-        borderRadius: 14,
-        backgroundColor: COLORS.softRed,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-
-    statusTitle: {
-        fontSize: 15,
-        fontWeight: "900",
-        color: COLORS.text,
-        fontFamily: FONT_BOLD,
-    },
-
-    statusDescription: {
-        marginTop: 10,
-        fontSize: 13,
-        color: COLORS.muted,
-        fontWeight: "700",
-        textAlign,
-        lineHeight: 22,
-        fontFamily: FONT_SEMIBOLD,
-    },
-
-    debugText: {
-        marginTop: 8,
-        fontSize: 12,
-        color: COLORS.warning,
-        fontWeight: "800",
-        textAlign,
-        lineHeight: 20,
-        fontFamily: FONT_SEMIBOLD,
-    },
-
-    rawBox: {
-        marginTop: 12,
-        borderRadius: 16,
-        backgroundColor: COLORS.soft,
-        padding: 12,
-    },
-
-    rawTitle: {
-        fontSize: 12,
-        color: COLORS.primary,
-        fontWeight: "900",
-        textAlign,
-        marginBottom: 6,
-        fontFamily: FONT_BOLD,
-    },
-
-    rawText: {
-        fontSize: 9.8,
-        color: COLORS.rawText,
-        fontWeight: "700",
-        textAlign: "left",
-        lineHeight: 18,
-        fontFamily: FONT_REGULAR,
-    },
-
-    tipCard: {
-        width: "100%",
-        maxWidth: 980,
-        alignSelf: "center",
-        marginTop: 12,
-        borderRadius: 22,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        backgroundColor: COLORS.notificationUnreadBg,
-        padding: 14,
-        flexDirection: rowDirection,
-        alignItems: "flex-start",
-        gap: 10,
-    },
-
-    tipIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 14,
-        backgroundColor: "#F2D7DA",
-        justifyContent: "center",
-        alignItems: "center",
-    },
-
-    tipTextBox: {
-        flex: 1,
-        alignItems,
-    },
-
-    tipTitle: {
-        fontSize: 14,
-        fontWeight: "900",
-        color: COLORS.text,
-        textAlign,
-        fontFamily: FONT_BOLD,
-    },
-
-    tipText: {
-        marginTop: 5,
-        fontSize: 12,
-        color: COLORS.muted,
-        fontWeight: "600",
-        lineHeight: 20,
-        textAlign,
-        fontFamily: FONT_REGULAR,
-    },
-
-    aiHomeBox: {
-        width: "100%",
-        marginTop: 16,
-        borderRadius: 20,
-        backgroundColor: COLORS.surface,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        padding: 14,
-    },
-
-    aiHomeTitle: {
-        fontSize: 16,
-        fontWeight: "900",
-        color: COLORS.text,
-        textAlign,
-        fontFamily: FONT_BOLD,
-    },
-
-    aiHomeMessage: {
-        marginTop: 6,
-        fontSize: 13,
-        fontWeight: "700",
-        color: COLORS.muted,
-        textAlign,
-        lineHeight: 22,
-        fontFamily: FONT_SEMIBOLD,
-    },
-
-    aiHomeFooter: {
-        marginTop: 10,
-        flexDirection: rowDirection,
-        justifyContent: "space-between",
-        gap: 10,
-    },
-
-    aiHomeScore: {
-        fontSize: 12,
-        fontWeight: "900",
-        color: COLORS.primary,
-        fontFamily: FONT_BOLD,
-    },
-
-    aiHomeAction: {
-        flex: 1,
-        fontSize: 12,
-        fontWeight: "800",
-        color: COLORS.success,
-        textAlign: "left",
-        fontFamily: FONT_SEMIBOLD,
-    },
-
-    notificationItemUnread: {
-        backgroundColor: COLORS.notificationUnreadBg,
-        borderRadius: 16,
-        paddingHorizontal: 12,
-    },
-
-    notificationTopRow: {
-        flexDirection: rowDirection,
-        alignItems: "center",
-        gap: 8,
-        marginBottom: 4,
-    },
-
-    unreadDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: COLORS.primary,
-    },
-
-    notificationTitleText: {
-        flex: 1,
-        fontSize: 13,
-        fontWeight: "900",
-        color: COLORS.text,
-        textAlign,
-        fontFamily: FONT_BOLD,
-        includeFontPadding: true,
-    },
-
-    notificationActions: {
-        marginTop: 10,
-        flexDirection: rowDirection,
-        gap: 8,
-        alignSelf: isArabic ? "flex-end" : "flex-start",
-    },
-
-    readButton: {
-        backgroundColor: COLORS.primary,
-        minHeight: 38,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 12,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-
-    readButtonText: {
-        color: "#FFFFFF",
-        fontSize: 9.8,
-        fontWeight: "900",
-        fontFamily: FONT_BOLD,
-        includeFontPadding: true,
-    },
-
-    deleteButton: {
-        backgroundColor: COLORS.disconnectedBg,
-        minHeight: 38,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 12,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-
-    deleteButtonText: {
-        color: COLORS.danger,
-        fontSize: 9.8,
-        fontWeight: "900",
-        fontFamily: FONT_BOLD,
-        includeFontPadding: true,
-    },
-
-    notificationActionPressed: {
-        opacity: 0.62,
-        transform: [{ scale: 0.98 }],
-    },
-
-    modalScrollContent: {
-        paddingBottom: 18,
-        flexGrow: 1,
-    },
-
-    modalScroll: {
-        maxHeight: 430,
-        width: "100%",
-        flexGrow: 0,
-    },
-
-    aiFloatingButtonWrapper: {
-        position: "absolute",
-        left: 0,
-        top: 0,
-        width: FLOATING_ASSISTANT_WIDTH,
-        height: FLOATING_ASSISTANT_HEIGHT,
-        zIndex: 800,
-        elevation: 14,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-
-    aiFloatingGlow: {
-        position: "absolute",
-        width: FLOATING_ASSISTANT_WIDTH + 10,
-        height: FLOATING_ASSISTANT_HEIGHT + 10,
-        borderRadius: (FLOATING_ASSISTANT_HEIGHT + 10) / 2,
-        backgroundColor: COLORS.floatingGlow,
-        borderWidth: 1,
-        borderColor: COLORS.floatingGlowBorder,
-        shadowColor: COLORS.floatingIcon,
-        shadowOffset: { width: 0, height: 5 },
-        shadowOpacity: 0.18,
-        shadowRadius: 10,
-        elevation: 6,
-    },
-
-    aiFloatingButton: {
-        width: FLOATING_ASSISTANT_WIDTH,
-        height: FLOATING_ASSISTANT_HEIGHT,
-        borderRadius: FLOATING_ASSISTANT_HEIGHT / 2,
-        backgroundColor: COLORS.floatingBg,
-        borderWidth: 1.4,
-        borderColor: COLORS.floatingBorder,
-        alignItems: "center",
-        justifyContent: "center",
-        paddingHorizontal: 6,
-        paddingTop: 9,
-        paddingBottom: 7,
-
-        shadowColor: COLORS.floatingIcon,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.20,
-        shadowRadius: 10,
-        elevation: 14,
-    },
-
-    aiFloatingButtonPressed: {
-        opacity: 0.94,
-        transform: [{ scale: 0.96 }],
-    },
-
-    aiFloatingMark: {
-        position: "absolute",
-        top: 8,
-        right: 12,
-        width: 18,
-        height: 18,
-        borderRadius: 9,
-        backgroundColor: COLORS.floatingMarkBg,
-        alignItems: "center",
-        justifyContent: "center",
-        borderWidth: 1,
-        borderColor: COLORS.floatingBorder,
-    },
-
-    aiTypingBubble: {
-        position: "absolute",
-        top: -6,
-        right: isArabic ? 3 : undefined,
-        left: isArabic ? undefined : 3,
-        minWidth: 31,
-        height: 18,
-        borderRadius: 11,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 3,
-        backgroundColor: COLORS.floatingTypingBg,
-        borderWidth: 1,
-        borderColor: COLORS.floatingTypingBorder,
-        shadowColor: COLORS.floatingBg,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.09,
-        shadowRadius: 4,
-        elevation: 5,
-        zIndex: 4,
-    },
-
-    aiFloatingTopRow: {
-        flexDirection: rowDirection,
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 4,
-        marginBottom: 2,
-    },
-
-    aiFloatingIconCircle: {
-        width: 34,
-        height: 34,
-        borderRadius: 17,
-        backgroundColor: "transparent",
-        alignItems: "center",
-        justifyContent: "center",
-        marginTop: 2,
-        zIndex: 3,
-    },
-
-    aiFloatingMainIcon: {
-        marginTop: 3,
-        marginBottom: 4,
-        zIndex: 3,
-        textShadowColor: "rgba(0,0,0,0.28)",
-        textShadowOffset: { width: 0, height: 2 },
-        textShadowRadius: 4,
-        shadowColor: "rgba(0,0,0,0.35)",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-    },
-
-    aiTypingDotsRow: {
-        width: 25,
-        height: 17,
-        borderRadius: 9,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 2.7,
-        backgroundColor: COLORS.floatingIconBg,
-    },
-
-    aiTypingDot: {
-        width: 3.8,
-        height: 3.8,
-        borderRadius: 1.9,
-        backgroundColor: COLORS.floatingTypingDot,
-    },
-
-    aiFloatingQuestion: {
-        color: COLORS.floatingTitle,
-        fontSize: 7.8,
-        lineHeight: 10.2,
-        fontWeight: "900",
-        textAlign: "center",
-        includeFontPadding: false,
-        zIndex: 3,
-        fontFamily: FONT_BOLD,
-        marginTop: -1,
-        maxWidth: 58,
-        alignSelf: "center",
-    },
-
-    aiFloatingSubtitle: {
-        marginTop: 2,
-        color: COLORS.floatingSubtitle,
-        fontSize: 7.5,
-        lineHeight: 9,
-        fontWeight: "900",
-        textAlign: "center",
-        includeFontPadding: false,
-        fontFamily: FONT_BOLD,
-    },
+        inAppNotificationCard: {
+            position: "absolute",
+            top: 58,
+            left: 18,
+            right: 18,
+            zIndex: 100,
+            elevation: 12,
+            borderRadius: 20,
+            backgroundColor: COLORS.surface,
+            borderWidth: 1,
+            borderColor: COLORS.border,
+            padding: 12,
+            flexDirection: rowDirection,
+            alignItems: "center",
+            gap: 10,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.14,
+            shadowRadius: 16,
+        },
+
+        inAppNotificationIcon: {
+            width: 38,
+            height: 38,
+            borderRadius: 19,
+            backgroundColor: COLORS.primary,
+            alignItems: "center",
+            justifyContent: "center",
+        },
+
+        inAppNotificationTextBox: {
+            flex: 1,
+            alignItems,
+        },
+
+        inAppNotificationTitle: {
+            fontSize: 13,
+            fontWeight: "900",
+            color: COLORS.text,
+            textAlign,
+            fontFamily: FONT_BOLD,
+        },
+
+        inAppNotificationBody: {
+            marginTop: 3,
+            fontSize: 12,
+            fontWeight: "700",
+            color: COLORS.muted,
+            textAlign,
+            lineHeight: 18,
+            fontFamily: FONT_SEMIBOLD,
+        },
+
+        inAppNotificationClose: {
+            width: 30,
+            height: 30,
+            borderRadius: 15,
+            backgroundColor: COLORS.soft,
+            alignItems: "center",
+            justifyContent: "center",
+        },
+
+        safeArea: {
+            flex: 1,
+            backgroundColor: COLORS.bg,
+        },
+
+        scrollView: {
+            flex: 1,
+            backgroundColor: COLORS.bg,
+        },
+
+        scrollContent: {
+            paddingHorizontal: 18,
+            paddingTop: 32,
+            paddingBottom: 130,
+        },
+
+        scrollContentWide: {
+            paddingHorizontal: 26,
+            paddingTop: 40,
+        },
+
+        header: {
+            width: "100%",
+            flexDirection: rowDirection,
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 10,
+            marginBottom: 24,
+        },
+
+        headerWide: {
+            alignSelf: "center",
+            maxWidth: 980,
+        },
+
+        headerTextBox: {
+            flex: 1,
+            minWidth: 0,
+            alignItems,
+            paddingTop: 1,
+        },
+
+        headerRightArea: {
+            position: "relative",
+        },
+
+        notificationButton: {
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: COLORS.soft,
+            justifyContent: "center",
+            alignItems: "center",
+            borderWidth: 1,
+            borderColor: COLORS.border,
+        },
+
+        notificationDot: {
+            position: "absolute",
+            top: 6,
+            right: 6,
+            width: 13,
+            height: 13,
+            borderRadius: 6.5,
+            backgroundColor: COLORS.danger,
+            borderWidth: 2,
+            borderColor: COLORS.surface,
+            zIndex: 5,
+            elevation: 5,
+        },
+
+        modalOverlay: {
+            flex: 1,
+            backgroundColor: COLORS.modalOverlay,
+            justifyContent: "center",
+            alignItems: "center",
+            paddingHorizontal: 20,
+            paddingVertical: 24,
+        },
+
+        modalContainer: {
+            width: "100%",
+            maxWidth: 380,
+            backgroundColor: COLORS.surface,
+            borderRadius: 24,
+            padding: 20,
+            maxHeight: "78%",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.15,
+            shadowRadius: 20,
+            elevation: 10,
+        },
+
+        modalHeader: {
+            flexDirection: rowDirection,
+            justifyContent: "space-between",
+            alignItems: "center",
+            borderBottomWidth: 1,
+            borderBottomColor: COLORS.border,
+            paddingBottom: 12,
+            marginBottom: 10,
+        },
+
+        closeButton: {
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            backgroundColor: "transparent",
+            justifyContent: "center",
+            alignItems: "center",
+            borderWidth: 0,
+        },
+
+        notificationsTitle: {
+            flex: 1,
+            fontSize: 16,
+            fontWeight: "900",
+            color: COLORS.text,
+            textAlign,
+            fontFamily: FONT_BOLD,
+            includeFontPadding: true,
+        },
+
+        emptyNotificationText: {
+            fontSize: 13,
+            color: COLORS.muted,
+            textAlign: "center",
+            fontWeight: "700",
+            paddingVertical: 30,
+            fontFamily: FONT_SEMIBOLD,
+        },
+
+        notificationItem: {
+            paddingVertical: 12,
+            paddingHorizontal: 2,
+            borderBottomWidth: 1,
+            borderBottomColor: COLORS.border,
+        },
+
+        notificationText: {
+            fontSize: 13,
+            color: COLORS.text,
+            textAlign,
+            lineHeight: 22,
+            fontWeight: "700",
+            fontFamily: FONT_SEMIBOLD,
+        },
+
+        helloText: {
+            fontSize: 16.5,
+            color: COLORS.text,
+            fontWeight: "900",
+            textAlign,
+            lineHeight: 25,
+            fontFamily: FONT_EXTRABOLD,
+            includeFontPadding: true,
+        },
+
+        headerTitle: {
+            marginTop: 3,
+            fontSize: 12.5,
+            color: COLORS.muted,
+            fontWeight: "700",
+            textAlign,
+            lineHeight: 19,
+            fontFamily: FONT_SEMIBOLD,
+            includeFontPadding: true,
+        },
+
+        headerActions: {
+            flexDirection: rowDirection,
+            alignItems: "center",
+            justifyContent: "flex-start",
+            gap: 8,
+            flexShrink: 0,
+            paddingTop: 0,
+        },
+
+        notificationItemText: {
+            flex: 1,
+            textAlign,
+            fontSize: 13,
+            fontWeight: "700",
+            color: COLORS.text,
+            fontFamily: FONT_SEMIBOLD,
+        },
+
+        emptyNotificationsText: {
+            textAlign: "center",
+            fontSize: 13,
+            color: COLORS.muted,
+            fontWeight: "700",
+            fontFamily: FONT_SEMIBOLD,
+        },
+
+        redDot: {
+            width: 10,
+            height: 10,
+            borderRadius: 5,
+            backgroundColor: COLORS.danger,
+        },
+
+        notificationBadge: {
+            position: "absolute",
+            top: -4,
+            right: -2,
+            minWidth: 18,
+            height: 18,
+            borderRadius: 9,
+            backgroundColor: COLORS.danger,
+            alignItems: "center",
+            justifyContent: "center",
+            paddingHorizontal: 4,
+        },
+
+        notificationBadgeText: {
+            color: "#FFFFFF",
+            fontSize: 10,
+            fontWeight: "900",
+            fontFamily: FONT_BOLD,
+        },
+
+        connectionBadge: {
+            height: 38,
+            borderRadius: 19,
+            paddingHorizontal: 13,
+            flexDirection: rowDirection,
+            alignItems: "center",
+            gap: 7,
+            borderWidth: 1,
+        },
+
+        connectedBadge: {
+            backgroundColor: COLORS.connectedBg,
+            borderColor: COLORS.connectedBorder,
+        },
+
+        disconnectedBadge: {
+            backgroundColor: COLORS.disconnectedBg,
+            borderColor: COLORS.disconnectedBorder,
+        },
+
+        connectionDot: {
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+        },
+
+        connectionText: {
+            fontSize: 12,
+            fontWeight: "900",
+            fontFamily: FONT_BOLD,
+            includeFontPadding: true,
+        },
+        quickSummaryRow: {
+            width: "100%",
+            maxWidth: 980,
+            alignSelf: "center",
+            flexDirection: rowDirection,
+            alignItems: "stretch",
+            justifyContent: "space-between",
+            gap: 8,
+            marginTop: 12,
+            marginBottom: 4,
+        },
+
+        quickSummaryRowWide: {
+            maxWidth: 980,
+            alignSelf: "center",
+        },
+
+        quickSummaryCard: {
+            flex: 1,
+            minHeight: 126,
+            borderRadius: 22,
+            borderWidth: 1,
+            borderColor: COLORS.border,
+            backgroundColor: COLORS.surface,
+            paddingHorizontal: 10,
+            paddingVertical: 12,
+            alignItems: "center",
+            justifyContent: "flex-start",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.035,
+            shadowRadius: 6,
+            elevation: 1,
+        },
+
+        quickSummaryIconCircle: {
+            width: 36,
+            height: 36,
+            borderRadius: 14,
+            backgroundColor: COLORS.soft,
+            borderWidth: 1,
+            borderColor: COLORS.border,
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 8,
+        },
+
+        quickSummaryTitle: {
+            color: COLORS.text,
+            fontSize: 11.2,
+            lineHeight: 17,
+            fontFamily: FONT_BOLD,
+            textAlign: "center",
+            includeFontPadding: true,
+        },
+
+        quickSummaryValue: {
+            marginTop: 4,
+            color: COLORS.primary,
+            fontSize: 18,
+            lineHeight: 24,
+            fontFamily: FONT_EXTRABOLD,
+            textAlign: "center",
+            includeFontPadding: true,
+        },
+
+        quickSummarySubtitle: {
+            marginTop: 2,
+            color: COLORS.muted,
+            fontSize: 9.4,
+            lineHeight: 14,
+            fontFamily: FONT_REGULAR,
+            textAlign: "center",
+            includeFontPadding: true,
+        },
+
+        heroCard: {
+            width: "100%",
+            maxWidth: 980,
+            alignSelf: "center",
+            borderRadius: 28,
+            borderWidth: 1,
+            borderColor: COLORS.border,
+            backgroundColor: COLORS.surface,
+            paddingHorizontal: 20,
+            paddingVertical: 18,
+            alignItems: "center",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.03,
+            shadowRadius: 6,
+            elevation: 1,
+            marginTop: 8,
+            marginBottom: 0,
+        },
+
+        heroCardWide: {
+            maxWidth: 980,
+            alignSelf: "center",
+        },
+
+        heroContent: {
+            alignItems: "center",
+            maxWidth: 460,
+        },
+
+        heroTitle: {
+            fontSize: 21,
+            fontWeight: "900",
+            color: COLORS.text,
+            textAlign: "center",
+            fontFamily: FONT_EXTRABOLD,
+        },
+
+        heroSubtitle: {
+            marginTop: 8,
+            fontSize: 14,
+            color: COLORS.muted,
+            fontWeight: "600",
+            textAlign: "center",
+            lineHeight: 24,
+            fontFamily: FONT_REGULAR,
+        },
+
+        heroButtons: {
+            width: "100%",
+            alignItems: "center",
+            marginTop: 18,
+        },
+
+        mainButton: {
+            width: "100%",
+            height: 56,
+            borderRadius: 28,
+            overflow: "hidden",
+            shadowColor: COLORS.primaryDark,
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.14,
+            shadowRadius: 14,
+            elevation: 4,
+        },
+
+        mainButtonGradient: {
+            flex: 1,
+            borderRadius: 28,
+            flexDirection: rowDirection,
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+        },
+
+        mainButtonText: {
+            color: "#FFFFFF",
+            fontSize: 17,
+            fontWeight: "900",
+            fontFamily: FONT_BOLD,
+            includeFontPadding: true,
+        },
+
+        sectionTitle: {
+            marginTop: 24,
+            marginBottom: 12,
+            fontSize: 15,
+            fontWeight: "900",
+            color: COLORS.text,
+            textAlign,
+            alignSelf: "stretch",
+            fontFamily: FONT_BOLD,
+            includeFontPadding: true,
+        },
+
+        metricsGrid: {
+            width: "100%",
+            maxWidth: 980,
+            alignSelf: "center",
+            flexDirection: rowDirection,
+            flexWrap: "wrap",
+            gap: 10,
+            justifyContent: "center",
+        },
+
+        metricCard: {
+            minHeight: 138,
+            borderRadius: 24,
+            borderWidth: 1,
+            borderColor: COLORS.border,
+            backgroundColor: COLORS.soft,
+            paddingHorizontal: 14,
+            paddingVertical: 14,
+            justifyContent: "space-between",
+        },
+
+        metricHeader: {
+            flexDirection: rowDirection,
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+        },
+
+        metricIconCircle: {
+            width: 36,
+            height: 36,
+            borderRadius: 14,
+            backgroundColor: COLORS.surface,
+            alignItems: "center",
+            justifyContent: "center",
+        },
+
+        metricLabel: {
+            flex: 1,
+            fontSize: 13,
+            color: COLORS.muted,
+            fontWeight: "800",
+            textAlign,
+            fontFamily: FONT_SEMIBOLD,
+        },
+
+        metricValue: {
+            marginTop: 10,
+            fontSize: 30,
+            color: COLORS.text,
+            fontWeight: "900",
+            textAlign,
+            fontFamily: FONT_EXTRABOLD,
+            includeFontPadding: true,
+        },
+
+        metricUnit: {
+            fontSize: 12,
+            color: COLORS.muted,
+            fontWeight: "700",
+            textAlign,
+            fontFamily: FONT_SEMIBOLD,
+            includeFontPadding: true,
+        },
+
+        statusCard: {
+            width: "100%",
+            maxWidth: 980,
+            alignSelf: "center",
+            marginTop: 12,
+            borderRadius: 24,
+            borderWidth: 1,
+            borderColor: COLORS.border,
+            backgroundColor: COLORS.surface,
+            padding: 16,
+        },
+
+        statusHeader: {
+            flexDirection: rowDirection,
+            alignItems: "center",
+            gap: 8,
+        },
+
+        statusIconCircle: {
+            width: 36,
+            height: 36,
+            borderRadius: 14,
+            backgroundColor: COLORS.softRed,
+            alignItems: "center",
+            justifyContent: "center",
+        },
+
+        statusTitle: {
+            fontSize: 15,
+            fontWeight: "900",
+            color: COLORS.text,
+            fontFamily: FONT_BOLD,
+        },
+
+        statusDescription: {
+            marginTop: 10,
+            fontSize: 13,
+            color: COLORS.muted,
+            fontWeight: "700",
+            textAlign,
+            lineHeight: 22,
+            fontFamily: FONT_SEMIBOLD,
+        },
+
+        debugText: {
+            marginTop: 8,
+            fontSize: 12,
+            color: COLORS.warning,
+            fontWeight: "800",
+            textAlign,
+            lineHeight: 20,
+            fontFamily: FONT_SEMIBOLD,
+        },
+
+        rawBox: {
+            marginTop: 12,
+            borderRadius: 16,
+            backgroundColor: COLORS.soft,
+            padding: 12,
+        },
+
+        rawTitle: {
+            fontSize: 12,
+            color: COLORS.primary,
+            fontWeight: "900",
+            textAlign,
+            marginBottom: 6,
+            fontFamily: FONT_BOLD,
+        },
+
+        rawText: {
+            fontSize: 9.8,
+            color: COLORS.rawText,
+            fontWeight: "700",
+            textAlign: "left",
+            lineHeight: 18,
+            fontFamily: FONT_REGULAR,
+        },
+
+        tipCard: {
+            width: "100%",
+            maxWidth: 980,
+            alignSelf: "center",
+            marginTop: 12,
+            borderRadius: 22,
+            borderWidth: 1,
+            borderColor: COLORS.border,
+            backgroundColor: COLORS.notificationUnreadBg,
+            padding: 14,
+            flexDirection: rowDirection,
+            alignItems: "flex-start",
+            gap: 10,
+        },
+
+        tipIcon: {
+            width: 36,
+            height: 36,
+            borderRadius: 14,
+            backgroundColor: "#F2D7DA",
+            justifyContent: "center",
+            alignItems: "center",
+        },
+
+        tipTextBox: {
+            flex: 1,
+            alignItems,
+        },
+
+        tipTitle: {
+            fontSize: 14,
+            fontWeight: "900",
+            color: COLORS.text,
+            textAlign,
+            fontFamily: FONT_BOLD,
+        },
+
+        tipText: {
+            marginTop: 5,
+            fontSize: 12,
+            color: COLORS.muted,
+            fontWeight: "600",
+            lineHeight: 20,
+            textAlign,
+            fontFamily: FONT_REGULAR,
+        },
+
+        aiHomeBox: {
+            width: "100%",
+            marginTop: 16,
+            borderRadius: 20,
+            backgroundColor: COLORS.surface,
+            borderWidth: 1,
+            borderColor: COLORS.border,
+            padding: 14,
+        },
+
+        aiHomeTitle: {
+            fontSize: 16,
+            fontWeight: "900",
+            color: COLORS.text,
+            textAlign,
+            fontFamily: FONT_BOLD,
+        },
+
+        aiHomeMessage: {
+            marginTop: 6,
+            fontSize: 13,
+            fontWeight: "700",
+            color: COLORS.muted,
+            textAlign,
+            lineHeight: 22,
+            fontFamily: FONT_SEMIBOLD,
+        },
+
+        aiHomeFooter: {
+            marginTop: 10,
+            flexDirection: rowDirection,
+            justifyContent: "space-between",
+            gap: 10,
+        },
+
+        aiHomeScore: {
+            fontSize: 12,
+            fontWeight: "900",
+            color: COLORS.primary,
+            fontFamily: FONT_BOLD,
+        },
+
+        aiHomeAction: {
+            flex: 1,
+            fontSize: 12,
+            fontWeight: "800",
+            color: COLORS.success,
+            textAlign: "left",
+            fontFamily: FONT_SEMIBOLD,
+        },
+
+        notificationItemUnread: {
+            backgroundColor: COLORS.notificationUnreadBg,
+            borderRadius: 16,
+            paddingHorizontal: 12,
+        },
+
+        notificationTopRow: {
+            flexDirection: rowDirection,
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 4,
+        },
+
+        unreadDot: {
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: COLORS.primary,
+        },
+
+        notificationTitleText: {
+            flex: 1,
+            fontSize: 13,
+            fontWeight: "900",
+            color: COLORS.text,
+            textAlign,
+            fontFamily: FONT_BOLD,
+            includeFontPadding: true,
+        },
+
+        notificationActions: {
+            marginTop: 10,
+            flexDirection: rowDirection,
+            gap: 8,
+            alignSelf: isArabic ? "flex-end" : "flex-start",
+        },
+
+        readButton: {
+            backgroundColor: COLORS.primary,
+            minHeight: 38,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            borderRadius: 12,
+            alignItems: "center",
+            justifyContent: "center",
+        },
+
+        readButtonText: {
+            color: "#FFFFFF",
+            fontSize: 9.8,
+            fontWeight: "900",
+            fontFamily: FONT_BOLD,
+            includeFontPadding: true,
+        },
+
+        deleteButton: {
+            backgroundColor: COLORS.disconnectedBg,
+            minHeight: 38,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            borderRadius: 12,
+            alignItems: "center",
+            justifyContent: "center",
+        },
+
+        deleteButtonText: {
+            color: COLORS.danger,
+            fontSize: 9.8,
+            fontWeight: "900",
+            fontFamily: FONT_BOLD,
+            includeFontPadding: true,
+        },
+
+        notificationActionPressed: {
+            opacity: 0.62,
+            transform: [{ scale: 0.98 }],
+        },
+
+        modalScrollContent: {
+            paddingBottom: 18,
+            flexGrow: 1,
+        },
+
+        modalScroll: {
+            maxHeight: 430,
+            width: "100%",
+            flexGrow: 0,
+        },
+
+        aiFloatingButtonWrapper: {
+            position: "absolute",
+            left: 0,
+            top: 0,
+            width: FLOATING_ASSISTANT_WIDTH,
+            height: FLOATING_ASSISTANT_HEIGHT,
+            zIndex: 800,
+            elevation: 14,
+            alignItems: "center",
+            justifyContent: "center",
+        },
+
+        aiFloatingGlow: {
+            position: "absolute",
+            width: FLOATING_ASSISTANT_WIDTH + 10,
+            height: FLOATING_ASSISTANT_HEIGHT + 10,
+            borderRadius: (FLOATING_ASSISTANT_HEIGHT + 10) / 2,
+            backgroundColor: COLORS.floatingGlow,
+            borderWidth: 1,
+            borderColor: COLORS.floatingGlowBorder,
+            shadowColor: COLORS.floatingIcon,
+            shadowOffset: { width: 0, height: 5 },
+            shadowOpacity: 0.18,
+            shadowRadius: 10,
+            elevation: 6,
+        },
+
+        aiFloatingButton: {
+            width: FLOATING_ASSISTANT_WIDTH,
+            height: FLOATING_ASSISTANT_HEIGHT,
+            borderRadius: FLOATING_ASSISTANT_HEIGHT / 2,
+            backgroundColor: COLORS.floatingBg,
+            borderWidth: 1.4,
+            borderColor: COLORS.floatingBorder,
+            alignItems: "center",
+            justifyContent: "center",
+            paddingHorizontal: 6,
+            paddingTop: 9,
+            paddingBottom: 7,
+
+            shadowColor: COLORS.floatingIcon,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.20,
+            shadowRadius: 10,
+            elevation: 14,
+        },
+
+        aiFloatingButtonPressed: {
+            opacity: 0.94,
+            transform: [{ scale: 0.96 }],
+        },
+
+        aiFloatingMark: {
+            position: "absolute",
+            top: 8,
+            right: 12,
+            width: 18,
+            height: 18,
+            borderRadius: 9,
+            backgroundColor: COLORS.floatingMarkBg,
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 1,
+            borderColor: COLORS.floatingBorder,
+        },
+
+        aiTypingBubble: {
+            position: "absolute",
+            top: -6,
+            right: isArabic ? 3 : undefined,
+            left: isArabic ? undefined : 3,
+            minWidth: 31,
+            height: 18,
+            borderRadius: 11,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 3,
+            backgroundColor: COLORS.floatingTypingBg,
+            borderWidth: 1,
+            borderColor: COLORS.floatingTypingBorder,
+            shadowColor: COLORS.floatingBg,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.09,
+            shadowRadius: 4,
+            elevation: 5,
+            zIndex: 4,
+        },
+
+        aiFloatingTopRow: {
+            flexDirection: rowDirection,
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 4,
+            marginBottom: 2,
+        },
+
+        aiFloatingIconCircle: {
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            backgroundColor: "transparent",
+            alignItems: "center",
+            justifyContent: "center",
+            marginTop: 2,
+            zIndex: 3,
+        },
+
+        aiFloatingMainIcon: {
+            marginTop: 3,
+            marginBottom: 4,
+            zIndex: 3,
+            textShadowColor: "rgba(0,0,0,0.28)",
+            textShadowOffset: { width: 0, height: 2 },
+            textShadowRadius: 4,
+            shadowColor: "rgba(0,0,0,0.35)",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 4,
+        },
+
+        aiTypingDotsRow: {
+            width: 25,
+            height: 17,
+            borderRadius: 9,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 2.7,
+            backgroundColor: COLORS.floatingIconBg,
+        },
+
+        aiTypingDot: {
+            width: 3.8,
+            height: 3.8,
+            borderRadius: 1.9,
+            backgroundColor: COLORS.floatingTypingDot,
+        },
+
+        aiFloatingQuestion: {
+            color: COLORS.floatingTitle,
+            fontSize: 7.8,
+            lineHeight: 10.2,
+            fontWeight: "900",
+            textAlign: "center",
+            includeFontPadding: false,
+            zIndex: 3,
+            fontFamily: FONT_BOLD,
+            marginTop: -1,
+            maxWidth: 58,
+            alignSelf: "center",
+        },
+
+        aiFloatingSubtitle: {
+            marginTop: 2,
+            color: COLORS.floatingSubtitle,
+            fontSize: 7.5,
+            lineHeight: 9,
+            fontWeight: "900",
+            textAlign: "center",
+            includeFontPadding: false,
+            fontFamily: FONT_BOLD,
+        },
 
     });
 }

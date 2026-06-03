@@ -147,10 +147,10 @@ export default function Chatbot() {
       prev.map((msg) =>
         msg.id === welcomeMessageId.current
           ? {
-              ...msg,
-              text: t.chatWelcome,
-              time: getCurrentTime(language),
-            }
+            ...msg,
+            text: t.chatWelcome,
+            time: getCurrentTime(language),
+          }
           : msg,
       ),
     );
@@ -355,10 +355,10 @@ export default function Chatbot() {
                   isUser
                     ? { alignItems: userAlign }
                     : {
-                        flexDirection: rowDirection,
-                        alignItems: "flex-start",
-                        justifyContent: "flex-start",
-                      },
+                      flexDirection: rowDirection,
+                      alignItems: "flex-start",
+                      justifyContent: "flex-start",
+                    },
                 ]}
               >
                 {!isUser ? renderAssistantIcon() : null}

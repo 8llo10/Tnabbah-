@@ -25,9 +25,40 @@ type ReadAllOptions = {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const IMPORTANT_LIVE_PIDS = [
-  "0104", "0105", "010B", "010C", "010D", "010F", "0110", "0111",
-  "011F", "012F", "0131", "0142", "0146", "0147", "0149", "014A",
-  "014C", "0151", "015C", "015E", "0162",
+  // الأساسي في اللايف
+  "010C", // RPM
+  "010D", // Speed
+  "0142", // Battery / Control Module Voltage
+  "0105", // Coolant Temperature
+
+  // حرارة وضغط
+  "015C", // Engine Oil Temperature
+  "010A", // Fuel Pressure
+  "010B", // Intake Manifold Pressure
+
+  // بيانات مفيدة سريعة
+  "0104", // Engine Load
+  "010F", // Intake Air Temperature
+  "0110", // MAF Air Flow Rate
+  "0111", // Throttle Position
+  "012F", // Fuel Tank Level
+  "0131", // Distance Since DTC Clear
+  "0146", // Ambient Air Temperature
+  "015E", // Engine Fuel Rate
+  "0162", // Driver Demand Torque
+
+  // إضافات من القائمة الثانية
+  "011F", // Engine Run Time
+  "0147", // Absolute Throttle Position B
+  "0149", // Accelerator Pedal Position D
+  "014A", // Accelerator Pedal Position E
+  "014C", // Commanded Throttle Actuator
+  "0151", // Fuel Type\
+
+ /*  // Optional / إذا السيارة تدعمها فقط
+  "015B", // optional extra value
+  "0167", // optional extra value
+  "017C", // optional extra value */
 ];
 
 const SUPPORT_COMMANDS = ["0100", "0120", "0140", "0160", "0180", "01A0", "01C0"];
@@ -48,7 +79,12 @@ function cleanRaw(raw: string) {
 function extractHexFrames(raw: string) {
   return cleanRaw(raw)
     .split("\n")
-    .map((line) => line.trim().replace(/\s+/g, ""))
+    .map((line) =>
+      line
+        .trim()
+        .replace(/^[0-9A-Fa-f]+:/, "")
+        .replace(/\s+/g, "")
+    )
     .filter((line) => line.length > 0)
     .filter((line) => /^[0-9A-Fa-f]+$/.test(line));
 }
@@ -173,6 +209,9 @@ function parsePid(raw: string, pid: string): ObdValue {
     "015C": () => ({ ...base, name: "engine_oil_temperature", value: signedTemp(A), unit: "°C" }),
     "015E": () => ({ ...base, name: "engine_fuel_rate", value: Number(((A * 256 + B) / 20).toFixed(2)), unit: "L/h" }),
     "0162": () => ({ ...base, name: "actual_engine_torque", value: A - 125, unit: "%" }),
+  /*   "015B": () => ({ ...base, name: "optional_pressure_015B", value: A, unit: "kPa" }),
+    "0167": () => ({ ...base, name: "optional_pressure_0167", value: A, unit: "kPa" }),
+    "017C": () => ({ ...base, name: "optional_pressure_017C", value: A, unit: "kPa" }), */
   };
 
   if (map[command]) return map[command]();
@@ -217,24 +256,28 @@ function parseSupportedPidBlock(raw: string, command: string) {
 }
 
 function parseVin(raw: string) {
+  const text = cleanRaw(raw).replace(/\s+/g, "").toUpperCase();
+
+  const vinChars: number[] = [];
   const frames = extractHexFrames(raw);
-  const asciiBytes: number[] = [];
 
   for (const frame of frames) {
-    if (!frame.startsWith("4902")) continue;
+    const idx = frame.indexOf("4902");
+    if (idx === -1) continue;
 
-    const frameBytes = hexToBytes(frame);
+    const useful = frame.slice(idx + 4);
+    const bytes = hexToBytes(useful);
 
-    for (const b of frameBytes) {
-      if (b >= 32 && b <= 126) {
-        asciiBytes.push(b);
-      }
+    for (const b of bytes) {
+      if (b >= 32 && b <= 126) vinChars.push(b);
     }
   }
 
-  const vin = String.fromCharCode(...asciiBytes)
+  let vin = String.fromCharCode(...vinChars)
     .replace(/[^A-HJ-NPR-Z0-9]/g, "")
     .trim();
+
+  if (vin.length > 17) vin = vin.slice(-17);
 
   return vin.length >= 11 ? vin : null;
 }
@@ -245,13 +288,19 @@ function parseDtcRaw(raw: string) {
 
   for (const frame of frames) {
     const bytes = hexToBytes(frame);
-    if (bytes.length < 3) continue;
+    if (bytes.length < 2) continue;
 
-    const responseMode = bytes[0];
+    let startIndex = -1;
 
-    if (![0x43, 0x47, 0x4a].includes(responseMode)) continue;
+    const responseIndex = bytes.findIndex((b) =>
+      [0x43, 0x47, 0x4a].includes(b)
+    );
 
-    for (let i = 1; i + 1 < bytes.length; i += 2) {
+    if (responseIndex === -1) continue;
+
+    startIndex = responseIndex + 1;
+
+    for (let i = startIndex; i + 1 < bytes.length; i += 2) {
       const a = bytes[i];
       const b = bytes[i + 1];
 
@@ -270,6 +319,27 @@ function parseDtcRaw(raw: string) {
   }
 
   return Array.from(new Set(dtcs));
+}
+
+function parseMode09Text(raw: string, servicePid: string) {
+  const frames = extractHexFrames(raw);
+  const chars: number[] = [];
+
+  for (const frame of frames) {
+    const idx = frame.indexOf(servicePid);
+    if (idx === -1) continue;
+
+    const useful = frame.slice(idx + servicePid.length);
+    const bytes = hexToBytes(useful);
+
+    for (const b of bytes) {
+      if (b >= 32 && b <= 126) chars.push(b);
+    }
+  }
+
+  return String.fromCharCode(...chars)
+    .replace(/[^\x20-\x7E]/g, "")
+    .trim();
 }
 
 export const obdCoreService = {
@@ -387,11 +457,19 @@ export const obdCoreService = {
     const result: Record<string, { raw: string; dtcs: string[] }> = {};
 
     for (const [type, command] of Object.entries(commands)) {
-      const raw = await safeSend(command, 1800);
+      const raw = await safeSend(command, 3500);
+      const parsedDtcs = parseDtcRaw(raw);
+
+      console.log("DTC RAW:", {
+        type,
+        command,
+        raw,
+        parsedDtcs,
+      });
 
       result[type] = {
         raw,
-        dtcs: parseDtcRaw(raw),
+        dtcs: parsedDtcs,
       };
 
       if (options?.onResult) {
@@ -425,6 +503,9 @@ export const obdCoreService = {
     return {
       raw,
       vin: parseVin(raw["0902"]),
+      calibrationId: parseMode09Text(raw["0904"], "4904"),
+      cvn: parseMode09Text(raw["0906"], "4906"),
+      ecuName: parseMode09Text(raw["090A"], "490A"),
       timestamp: Date.now(),
     };
   },

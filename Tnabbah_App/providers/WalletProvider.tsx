@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthProvider";
+import { useCars } from "./CarsProvider";
 
 type ReportStatus = "pending" | "saved" | "temp_rejected" | "deleted";
 
@@ -97,6 +98,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const { session } = useAuth();
     const userId = session?.user?.id;
 
+    const { activeCarId, userCars } = useCars();
+
+    const activeUserCar = userCars.find(
+        (car) => car.car_id === activeCarId
+    );
+
+    const activeUserCarId = activeUserCar?.id ?? null;
+
     const [reports, setReports] = useState<ReportItem[]>([]);
     const [maintenance, setMaintenance] = useState<MaintenanceItem[]>([]);
 
@@ -114,22 +123,29 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setReportsLoading(true);
 
         try {
-            const { data, error } = await supabase
+            let query = supabase
                 .from("reports")
-                .select("id, content, status, created_at, is_permanently_saved")
+                .select("id, content, status, created_at, is_permanently_saved, user_car_id")
                 .eq("user_id", userId)
                 .in("status", ["pending", "saved"])
                 .order("created_at", { ascending: false });
+
+            if (activeUserCarId) {
+                query = query.eq("user_car_id", activeUserCarId);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
 
             setReports((data || []).map(mapRowToReport));
         } catch (error) {
             console.log("WalletProvider fetchReports error:", error);
+            setReports([]);
         } finally {
             setReportsLoading(false);
         }
-    }, [userId]);
+    }, [userId, activeUserCarId]);
 
     const fetchMaintenance = useCallback(async () => {
         if (!userId) {
@@ -153,8 +169,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
             const { data, error } = await supabase
                 .from("maintenance_reminders")
-                .select("reminder_id, maintenance_type_id, last_date, next_date")
+                .select(
+                    "reminder_id, maintenance_type_id, last_date, next_date, user_car_id"
+                )
                 .eq("user_id", userId)
+                .eq("user_car_id", activeUserCarId)
                 .eq("is_active", true);
 
             if (error) throw error;
@@ -190,7 +209,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         } finally {
             setMaintenanceLoading(false);
         }
-    }, [userId]);
+    }, [userId, activeUserCarId]);
 
     const refreshWallet = useCallback(async () => {
         await Promise.all([fetchReports(), fetchMaintenance()]);
@@ -198,7 +217,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         refreshWallet();
-    }, [refreshWallet]);
+    }, [refreshWallet])
+
+    useEffect(() => {
+        if (!activeUserCarId) return;
+
+        refreshWallet();
+    }, [activeUserCarId]);
 
     useEffect(() => {
         if (!userId) return;
@@ -213,8 +238,30 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                     table: "reports",
                     filter: `user_id=eq.${userId}`,
                 },
-                () => {
-                    fetchReports();
+                (payload) => {
+                    const row: any = payload.new;
+
+                    if (!row) {
+                        fetchReports();
+                        return;
+                    }
+
+                    if (!["pending", "saved"].includes(row.status)) {
+                        setReports((prev) => prev.filter((r) => r.id !== row.id));
+                        return;
+                    }
+
+                    if (activeUserCarId && row.user_car_id !== activeUserCarId) {
+                        setReports((prev) => prev.filter((r) => r.id !== row.id));
+                        return;
+                    }
+
+                    const mapped = mapRowToReport(row);
+
+                    setReports((prev) => [
+                        mapped,
+                        ...prev.filter((r) => r.id !== mapped.id),
+                    ]);
                 }
             )
             .subscribe();
@@ -222,7 +269,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [userId, fetchReports]);
+    }, [userId, activeUserCarId, fetchReports]);
 
 
     useEffect(() => {

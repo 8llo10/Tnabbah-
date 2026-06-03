@@ -29,6 +29,7 @@ import { useAuth } from "../../providers/AuthProvider";
 import { useWallet } from "../../providers/WalletProvider";
 import { useLanguage } from "../../providers/LanguageProvider";
 import { useAppSettings } from "../../providers/AppSettingsProvider";
+import { useCars } from "../../providers/CarsProvider";
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -160,6 +161,7 @@ export default function Wallet() {
     maintenance,
     maintenanceLoading,
     fetchMaintenance,
+    refreshWallet,
   } = useWallet();
 
   const [fontsLoaded] = useFonts({
@@ -169,9 +171,21 @@ export default function Wallet() {
     Alexandria_800ExtraBold,
   });
 
-
+  useEffect(() => {
+    refreshWallet();
+  }, [refreshWallet]);
+  
   const { session } = useAuth();
   const userId = session?.user?.id;
+
+  const { activeCarId, userCars } = useCars();
+
+  const activeUserCar = userCars.find(
+    (car) => car.car_id === activeCarId
+  );
+
+  const activeUserCarId = activeUserCar?.id ?? null;
+
   const { t, isArabic, language } = useLanguage();
   const { darkModeEnabled } = useAppSettings();
 
@@ -378,7 +392,7 @@ export default function Wallet() {
 
   const handleConfirmDate = async (date: Date) => {
     setDatePickerVisible(false);
-    if (!currentEditingItem || !userId) {
+    if (!currentEditingItem || !userId || !activeUserCarId) {
       setCurrentEditingItem(null);
       return;
     }
@@ -397,6 +411,7 @@ export default function Wallet() {
       const { error } = await supabase.from("maintenance_reminders").upsert(
         {
           user_id: userId,
+          user_car_id: activeUserCarId,
           maintenance_type_id: currentEditingItem.maintenanceTypeId,
           last_date: selectedDateStr,
           next_date: nextDateStr,
@@ -404,7 +419,7 @@ export default function Wallet() {
           is_active: true,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: "user_id,maintenance_type_id" },
+        { onConflict: "user_id,user_car_id,maintenance_type_id" },
       );
 
       if (error) throw error;
@@ -469,6 +484,7 @@ export default function Wallet() {
                   updated_at: new Date().toISOString(),
                 })
                 .eq("user_id", userId)
+                .eq("user_car_id", activeUserCarId)
                 .eq("maintenance_type_id", item.maintenanceTypeId);
 
               if (error) throw error;
@@ -793,13 +809,13 @@ export default function Wallet() {
                             styles.reportBadge,
                             isDtc
                               ? {
-                                  backgroundColor: theme.reportAlertBg,
-                                  borderColor: theme.reportAlertBorder,
-                                }
+                                backgroundColor: theme.reportAlertBg,
+                                borderColor: theme.reportAlertBorder,
+                              }
                               : {
-                                  backgroundColor: theme.reportDocumentBg,
-                                  borderColor: theme.reportDocumentBorder,
-                                },
+                                backgroundColor: theme.reportDocumentBg,
+                                borderColor: theme.reportDocumentBorder,
+                              },
                           ]}
                         >
                           <Text
@@ -819,13 +835,13 @@ export default function Wallet() {
                             styles.statusSmallPill,
                             isPending
                               ? {
-                                  backgroundColor: theme.warningBg,
-                                  borderColor: "rgba(245,158,11,0.24)",
-                                }
+                                backgroundColor: theme.warningBg,
+                                borderColor: "rgba(245,158,11,0.24)",
+                              }
                               : {
-                                  backgroundColor: theme.successBg,
-                                  borderColor: "rgba(31,138,76,0.18)",
-                                },
+                                backgroundColor: theme.successBg,
+                                borderColor: "rgba(31,138,76,0.18)",
+                              },
                           ]}
                         >
                           <Text
@@ -846,15 +862,15 @@ export default function Wallet() {
                           styles.reportIconCircle,
                           isDtc
                             ? {
-                                backgroundColor: theme.reportAlertBg,
-                                borderColor: theme.reportAlertBorder,
-                                alignSelf: iconSideSelf,
-                              }
+                              backgroundColor: theme.reportAlertBg,
+                              borderColor: theme.reportAlertBorder,
+                              alignSelf: iconSideSelf,
+                            }
                             : {
-                                backgroundColor: theme.reportDocumentBg,
-                                borderColor: theme.reportDocumentBorder,
-                                alignSelf: iconSideSelf,
-                              },
+                              backgroundColor: theme.reportDocumentBg,
+                              borderColor: theme.reportDocumentBorder,
+                              alignSelf: iconSideSelf,
+                            },
                         ]}
                       >
                         <Feather
@@ -997,13 +1013,13 @@ export default function Wallet() {
                             styles.reportListIconBox,
                             isDtc
                               ? {
-                                  backgroundColor: theme.reportAlertBg,
-                                  borderColor: theme.reportAlertBorder,
-                                }
+                                backgroundColor: theme.reportAlertBg,
+                                borderColor: theme.reportAlertBorder,
+                              }
                               : {
-                                  backgroundColor: theme.reportDocumentBg,
-                                  borderColor: theme.reportDocumentBorder,
-                                },
+                                backgroundColor: theme.reportDocumentBg,
+                                borderColor: theme.reportDocumentBorder,
+                              },
                           ]}
                         >
                           <Feather
@@ -1049,13 +1065,13 @@ export default function Wallet() {
                                 styles.reportBadge,
                                 isDtc
                                   ? {
-                                      backgroundColor: theme.reportAlertBg,
-                                      borderColor: theme.reportAlertBorder,
-                                    }
+                                    backgroundColor: theme.reportAlertBg,
+                                    borderColor: theme.reportAlertBorder,
+                                  }
                                   : {
-                                      backgroundColor: theme.reportDocumentBg,
-                                      borderColor: theme.reportDocumentBorder,
-                                    },
+                                    backgroundColor: theme.reportDocumentBg,
+                                    borderColor: theme.reportDocumentBorder,
+                                  },
                               ]}
                             >
                               <Text
@@ -1078,13 +1094,13 @@ export default function Wallet() {
                               styles.statusSmallPill,
                               isPending
                                 ? {
-                                    backgroundColor: theme.warningBg,
-                                    borderColor: "rgba(245,158,11,0.24)",
-                                  }
+                                  backgroundColor: theme.warningBg,
+                                  borderColor: "rgba(245,158,11,0.24)",
+                                }
                                 : {
-                                    backgroundColor: theme.successBg,
-                                    borderColor: "rgba(31,138,76,0.18)",
-                                  },
+                                  backgroundColor: theme.successBg,
+                                  borderColor: "rgba(31,138,76,0.18)",
+                                },
                             ]}
                           >
                             <Text
@@ -1294,18 +1310,18 @@ export default function Wallet() {
 
               localRemainingDays = Math.round(
                 (nextDate.getTime() - today.getTime()) /
-                  (1000 * 60 * 60 * 24),
+                (1000 * 60 * 60 * 24),
               );
             }
 
             const hasData = !!item.lastDate;
             const progress = hasData
               ? Math.min(
-                  ((item.intervalDays - (localRemainingDays ?? 0)) /
-                    item.intervalDays) *
-                    100,
-                  100,
-                )
+                ((item.intervalDays - (localRemainingDays ?? 0)) /
+                  item.intervalDays) *
+                100,
+                100,
+              )
               : 0;
 
             let localStatus = item.status;
