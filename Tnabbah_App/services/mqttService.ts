@@ -177,7 +177,7 @@ export const mqttService = {
   ) {
     return this.publishAsync(topic, payload, {
       retain: true,
-      qos: 0,
+      qos: 1,
     });
   },
 
@@ -210,7 +210,7 @@ export const mqttService = {
     subscribedTopics.add(topic);
 
     return new Promise<void>((resolve, reject) => {
-      c.subscribe(topic, { qos: 0 }, (error) => {
+      c.subscribe(topic, { qos: 1 }, (error) => {
         if (error) {
           subscribedTopics.delete(topic);
           reject(error);

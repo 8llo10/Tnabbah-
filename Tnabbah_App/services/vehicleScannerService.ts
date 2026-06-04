@@ -209,9 +209,13 @@ async function handleDisconnect(reason = "obd_disconnected") {
         streaming: false,
       });
 
-      await mqttService.clearRetainedAsync(
-        topic(userId, carId, "status")
-      );
+      if (carId) {
+        await publishStatus(userId, carId, "disconnected", {
+          reason,
+          obdConnected: false,
+          streaming: false,
+        });
+      }
     }
   } catch (error) {
     console.log("handleDisconnect error:", error);
@@ -476,8 +480,12 @@ export const vehicleScannerService = {
 
     await publishIdentity(userId, carId, identity);
 
-    // مهم: نسحب كل أنواع DTC أول شيء قبل زحمة اللايف/allPids
-    await publishDtcs(userId, carId);
+
+    /* 
+        // مهم: نسحب كل أنواع DTC أول شيء قبل زحمة اللايف/allPids
+        await publishDtcs(userId, carId);
+     */
+
 
     this.startLiveStreaming(sessionId);
     this.startAllPidsLoop(sessionId);

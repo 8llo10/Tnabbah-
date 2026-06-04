@@ -55,10 +55,10 @@ const IMPORTANT_LIVE_PIDS = [
   "014C", // Commanded Throttle Actuator
   "0151", // Fuel Type\
 
- /*  // Optional / إذا السيارة تدعمها فقط
-  "015B", // optional extra value
-  "0167", // optional extra value
-  "017C", // optional extra value */
+  /*  // Optional / إذا السيارة تدعمها فقط
+   "015B", // optional extra value
+   "0167", // optional extra value
+   "017C", // optional extra value */
 ];
 
 const SUPPORT_COMMANDS = ["0100", "0120", "0140", "0160", "0180", "01A0", "01C0"];
@@ -209,9 +209,9 @@ function parsePid(raw: string, pid: string): ObdValue {
     "015C": () => ({ ...base, name: "engine_oil_temperature", value: signedTemp(A), unit: "°C" }),
     "015E": () => ({ ...base, name: "engine_fuel_rate", value: Number(((A * 256 + B) / 20).toFixed(2)), unit: "L/h" }),
     "0162": () => ({ ...base, name: "actual_engine_torque", value: A - 125, unit: "%" }),
-  /*   "015B": () => ({ ...base, name: "optional_pressure_015B", value: A, unit: "kPa" }),
-    "0167": () => ({ ...base, name: "optional_pressure_0167", value: A, unit: "kPa" }),
-    "017C": () => ({ ...base, name: "optional_pressure_017C", value: A, unit: "kPa" }), */
+    /*   "015B": () => ({ ...base, name: "optional_pressure_015B", value: A, unit: "kPa" }),
+      "0167": () => ({ ...base, name: "optional_pressure_0167", value: A, unit: "kPa" }),
+      "017C": () => ({ ...base, name: "optional_pressure_017C", value: A, unit: "kPa" }), */
   };
 
   if (map[command]) return map[command]();
@@ -457,8 +457,14 @@ export const obdCoreService = {
     const result: Record<string, { raw: string; dtcs: string[] }> = {};
 
     for (const [type, command] of Object.entries(commands)) {
-      const raw = await safeSend(command, 3500);
-      const parsedDtcs = parseDtcRaw(raw);
+      let raw = await safeSend(command, 3500);
+      let parsedDtcs = parseDtcRaw(raw);
+
+      if (parsedDtcs.length === 0 && isBadResponse(raw)) {
+        await sleep(250);
+        raw = await safeSend(command, 3500);
+        parsedDtcs = parseDtcRaw(raw);
+      }
 
       console.log("DTC RAW:", {
         type,

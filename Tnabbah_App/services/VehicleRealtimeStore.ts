@@ -15,8 +15,8 @@ export type VehicleMetrics = {
     torque: number | string | null;
     engineLoad: number | string | null;
 
-   /*  oilPressure: number | string | null;
-    tirePressure: number | string | null; */
+    /*  oilPressure: number | string | null;
+     tirePressure: number | string | null; */
 };
 
 export type VehicleSnapshot = {
@@ -209,13 +209,17 @@ export const vehicleRealtimeStore = {
 
     updateDtc(carId: string, data: any) {
         this.updateSnapshot(carId, (snapshot) => {
-            const stored = data?.stored?.dtcs?.length || 0;
-            const pending = data?.pending?.dtcs?.length || 0;
-            const permanent = data?.permanent?.dtcs?.length || 0;
+            const allCodes = [
+                ...(data?.stored?.dtcs || []),
+                ...(data?.pending?.dtcs || []),
+                ...(data?.permanent?.dtcs || []),
+            ];
+
+            const uniqueCodes = Array.from(new Set(allCodes));
 
             return {
                 ...snapshot,
-                dtcCount: stored + pending + permanent,
+                dtcCount: uniqueCodes.length,
                 lastRaw: JSON.stringify(data, null, 2),
             };
         });
