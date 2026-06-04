@@ -1,25 +1,26 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Feather as Icon, MaterialCommunityIcons } from '@expo/vector-icons';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ScrollView,
-  View,
-  Text,
-  TouchableOpacity,
-  StatusBar,
-  StyleSheet,
+  Animated,
   ActivityIndicator,
   Alert,
-  Dimensions,
   BackHandler,
-  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Feather as Icon, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useAuth } from '../providers/AuthProvider';
-import { useAppSettings } from '../providers/AppSettingsProvider';
-import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
+import { useAppSettings } from '../providers/AppSettingsProvider';
+import { useAuth } from '../providers/AuthProvider';
 
 const API_URL = process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://127.0.0.1:8001";
+
+const FONT_BOLD = "Alexandria_700Bold";
 
 // Project colour palette (matches home.tsx / wallet.tsx)
 const LIGHT_COLORS = {
@@ -64,19 +65,19 @@ const LIGHT_COLORS = {
 };
 
 const LIGHT_SEVERITY_MAP: Record<string, { bg: string; fg: string; border: string }> = {
-  NORMAL:   { bg: '#F0FDF4', fg: '#15803D', border: '#BBF7D0' },
-  LOW:      { bg: '#DCFCE7', fg: '#166534', border: '#86EFAC' },
-  MEDIUM:   { bg: '#FEF9C3', fg: '#854D0E', border: '#FDE68A' },
-  HIGH:     { bg: '#FFEDD5', fg: '#9A3412', border: '#FDBA74' },
-  CRITICAL: { bg: '#FEE2E2', fg: '#991B1B', border: '#FCA5A5' },
+  NORMAL:   { bg: '#EFFAF3', fg: '#1F8A4C', border: '#D6F0DF' },
+  LOW:      { bg: '#F0FDF4', fg: '#1F8A4C', border: '#BBF7D0' },
+  MEDIUM:   { bg: '#FFF7E6', fg: '#B45309', border: 'rgba(245,158,11,0.28)' },
+  HIGH:     { bg: '#FFF3E0', fg: '#C2410C', border: 'rgba(234,88,12,0.28)' },
+  CRITICAL: { bg: '#FFF1F1', fg: '#C62828', border: '#FFD9D9' },
 };
 
 const DARK_SEVERITY_MAP: Record<string, { bg: string; fg: string; border: string }> = {
-  NORMAL:   { bg: 'rgba(21, 128, 61, 0.15)', fg: '#4ade80', border: 'rgba(74, 222, 128, 0.35)' },
-  LOW:      { bg: 'rgba(22, 101, 52, 0.18)',  fg: '#22c55e', border: 'rgba(34, 197, 94, 0.40)' },
-  MEDIUM:   { bg: 'rgba(133, 77, 14, 0.18)',  fg: '#facc15', border: 'rgba(250, 204, 21, 0.40)' },
-  HIGH:     { bg: 'rgba(154, 52, 18, 0.18)',  fg: '#fb923c', border: 'rgba(251, 146, 60, 0.40)' },
-  CRITICAL: { bg: 'rgba(153, 27, 27, 0.15)',  fg: '#f87171', border: 'rgba(248, 113, 113, 0.40)' },
+  NORMAL:   { bg: 'rgba(31,138,76,0.14)',   fg: '#65C18C', border: 'rgba(101,193,140,0.30)' },
+  LOW:      { bg: 'rgba(31,138,76,0.18)',   fg: '#65C18C', border: 'rgba(101,193,140,0.36)' },
+  MEDIUM:   { bg: 'rgba(253,186,116,0.12)', fg: '#FDBA74', border: 'rgba(253,186,116,0.32)' },
+  HIGH:     { bg: 'rgba(234,88,12,0.14)',   fg: '#FB923C', border: 'rgba(251,146,60,0.32)'  },
+  CRITICAL: { bg: 'rgba(182,58,52,0.14)',   fg: '#E57373', border: 'rgba(182,58,52,0.36)'  },
 };
 
 const DARK_COLORS = {
@@ -162,6 +163,8 @@ const UI = {
     unsavedSave: 'حفظ دائم',
     unsavedLeave: 'خروج بدون حفظ',
     unsavedCancel: 'إلغاء',
+    tabPids: 'قراءات السيارة',
+    tabAnalysis: 'تحليل تنبّه الذكي',
     severity: {
       NORMAL: 'طبيعي',
       LOW: 'تنبيه بسيط',
@@ -209,6 +212,8 @@ const UI = {
     unsavedSave: 'Save Permanently',
     unsavedLeave: 'Leave without saving',
     unsavedCancel: 'Cancel',
+    tabPids: 'Car Readings',
+    tabAnalysis: 'Tnabah AI Analysis',
     severity: {
       NORMAL: 'Normal',
       LOW: 'Minor Notice',
@@ -420,6 +425,15 @@ const ReportScreen = () => {
   const [lang, setLang] = useState<'AR' | 'EN'>('AR');
   const [trMap, setTrMap] = useState<Record<string, string>>({});
   const [translating, setTranslating] = useState(false);
+  const [selectedTab, setSelectedTab] = useState<'pids' | 'analysis'>('analysis');
+  const tabScaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(tabScaleAnim, { toValue: 0.96, duration: 80, useNativeDriver: true }),
+      Animated.spring(tabScaleAnim, { toValue: 1, tension: 120, friction: 8, useNativeDriver: true }),
+    ]).start();
+  }, [selectedTab]);
 
   const { darkModeEnabled } = useAppSettings();
   const COLORS = darkModeEnabled ? DARK_COLORS : LIGHT_COLORS;
@@ -1030,15 +1044,52 @@ const ReportScreen = () => {
               )}
             </View>
 
+            {/* Segmented Control */}
+            <View style={styles.segmentedControl}>
+              <TouchableOpacity
+                style={[
+                  styles.segmentedButton,
+                  selectedTab === 'pids' && styles.segmentedButtonActiveState,
+                ]}
+                onPress={() => setSelectedTab('pids')}
+                activeOpacity={0.7}
+              >
+                {React.createElement(Animated.View, { style: [styles.segmentedButtonInner, selectedTab === 'pids' && styles.segmentedButtonInnerActive, selectedTab === 'pids' && { transform: [{ scale: tabScaleAnim }] }] as any }, <>                
+                  <Icon name="list" size={13} color={selectedTab === 'pids' ? '#fff' : COLORS.gray} />
+                  <Text style={[
+                    styles.segmentedButtonText,
+                    { color: selectedTab === 'pids' ? '#fff' : COLORS.gray }
+                  ]}>
+                    {t.tabPids} ({sensorData.length})
+                  </Text>
+                </>)}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.segmentedButton,
+                  selectedTab === 'analysis' && styles.segmentedButtonActiveState,
+                ]}
+                onPress={() => setSelectedTab('analysis')}
+                activeOpacity={0.7}
+              >
+                {React.createElement(Animated.View, { style: [styles.segmentedButtonInner, selectedTab === 'analysis' && styles.segmentedButtonInnerActive, selectedTab === 'analysis' && { transform: [{ scale: tabScaleAnim }] }] as any }, <>                
+                  <Icon name="zap" size={13} color={selectedTab === 'analysis' ? '#fff' : COLORS.gray} />
+                  <Text style={[
+                    styles.segmentedButtonText,
+                    { color: selectedTab === 'analysis' ? '#fff' : COLORS.gray }
+                  ]}>
+                    {t.tabAnalysis}
+                  </Text>
+                </>)}
+              </TouchableOpacity>
+            </View>
+
+            {/* Tab Content */}
+            {selectedTab === 'analysis' ? (
+              <>
             {/* الملخص الذكي + التوصية (قسم موحّد: التحليل ثم الإجراء المطلوب) */}
             {(aiNarrativeParts.length > 0 || !!finalRecText) && (
               <View style={styles.recCard}>
-                <View style={styles.recHeader}>
-                  <Icon name="zap" size={18} color="#fff" />
-                  <Text style={styles.recHeaderText}>
-                    {aiActive ? t.aiSummary : t.plainSummary}
-                  </Text>
-                </View>
 
                 {/* التحليل الميكانيكي */}
                 {aiNarrativeParts.map((part, i) => (
@@ -1113,7 +1164,7 @@ const ReportScreen = () => {
                           )}
                         </View>
                         {urgency && (
-                          <View style={[styles.severityBadge, { backgroundColor: COLORS.surface, borderColor: dStyle.border, borderWidth: 1 }]}>
+                          <View style={[styles.severityBadge, { backgroundColor: dStyle.bg, borderColor: dStyle.border }]}>
                             <Text style={[styles.severityText, { color: dStyle.fg }]}>{tr(urgency)}</Text>
                           </View>
                         )}
@@ -1133,6 +1184,33 @@ const ReportScreen = () => {
               </View>
             )}
 
+            {/* الأسباب المحتملة */}
+            {causesData.length > 0 && (
+              <View>
+                <View style={styles.listHeader}>
+                  <Text style={styles.listTitle}>{t.causes}</Text>
+                </View>
+                {causesData.slice(0, 5).map((cause: any, idx: number) => (
+                  <View key={idx} style={styles.causeCard}>
+                    <Icon name="alert-circle" size={16} color={COLORS.warning} />
+                    <View style={styles.causeContent}>
+                      <Text style={styles.causeText}>{tr(cause.cause)}</Text>
+                      {!!cause.evidence && (
+                        <Text style={styles.causeEvidence}>{tr(cause.evidence)}</Text>
+                      )}
+                      {(cause.likelihood || cause.confidence) && (
+                        <Text style={styles.causeMetrics}>
+                          {t.likelihood}: {Math.round(cause.likelihood || 0)}% | {t.confidence}: {Math.round(cause.confidence || 0)}%
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+            </>
+            ) : (
+              <>
             {/* قائمة القراءات */}
             {sensorData.length > 0 && (
               <View>
@@ -1147,12 +1225,8 @@ const ReportScreen = () => {
               const sevLevel: string = item.severityLevel || (item.status === 'WARNING' ? 'MEDIUM' : 'NORMAL');
               const sevColors = SEVERITY_MAP[sevLevel] || SEVERITY_MAP.NORMAL;
               const statusColor = sevColors.fg;
-              // Default per-level label derived from t.severity.
               const defaultLevelLabel = t.severity[sevLevel] || t.severity.NORMAL;
               const rawAiUrgency = item.aiInterpretation?.urgency_ar;
-              // Trust the diagnostics engine status over the AI label.
-              // - If engine says non-NORMAL, never show "طبيعي/آمن" from the AI.
-              // - If engine says NORMAL, normalize legacy "آمن" to "طبيعي".
               const SAFE_LABELS = ['آمن', 'طبيعي'];
               let aiUrgency: string | undefined = rawAiUrgency;
               if (sevLevel !== 'NORMAL' && rawAiUrgency && SAFE_LABELS.includes(rawAiUrgency)) {
@@ -1244,33 +1318,8 @@ const ReportScreen = () => {
             })}
               </View>
             )}
-
-            {/* الأسباب المحتملة */}
-            {causesData.length > 0 && (
-              <View>
-                <View style={styles.listHeader}>
-                  <Text style={styles.listTitle}>{t.causes}</Text>
-                </View>
-                {causesData.slice(0, 5).map((cause: any, idx: number) => (
-                  <View key={idx} style={styles.causeCard}>
-                    <Icon name="alert-circle" size={16} color={COLORS.warning} />
-                    <View style={styles.causeContent}>
-                      <Text style={styles.causeText}>{tr(cause.cause)}</Text>
-                      {!!cause.evidence && (
-                        <Text style={styles.causeEvidence}>{tr(cause.evidence)}</Text>
-                      )}
-                      {(cause.likelihood || cause.confidence) && (
-                        <Text style={styles.causeMetrics}>
-                          {t.likelihood}: {Math.round(cause.likelihood || 0)}% | {t.confidence}: {Math.round(cause.confidence || 0)}%
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                ))}
-              </View>
+              </>
             )}
-
-            {/* التوصية النهائية مدمجة الآن في القسم الموحّد بالأعلى */}
 
             {/* أزرار الحفظ */}
             <View style={styles.buttonGroup}>
@@ -1322,25 +1371,26 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     justifyContent: 'center',
   },
   errorText: {
-    fontSize: 16,
-
+    fontSize: 15,
+    fontWeight: '700',
     color: COLORS.error,
+    includeFontPadding: true,
   },
   header: {
     backgroundColor: COLORS.surface,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     paddingTop: 12,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
   headerButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: COLORS.soft,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1351,28 +1401,28 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-
+    fontSize: 17,
     fontWeight: '900',
     color: COLORS.ink,
+    includeFontPadding: true,
   },
   dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 4,
+    marginTop: 3,
   },
   dateText: {
-    fontSize: 10,
-
-    fontWeight: 'bold',
+    fontSize: 11,
+    fontWeight: '700',
     color: COLORS.gray,
-    letterSpacing: 1,
+    letterSpacing: 0.5,
+    includeFontPadding: true,
   },
   headerIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: COLORS.soft,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1382,8 +1432,8 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
   langButton: {
     minWidth: 56,
     height: 40,
-    paddingHorizontal: 10,
-    borderRadius: 14,
+    paddingHorizontal: 12,
+    borderRadius: 20,
     backgroundColor: COLORS.soft,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1394,15 +1444,55 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
   },
   langButtonText: {
     fontSize: 12,
-
     fontWeight: '900',
     color: COLORS.primary,
     letterSpacing: 0.5,
+    includeFontPadding: true,
   },
   content: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     paddingTop: 20,
-    gap: 20,
+    paddingBottom: 16,
+    gap: 16,
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.surface,
+    borderRadius: 18,
+    padding: 5,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  segmentedButton: {
+    flex: 1,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  segmentedButtonActiveState: {
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  segmentedButtonInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+  },
+  segmentedButtonInnerActive: {
+    backgroundColor: COLORS.primary,
+  },
+  segmentedButtonText: {
+    fontSize: 11,
+    lineHeight: 17,
+    color: COLORS.gray,
+    fontFamily: FONT_BOLD,
+    includeFontPadding: true,
   },
   healthBar: {
     backgroundColor: COLORS.surface,
@@ -1419,14 +1509,14 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
   },
   healthLabel: {
     fontSize: 14,
-
     fontWeight: '700',
     color: COLORS.ink,
+    includeFontPadding: true,
   },
   healthPercent: {
     fontSize: 18,
-
     fontWeight: '900',
+    includeFontPadding: true,
   },
   healthProgressContainer: {
     height: 8,
@@ -1440,7 +1530,7 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
   },
   mainCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 24,
+    borderRadius: 28,
     paddingVertical: 28,
     paddingHorizontal: 20,
     alignItems: 'center',
@@ -1448,72 +1538,79 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     borderColor: COLORS.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
+    shadowOpacity: 0.035,
     shadowRadius: 6,
     elevation: 1,
   },
   mainCardIcon: {
     width: 64,
     height: 64,
-    borderRadius: 16,
+    borderRadius: 20,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
     shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
     elevation: 4,
   },
   mainCardTitle: {
-    fontSize: 22,
-
+    fontSize: 21,
     fontWeight: '900',
     marginBottom: 8,
     color: COLORS.ink,
+    textAlign: 'center',
+    includeFontPadding: true,
   },
   mainCardSubtitle: {
     fontSize: 13,
     color: COLORS.gray,
-
-    fontWeight: '500',
+    fontWeight: '600',
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 22,
+    includeFontPadding: true,
   },
   listHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-    marginTop: 8,
+    marginBottom: 10,
+    marginTop: 4,
   },
   listTitle: {
-    fontSize: 12,
-
+    fontSize: 15,
     fontWeight: '900',
-    color: COLORS.gray,
-    letterSpacing: 1,
+    color: COLORS.ink,
+    includeFontPadding: true,
   },
   badge: {
     backgroundColor: COLORS.soft,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   badgeText: {
-    fontSize: 10,
-
-    fontWeight: 'bold',
+    fontSize: 11,
+    fontWeight: '700',
     color: COLORS.gray,
+    includeFontPadding: true,
   },
   sensorItem: {
     backgroundColor: COLORS.surface,
-    borderRadius: 22,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: COLORS.border,
-    marginBottom: 12,
+    marginBottom: 10,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   sensorItemOpen: {
     borderColor: 'rgba(135,27,23,0.25)',
@@ -1522,12 +1619,12 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 18,
+    padding: 16,
   },
   sensorLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
   },
   iconBox: {
     width: 36,
@@ -1545,15 +1642,15 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
   },
   sensorLabel: {
     fontSize: 13,
-
     fontWeight: '900',
     color: COLORS.ink,
-    marginBottom: 4,
+    marginBottom: 3,
+    includeFontPadding: true,
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   statusDot: {
     width: 6,
@@ -1561,14 +1658,14 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     borderRadius: 3,
   },
   statusText: {
-    fontSize: 9,
-
-    fontWeight: 'bold',
+    fontSize: 10,
+    fontWeight: '700',
+    includeFontPadding: true,
   },
   sensorRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   valueContainer: {
     flexDirection: 'row',
@@ -1576,23 +1673,23 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     gap: 2,
   },
   value: {
-    fontSize: 17,
-
+    fontSize: 18,
     fontWeight: '900',
     color: COLORS.ink,
+    includeFontPadding: true,
   },
   valueError: {
     color: COLORS.error,
   },
   unit: {
-    fontSize: 9,
-
-    fontWeight: 'bold',
-    color: COLORS.border,
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.gray,
+    includeFontPadding: true,
   },
   explanationBox: {
-    paddingHorizontal: 18,
-    paddingBottom: 18,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   explanationHeader: {
     flexDirection: 'row',
@@ -1601,35 +1698,35 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     marginBottom: 8,
   },
   explanationIcon: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   explanationTitle: {
-    fontSize: 10,
-
+    fontSize: 11,
     fontWeight: '900',
     color: COLORS.primary,
     letterSpacing: 0.5,
+    includeFontPadding: true,
   },
   explanationText: {
-    fontSize: 11,
-
-    fontWeight: 'bold',
+    fontSize: 12,
+    fontWeight: '700',
     color: COLORS.gray,
-    lineHeight: 18,
+    lineHeight: 20,
+    includeFontPadding: true,
   },
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 4,
+    marginBottom: 3,
   },
   aiIndicator: {
-    marginHorizontal: 4,
+    marginHorizontal: 2,
   },
   recommendationBox: {
     flexDirection: 'row',
@@ -1642,11 +1739,11 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
   },
   recommendationText: {
     flex: 1,
-    fontSize: 10,
-
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
     color: COLORS.warning,
-    lineHeight: 15,
+    lineHeight: 18,
+    includeFontPadding: true,
   },
   mainCardTopRow: {
     width: '100%',
@@ -1656,9 +1753,10 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     marginBottom: 8,
   },
   reportIdText: {
-    fontSize: 10,
-
+    fontSize: 11,
     color: COLORS.gray,
+    fontWeight: '700',
+    includeFontPadding: true,
   },
   reportIdMono: {
     fontFamily: 'monospace',
@@ -1669,134 +1767,145 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
   },
   carNameText: {
     fontSize: 11,
-
     color: COLORS.gray,
     marginTop: 2,
+    fontWeight: '700',
+    includeFontPadding: true,
   },
   carNameMono: {
-
-    fontWeight: '700',
+    fontWeight: '900',
     color: COLORS.ink,
   },
   severityBadgeMain: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1,
   },
   severityBadgeMainText: {
     fontSize: 12,
-
-    fontWeight: '700',
+    fontWeight: '900',
+    includeFontPadding: true,
   },
   introLine: {
     fontSize: 13,
-    color: COLORS.ink,
-
-    fontWeight: '600',
+    color: COLORS.gray,
+    fontWeight: '700',
     textAlign: 'center',
-    lineHeight: 20,
-    marginTop: 12,
+    lineHeight: 22,
+    marginTop: 10,
+    includeFontPadding: true,
   },
   urgencyText: {
     fontSize: 11,
-
     fontWeight: '700',
     color: COLORS.primary,
     marginTop: 8,
+    includeFontPadding: true,
   },
   dtcAiBox: {
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.08)',
+    borderTopColor: COLORS.border,
   },
   dtcAiTitle: {
     fontSize: 11,
-
-    fontWeight: '700',
-    color: COLORS.ink,
+    fontWeight: '900',
+    color: COLORS.primary,
     marginBottom: 4,
-    opacity: 0.8,
+    includeFontPadding: true,
   },
   dtcAiText: {
     fontSize: 12,
-
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.ink,
-    lineHeight: 18,
+    lineHeight: 20,
+    includeFontPadding: true,
   },
   dtcAiUrgency: {
     fontSize: 10,
-
-    color: COLORS.ink,
-    opacity: 0.8,
+    fontWeight: '700',
+    color: COLORS.gray,
     marginTop: 4,
+    includeFontPadding: true,
   },
   dtcCategory: {
     fontSize: 10,
-
+    fontWeight: '700',
     color: COLORS.gray,
-    marginTop: 8,
+    marginTop: 6,
+    includeFontPadding: true,
   },
   causeEvidence: {
     fontSize: 11,
-
+    fontWeight: '700',
     color: COLORS.warning,
     marginTop: 4,
-    opacity: 0.85,
+    lineHeight: 18,
+    includeFontPadding: true,
   },
   maintenanceMeta: {
     fontSize: 12,
-
+    fontWeight: '700',
     color: COLORS.gray,
     marginBottom: 12,
+    includeFontPadding: true,
   },
   maintenanceMetaBold: {
-
-    fontWeight: '700',
+    fontWeight: '900',
     color: COLORS.ink,
   },
   recCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 22,
+    borderRadius: 28,
     padding: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.035,
+    shadowRadius: 6,
+    elevation: 1,
   },
   recHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     backgroundColor: COLORS.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 14,
     alignSelf: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 14,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    elevation: 3,
   },
   recHeaderText: {
     color: '#fff',
     fontSize: 12,
-
     fontWeight: '900',
     letterSpacing: 0.5,
+    includeFontPadding: true,
   },
   recText: {
     fontSize: 14,
-
     fontWeight: '700',
     color: COLORS.ink,
-    lineHeight: 22,
+    lineHeight: 24,
     textAlign: 'right',
+    includeFontPadding: true,
   },
   unifiedBodyText: {
     fontSize: 14,
-
     fontWeight: '700',
     color: COLORS.ink,
-    lineHeight: 22,
+    lineHeight: 24,
     textAlign: 'right',
+    includeFontPadding: true,
   },
   unifiedDivider: {
     height: 1,
@@ -1804,73 +1913,82 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     marginVertical: 14,
   },
   unifiedSubLabel: {
-    fontSize: 11,
-
+    fontSize: 12,
     fontWeight: '900',
     color: COLORS.primary,
     letterSpacing: 0.5,
     marginBottom: 6,
     textAlign: 'right',
+    includeFontPadding: true,
   },
   mechanicBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
     marginTop: 14,
-    paddingTop: 12,
+    paddingTop: 14,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
+    backgroundColor: COLORS.softRed,
+    borderRadius: 16,
+    padding: 12,
   },
   mechanicTitle: {
     fontSize: 13,
-
     fontWeight: '900',
     color: COLORS.primary,
     marginBottom: 4,
+    includeFontPadding: true,
   },
   mechanicNote: {
     fontSize: 12,
-
+    fontWeight: '700',
     color: COLORS.gray,
-    lineHeight: 18,
+    lineHeight: 20,
+    includeFontPadding: true,
   },
   footer: {
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 30,
+    marginTop: 16,
+    marginBottom: 24,
   },
   footerText: {
-    fontSize: 9,
-
-    fontWeight: 'bold',
+    fontSize: 10,
+    fontWeight: '700',
     color: COLORS.gray,
     textAlign: 'center',
-    marginTop: 10,
-    lineHeight: 14,
+    marginTop: 8,
+    lineHeight: 16,
+    includeFontPadding: true,
   },
   dtcCategoryPill: {
     alignSelf: 'flex-start',
-    marginTop: 6,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    marginTop: 5,
+    backgroundColor: COLORS.soft,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
+    borderColor: COLORS.border,
   },
   dtcCategoryPillText: {
     fontSize: 11,
-
     fontWeight: '800',
-    color: COLORS.ink,
+    color: COLORS.gray,
+    includeFontPadding: true,
   },
   dtcCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   dtcHeader: {
     flexDirection: 'row',
@@ -1882,83 +2000,97 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
   dtcIconBox: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.soft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dtcCode: {
-    fontSize: 14,
-
+    fontSize: 15,
     fontWeight: '900',
     color: COLORS.ink,
+    includeFontPadding: true,
   },
   dtcName: {
     fontSize: 12,
-
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.gray,
     marginTop: 2,
+    lineHeight: 18,
+    includeFontPadding: true,
   },
   severityBadge: {
-    backgroundColor: '#FEE2E2',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 999,
+    borderWidth: 1,
   },
   severityCritical: {
     backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
   },
   severityHigh: {
     backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
   },
   severityText: {
-    fontSize: 9,
-
-    fontWeight: '700',
-    color: COLORS.error,
+    fontSize: 10,
+    fontWeight: '900',
+    includeFontPadding: true,
   },
   dtcDescription: {
-    fontSize: 11,
-
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
     color: COLORS.gray,
-    lineHeight: 16,
+    lineHeight: 18,
+    includeFontPadding: true,
   },
   causeCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 22,
+    padding: 14,
     marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
+    gap: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   causeContent: {
     flex: 1,
   },
   causeText: {
     flex: 1,
-    fontSize: 12,
-
-    fontWeight: '600',
-    color: COLORS.warning,
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.ink,
+    lineHeight: 20,
+    includeFontPadding: true,
   },
   causeMetrics: {
-    fontSize: 10,
-
-    color: COLORS.warning,
-    marginTop: 4,
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.muted,
+    marginTop: 6,
+    includeFontPadding: true,
   },
   maintenanceCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.035,
+    shadowRadius: 6,
+    elevation: 1,
   },
   maintenanceHeader: {
     flexDirection: 'row',
@@ -1968,23 +2100,24 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
   },
   maintenanceTitle: {
     fontSize: 14,
-
-    fontWeight: '700',
+    fontWeight: '900',
     color: COLORS.ink,
+    includeFontPadding: true,
   },
   maintenanceAction: {
     fontSize: 13,
-
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.ink,
     marginBottom: 12,
+    lineHeight: 20,
+    includeFontPadding: true,
   },
   measuresTitle: {
     fontSize: 12,
-
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.gray,
     marginBottom: 8,
+    includeFontPadding: true,
   },
   measureItem: {
     flexDirection: 'row',
@@ -1994,19 +2127,21 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
   measureBullet: {
     fontSize: 14,
     color: COLORS.primary,
-
-    fontWeight: 'bold',
+    fontWeight: '900',
+    includeFontPadding: true,
   },
   measureText: {
     flex: 1,
     fontSize: 12,
-
+    fontWeight: '700',
     color: COLORS.ink,
+    lineHeight: 18,
+    includeFontPadding: true,
   },
   buttonGroup: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 20,
+    marginTop: 8,
   },
   primaryButton: {
     flex: 1,
@@ -2014,18 +2149,25 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 16,
+    height: 56,
+    borderRadius: 28,
     gap: 8,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    elevation: 4,
   },
   primaryButtonDisabled: {
     backgroundColor: COLORS.success,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   buttonText: {
     color: '#fff',
-    fontSize: 14,
-
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '900',
+    includeFontPadding: true,
   },
   });
 }
