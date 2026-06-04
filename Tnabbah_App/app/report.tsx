@@ -19,9 +19,6 @@ import { useAppSettings } from '../providers/AppSettingsProvider';
 import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 
-import { useCars } from '../providers/CarsProvider';
-import { useWallet } from "../providers/WalletProvider";
-
 const API_URL = process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://127.0.0.1:8001";
 
 // Project colour palette (matches home.tsx / wallet.tsx)
@@ -302,7 +299,7 @@ const getDtcIcon = (code: string, meaning: string = ''): PidGlyphSpec => {
   // Cooling system / overheating (e.g. P0115-P0128, P0217, P0480-P0485)
   if (
     has('حرار', 'تبريد', 'رديتر', 'ثرموستات', 'مروحة',
-      'coolant', 'overheat', 'thermostat', 'radiator', 'cooling') ||
+        'coolant', 'overheat', 'thermostat', 'radiator', 'cooling') ||
     /^P0(11[5-9]|12[0-8]|217|48[0-5])/.test(c)
   )
     return { pack: 'material', name: 'coolant-temperature' };
@@ -314,7 +311,7 @@ const getDtcIcon = (code: string, meaning: string = ''): PidGlyphSpec => {
   // Battery / charging / alternator / system voltage
   if (
     has('بطار', 'شحن', 'مولد', 'دينمو',
-      'battery', 'charging', 'alternator', 'generator', 'voltage') ||
+        'battery', 'charging', 'alternator', 'generator', 'voltage') ||
     /^P0(56[0-9]|62[0-5]|A0)/.test(c)
   )
     return { pack: 'material', name: 'car-battery' };
@@ -391,17 +388,6 @@ const DtcGlyph = ({
 const ReportScreen = () => {
   const params = useLocalSearchParams();
   const { session } = useAuth();
-
- const { refreshWallet, setReports } = useWallet();
-
-  const { activeCarId, userCars } = useCars();
-
-  const activeUserCar = userCars.find(
-    (car) => car.car_id === activeCarId
-  );
-
-  const activeUserCarId = activeUserCar?.id ?? null;
-
   const insets = useSafeAreaInsets();
 
   const [report, setReport] = useState<any>(null);
@@ -444,10 +430,10 @@ const ReportScreen = () => {
         // Engine emits some legacy values (WARNING, ABNORMAL) -> MEDIUM.
         const severityLevel =
           rawStatus === 'NORMAL' ? 'NORMAL' :
-            rawStatus === 'LOW' ? 'LOW' :
-              rawStatus === 'HIGH' ? 'HIGH' :
-                rawStatus === 'CRITICAL' ? 'CRITICAL' :
-                  'MEDIUM';
+          rawStatus === 'LOW' ? 'LOW' :
+          rawStatus === 'HIGH' ? 'HIGH' :
+          rawStatus === 'CRITICAL' ? 'CRITICAL' :
+          'MEDIUM';
         return {
           label: reading.name_ar || reading.pid_name_ar || reading.name || reading.pid_name,
           value: String(reading.value),
@@ -567,9 +553,6 @@ const ReportScreen = () => {
         if (error) throw error;
 
         setSupabaseRowId(data.id);
-
-        await refreshWallet();
-
         if (data.is_permanently_saved || data.status === 'saved') {
           setSaved(true);
         }
@@ -606,18 +589,8 @@ const ReportScreen = () => {
         const expiry = new Date(now.getTime() + 1000 * 60 * 60 * 24);
         const { data, error } = await supabase
           .from('reports')
-          /* .insert({
-            user_id: session.user.id,
-            content: report,
-            created_at: now.toISOString(),
-            expiry_at: expiry.toISOString(),
-            status: 'pending',
-            is_permanently_saved: false,
-          }) */
-
           .insert({
             user_id: session.user.id,
-            user_car_id: activeUserCarId,
             content: report,
             created_at: now.toISOString(),
             expiry_at: expiry.toISOString(),
@@ -632,7 +605,7 @@ const ReportScreen = () => {
         console.error('Auto-save (pending) failed:', err?.message || err);
       }
     })();
-  }, [report, session?.user?.id, supabaseRowId, activeUserCarId]);
+  }, [report, session?.user?.id, supabaseRowId]);
 
   // Resolve the car's display name for the report header. The MQTT car_id
   // (text) is stored in the report content; map it to the user's saved car
@@ -693,7 +666,6 @@ const ReportScreen = () => {
         const { error } = await supabase
           .from('reports')
           .update({
-            user_car_id: activeUserCarId,
             status: 'saved',
             is_permanently_saved: true,
             saved_at: now.toISOString(),
@@ -708,7 +680,6 @@ const ReportScreen = () => {
           .from('reports')
           .insert({
             user_id: session.user.id,
-            user_car_id: activeUserCarId,
             content: report,
             created_at: now.toISOString(),
             saved_at: now.toISOString(),
@@ -721,8 +692,6 @@ const ReportScreen = () => {
         if (error) throw error;
         setSupabaseRowId(data.id);
       }
-
-      await refreshWallet();
 
       setSaved(true);
       Alert.alert(t.saveSuccessTitle, t.saveSuccess);
@@ -893,10 +862,10 @@ const ReportScreen = () => {
   // Severity styles (mirror web report)
   const severity = String(report.severity || 'NORMAL').toUpperCase();
   const SEVERITY_MAP: Record<string, { bg: string; fg: string; border: string }> = {
-    NORMAL: { bg: '#F0FDF4', fg: '#15803D', border: '#BBF7D0' },
-    LOW: { bg: '#DCFCE7', fg: '#166534', border: '#86EFAC' },
-    MEDIUM: { bg: '#FEF9C3', fg: '#854D0E', border: '#FDE68A' },
-    HIGH: { bg: '#FFEDD5', fg: '#9A3412', border: '#FDBA74' },
+    NORMAL:   { bg: '#F0FDF4', fg: '#15803D', border: '#BBF7D0' },
+    LOW:      { bg: '#DCFCE7', fg: '#166534', border: '#86EFAC' },
+    MEDIUM:   { bg: '#FEF9C3', fg: '#854D0E', border: '#FDE68A' },
+    HIGH:     { bg: '#FFEDD5', fg: '#9A3412', border: '#FDBA74' },
     CRITICAL: { bg: '#FEE2E2', fg: '#991B1B', border: '#FCA5A5' },
   };
   const sevStyle = SEVERITY_MAP[severity] || SEVERITY_MAP.NORMAL;
@@ -916,7 +885,7 @@ const ReportScreen = () => {
     if (n === 1) return 'رمز عطل واحد';
     if (n === 2) return 'رمزي عطل';
     return `${n} رموز عطل`; // 3–10 plural; 11+ uses singular in formal Arabic,
-    // but "رموز" reads naturally across all counts in UI.
+                           // but "رموز" reads naturally across all counts in UI.
   };
   const anomPhraseAR = (n: number) => {
     if (n === 0) return '';
@@ -986,7 +955,7 @@ const ReportScreen = () => {
         >
           {/* رأس الصفحة */}
           <View style={styles.header}>
-            <TouchableOpacity
+            <TouchableOpacity 
               style={styles.headerButton}
               onPress={handleBackPress}
             >
@@ -1163,106 +1132,106 @@ const ReportScreen = () => {
                     <Text style={styles.badgeText}>{t.sensorsCount(sensorData.length)}</Text>
                   </View>
                 </View>
-                {sensorData.map((item, idx) => {
-                  const isOpen = openIndex === idx;
-                  const sevLevel: string = item.severityLevel || (item.status === 'WARNING' ? 'MEDIUM' : 'NORMAL');
-                  const sevColors = SEVERITY_MAP[sevLevel] || SEVERITY_MAP.NORMAL;
-                  const statusColor = sevColors.fg;
-                  // Default per-level label derived from t.severity.
-                  const defaultLevelLabel = t.severity[sevLevel] || t.severity.NORMAL;
-                  const rawAiUrgency = item.aiInterpretation?.urgency_ar;
-                  // Trust the diagnostics engine status over the AI label.
-                  // - If engine says non-NORMAL, never show "طبيعي/آمن" from the AI.
-                  // - If engine says NORMAL, normalize legacy "آمن" to "طبيعي".
-                  const SAFE_LABELS = ['آمن', 'طبيعي'];
-                  let aiUrgency: string | undefined = rawAiUrgency;
-                  if (sevLevel !== 'NORMAL' && rawAiUrgency && SAFE_LABELS.includes(rawAiUrgency)) {
-                    aiUrgency = undefined;
-                  } else if (rawAiUrgency === 'آمن') {
-                    aiUrgency = 'طبيعي';
-                  }
-                  const statusText = aiUrgency
-                    ? tr(aiUrgency)
-                    : defaultLevelLabel;
-                  const hasAI = !!item.aiInterpretation;
+            {sensorData.map((item, idx) => {
+              const isOpen = openIndex === idx;
+              const sevLevel: string = item.severityLevel || (item.status === 'WARNING' ? 'MEDIUM' : 'NORMAL');
+              const sevColors = SEVERITY_MAP[sevLevel] || SEVERITY_MAP.NORMAL;
+              const statusColor = sevColors.fg;
+              // Default per-level label derived from t.severity.
+              const defaultLevelLabel = t.severity[sevLevel] || t.severity.NORMAL;
+              const rawAiUrgency = item.aiInterpretation?.urgency_ar;
+              // Trust the diagnostics engine status over the AI label.
+              // - If engine says non-NORMAL, never show "طبيعي/آمن" from the AI.
+              // - If engine says NORMAL, normalize legacy "آمن" to "طبيعي".
+              const SAFE_LABELS = ['آمن', 'طبيعي'];
+              let aiUrgency: string | undefined = rawAiUrgency;
+              if (sevLevel !== 'NORMAL' && rawAiUrgency && SAFE_LABELS.includes(rawAiUrgency)) {
+                aiUrgency = undefined;
+              } else if (rawAiUrgency === 'آمن') {
+                aiUrgency = 'طبيعي';
+              }
+              const statusText = aiUrgency
+                ? tr(aiUrgency)
+                : defaultLevelLabel;
+              const hasAI = !!item.aiInterpretation;
 
-                  return (
-                    <View key={idx} style={[styles.sensorItem, isOpen && styles.sensorItemOpen]}>
-                      <TouchableOpacity
-                        activeOpacity={0.8}
-                        style={styles.sensorButton}
-                        onPress={() => setOpenIndex(isOpen ? null : idx)}
-                      >
-                        <View style={styles.sensorLeft}>
-                          <View style={[styles.iconBox, isOpen && styles.iconBoxOpen]}>
-                            <PidGlyph item={item} size={18} color={statusColor} />
-                          </View>
-                          <View>
-                            <View style={styles.labelRow}>
-                              <Text style={styles.sensorLabel}>{tr(item.label)}</Text>
-                              {hasAI && <Icon name="zap" size={12} color={COLORS.primary} style={styles.aiIndicator} />}
+              return (
+                <View key={idx} style={[styles.sensorItem, isOpen && styles.sensorItemOpen]}>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={styles.sensorButton}
+                    onPress={() => setOpenIndex(isOpen ? null : idx)}
+                  >
+                    <View style={styles.sensorLeft}>
+                      <View style={[styles.iconBox, isOpen && styles.iconBoxOpen]}>
+                        <PidGlyph item={item} size={18} color={statusColor} />
+                      </View>
+                      <View>
+                        <View style={styles.labelRow}>
+                          <Text style={styles.sensorLabel}>{tr(item.label)}</Text>
+                          {hasAI && <Icon name="zap" size={12} color={COLORS.primary} style={styles.aiIndicator} />}
+                        </View>
+                        <View style={styles.statusRow}>
+                          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                          <Text style={[styles.statusText, { color: statusColor }]}>
+                            {statusText}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                    <View style={styles.sensorRight}>
+                      <View style={styles.valueContainer}>
+                        <Text style={[styles.value, item.status === 'WARNING' && styles.valueError]}>
+                          {parseFloat(item.value).toFixed(2)}
+                        </Text>
+                        <Text style={styles.unit}>{item.unit}</Text>
+                      </View>
+                      <Icon 
+                        name={isOpen ? "chevron-up" : "chevron-down"} 
+                        size={16} 
+                        color={COLORS.gray} 
+                      />
+                    </View>
+                  </TouchableOpacity>
+
+                  {isOpen && (
+                    <View style={styles.explanationBox}>
+                      {hasAI && (item.aiInterpretation?.smart_insight_ar || item.aiInterpretation?.mechanical_explanation_ar) ? (
+                        <>
+                          <View style={styles.explanationHeader}>
+                            <View style={styles.explanationIcon}>
+                              <Icon name="zap" size={10} color="#fff" />
                             </View>
-                            <View style={styles.statusRow}>
-                              <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                              <Text style={[styles.statusText, { color: statusColor }]}>
-                                {statusText}
+                            <Text style={styles.explanationTitle}>{t.smartAnalysis}</Text>
+                          </View>
+                          <Text style={styles.explanationText}>
+                            {tr(item.aiInterpretation.smart_insight_ar || item.aiInterpretation.mechanical_explanation_ar)}
+                          </Text>
+                          {item.aiInterpretation?.safety_tip_ar && (
+                            <View style={styles.recommendationBox}>
+                              <Icon name="alert-circle" size={14} color={COLORS.warning} />
+                              <Text style={styles.recommendationText}>
+                                {tr(item.aiInterpretation.safety_tip_ar)}
                               </Text>
                             </View>
-                          </View>
-                        </View>
-                        <View style={styles.sensorRight}>
-                          <View style={styles.valueContainer}>
-                            <Text style={[styles.value, item.status === 'WARNING' && styles.valueError]}>
-                              {parseFloat(item.value).toFixed(2)}
-                            </Text>
-                            <Text style={styles.unit}>{item.unit}</Text>
-                          </View>
-                          <Icon
-                            name={isOpen ? "chevron-up" : "chevron-down"}
-                            size={16}
-                            color={COLORS.gray}
-                          />
-                        </View>
-                      </TouchableOpacity>
-
-                      {isOpen && (
-                        <View style={styles.explanationBox}>
-                          {hasAI && (item.aiInterpretation?.smart_insight_ar || item.aiInterpretation?.mechanical_explanation_ar) ? (
-                            <>
-                              <View style={styles.explanationHeader}>
-                                <View style={styles.explanationIcon}>
-                                  <Icon name="zap" size={10} color="#fff" />
-                                </View>
-                                <Text style={styles.explanationTitle}>{t.smartAnalysis}</Text>
-                              </View>
-                              <Text style={styles.explanationText}>
-                                {tr(item.aiInterpretation.smart_insight_ar || item.aiInterpretation.mechanical_explanation_ar)}
-                              </Text>
-                              {item.aiInterpretation?.safety_tip_ar && (
-                                <View style={styles.recommendationBox}>
-                                  <Icon name="alert-circle" size={14} color={COLORS.warning} />
-                                  <Text style={styles.recommendationText}>
-                                    {tr(item.aiInterpretation.safety_tip_ar)}
-                                  </Text>
-                                </View>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              <View style={styles.explanationHeader}>
-                                <View style={styles.explanationIcon}>
-                                  <Icon name="info" size={10} color="#fff" />
-                                </View>
-                                <Text style={styles.explanationTitle}>{t.explanation}</Text>
-                              </View>
-                              <Text style={styles.explanationText}>{tr(item.explanation)}</Text>
-                            </>
                           )}
-                        </View>
+                        </>
+                      ) : (
+                        <>
+                          <View style={styles.explanationHeader}>
+                            <View style={styles.explanationIcon}>
+                              <Icon name="info" size={10} color="#fff" />
+                            </View>
+                            <Text style={styles.explanationTitle}>{t.explanation}</Text>
+                          </View>
+                          <Text style={styles.explanationText}>{tr(item.explanation)}</Text>
+                        </>
                       )}
                     </View>
-                  );
-                })}
+                  )}
+                </View>
+              );
+            })}
               </View>
             )}
 
@@ -1329,725 +1298,725 @@ const ReportScreen = () => {
       </SafeAreaView>
     </>
   );
-};
+}
 
 function createStyles(COLORS: typeof LIGHT_COLORS) {
   return StyleSheet.create({
-    safeArea: {
-      flex: 1,
-      backgroundColor: COLORS.bg,
-    },
-    loadingContainer: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    errorText: {
-      fontSize: 16,
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorText: {
+    fontSize: 16,
 
-      color: COLORS.error,
-    },
-    header: {
-      backgroundColor: COLORS.surface,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      paddingTop: 12,
-      paddingBottom: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: COLORS.border,
-    },
-    headerButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 14,
-      backgroundColor: COLORS.soft,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    headerTitleContainer: {
-      alignItems: 'center',
-    },
-    headerTitle: {
-      fontSize: 18,
+    color: COLORS.error,
+  },
+  header: {
+    backgroundColor: COLORS.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    backgroundColor: COLORS.soft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleContainer: {
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
 
-      fontWeight: '900',
-      color: COLORS.ink,
-    },
-    dateContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      marginTop: 4,
-    },
-    dateText: {
-      fontSize: 10,
+    fontWeight: '900',
+    color: COLORS.ink,
+  },
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  dateText: {
+    fontSize: 10,
 
-      fontWeight: 'bold',
-      color: COLORS.gray,
-      letterSpacing: 1,
-    },
-    headerIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 14,
-      backgroundColor: COLORS.soft,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    langButton: {
-      minWidth: 56,
-      height: 40,
-      paddingHorizontal: 10,
-      borderRadius: 14,
-      backgroundColor: COLORS.soft,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexDirection: 'row',
-      gap: 6,
-    },
-    langButtonText: {
-      fontSize: 12,
+    fontWeight: 'bold',
+    color: COLORS.gray,
+    letterSpacing: 1,
+  },
+  headerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    backgroundColor: COLORS.soft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  langButton: {
+    minWidth: 56,
+    height: 40,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    backgroundColor: COLORS.soft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  langButtonText: {
+    fontSize: 12,
 
-      fontWeight: '900',
-      color: COLORS.primary,
-      letterSpacing: 0.5,
-    },
-    content: {
-      paddingHorizontal: 20,
-      paddingTop: 20,
-      gap: 20,
-    },
-    healthBar: {
-      backgroundColor: COLORS.surface,
-      borderRadius: 22,
-      padding: 16,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-    },
-    healthHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 10,
-    },
-    healthLabel: {
-      fontSize: 14,
+    fontWeight: '900',
+    color: COLORS.primary,
+    letterSpacing: 0.5,
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    gap: 20,
+  },
+  healthBar: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  healthHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  healthLabel: {
+    fontSize: 14,
 
-      fontWeight: '700',
-      color: COLORS.ink,
-    },
-    healthPercent: {
-      fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.ink,
+  },
+  healthPercent: {
+    fontSize: 18,
 
-      fontWeight: '900',
-    },
-    healthProgressContainer: {
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: COLORS.border,
-      overflow: 'hidden',
-    },
-    healthProgress: {
-      height: '100%',
-      borderRadius: 4,
-    },
-    mainCard: {
-      backgroundColor: COLORS.surface,
-      borderRadius: 24,
-      paddingVertical: 28,
-      paddingHorizontal: 20,
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: COLORS.border,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.03,
-      shadowRadius: 6,
-      elevation: 1,
-    },
-    mainCardIcon: {
-      width: 64,
-      height: 64,
-      borderRadius: 16,
-      backgroundColor: COLORS.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 16,
-      shadowColor: COLORS.primary,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.2,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-    mainCardTitle: {
-      fontSize: 22,
+    fontWeight: '900',
+  },
+  healthProgressContainer: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.border,
+    overflow: 'hidden',
+  },
+  healthProgress: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  mainCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 24,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  mainCardIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  mainCardTitle: {
+    fontSize: 22,
 
-      fontWeight: '900',
-      marginBottom: 8,
-      color: COLORS.ink,
-    },
-    mainCardSubtitle: {
-      fontSize: 13,
-      color: COLORS.gray,
+    fontWeight: '900',
+    marginBottom: 8,
+    color: COLORS.ink,
+  },
+  mainCardSubtitle: {
+    fontSize: 13,
+    color: COLORS.gray,
 
-      fontWeight: '500',
-      textAlign: 'center',
-      lineHeight: 20,
-    },
-    listHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 12,
-      marginTop: 8,
-    },
-    listTitle: {
-      fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  listHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  listTitle: {
+    fontSize: 12,
 
-      fontWeight: '900',
-      color: COLORS.gray,
-      letterSpacing: 1,
-    },
-    badge: {
-      backgroundColor: COLORS.soft,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 6,
-    },
-    badgeText: {
-      fontSize: 10,
+    fontWeight: '900',
+    color: COLORS.gray,
+    letterSpacing: 1,
+  },
+  badge: {
+    backgroundColor: COLORS.soft,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  badgeText: {
+    fontSize: 10,
 
-      fontWeight: 'bold',
-      color: COLORS.gray,
-    },
-    sensorItem: {
-      backgroundColor: COLORS.surface,
-      borderRadius: 22,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-      marginBottom: 12,
-      overflow: 'hidden',
-    },
-    sensorItemOpen: {
-      borderColor: 'rgba(135,27,23,0.25)',
-    },
-    sensorButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: 18,
-    },
-    sensorLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 14,
-    },
-    iconBox: {
-      width: 36,
-      height: 36,
-      borderRadius: 14,
-      backgroundColor: COLORS.soft,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    iconBoxOpen: {
-      backgroundColor: 'rgba(135,27,23,0.08)',
-      borderColor: 'rgba(135,27,23,0.2)',
-    },
-    sensorLabel: {
-      fontSize: 13,
+    fontWeight: 'bold',
+    color: COLORS.gray,
+  },
+  sensorItem: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  sensorItemOpen: {
+    borderColor: 'rgba(135,27,23,0.25)',
+  },
+  sensorButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 18,
+  },
+  sensorLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  iconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    backgroundColor: COLORS.soft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBoxOpen: {
+    backgroundColor: 'rgba(135,27,23,0.08)',
+    borderColor: 'rgba(135,27,23,0.2)',
+  },
+  sensorLabel: {
+    fontSize: 13,
 
-      fontWeight: '900',
-      color: COLORS.ink,
-      marginBottom: 4,
-    },
-    statusRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-    },
-    statusDot: {
-      width: 6,
-      height: 6,
-      borderRadius: 3,
-    },
-    statusText: {
-      fontSize: 9,
+    fontWeight: '900',
+    color: COLORS.ink,
+    marginBottom: 4,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusText: {
+    fontSize: 9,
 
-      fontWeight: 'bold',
-    },
-    sensorRight: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-    },
-    valueContainer: {
-      flexDirection: 'row',
-      alignItems: 'baseline',
-      gap: 2,
-    },
-    value: {
-      fontSize: 17,
+    fontWeight: 'bold',
+  },
+  sensorRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  valueContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
+  },
+  value: {
+    fontSize: 17,
 
-      fontWeight: '900',
-      color: COLORS.ink,
-    },
-    valueError: {
-      color: COLORS.error,
-    },
-    unit: {
-      fontSize: 9,
+    fontWeight: '900',
+    color: COLORS.ink,
+  },
+  valueError: {
+    color: COLORS.error,
+  },
+  unit: {
+    fontSize: 9,
 
-      fontWeight: 'bold',
-      color: COLORS.border,
-    },
-    explanationBox: {
-      paddingHorizontal: 18,
-      paddingBottom: 18,
-    },
-    explanationHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      marginBottom: 8,
-    },
-    explanationIcon: {
-      width: 18,
-      height: 18,
-      borderRadius: 9,
-      backgroundColor: COLORS.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    explanationTitle: {
-      fontSize: 10,
+    fontWeight: 'bold',
+    color: COLORS.border,
+  },
+  explanationBox: {
+    paddingHorizontal: 18,
+    paddingBottom: 18,
+  },
+  explanationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  explanationIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  explanationTitle: {
+    fontSize: 10,
 
-      fontWeight: '900',
-      color: COLORS.primary,
-      letterSpacing: 0.5,
-    },
-    explanationText: {
-      fontSize: 11,
+    fontWeight: '900',
+    color: COLORS.primary,
+    letterSpacing: 0.5,
+  },
+  explanationText: {
+    fontSize: 11,
 
-      fontWeight: 'bold',
-      color: COLORS.gray,
-      lineHeight: 18,
-    },
-    labelRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      marginBottom: 4,
-    },
-    aiIndicator: {
-      marginHorizontal: 4,
-    },
-    recommendationBox: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 8,
-      marginTop: 12,
-      paddingTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: COLORS.border,
-    },
-    recommendationText: {
-      flex: 1,
-      fontSize: 10,
+    fontWeight: 'bold',
+    color: COLORS.gray,
+    lineHeight: 18,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  aiIndicator: {
+    marginHorizontal: 4,
+  },
+  recommendationBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  recommendationText: {
+    flex: 1,
+    fontSize: 10,
 
-      fontWeight: '600',
-      color: COLORS.warning,
-      lineHeight: 15,
-    },
-    mainCardTopRow: {
-      width: '100%',
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 8,
-    },
-    reportIdText: {
-      fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.warning,
+    lineHeight: 15,
+  },
+  mainCardTopRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  reportIdText: {
+    fontSize: 10,
 
-      color: COLORS.gray,
-    },
-    reportIdMono: {
-      fontFamily: 'monospace',
-      color: COLORS.gray,
-    },
-    mainCardMetaCol: {
-      flex: 1,
-    },
-    carNameText: {
-      fontSize: 11,
+    color: COLORS.gray,
+  },
+  reportIdMono: {
+    fontFamily: 'monospace',
+    color: COLORS.gray,
+  },
+  mainCardMetaCol: {
+    flex: 1,
+  },
+  carNameText: {
+    fontSize: 11,
 
-      color: COLORS.gray,
-      marginTop: 2,
-    },
-    carNameMono: {
+    color: COLORS.gray,
+    marginTop: 2,
+  },
+  carNameMono: {
 
-      fontWeight: '700',
-      color: COLORS.ink,
-    },
-    severityBadgeMain: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 999,
-      borderWidth: 1,
-    },
-    severityBadgeMainText: {
-      fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.ink,
+  },
+  severityBadgeMain: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  severityBadgeMainText: {
+    fontSize: 12,
 
-      fontWeight: '700',
-    },
-    introLine: {
-      fontSize: 13,
-      color: COLORS.ink,
+    fontWeight: '700',
+  },
+  introLine: {
+    fontSize: 13,
+    color: COLORS.ink,
 
-      fontWeight: '600',
-      textAlign: 'center',
-      lineHeight: 20,
-      marginTop: 12,
-    },
-    urgencyText: {
-      fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginTop: 12,
+  },
+  urgencyText: {
+    fontSize: 11,
 
-      fontWeight: '700',
-      color: COLORS.primary,
-      marginTop: 8,
-    },
-    dtcAiBox: {
-      marginTop: 10,
-      paddingTop: 10,
-      borderTopWidth: 1,
-      borderTopColor: 'rgba(0,0,0,0.08)',
-    },
-    dtcAiTitle: {
-      fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.primary,
+    marginTop: 8,
+  },
+  dtcAiBox: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.08)',
+  },
+  dtcAiTitle: {
+    fontSize: 11,
 
-      fontWeight: '700',
-      color: COLORS.ink,
-      marginBottom: 4,
-      opacity: 0.8,
-    },
-    dtcAiText: {
-      fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.ink,
+    marginBottom: 4,
+    opacity: 0.8,
+  },
+  dtcAiText: {
+    fontSize: 12,
 
-      fontWeight: '600',
-      color: COLORS.ink,
-      lineHeight: 18,
-    },
-    dtcAiUrgency: {
-      fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.ink,
+    lineHeight: 18,
+  },
+  dtcAiUrgency: {
+    fontSize: 10,
 
-      color: COLORS.ink,
-      opacity: 0.8,
-      marginTop: 4,
-    },
-    dtcCategory: {
-      fontSize: 10,
+    color: COLORS.ink,
+    opacity: 0.8,
+    marginTop: 4,
+  },
+  dtcCategory: {
+    fontSize: 10,
 
-      color: COLORS.gray,
-      marginTop: 8,
-    },
-    causeEvidence: {
-      fontSize: 11,
+    color: COLORS.gray,
+    marginTop: 8,
+  },
+  causeEvidence: {
+    fontSize: 11,
 
-      color: COLORS.warning,
-      marginTop: 4,
-      opacity: 0.85,
-    },
-    maintenanceMeta: {
-      fontSize: 12,
+    color: COLORS.warning,
+    marginTop: 4,
+    opacity: 0.85,
+  },
+  maintenanceMeta: {
+    fontSize: 12,
 
-      color: COLORS.gray,
-      marginBottom: 12,
-    },
-    maintenanceMetaBold: {
+    color: COLORS.gray,
+    marginBottom: 12,
+  },
+  maintenanceMetaBold: {
 
-      fontWeight: '700',
-      color: COLORS.ink,
-    },
-    recCard: {
-      backgroundColor: COLORS.surface,
-      borderRadius: 22,
-      padding: 18,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-    },
-    recHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      backgroundColor: COLORS.primary,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 12,
-      alignSelf: 'flex-start',
-      marginBottom: 12,
-    },
-    recHeaderText: {
-      color: '#fff',
-      fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.ink,
+  },
+  recCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  recHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+  },
+  recHeaderText: {
+    color: '#fff',
+    fontSize: 12,
 
-      fontWeight: '900',
-      letterSpacing: 0.5,
-    },
-    recText: {
-      fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  recText: {
+    fontSize: 14,
 
-      fontWeight: '700',
-      color: COLORS.ink,
-      lineHeight: 22,
-      textAlign: 'right',
-    },
-    unifiedBodyText: {
-      fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.ink,
+    lineHeight: 22,
+    textAlign: 'right',
+  },
+  unifiedBodyText: {
+    fontSize: 14,
 
-      fontWeight: '700',
-      color: COLORS.ink,
-      lineHeight: 22,
-      textAlign: 'right',
-    },
-    unifiedDivider: {
-      height: 1,
-      backgroundColor: COLORS.border,
-      marginVertical: 14,
-    },
-    unifiedSubLabel: {
-      fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.ink,
+    lineHeight: 22,
+    textAlign: 'right',
+  },
+  unifiedDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 14,
+  },
+  unifiedSubLabel: {
+    fontSize: 11,
 
-      fontWeight: '900',
-      color: COLORS.primary,
-      letterSpacing: 0.5,
-      marginBottom: 6,
-      textAlign: 'right',
-    },
-    mechanicBox: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 10,
-      marginTop: 14,
-      paddingTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: COLORS.border,
-    },
-    mechanicTitle: {
-      fontSize: 13,
+    fontWeight: '900',
+    color: COLORS.primary,
+    letterSpacing: 0.5,
+    marginBottom: 6,
+    textAlign: 'right',
+  },
+  mechanicBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  mechanicTitle: {
+    fontSize: 13,
 
-      fontWeight: '900',
-      color: COLORS.primary,
-      marginBottom: 4,
-    },
-    mechanicNote: {
-      fontSize: 12,
+    fontWeight: '900',
+    color: COLORS.primary,
+    marginBottom: 4,
+  },
+  mechanicNote: {
+    fontSize: 12,
 
-      color: COLORS.gray,
-      lineHeight: 18,
-    },
-    footer: {
-      alignItems: 'center',
-      marginTop: 20,
-      marginBottom: 30,
-    },
-    footerText: {
-      fontSize: 9,
+    color: COLORS.gray,
+    lineHeight: 18,
+  },
+  footer: {
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 30,
+  },
+  footerText: {
+    fontSize: 9,
 
-      fontWeight: 'bold',
-      color: COLORS.gray,
-      textAlign: 'center',
-      marginTop: 10,
-      lineHeight: 14,
-    },
-    dtcCategoryPill: {
-      alignSelf: 'flex-start',
-      marginTop: 6,
-      backgroundColor: 'rgba(255,255,255,0.7)',
-      borderRadius: 999,
-      paddingHorizontal: 10,
-      paddingVertical: 3,
-      borderWidth: 1,
-      borderColor: 'rgba(0,0,0,0.08)',
-    },
-    dtcCategoryPillText: {
-      fontSize: 11,
+    fontWeight: 'bold',
+    color: COLORS.gray,
+    textAlign: 'center',
+    marginTop: 10,
+    lineHeight: 14,
+  },
+  dtcCategoryPill: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+  },
+  dtcCategoryPillText: {
+    fontSize: 11,
 
-      fontWeight: '800',
-      color: COLORS.ink,
-    },
-    dtcCard: {
-      backgroundColor: COLORS.surface,
-      borderRadius: 22,
-      padding: 14,
-      marginBottom: 10,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-    },
-    dtcHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: 8,
-      gap: 12,
-    },
-    dtcIconBox: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      borderWidth: 1,
-      backgroundColor: COLORS.surface,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    dtcCode: {
-      fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.ink,
+  },
+  dtcCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  dtcHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+    gap: 12,
+  },
+  dtcIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dtcCode: {
+    fontSize: 14,
 
-      fontWeight: '900',
-      color: COLORS.ink,
-    },
-    dtcName: {
-      fontSize: 12,
+    fontWeight: '900',
+    color: COLORS.ink,
+  },
+  dtcName: {
+    fontSize: 12,
 
-      fontWeight: '600',
-      color: COLORS.gray,
-      marginTop: 2,
-    },
-    severityBadge: {
-      backgroundColor: '#FEE2E2',
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 999,
-    },
-    severityCritical: {
-      backgroundColor: '#FEE2E2',
-    },
-    severityHigh: {
-      backgroundColor: '#FEF3C7',
-    },
-    severityText: {
-      fontSize: 9,
+    fontWeight: '600',
+    color: COLORS.gray,
+    marginTop: 2,
+  },
+  severityBadge: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  severityCritical: {
+    backgroundColor: '#FEE2E2',
+  },
+  severityHigh: {
+    backgroundColor: '#FEF3C7',
+  },
+  severityText: {
+    fontSize: 9,
 
-      fontWeight: '700',
-      color: COLORS.error,
-    },
-    dtcDescription: {
-      fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.error,
+  },
+  dtcDescription: {
+    fontSize: 11,
 
-      fontWeight: '600',
-      color: COLORS.gray,
-      lineHeight: 16,
-    },
-    causeCard: {
-      backgroundColor: COLORS.surface,
-      borderRadius: 16,
-      padding: 12,
-      marginBottom: 8,
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 10,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-    },
-    causeContent: {
-      flex: 1,
-    },
-    causeText: {
-      flex: 1,
-      fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.gray,
+    lineHeight: 16,
+  },
+  causeCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  causeContent: {
+    flex: 1,
+  },
+  causeText: {
+    flex: 1,
+    fontSize: 12,
 
-      fontWeight: '600',
-      color: COLORS.warning,
-    },
-    causeMetrics: {
-      fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.warning,
+  },
+  causeMetrics: {
+    fontSize: 10,
 
-      color: COLORS.warning,
-      marginTop: 4,
-    },
-    maintenanceCard: {
-      backgroundColor: COLORS.surface,
-      borderRadius: 22,
-      padding: 16,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-    },
-    maintenanceHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      marginBottom: 12,
-    },
-    maintenanceTitle: {
-      fontSize: 14,
+    color: COLORS.warning,
+    marginTop: 4,
+  },
+  maintenanceCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 22,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  maintenanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  maintenanceTitle: {
+    fontSize: 14,
 
-      fontWeight: '700',
-      color: COLORS.ink,
-    },
-    maintenanceAction: {
-      fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.ink,
+  },
+  maintenanceAction: {
+    fontSize: 13,
 
-      fontWeight: '600',
-      color: COLORS.ink,
-      marginBottom: 12,
-    },
-    measuresTitle: {
-      fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.ink,
+    marginBottom: 12,
+  },
+  measuresTitle: {
+    fontSize: 12,
 
-      fontWeight: '600',
-      color: COLORS.gray,
-      marginBottom: 8,
-    },
-    measureItem: {
-      flexDirection: 'row',
-      gap: 8,
-      marginBottom: 6,
-    },
-    measureBullet: {
-      fontSize: 14,
-      color: COLORS.primary,
+    fontWeight: '600',
+    color: COLORS.gray,
+    marginBottom: 8,
+  },
+  measureItem: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 6,
+  },
+  measureBullet: {
+    fontSize: 14,
+    color: COLORS.primary,
 
-      fontWeight: 'bold',
-    },
-    measureText: {
-      flex: 1,
-      fontSize: 12,
+    fontWeight: 'bold',
+  },
+  measureText: {
+    flex: 1,
+    fontSize: 12,
 
-      color: COLORS.ink,
-    },
-    buttonGroup: {
-      flexDirection: 'row',
-      gap: 10,
-      marginTop: 20,
-    },
-    primaryButton: {
-      flex: 1,
-      backgroundColor: COLORS.primary,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 14,
-      borderRadius: 16,
-      gap: 8,
-    },
-    primaryButtonDisabled: {
-      backgroundColor: COLORS.success,
-    },
-    buttonText: {
-      color: '#fff',
-      fontSize: 14,
+    color: COLORS.ink,
+  },
+  buttonGroup: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 20,
+  },
+  primaryButton: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 16,
+    gap: 8,
+  },
+  primaryButtonDisabled: {
+    backgroundColor: COLORS.success,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 14,
 
-      fontWeight: '700',
-    },
+    fontWeight: '700',
+  },
   });
 }
 
