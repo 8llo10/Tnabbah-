@@ -143,6 +143,19 @@ function safeValue(value: any) {
     return String(value);
 }
 
+function formatLastScan(value: string | null) {
+    if (!value) return "--";
+
+    const date = new Date(value);
+
+    return date.toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
 /* function prettyJson(value: unknown) {
     try {
         return JSON.stringify(value, null, 2);
@@ -202,7 +215,7 @@ export default function HomeScreen() {
         );
 
         const minY = Platform.OS === "ios" ? 82 : 72;
-        const bottomSafe = Platform.OS === "ios" ? 106 : 96;
+        const bottomSafe = Platform.OS === "ios" ? 106 : 78;
         const maxY = Math.max(
             minY,
             height - FLOATING_ASSISTANT_HEIGHT - bottomSafe,
@@ -216,7 +229,7 @@ export default function HomeScreen() {
 
     const defaultFloatingPosition = clampFloatingPosition(
         width - FLOATING_ASSISTANT_WIDTH - FLOATING_ASSISTANT_MARGIN,
-        height - FLOATING_ASSISTANT_HEIGHT - (Platform.OS === "ios" ? 116 : 104),
+        height - FLOATING_ASSISTANT_HEIGHT - (Platform.OS === "ios" ? 116 : 86),
     );
 
     const floatingPosition = useRef(
@@ -236,8 +249,12 @@ export default function HomeScreen() {
 
     const [userName, setUserName] = useState("");
     const [homeAi, setHomeAi] = useState<HomeAiState>(null);
+    const homeStatusSignatureRef = useRef<string | null>(null);
+
     const [isChecking, setIsChecking] = useState(false);
     const [carId, setCarId] = useState<string | null>(null);
+
+    const [lastScanAt, setLastScanAt] = useState<string | null>(null);
 
     const [debugText, setDebugText] = useState("");
     const [notificationsCount, setNotificationsCount] = useState(0);
@@ -451,6 +468,7 @@ export default function HomeScreen() {
 
     useEffect(() => {
         setCarId(activeCarId || null);
+
         /* 
                 setMetrics({
                     rpm: null,
@@ -464,6 +482,27 @@ export default function HomeScreen() {
                 setDtcCount(0);
                 setLastRaw("");
                 setHomeAi(null); */
+    }, [activeCarId]);
+
+    useEffect(() => {
+        const loadLastScan = async () => {
+            const { data: authData } = await supabase.auth.getUser();
+            const userId = authData.user?.id;
+
+            if (!userId) return;
+
+            const { data } = await supabase
+                .from("reports")
+                .select("created_at")
+                .eq("user_id", userId)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            setLastScanAt(data?.created_at || null);
+        };
+
+        loadLastScan();
     }, [activeCarId]);
 
     /* useEffect(() => {
@@ -648,7 +687,26 @@ export default function HomeScreen() {
                 const json = await res.json();
 
                 if (mounted) {
-                    setHomeAi(json);
+                    const nextSignature = [
+                        json.status,
+                        json.level,
+                        json.mainIssue?.type || "",
+                        json.mainIssue?.code || "",
+                    ].join("|");
+
+                    setHomeAi((prev) => {
+                        if (prev && homeStatusSignatureRef.current === nextSignature) {
+                            return {
+                                ...json,
+                                title: prev.title,
+                                message: prev.message,
+                                action: prev.action,
+                            };
+                        }
+
+                        homeStatusSignatureRef.current = nextSignature;
+                        return json;
+                    });
                 }
             } catch (e: any) {
                 setDebugText(e?.message || "فشل الاتصال مع Cortex");
@@ -914,6 +972,7 @@ export default function HomeScreen() {
             }
 
             const report = await response.json();
+            setLastScanAt(new Date().toISOString());
             console.log("✅ Scan report received:", report);
 
             router.push({
@@ -1293,9 +1352,17 @@ export default function HomeScreen() {
                         COLORS={COLORS}
                         iconPack="material"
                         icon="car-info"
-                        title={t.homeVehicleStatus}
-                        value="—"
-                        subtitle={t.homeVehicleStatusPlaceholder}
+                        title="حالة السيارة"
+                        value={
+                            homeAi?.status === "urgent"
+                                ? "حرجة"
+                                : homeAi?.status === "watch"
+                                    ? "تحتاج متابعة"
+                                    : obdConnected
+                                        ? "مطمئنة"
+                                        : "غير متصلة"
+                        }
+                        subtitle={statusText || "آخر حالة من السيارة"}
                     />
 
                     <QuickSummaryCard
@@ -1303,9 +1370,9 @@ export default function HomeScreen() {
                         COLORS={COLORS}
                         iconPack="material"
                         icon="clipboard-clock-outline"
-                        title={t.homeLastScan}
-                        value="—"
-                        subtitle={t.homeNoScanYet}
+                        title="آخر فحص"
+                        value={formatLastScan(lastScanAt)}
+                        subtitle={lastScanAt ? "آخر تقرير تم إنشاؤه" : "لم يتم إنشاء تقرير بعد"}
                     />
 
                     <QuickSummaryCard
@@ -1313,82 +1380,42 @@ export default function HomeScreen() {
                         COLORS={COLORS}
                         iconPack="feather"
                         icon="alert-triangle"
-                        title={t.homeFaults}
-                        value={String(dtcCount)}
-                        subtitle={t.homeCurrentFaults}
+                        title="الأعطال"
+                        value={String(dtcCount ?? 0)}
+                        subtitle="أكواد الأعطال المكتشفة"
                     />
                 </View>
-
-                <Text style={styles.sectionTitle}>{t.homeVehicleReadings}</Text>
-
-                <View style={styles.metricsGrid}>
-                    <MetricCard
+                <View style={[styles.quickSummaryRow, isWide && styles.quickSummaryRowWide]}>
+                    <QuickSummaryCard
                         styles={styles}
                         COLORS={COLORS}
-                        width={metricWidth}
                         icon="battery"
-                        label="جهد البطارية"
-                        value={safeValue(metrics.voltage)}
-                        unit="V"
+                        title="البطارية"
+                        value={`${safeValue(metrics.voltage)} V`}
+                        subtitle="Battery Voltage"
                     />
 
-                    <MetricCard
+                    <QuickSummaryCard
                         styles={styles}
                         COLORS={COLORS}
-                        width={metricWidth}
                         icon="activity"
-                        label="RPM"
+                        title="RPM"
                         value={safeValue(metrics.rpm)}
-                        unit="لفة/دقيقة"
+                        subtitle="Engine Speed"
                     />
 
-                    <MetricCard
+                    <QuickSummaryCard
                         styles={styles}
                         COLORS={COLORS}
-                        width={metricWidth}
                         icon="thermometer"
-                        label="حرارة المحرك"
-                        value={safeValue(metrics.coolant)}
-                        unit="°C"
-                    />
-
-                    <MetricCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        width={metricWidth}
-                        icon="thermometer"
-                        label="حرارة الزيت"
-                        value={safeValue(metrics.oilTemp)}
-                        unit="°C"
+                        title="حرارة المحرك"
+                        value={`${safeValue(metrics.coolant)} °C`}
+                        subtitle="Engine Temperature"
                     />
                 </View>
 
-                <Text style={styles.sectionTitle}>{t.homeVehicleInfo}</Text>
 
-                <View style={styles.metricsGrid}>
-
-                    <MetricCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        width={metricWidth}
-                        icon="wind"
-                        label="ضغط الوقود"
-                        value={safeValue(metrics.fuelPressure)}
-                        unit="kPa"
-                    />
-
-                    <MetricCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        width={metricWidth}
-                        icon="alert-triangle"
-                        label="رموز الأعطال"
-                        value={String(dtcCount)}
-                        unit="DTC"
-                    />
-                </View>
-
-                <View style={styles.statusCard}>
+                {/* <View style={styles.statusCard}>
                     <View style={styles.statusHeader}>
                         <View style={styles.statusIconCircle}>
                             <Feather name="info" size={18} color={COLORS.primary} />
@@ -1409,9 +1436,9 @@ export default function HomeScreen() {
                             </Text>
                         </View>
                     )}
-                </View>
+                </View> */}
 
-                <View style={styles.tipCard}>
+                {/* <View style={styles.tipCard}>
                     <View style={styles.tipIcon}>
                         <Feather name="wifi" size={18} color={COLORS.primary} />
                     </View>
@@ -1422,7 +1449,7 @@ export default function HomeScreen() {
                             {t.homeLiveUpdateDesc}
                         </Text>
                     </View>
-                </View>
+                </View> */}
             </ScrollView>
 
             <Animated.View
@@ -1982,8 +2009,8 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
         quickSummaryValue: {
             marginTop: 4,
             color: COLORS.primary,
-            fontSize: 18,
-            lineHeight: 24,
+            fontSize: 13.7,
+            lineHeight: 21,
             fontFamily: FONT_EXTRABOLD,
             textAlign: "center",
             includeFontPadding: true,
@@ -2105,58 +2132,66 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
         },
 
         metricCard: {
-            minHeight: 138,
-            borderRadius: 24,
+            minHeight: 126,
+            borderRadius: 22,
             borderWidth: 1,
             borderColor: COLORS.border,
-            backgroundColor: COLORS.soft,
-            paddingHorizontal: 14,
-            paddingVertical: 14,
-            justifyContent: "space-between",
+            backgroundColor: COLORS.surface,
+            paddingHorizontal: 10,
+            paddingVertical: 12,
+            alignItems: "center",
+            justifyContent: "flex-start",
+
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.035,
+            shadowRadius: 6,
+            elevation: 1,
         },
 
         metricHeader: {
-            flexDirection: rowDirection,
             alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
+            justifyContent: "center",
         },
 
         metricIconCircle: {
             width: 36,
             height: 36,
             borderRadius: 14,
-            backgroundColor: COLORS.surface,
+            backgroundColor: COLORS.soft,
+            borderWidth: 1,
+            borderColor: COLORS.border,
             alignItems: "center",
             justifyContent: "center",
+            marginBottom: 8,
         },
 
         metricLabel: {
-            flex: 1,
-            fontSize: 13,
-            color: COLORS.muted,
-            fontWeight: "800",
-            textAlign,
-            fontFamily: FONT_SEMIBOLD,
+            marginTop: 4,
+            color: COLORS.text,
+            fontSize: 11.2,
+            lineHeight: 17,
+            fontFamily: FONT_BOLD,
+            textAlign: "center",
         },
 
+
         metricValue: {
-            marginTop: 10,
-            fontSize: 30,
-            color: COLORS.text,
-            fontWeight: "900",
-            textAlign,
+            marginTop: 4,
+            color: COLORS.primary,
+            fontSize: 18,
+            lineHeight: 24,
             fontFamily: FONT_EXTRABOLD,
-            includeFontPadding: true,
+            textAlign: "center",
         },
 
         metricUnit: {
-            fontSize: 12,
+            marginTop: 2,
             color: COLORS.muted,
-            fontWeight: "700",
-            textAlign,
-            fontFamily: FONT_SEMIBOLD,
-            includeFontPadding: true,
+            fontSize: 9.4,
+            lineHeight: 14,
+            fontFamily: FONT_REGULAR,
+            textAlign: "center",
         },
 
         statusCard: {
@@ -2287,12 +2322,12 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
 
         aiHomeBox: {
             width: "100%",
-            marginTop: 16,
-            borderRadius: 20,
-            backgroundColor: COLORS.surface,
-            borderWidth: 1,
-            borderColor: COLORS.border,
-            padding: 14,
+            marginTop: 12,
+            borderRadius: 18,
+            backgroundColor: COLORS.soft,
+            borderWidth: 0,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
         },
 
         aiHomeTitle: {
@@ -2305,7 +2340,7 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
 
         aiHomeMessage: {
             marginTop: 6,
-            fontSize: 13,
+            fontSize: 16,
             fontWeight: "700",
             color: COLORS.muted,
             textAlign,

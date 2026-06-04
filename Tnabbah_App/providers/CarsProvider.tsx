@@ -326,6 +326,28 @@ export function CarsProvider({
             connectedCarId === car.car_id ||
             activeCarId === car.car_id;
 
+
+        const { error: reportsError } = await supabase
+            .from("reports")
+            .delete()
+            .eq("user_car_id", car.id);
+
+        if (reportsError) throw reportsError;
+
+        const { error: remindersError } = await supabase
+            .from("maintenance_reminders")
+            .delete()
+            .eq("user_car_id", car.id);
+
+        if (remindersError) throw remindersError;
+
+        const { error: chatError } = await supabase
+            .from("chat_messages")
+            .delete()
+            .eq("user_car_id", car.id);
+
+        if (chatError) throw chatError;
+
         const { error } = await supabase
             .from("user_cars")
             .delete()

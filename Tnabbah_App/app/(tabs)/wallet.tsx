@@ -1,22 +1,36 @@
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
-import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
+
 import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  Platform,
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
   ScrollView,
   StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  useWindowDimensions,
+  Animated,
+  Easing,
+  Modal,
+  ActivityIndicator,
+  Platform,
+  Linking,
+  TextInput,
+  PanResponder,
+  KeyboardAvoidingView,
+  AppState,
 } from "react-native";
+import { supabase } from "../../lib/supabase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Stack, useRouter } from "expo-router";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useAuth } from "../../providers/AuthProvider";
+
+import { useCars, UserCar } from "../../providers/CarsProvider";
+import { useAppSettings } from "../../providers/AppSettingsProvider";
+import { useNotifications } from "../../providers/NotificationsProvider";
+import { useAccountSettings } from "../../providers/AccountSettingsProvider";
 import {
   Alexandria_400Regular,
   Alexandria_600SemiBold,
@@ -24,146 +38,1256 @@ import {
   Alexandria_800ExtraBold,
   useFonts,
 } from "@expo-google-fonts/alexandria";
-import { supabase } from "../../lib/supabase";
-import { useAuth } from "../../providers/AuthProvider";
-import { useWallet } from "../../providers/WalletProvider";
 import { useLanguage } from "../../providers/LanguageProvider";
-import { useAppSettings } from "../../providers/AppSettingsProvider";
-import { useCars } from "../../providers/CarsProvider";
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(Math.max(value, min), max);
+import { EditCarNameModal } from "../../components/settings/CarModals";
+import { ConfirmModal } from "../../components/settings/CommonModals";
+
+const COLORS = {
+  primary: "#871B17",
+  primary2: "#871B17",
+  primaryPressed: "#871B17",
+  primaryDark: "#871B17",
+
+  // خليته غامق بدل الأحمر الفاتح
+  danger: "#871B17",
+
+  success: "#2E7D32",
+  white: "#FFFFFF",
+};
+
+const MAX_NAME_LENGTH = 20;
+const EMAIL_CHANGE_RESEND_COOLDOWN = 60;
+const EMAIL_CHANGE_PENDING_KEY = "settings_email_change_pending";
+const EMAIL_CHANGE_TARGET_KEY = "settings_email_change_target_email";
+const EMAIL_CHANGE_SUCCESS_SHOWN_KEY = "settings_email_change_success_shown";
+
 
 const FONT_REGULAR = "Alexandria_400Regular";
 const FONT_SEMIBOLD = "Alexandria_600SemiBold";
 const FONT_BOLD = "Alexandria_700Bold";
 const FONT_EXTRABOLD = "Alexandria_800ExtraBold";
 
-const APP_DARK_RED = "#B63A34";
-const MAINTENANCE_WARNING_DAYS = 7;
-const LIGHT_WARNING_ORANGE = "#F59E0B";
-const DARK_WARNING_ORANGE = "#FDBA74";
-
-const COLORS = {
-  primary: "#871B17",
-  primaryLight: "#9A3A33",
-  primaryDark: "#5F130F",
-  bg: "#FFFFFF",
+const lightTheme = {
+  background: "#FFFFFF",
   surface: "#FFFFFF",
-  soft: "#F8F8F8",
-  softGray: "#F3F4F6",
-  border: "#EFEFEF",
-  text: "#1D1D1F",
-  muted: "#707070",
-  mutedLight: "#A8A8A8",
-  danger: "#C62828",
+  border: "#D8D8D8",
+  cardBorder: "#DCDCDC",
+  textPrimary: "#1D1D1F",
+  textSecondary: "#707070",
+  iconBg: "#F0F1F3",
+  iconColor: "#871B17",
+  subtle: "#F6F6F6",
+  headerDivider: "#E4E4E4",
+  cardPressed: "#FAFAFA",
   dangerBg: "#FFF1F1",
-  warning: LIGHT_WARNING_ORANGE,
-  warningBg: "#FFF7E6",
-  success: "#1F8A4C",
   successBg: "#EFFAF3",
+  modalOverlay: "rgba(0,0,0,0.32)",
 
-  reportSaved: "#1F8A4C",
-  reportSavedBg: "#EFFAF3",
-  reportPending: LIGHT_WARNING_ORANGE,
-  reportPendingBg: "#FFF7E6",
-  neutralAction: "#6B7280",
-  neutralActionBg: "#F4F4F4",
-  neutralActionBorder: "#E6E6E6",
-  softPrimaryBg: "#F7F3F2",
-  reportDocument: "#7A4D2A",
-  reportDocumentBg: "#F7F1EA",
-  reportDocumentBorder: "#EAD9C6",
-  reportAlert: "#871B17",
-  reportAlertBg: "#FFF1F1",
-  reportAlertBorder: "#F1D1CF",
+  accent: "#871B17",
+  accentPressed: "#871B17",
+  accentBorder: "rgba(135,27,23,0.20)",
+  danger: "#871B17",
 };
 
-const LIGHT_WALLET_THEME = {
-  bg: "#FFFFFF",
-  surface: "#FFFFFF",
-  soft: "#F8F8F8",
-  softGray: "#F3F4F6",
-  border: "#EFEFEF",
-  text: "#1D1D1F",
-  muted: "#707070",
-  mutedLight: "#A8A8A8",
-  primary: "#871B17",
-  primaryDark: "#5F130F",
-  danger: "#C62828",
-  dangerBg: "#FFF1F1",
-  warning: LIGHT_WARNING_ORANGE,
-  warningBg: "#FFF7E6",
-  success: "#1F8A4C",
-  successBg: "#EFFAF3",
-  reportDocument: "#7A4D2A",
-  reportDocumentBg: "#F7F1EA",
-  reportDocumentBorder: "#EAD9C6",
-  reportAlert: "#871B17",
-  reportAlertBg: "#FFF1F1",
-  reportAlertBorder: "#F1D1CF",
-  neutralAction: "#6B7280",
-  neutralActionBg: "#F4F4F4",
-  neutralActionBorder: "#E6E6E6",
-  modalOverlay: "rgba(0,0,0,0.28)",
-};
-
-const DARK_WALLET_THEME = {
-  bg: "#151515",
+const darkTheme = {
+  background: "#151515",
   surface: "#202020",
-  soft: "#292929",
-  softGray: "#2A2A2A",
-  border: "#383838",
-  text: "#FFFFFF",
-  muted: "#C7C7C7",
-  mutedLight: "#9E9E9E",
-  primary: APP_DARK_RED,
-  primaryDark: APP_DARK_RED,
-  danger: APP_DARK_RED,
-  dangerBg: "rgba(182,58,52,0.14)",
-  warning: DARK_WARNING_ORANGE,
-  warningBg: "rgba(253,186,116,0.16)",
-  success: "#65C18C",
-  successBg: "rgba(31,138,76,0.18)",
-  reportDocument: "#D3A47B",
-  reportDocumentBg: "rgba(122,77,42,0.20)",
-  reportDocumentBorder: "rgba(234,217,198,0.20)",
-  reportAlert: APP_DARK_RED,
-  reportAlertBg: "rgba(182,58,52,0.14)",
-  reportAlertBorder: "rgba(182,58,52,0.44)",
-  neutralAction: "#D1D5DB",
-  neutralActionBg: "#2A2A2A",
-  neutralActionBorder: "#3A3A3A",
+  border: "#3A3A3A",
+  cardBorder: "#383838",
+  textPrimary: "#FFFFFF",
+  textSecondary: "#C7C7C7",
+
+  // في الدارك مود نخلي خلفية الأيقونات رمادي غامق بدل الأحمر،
+  // والأيقونة نفسها تبقى بلون أحمر التطبيق نفس بوكس الحساب.
+  iconBg: "#2A2A2A",
+  iconColor: "#B63A34",
+
+  subtle: "#292929",
+  headerDivider: "#343434",
+  cardPressed: "#2E2E2E",
+  dangerBg: "rgba(182,58,52,0.12)",
+  successBg: "rgba(46,125,50,0.18)",
   modalOverlay: "rgba(0,0,0,0.62)",
+
+  accent: "#B63A34",
+  accentPressed: "#B63A34",
+  accentBorder: "rgba(182,58,52,0.28)",
+  danger: "#B63A34",
 };
-interface MaintenanceItem {
-  reminderId: number | null;
-  maintenanceTypeId: number;
+
+const translations = {
+  AR: {
+    settings: "الإعدادات",
+
+    account: "الحساب",
+    userId: "رقم الحساب",
+
+    cars: "سياراتي",
+    currentCar: "السيارة الحالية",
+    noCar: "لا توجد سيارة متصلة الآن",
+
+    appSettings: "إعدادات التطبيق",
+    notifications: "السماح بالإشعارات",
+    notificationsDesc: "استلام تنبيهات الفحص والتذكيرات",
+    language: "اللغة",
+    languageDesc: "لغة التطبيق الحالية: العربية",
+    darkMode: "الوضع الداكن",
+    darkModeDesc: "تفعيل المظهر الداكن للتطبيق",
+
+    helpSupport: "المساعدة والدعم",
+    help: "تواصل مع الدعم",
+    helpDesc: "للاستفسارات أو الإبلاغ عن مشكلة في التطبيق",
+    supportEmailButton: "البريد الإلكتروني",
+    supportWhatsAppButton: "واتساب",
+    reportIssueButton: "إبلاغ عن مشكلة",
+    helpIntro:
+      "إذا ظهرت مشكلة أو كان هناك استفسار، أرسل التفاصيل وسنساعد في أقرب وقت.",
+    faqTitle: "الأسئلة الشائعة",
+    faqConnectionQuestion: "كيف أوصل قطعة السيارة؟",
+    faqConnectionAnswer:
+      "من صفحة الاتصال، اختر البلوتوث ثم اختر قطعة السيارة وابدأ الفحص.",
+    faqNotificationsQuestion: "لماذا لا تظهر السيارة؟",
+    faqNotificationsAnswer:
+      "تأكد من تشغيل القطعة وتفعيل البلوتوث والصلاحيات.",
+    faqReportQuestion: "هل التطبيق يحفظ بيانات السيارة؟",
+    faqReportAnswer:
+      "يتم حفظ البيانات الضرورية فقط لتحسين تجربتك وعرض التقارير.",
+
+    vehicleConnection: "اتصال السيارة",
+    bluetoothSettings: "ربط قطعة السيارة",
+    bluetoothSettingsDesc: "ربط أو تغيير قطعة السيارة",
+    deviceStatus: "اتصال القطعة",
+    scanStatus: "قراءة بيانات السيارة",
+    dataConnection: "اتصال البيانات",
+    connected: "متصل",
+    disconnected: "غير متصل",
+    scannerOn: "تعمل الآن",
+    scannerOff: "متوقفة",
+
+    pauseMonitoring: "إيقاف المتابعة مؤقتًا",
+    pauseMonitoringDesc: "إيقاف قراءة بيانات السيارة مؤقتًا",
+    endVehicleConnection: "إنهاء اتصال السيارة",
+    endVehicleConnectionDesc: "فصل الجهاز وإيقاف قراءة البيانات",
+
+    logout: "تسجيل الخروج",
+    loggingOut: "جاري تسجيل الخروج...",
+    logoutTitle: "تسجيل الخروج",
+    logoutMessage: "هل تريد تسجيل الخروج من حسابك؟",
+    cancel: "إلغاء",
+    confirm: "تأكيد",
+    logoutError: "تعذر تسجيل الخروج",
+
+    helpTitle: "المساعدة",
+
+    done: "تم",
+    ok: "حسنًا",
+    monitoringPaused: "تم إيقاف المتابعة مؤقتًا.",
+    disconnectTitle: "إنهاء اتصال السيارة",
+    disconnectMessage: "هل تريد إنهاء اتصال السيارة الآن؟",
+    disconnectedDone: "تم إنهاء اتصال السيارة.",
+    errorTitle: "حدث خطأ",
+    nameLimitError: "الاسم يجب ألا يتجاوز 20 حرفًا.",
+    emailSameError: "أدخل بريدًا إلكترونيًا مختلفًا عن البريد الحالي.",
+    emailChangeSentTitle: "تم إرسال رابط التأكيد",
+    emailChangeSentBody:
+      "افتح البريد الإلكتروني الجديد واضغط على رابط التأكيد لإكمال التغيير.",
+    emailChangeSuccessTitle: "تم تغيير البريد الإلكتروني",
+    emailChangeSuccessBody: "تم تأكيد البريد الإلكتروني الجديد وتحديثه في الحساب.",
+    emailChangeStaySettings: "بعد التأكيد ستعودين إلى الإعدادات ويظهر البريد الجديد في الحساب.",
+    emailChangeError:
+      "تعذر إرسال رابط التأكيد. تأكد من البريد الإلكتروني أو جرّب مرة أخرى.",
+
+    totalCars: "عدد السيارات",
+    carConnection: "اتصال السيارة الحالية",
+
+    notificationsDeniedTitle: "الإشعارات غير مفعّلة",
+    notificationsDeniedBody:
+      "فعّل الإشعارات من إعدادات الجهاز حتى تصل التنبيهات.",
+    openSettings: "فتح الإعدادات",
+  },
+
+  EN: {
+    settings: "Settings",
+
+    account: "Account",
+    userId: "User ID",
+
+    cars: "My Cars",
+    currentCar: "Current Car",
+    noCar: "No connected car",
+
+    appSettings: "App Settings",
+    notifications: "Allow Notifications",
+    notificationsDesc: "Receive check alerts and reminders",
+    language: "Language",
+    languageDesc: "Current app language: English",
+    darkMode: "Dark Mode",
+    darkModeDesc: "Enable dark theme for the app",
+
+    helpSupport: "Help & Support",
+    help: "Contact Support",
+    helpDesc: "For questions or reporting an app issue",
+    supportEmailButton: "Email",
+    supportWhatsAppButton: "WhatsApp",
+    reportIssueButton: "Report a problem",
+    helpIntro:
+      "If you have a question or an issue, send us the details and we will help you as soon as possible.",
+    faqTitle: "FAQs",
+    faqConnectionQuestion: "How do I connect the car device?",
+    faqConnectionAnswer:
+      "Open the connection page, choose Bluetooth, select the car device, then start the scan.",
+    faqNotificationsQuestion: "Why does my car not appear?",
+    faqNotificationsAnswer:
+      "Make sure the device is powered on and Bluetooth permissions are enabled.",
+    faqReportQuestion: "Does the app save car data?",
+    faqReportAnswer:
+      "Only the necessary data is saved to improve your experience and show reports.",
+
+    vehicleConnection: "Car Connection",
+    bluetoothSettings: "Connect Car Device",
+    bluetoothSettingsDesc: "Connect or change the car device",
+    deviceStatus: "Device Connection",
+    scanStatus: "Car Data Reading",
+    dataConnection: "Data Connection",
+    connected: "Connected",
+    disconnected: "Disconnected",
+    scannerOn: "Running",
+    scannerOff: "Stopped",
+
+    pauseMonitoring: "Pause monitoring",
+    pauseMonitoringDesc: "Temporarily stop reading vehicle data",
+    endVehicleConnection: "End vehicle connection",
+    endVehicleConnectionDesc: "Disconnect the device and stop reading data",
+
+    logout: "Logout",
+    loggingOut: "Logging out...",
+    logoutTitle: "Logout",
+    logoutMessage: "Do you want to logout from your account?",
+    cancel: "Cancel",
+    confirm: "Confirm",
+    logoutError: "Could not logout",
+
+    helpTitle: "Help",
+
+    done: "Done",
+    ok: "OK",
+    monitoringPaused: "Monitoring has been paused.",
+    disconnectTitle: "End vehicle connection",
+    disconnectMessage: "Do you want to end the vehicle connection now?",
+    disconnectedDone: "Vehicle connection has been ended.",
+    errorTitle: "Error",
+    nameLimitError: "Name must be 20 characters or less.",
+    emailSameError: "Enter an email address different from your current email.",
+    emailChangeSentTitle: "Confirmation link sent",
+    emailChangeSentBody:
+      "Open your new email and tap the confirmation link to complete the change.",
+    emailChangeSuccessTitle: "Email changed",
+    emailChangeSuccessBody: "The new email has been confirmed and updated on your account.",
+    emailChangeStaySettings: "After confirmation, you will return to Settings and see the new email on your account.",
+    emailChangeError:
+      "Could not send the confirmation link. Check the email address or try again.",
+
+    totalCars: "Total Cars",
+    carConnection: "Current Car Connection",
+
+    notificationsDeniedTitle: "Notifications disabled",
+    notificationsDeniedBody:
+      "Enable notifications from device settings to receive alerts.",
+    openSettings: "Open Settings",
+  },
+};
+
+function AppSwitch({
+  value,
+  onValueChange,
+  trackOnColor = COLORS.primary,
+  trackOffColor = "#E5E5E5",
+  thumbColor = "#FFFFFF",
+}: {
+  value: boolean;
+  onValueChange: (v: boolean) => void;
+  trackOnColor?: string;
+  trackOffColor?: string;
+  thumbColor?: string;
+}) {
+  const anim = useRef(new Animated.Value(value ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: value ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [value, anim]);
+
+  const translateX = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [3, 27],
+  });
+
+  return (
+    <Pressable
+      onPress={() => onValueChange(!value)}
+      style={({ pressed }) => [
+        styles.switchTrack,
+        {
+          backgroundColor: value ? trackOnColor : trackOffColor,
+          opacity: pressed ? 0.85 : 1,
+        },
+      ]}
+    >
+      <Animated.View
+        style={[
+          styles.switchThumb,
+          {
+            backgroundColor: thumbColor,
+            transform: [{ translateX }],
+          },
+        ]}
+      />
+    </Pressable>
+  );
+}
+
+function EditActionPill({
+  label,
+  theme,
+  isRTL,
+}: {
+  label: string;
+  theme: typeof lightTheme;
+  isRTL: boolean;
+}) {
+  return (
+    <View
+      style={[
+        styles.editActionPlain,
+        {
+          flexDirection: isRTL ? "row-reverse" : "row",
+        },
+      ]}
+    >
+      <Feather name="edit-3" size={15} color={theme.accent} />
+      <Text style={[styles.editActionPlainText, { color: theme.accent }]}>{label}</Text>
+    </View>
+  );
+}
+
+function AppMessageModal({
+  visible,
+  title,
+  message,
+  icon,
+  buttonText,
+  theme,
+  isRTL,
+  onClose,
+}: {
+  visible: boolean;
   title: string;
-  lastDate: string;
-  nextDate: string;
-  intervalDays: number;
-  remainingDays: number | null;
-  status: "upcoming" | "due" | "overdue";
+  message?: string;
+  icon: keyof typeof Feather.glyphMap;
+  buttonText: string;
+  theme: typeof lightTheme;
+  isRTL: boolean;
+  onClose: () => void;
+}) {
+  const isSuccess = icon === "check-circle";
+  const isError = icon === "alert-circle";
+  const lottieRef = useRef<LottieView>(null);
+  const iconColor = isError ? theme.danger : theme.accent;
+  const iconBackground = isError ? "rgba(135,27,23,0.12)" : theme.iconBg;
+
+  const successScale = useRef(new Animated.Value(0.35)).current;
+  const successOpacity = useRef(new Animated.Value(0)).current;
+  const pulseOneScale = useRef(new Animated.Value(0.65)).current;
+  const pulseOneOpacity = useRef(new Animated.Value(0)).current;
+  const pulseTwoScale = useRef(new Animated.Value(0.65)).current;
+  const pulseTwoOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!visible || !isSuccess) return;
+
+    lottieRef.current?.reset();
+
+    const playTimer = setTimeout(() => {
+      lottieRef.current?.play(0);
+    }, 80);
+
+    successScale.setValue(0.35);
+    successOpacity.setValue(0);
+    pulseOneScale.setValue(0.65);
+    pulseOneOpacity.setValue(0.45);
+    pulseTwoScale.setValue(0.65);
+    pulseTwoOpacity.setValue(0.32);
+
+    Animated.parallel([
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(successOpacity, {
+            toValue: 1,
+            duration: 120,
+            useNativeDriver: true,
+          }),
+          Animated.spring(successScale, {
+            toValue: 1.14,
+            friction: 5,
+            tension: 90,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.spring(successScale, {
+          toValue: 1,
+          friction: 6,
+          tension: 70,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(pulseOneScale, {
+            toValue: 1.75,
+            duration: 760,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseOneOpacity, {
+            toValue: 0,
+            duration: 760,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+      Animated.sequence([
+        Animated.delay(150),
+        Animated.parallel([
+          Animated.timing(pulseTwoScale, {
+            toValue: 1.95,
+            duration: 780,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseTwoOpacity, {
+            toValue: 0,
+            duration: 780,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+    ]).start();
+
+    const timer = setTimeout(() => {
+      onClose();
+    }, 2000);
+
+    return () => {
+      clearTimeout(playTimer);
+      clearTimeout(timer);
+    };
+  }, [
+    visible,
+    isSuccess,
+    onClose,
+    successScale,
+    successOpacity,
+    pulseOneScale,
+    pulseOneOpacity,
+    pulseTwoScale,
+    pulseTwoOpacity,
+  ]);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View
+        style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}
+      >
+        <View
+          style={[
+            styles.confirmModal,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          {isSuccess ? (
+            <View style={styles.successAnimationWrapper}>
+              <LottieView
+                ref={lottieRef}
+                source={require("../../assets/animations/success-check.json")}
+                loop={false}
+                speed={1.15}
+                style={styles.successLottie}
+              />
+            </View>
+          ) : isError ? (
+            <Feather
+              name="alert-circle"
+              size={36}
+              color={theme.danger}
+              style={styles.appMessagePlainErrorIcon}
+            />
+          ) : null}
+
+          <Text style={[styles.confirmTitle, { color: theme.textPrimary }]}>
+            {title}
+          </Text>
+
+          {!!message?.trim() && (
+            <Text
+              style={[
+                styles.confirmMessage,
+                {
+                  color: theme.textSecondary,
+                  textAlign: isRTL ? "right" : "left",
+                },
+              ]}
+            >
+              {message}
+            </Text>
+          )}
+
+          {!isSuccess && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.singleModalButton,
+                {
+                  backgroundColor: theme.accent,
+                  opacity: pressed ? 0.9 : 1,
+                  marginTop: message?.trim() ? 0 : 10,
+                },
+              ]}
+              onPress={onClose}
+            >
+              <Text style={styles.confirmPrimaryText}>{buttonText}</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
-function getReportTotalCountFallback(reports: any[]) {
-  return reports.filter(
-    (r: any) => r.status === "saved" || r.status === "pending",
-  ).length;
+function DeleteAccountModal({
+  visible,
+  password,
+  onChangePassword,
+  onCancel,
+  onConfirm,
+  loading,
+  theme,
+  isRTL,
+}: {
+  visible: boolean;
+  password: string;
+  onChangePassword: (value: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+  loading: boolean;
+  theme: typeof lightTheme;
+  isRTL: boolean;
+}) {
+  const rowDirection = isRTL ? "row-reverse" : "row";
+  const textAlign = isRTL ? "right" : "left";
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={loading ? undefined : onCancel}
+    >
+      <View style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}>
+        <View
+          style={[
+            styles.confirmModal,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          <Text style={[styles.confirmTitle, { color: theme.danger }]}>
+            {isRTL ? "حذف الحساب" : "Delete account"}
+          </Text>
+
+          <Text
+            style={[
+              styles.confirmMessage,
+              {
+                color: theme.textSecondary,
+                textAlign,
+              },
+            ]}
+          >
+            {isRTL
+              ? "سيؤدي حذف الحساب إلى إزالة الحساب وبياناته بشكل نهائي. لا يمكن التراجع عن هذه العملية أو استرجاع الحساب بعد الحذف."
+              : "Deleting the account will permanently remove the account and its data. This action cannot be undone and the account cannot be restored after deletion."}
+          </Text>
+
+          <Text style={[styles.deletePasswordLabel, { color: theme.textSecondary, textAlign }]}>
+            {isRTL ? "أدخل كلمة المرور الحالية للتأكيد" : "Enter the current password to confirm"}
+          </Text>
+
+          <TextInput
+            value={password}
+            onChangeText={onChangePassword}
+            secureTextEntry
+            editable={!loading}
+            placeholder={isRTL ? "كلمة المرور الحالية" : "Current password"}
+            placeholderTextColor="#A9A9A9"
+            selectionColor={theme.accent}
+            textAlign={textAlign}
+            style={[
+              styles.deletePasswordInput,
+              {
+                color: theme.textPrimary,
+                backgroundColor: theme.subtle,
+                borderColor: theme.cardBorder,
+              },
+            ]}
+          />
+
+          <View style={[styles.confirmButtons, { flexDirection: rowDirection }]}>
+            <Pressable
+              onPress={onCancel}
+              disabled={loading}
+              style={({ pressed }) => [
+                styles.confirmSecondaryButton,
+                {
+                  borderColor: theme.cardBorder,
+                  backgroundColor: theme.subtle,
+                  opacity: pressed ? 0.78 : loading ? 0.6 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.confirmSecondaryText, { color: theme.textPrimary }]}>
+                {isRTL ? "إلغاء" : "Cancel"}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={onConfirm}
+              disabled={loading}
+              style={({ pressed }) => [
+                styles.confirmPrimaryButton,
+                {
+                  backgroundColor: theme.danger,
+                  opacity: pressed ? 0.9 : loading ? 0.72 : 1,
+                },
+              ]}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.confirmPrimaryText}>
+                  {isRTL ? "حذف الحساب" : "Delete account"}
+                </Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
-export default function Wallet() {
-  const {
-    reports,
-    setReports,
-    reportsLoading,
-    maintenance,
-    maintenanceLoading,
-    fetchMaintenance,
-    refreshWallet,
-  } = useWallet();
+function DeleteCarModal({
+  visible,
+  password,
+  onChangePassword,
+  onCancel,
+  onConfirm,
+  loading,
+  theme,
+  isRTL,
+}: {
+  visible: boolean;
+  password: string;
+  onChangePassword: (value: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+  loading: boolean;
+  theme: typeof lightTheme;
+  isRTL: boolean;
+}) {
+  const rowDirection = isRTL ? "row-reverse" : "row";
+  const textAlign = isRTL ? "right" : "left";
 
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={loading ? undefined : onCancel}
+    >
+      <View style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}>
+        <View
+          style={[
+            styles.confirmModal,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          <Text style={[styles.confirmTitle, { color: theme.danger }]}>
+            {isRTL ? "حذف السيارة" : "Delete car"}
+          </Text>
+
+          <Text style={[styles.confirmMessage, { color: theme.textSecondary, textAlign }]}>
+            {isRTL
+              ? "أدخل كلمة مرور الحساب لتأكيد حذف السيارة. لا يمكن التراجع عن هذه العملية."
+              : "Enter your account password to confirm deleting this car. This action cannot be undone."}
+          </Text>
+
+          <Text style={[styles.deletePasswordLabel, { color: theme.textSecondary, textAlign }]}>
+            {isRTL ? "كلمة المرور الحالية" : "Current password"}
+          </Text>
+
+          <TextInput
+            value={password}
+            onChangeText={onChangePassword}
+            secureTextEntry
+            editable={!loading}
+            placeholder={isRTL ? "اكتبي كلمة المرور" : "Enter password"}
+            placeholderTextColor="#A9A9A9"
+            selectionColor={theme.accent}
+            textAlign={textAlign}
+            style={[
+              styles.deletePasswordInput,
+              {
+                color: theme.textPrimary,
+                backgroundColor: theme.subtle,
+                borderColor: theme.cardBorder,
+              },
+            ]}
+          />
+
+          <View style={[styles.confirmButtons, { flexDirection: rowDirection }]}>
+            <Pressable
+              onPress={onCancel}
+              disabled={loading}
+              style={({ pressed }) => [
+                styles.confirmSecondaryButton,
+                {
+                  borderColor: theme.cardBorder,
+                  backgroundColor: theme.subtle,
+                  opacity: pressed ? 0.78 : loading ? 0.6 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.confirmSecondaryText, { color: theme.textPrimary }]}>
+                {isRTL ? "إلغاء" : "Cancel"}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={onConfirm}
+              disabled={loading}
+              style={({ pressed }) => [
+                styles.confirmPrimaryButton,
+                {
+                  backgroundColor: theme.danger,
+                  opacity: pressed ? 0.9 : loading ? 0.72 : 1,
+                },
+              ]}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.confirmPrimaryText}>
+                  {isRTL ? "حذف السيارة" : "Delete car"}
+                </Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+
+type BottomEditSheetMode = "form" | "success";
+
+function BottomEditSheet({
+  visible,
+  title,
+  subtitle,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType = "default",
+  maxLength,
+  onClose,
+  onSave,
+  saving,
+  theme,
+  isRTL,
+  confirmText,
+  cancelText,
+  mode,
+  successTitle,
+  successMessage,
+  successActionText,
+  onSuccessAction,
+  successInfoText,
+  successResendQuestion,
+  successResendText,
+  successResendTimer,
+  successResending,
+  onSuccessResend,
+  errorMessage,
+}: {
+  visible: boolean;
+  title: string;
+  subtitle?: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder?: string;
+  keyboardType?: "default" | "email-address";
+  maxLength?: number;
+  onClose: () => void;
+  onSave: () => void;
+  saving: boolean;
+  theme: typeof lightTheme;
+  isRTL: boolean;
+  confirmText: string;
+  cancelText: string;
+  mode: BottomEditSheetMode;
+  successTitle: string;
+  successMessage?: string;
+  successActionText?: string;
+  onSuccessAction?: () => void;
+  successInfoText?: string;
+  successResendQuestion?: string;
+  successResendText?: string;
+  successResendTimer?: number;
+  successResending?: boolean;
+  onSuccessResend?: () => void;
+  errorMessage?: string;
+}) {
+  const sheetAnim = useRef(new Animated.Value(0)).current;
+  const dragY = useRef(new Animated.Value(0)).current;
+  const lottieRef = useRef<LottieView>(null);
+  const [renderModal, setRenderModal] = useState(visible);
+
+  const rowDirection = isRTL ? "row-reverse" : "row";
+  const textAlign = isRTL ? "right" : "left";
+
+  const closeWithAnimation = () => {
+    if (saving) return;
+
+    Animated.timing(sheetAnim, {
+      toValue: 0,
+      duration: 190,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      dragY.setValue(0);
+      setRenderModal(false);
+      onClose();
+    });
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dy) > 3 &&
+        Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onMoveShouldSetPanResponderCapture: (_, gestureState) =>
+        Math.abs(gestureState.dy) > 3 &&
+        Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onPanResponderGrant: () => {
+        dragY.setOffset(0);
+        dragY.setValue(0);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const nextY = Math.max(-16, gestureState.dy);
+        dragY.setValue(nextY);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        dragY.flattenOffset();
+
+        if (gestureState.dy > 80 || gestureState.vy > 0.85) {
+          closeWithAnimation();
+          return;
+        }
+
+        Animated.spring(dragY, {
+          toValue: 0,
+          useNativeDriver: true,
+          friction: 8,
+          tension: 90,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        dragY.flattenOffset();
+        Animated.spring(dragY, {
+          toValue: 0,
+          useNativeDriver: true,
+          friction: 8,
+          tension: 90,
+        }).start();
+      },
+    }),
+  ).current;
+
+  useEffect(() => {
+    if (visible) {
+      setRenderModal(true);
+      dragY.setValue(0);
+      requestAnimationFrame(() => {
+        Animated.timing(sheetAnim, {
+          toValue: 1,
+          duration: 260,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start();
+      });
+    } else if (renderModal) {
+      Animated.timing(sheetAnim, {
+        toValue: 0,
+        duration: 190,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }).start(() => {
+        dragY.setValue(0);
+        setRenderModal(false);
+      });
+    }
+  }, [visible, renderModal, sheetAnim, dragY]);
+
+  useEffect(() => {
+    if (!visible || mode !== "success") return;
+
+    lottieRef.current?.reset();
+
+    const playTimer = setTimeout(() => {
+      lottieRef.current?.play(0);
+    }, 80);
+
+    return () => clearTimeout(playTimer);
+  }, [visible, mode]);
+
+  if (!renderModal) return null;
+
+  const translateY = Animated.add(
+    sheetAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [420, 0],
+    }),
+    dragY,
+  );
+
+  const backdropOpacity = sheetAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  return (
+    <Modal
+      visible={renderModal}
+      transparent
+      animationType="none"
+      onRequestClose={closeWithAnimation}
+    >
+      <View style={styles.bottomSheetRoot}>
+        <Animated.View
+          style={[
+            styles.bottomSheetBackdrop,
+            {
+              backgroundColor: theme.modalOverlay,
+              opacity: backdropOpacity,
+            },
+          ]}
+        >
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={closeWithAnimation}
+          />
+        </Animated.View>
+
+        <KeyboardAvoidingView
+          pointerEvents="box-none"
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+          style={styles.bottomSheetKeyboardAvoider}
+        >
+          <Animated.View
+            style={[
+              styles.bottomSheetContainer,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.cardBorder,
+                transform: [{ translateY }],
+              },
+            ]}
+          >
+            <View style={styles.bottomSheetHandleArea} {...panResponder.panHandlers}>
+              <View
+                style={[
+                  styles.bottomSheetHandle,
+                  { backgroundColor: theme.border },
+                ]}
+              />
+            </View>
+
+            {mode === "success" ? (
+              <View style={styles.bottomSheetSuccessContent}>
+                <LottieView
+                  ref={lottieRef}
+                  source={require("../../assets/animations/success-check.json")}
+                  loop={false}
+                  speed={1.12}
+                  style={styles.bottomSheetSuccessLottie}
+                />
+
+                <Text
+                  style={[
+                    styles.bottomSheetTitle,
+                    { color: theme.textPrimary, textAlign: "center" },
+                  ]}
+                >
+                  {successTitle}
+                </Text>
+
+                {!!successMessage?.trim() && (
+                  <Text
+                    style={[
+                      styles.bottomSheetSubtitle,
+                      { color: theme.textSecondary, textAlign: "center" },
+                    ]}
+                  >
+                    {successMessage}
+                  </Text>
+                )}
+
+                {!!successActionText?.trim() && (
+                  <Pressable
+                    onPress={onSuccessAction || closeWithAnimation}
+                    style={({ pressed }) => [
+                      styles.bottomSheetSuccessButton,
+                      { opacity: pressed ? 0.86 : 1 },
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={[theme.accent, theme.accentPressed]}
+                      start={{ x: 0.15, y: 0 }}
+                      end={{ x: 0.9, y: 1 }}
+                      style={styles.bottomSheetSuccessButtonGradient}
+                    >
+                      <Text style={styles.bottomSheetPrimaryText}>
+                        {successActionText}
+                      </Text>
+                    </LinearGradient>
+                  </Pressable>
+                )}
+
+                {!!successInfoText?.trim() && (
+                  <Text
+                    style={[
+                      styles.bottomSheetSuccessInfoText,
+                      { color: theme.textSecondary, textAlign: "center" },
+                    ]}
+                  >
+                    {successInfoText}
+                  </Text>
+                )}
+
+                {!!successResendQuestion?.trim() && !!successResendText?.trim() && (
+                  <View style={styles.bottomSheetResendArea}>
+                    <Text
+                      style={[
+                        styles.bottomSheetResendQuestion,
+                        { color: theme.textSecondary, textAlign: "center" },
+                      ]}
+                    >
+                      {successResendQuestion}
+                    </Text>
+
+                    {(successResendTimer || 0) > 0 ? (
+                      <Text style={styles.bottomSheetResendTimerText}>
+                        {isRTL
+                          ? `يمكنك إعادة الإرسال بعد ${successResendTimer} ثانية`
+                          : `You can resend after ${successResendTimer} seconds`}
+                      </Text>
+                    ) : (
+                      <Pressable
+                        onPress={onSuccessResend}
+                        disabled={successResending}
+                        style={({ pressed }) => [
+                          styles.bottomSheetResendButton,
+                          {
+                            borderColor: theme.cardBorder,
+                            backgroundColor: theme.subtle,
+                            opacity: pressed ? 0.8 : successResending ? 0.7 : 1,
+                          },
+                        ]}
+                      >
+                        {successResending ? (
+                          <ActivityIndicator size="small" color={theme.accent} />
+                        ) : (
+                          <Text style={styles.bottomSheetResendButtonText}>
+                            {successResendText}
+                          </Text>
+                        )}
+                      </Pressable>
+                    )}
+                  </View>
+                )}
+              </View>
+            ) : (
+              <View>
+                <View
+                  style={[
+                    styles.bottomSheetHeader,
+                    { flexDirection: rowDirection },
+                  ]}
+                >
+                  <View style={styles.bottomSheetHeaderTextBlock}>
+                    <Text
+                      style={[
+                        styles.bottomSheetTitle,
+                        { color: theme.textPrimary, textAlign },
+                      ]}
+                    >
+                      {title}
+                    </Text>
+
+                    {!!subtitle?.trim() && (
+                      <Text
+                        style={[
+                          styles.bottomSheetSubtitle,
+                          { color: theme.textSecondary, textAlign },
+                        ]}
+                      >
+                        {subtitle}
+                      </Text>
+                    )}
+                  </View>
+
+                </View>
+
+                <TextInput
+                  value={value}
+                  onChangeText={onChangeText}
+                  placeholder={placeholder}
+                  placeholderTextColor="#A9A9A9"
+                  keyboardType={keyboardType}
+                  autoCapitalize={
+                    keyboardType === "email-address" ? "none" : "words"
+                  }
+                  autoCorrect={keyboardType !== "email-address"}
+                  maxLength={maxLength}
+                  editable={!saving}
+                  selectionColor={theme.accent}
+                  textAlign={textAlign}
+                  style={[
+                    styles.bottomSheetInput,
+                    {
+                      color: theme.textPrimary,
+                      backgroundColor: theme.subtle,
+                      borderColor: theme.cardBorder,
+                    },
+                  ]}
+                />
+
+                {!!errorMessage?.trim() && (
+                  <View
+                    style={[
+                      styles.bottomSheetErrorBox,
+                      { flexDirection: rowDirection },
+                    ]}
+                  >
+                    <Feather
+                      name="alert-circle"
+                      size={22}
+                      color={theme.danger}
+                    />
+                    <Text
+                      style={[
+                        styles.bottomSheetErrorText,
+                        { textAlign, color: theme.danger },
+                      ]}
+                    >
+                      {errorMessage}
+                    </Text>
+                  </View>
+                )}
+
+                <View
+                  style={[
+                    styles.bottomSheetActions,
+                    { flexDirection: rowDirection },
+                  ]}
+                >
+                  <Pressable
+                    onPress={closeWithAnimation}
+                    disabled={saving}
+                    style={({ pressed }) => [
+                      styles.bottomSheetSecondaryButton,
+                      {
+                        borderColor: theme.cardBorder,
+                        backgroundColor: theme.subtle,
+                        opacity: pressed ? 0.78 : 1,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.bottomSheetSecondaryText,
+                        { color: theme.textPrimary },
+                      ]}
+                    >
+                      {cancelText}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={onSave}
+                    disabled={saving}
+                    style={({ pressed }) => [
+                      styles.bottomSheetPrimaryButton,
+                      { opacity: pressed || saving ? 0.78 : 1 },
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={[theme.accent, theme.accentPressed]}
+                      start={{ x: 0.15, y: 0 }}
+                      end={{ x: 0.9, y: 1 }}
+                      style={styles.bottomSheetPrimaryGradient}
+                    >
+                      {saving ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.bottomSheetPrimaryText}>
+                          {confirmText}
+                        </Text>
+                      )}
+                    </LinearGradient>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
+}
+
+export default function Settings() {
+  const { profile, session } = useAuth();
+  const router = useRouter();
+  const { language, changeLanguage } = useLanguage();
   const [fontsLoaded] = useFonts({
     Alexandria_400Regular,
     Alexandria_600SemiBold,
@@ -171,2464 +1295,4122 @@ export default function Wallet() {
     Alexandria_800ExtraBold,
   });
 
-  useEffect(() => {
-    refreshWallet();
-  }, [refreshWallet]);
-  
-  const { session } = useAuth();
-  const userId = session?.user?.id;
+  const {
+    obdConnected,
+    scannerRunning,
+    mqttConnected,
+    detectingCar,
+    lastConnectionTime,
+    activeCarId,
+    selectedCarId,
+    connectedCarId,
+    userCars,
+    selectDefaultCar,
+    renameCar,
+    deleteCar,
+    stopScanner,
+    disconnectObd,
+  } = useCars();
 
-  const { activeCarId, userCars } = useCars();
+  const {
+    settingsLoading,
+    savingSettings,
+    darkModeEnabled,
+    notificationsEnabled,
+    handleLanguageChange: saveAppLanguageChange,
+    handleDarkModeChange,
+  } = useAppSettings();
 
-  const activeUserCar = userCars.find(
-    (car) => car.car_id === activeCarId
+  const { handleNotificationsChange } = useNotifications();
+
+  const { updateName, deleteAccount, logout } = useAccountSettings();
+
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const [displayName, setDisplayName] = useState("");
+
+  const [editCarVisible, setEditCarVisible] = useState(false);
+  const [selectedCarForEdit, setSelectedCarForEdit] = useState<UserCar | null>(
+    null,
   );
+  const [carNameInput, setCarNameInput] = useState("");
+  const [savingCarName, setSavingCarName] = useState(false);
 
-  const activeUserCarId = activeUserCar?.id ?? null;
+  const [switchingCarId, setSwitchingCarId] = useState<string | null>(null);
+  const [optimisticSelectedCarId, setOptimisticSelectedCarId] = useState<
+    string | null
+  >(null);
 
-  const { t, isArabic, language } = useLanguage();
-  const { darkModeEnabled } = useAppSettings();
-
-  const theme = darkModeEnabled ? DARK_WALLET_THEME : LIGHT_WALLET_THEME;
-
-  const { width, height } = useWindowDimensions();
-  const isTabletLike = width >= 768;
-  const isSmallScreen = height < 720;
-  const horizontalPadding = isTabletLike ? 24 : clamp(width * 0.055, 18, 22);
-  const reportCardWidth = isTabletLike
-    ? clamp(width * 0.34, 250, 310)
-    : clamp(width * 0.58, 210, 238);
-
-  const rowDirection = isArabic ? "row-reverse" : "row";
-  const textAlign = isArabic ? "right" : "left";
-  const alignItems = isArabic ? "flex-end" : "flex-start";
-  const iconSideSelf = isArabic ? "flex-end" : "flex-start";
-  const iconSideDirection = isArabic ? "row-reverse" : "row";
-  const reportCount = getReportTotalCountFallback(reports);
-  const maintenanceCount = maintenance.length;
-
-  const [savingId, setSavingId] = useState<number | null>(null);
-  const [reportFilter, setReportFilter] = useState<"all" | "saved" | "pending">(
-    "all",
-  );
-  const [reportViewMode, setReportViewMode] = useState<
-    "horizontal" | "vertical"
-  >("horizontal");
-  const [showAllReports, setShowAllReports] = useState(false);
-
-  const [datePickerVisible, setDatePickerVisible] = useState(false);
-  const [pendingDate, setPendingDate] = useState<Date>(new Date());
-  const [currentEditingItem, setCurrentEditingItem] =
-    useState<MaintenanceItem | null>(null);
-
-  const [maintenanceSuccessVisible, setMaintenanceSuccessVisible] =
+  const [helpVisible, setHelpVisible] = useState(false);
+  const helpSheetDragY = useRef(new Animated.Value(0)).current;
+  const [confirmDisconnectVisible, setConfirmDisconnectVisible] =
     useState(false);
-  const [maintenanceSuccessTitle, setMaintenanceSuccessTitle] = useState("");
-  const [maintenanceSuccessMessage, setMaintenanceSuccessMessage] = useState("");
-  const maintenanceSuccessLottieRef = useRef<LottieView>(null);
 
+  const [editNameVisible, setEditNameVisible] = useState(false);
+  const [fullNameInput, setFullNameInput] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [nameSheetMode, setNameSheetMode] =
+    useState<BottomEditSheetMode>("form");
+  const [nameSheetError, setNameSheetError] = useState("");
+
+  const [messageVisible, setMessageVisible] = useState(false);
+  const [messageTitle, setMessageTitle] = useState("");
+  const [messageBody, setMessageBody] = useState("");
+  const [messageIcon, setMessageIcon] =
+    useState<keyof typeof Feather.glyphMap>("check-circle");
+
+  const [editEmailVisible, setEditEmailVisible] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailSheetMode, setEmailSheetMode] =
+    useState<BottomEditSheetMode>("form");
+  const [emailSheetError, setEmailSheetError] = useState("");
+  const [emailResendTimer, setEmailResendTimer] = useState(0);
+  const [resendingEmailLink, setResendingEmailLink] = useState(false);
+  const [emailResendNotice, setEmailResendNotice] = useState("");
+  const [confirmedEmailOverride, setConfirmedEmailOverride] = useState("");
+  const emailChangeHandledRef = useRef(false);
+
+  const [deleteAccountVisible, setDeleteAccountVisible] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  const [confirmDeleteCarVisible, setConfirmDeleteCarVisible] = useState(false);
+  const [carToDelete, setCarToDelete] = useState<UserCar | null>(null);
+
+  const [deleteCarPassword, setDeleteCarPassword] = useState("");
+  const [deletingCar, setDeletingCar] = useState(false);
+
+  const selectedLanguage = language;
+  const t = translations[selectedLanguage];
+  const isRTL = selectedLanguage === "AR";
+  const theme = darkModeEnabled ? darkTheme : lightTheme;
+
+  const resetEmailEditSheet = () => {
+    setEditEmailVisible(false);
+    setEmailSheetMode("form");
+    setEmailSheetError("");
+    setEmailResendNotice("");
+    setEmailResendTimer(0);
+    setResendingEmailLink(false);
+  };
+
+  const showEmailChangedSuccessImmediately = async () => {
+    setMessageTitle(
+      selectedLanguage === "AR"
+        ? "تم تغيير البريد الإلكتروني بنجاح"
+        : "Email changed successfully",
+    );
+    setMessageBody(
+      selectedLanguage === "AR"
+        ? "تم تأكيد البريد الإلكتروني الجديد وتحديثه في حسابك."
+        : "The new email has been confirmed and updated on your account.",
+    );
+    setMessageIcon("check-circle");
+    setMessageVisible(true);
+
+    try {
+      await AsyncStorage.setItem(EMAIL_CHANGE_SUCCESS_SHOWN_KEY, "true");
+    } catch (error) {
+      console.log("Save email success shown flag error:", error);
+    }
+  };
+
+  const handleConfirmedEmailChangeLink = async (url?: string | null) => {
+    if (!url || emailChangeHandledRef.current) return;
+
+    const lowerUrl = url.toLowerCase();
+
+    let hasPendingEmailChange = false;
+
+    try {
+      hasPendingEmailChange =
+        (await AsyncStorage.getItem(EMAIL_CHANGE_PENDING_KEY)) === "true";
+    } catch (error) {
+      console.log("Read pending email change flag error:", error);
+    }
+
+    const isSettingsDeepLink =
+      lowerUrl.includes("settings") || lowerUrl.includes("email");
+
+    const isConfirmedEmailChange =
+      lowerUrl.includes("email_changed=1") ||
+      lowerUrl.includes("email_change=1") ||
+      lowerUrl.includes("email-change=1") ||
+      lowerUrl.includes("type=email_change") ||
+      lowerUrl.includes("type=email_change_current") ||
+      lowerUrl.includes("type=email_change_new") ||
+      lowerUrl.includes("type=email") ||
+      lowerUrl.includes("email_change_token") ||
+      lowerUrl.includes("email_change_token_new") ||
+      lowerUrl.includes("email_change_token_current") ||
+      (hasPendingEmailChange && isSettingsDeepLink);
+
+    if (!isConfirmedEmailChange) return;
+
+    emailChangeHandledRef.current = true;
+    resetEmailEditSheet();
+
+    /**
+     * نعرض رسالة النجاح فورًا أول ما التطبيق ينفتح من رابط الإيميل.
+     * لا ننتظر refreshSession ولا تحديث profiles عشان ما تتأخر الرسالة.
+     */
+    await showEmailChangedSuccessImmediately();
+
+    try {
+      const { error: refreshError } = await supabase.auth.refreshSession();
+
+      if (refreshError) {
+        console.log(
+          "Refresh session after email change error:",
+          refreshError.message,
+        );
+      }
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        console.log("Get user after email change error:", userError.message);
+      }
+
+      const confirmedEmail = user?.email?.trim().toLowerCase();
+
+      if (user?.id && confirmedEmail) {
+        setConfirmedEmailOverride(confirmedEmail);
+        setEmailInput(confirmedEmail);
+
+        const { error: profileEmailError } = await supabase
+          .from("profiles")
+          .update({
+            username: confirmedEmail,
+            email: confirmedEmail,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", user.id);
+
+        if (profileEmailError) {
+          console.log(
+            "Profile email sync after email change error:",
+            profileEmailError.message,
+          );
+        }
+      }
+
+      await AsyncStorage.multiRemove([
+        EMAIL_CHANGE_PENDING_KEY,
+        EMAIL_CHANGE_TARGET_KEY,
+      ]);
+    } catch (error) {
+      console.log("Email change deep link background sync error:", error);
+    }
+  };
   useEffect(() => {
-    if (!maintenanceSuccessVisible) return;
+    const checkInitialEmailChangeLink = async () => {
+      try {
+        const initialUrl = await Linking.getInitialURL();
 
-    maintenanceSuccessLottieRef.current?.reset();
+        if (initialUrl) {
+          await handleConfirmedEmailChangeLink(initialUrl);
+          return;
+        }
 
-    const playTimer = setTimeout(() => {
-      maintenanceSuccessLottieRef.current?.play(0);
-    }, 70);
+        const hasPendingEmailChange =
+          (await AsyncStorage.getItem(EMAIL_CHANGE_PENDING_KEY)) === "true";
+        const wasSuccessShown =
+          (await AsyncStorage.getItem(EMAIL_CHANGE_SUCCESS_SHOWN_KEY)) === "true";
 
-    const closeTimer = setTimeout(() => {
-      setMaintenanceSuccessVisible(false);
-    }, 1850);
+        /**
+         * احتياط:
+         * لو رجع التطبيق من المتصفح وما وصل url event لأي سبب،
+         * نعرض النجاح عند وجود pending flag، لكن مرة واحدة فقط.
+         */
+        if (hasPendingEmailChange && !wasSuccessShown) {
+          emailChangeHandledRef.current = true;
+          resetEmailEditSheet();
+          await showEmailChangedSuccessImmediately();
+
+          supabase.auth.refreshSession().catch((error) => {
+            console.log("Refresh session after pending email change error:", error);
+          });
+        }
+      } catch (error) {
+        console.log("Initial email change URL error:", error);
+      }
+    };
+
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      handleConfirmedEmailChangeLink(url);
+    });
+
+    const appStateSubscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        checkInitialEmailChangeLink();
+      }
+    });
+
+    checkInitialEmailChangeLink();
 
     return () => {
-      clearTimeout(playTimer);
-      clearTimeout(closeTimer);
+      subscription.remove();
+      appStateSubscription.remove();
     };
-  }, [maintenanceSuccessVisible]);
-
-  const translateMaintenanceTitle = (title: string) => {
-    const normalizedTitle = title.toLowerCase();
-
-    if (
-      normalizedTitle.includes("زيت المحرك") ||
-      normalizedTitle.includes("engine oil")
-    ) {
-      return t.walletEngineOil;
-    }
-
-    if (
-      normalizedTitle.includes("الكفرات") ||
-      normalizedTitle.includes("كفر") ||
-      normalizedTitle.includes("tires") ||
-      normalizedTitle.includes("tyres")
-    ) {
-      return t.walletTires;
-    }
-
-    if (
-      normalizedTitle.includes("الفرامل") ||
-      normalizedTitle.includes("فحم") ||
-      normalizedTitle.includes("brake")
-    ) {
-      return t.walletBrakes;
-    }
-
-    if (
-      normalizedTitle.includes("فلتر الهواء") ||
-      normalizedTitle.includes("air filter")
-    ) {
-      return t.walletAirFilter;
-    }
-
-    if (
-      normalizedTitle.includes("بطارية") ||
-      normalizedTitle.includes("البطارية") ||
-      normalizedTitle.includes("battery")
-    ) {
-      return t.walletBattery;
-    }
-
-    return title;
-  };
-
-  // دالة مساعدة لاختيار أيقونة الصيانة بناءً على الكلمات المفتاحية بالاسم لمظهر احترافي
-
-  const getMaintenanceIcon = (
-    title: string,
-  ): React.ComponentProps<typeof MaterialCommunityIcons>["name"] => {
-    const t = title.toLowerCase();
-
-    if (t.includes("زيت المحرك") || t.includes("engine oil")) return "oil";
-    if (
-      t.includes("الكفرات") ||
-      t.includes("كفر") ||
-      t.includes("tires") ||
-      t.includes("tyres")
-    )
-      return "car-tire-alert";
-    if (t.includes("الفرامل") || t.includes("فحم") || t.includes("brake"))
-      return "car-brake-alert";
-    if (t.includes("فلتر الهواء") || t.includes("air filter"))
-      return "air-filter";
-    if (t.includes("بطارية") || t.includes("البطارية") || t.includes("battery"))
-      return "battery"; // إيقونة البطارية المضافة هنا
-
-    return "car-cog"; // الأيقونة الافتراضية لأي صيانة أخرى ثابتة
-  };
-
-  const handleSaveReport = async (id: string) => {
-    if (!userId) return;
-    const prev = reports;
-    setReports((rs: any[]) =>
-      rs.map((r) => (r.id === id ? { ...r, status: "saved" } : r)),
-    );
-    try {
-      const now = new Date();
-      const expiry = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 365 * 10);
-      const { error } = await supabase
-        .from("reports")
-        .update({
-          status: "saved",
-          is_permanently_saved: true,
-          saved_at: now.toISOString(),
-          expiry_at: expiry.toISOString(),
-        })
-        .eq("id", id)
-        .eq("user_id", userId);
-      if (error) throw error;
-    } catch (err: any) {
-      console.error("Save report failed:", err?.message || err);
-      setReports(prev);
-      Alert.alert(t.walletErrorTitle, t.walletSaveReportError);
-    }
-  };
-
-  const handleRejectReport = async (id: string) => {
-    if (!userId) return;
-    const prev = reports;
-    setReports((rs: any[]) => rs.filter((r) => r.id !== id));
-    try {
-      const { error } = await supabase
-        .from("reports")
-        .update({ status: "temp_rejected" })
-        .eq("id", id)
-        .eq("user_id", userId);
-      if (error) throw error;
-    } catch (err: any) {
-      console.error("Reject report failed:", err?.message || err);
-      setReports(prev);
-      Alert.alert(t.walletErrorTitle, t.walletRejectReportError);
-    }
-  };
-
-  const openReport = (id: string) => {
-    router.push({ pathname: "/report", params: { id } });
-  };
-
-  const formatLocalDate = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-
-  const parseLocalDate = (value?: string) => {
-    if (!value) return new Date();
-    const [year, month, day] = value.split("-").map(Number);
-    if (!year || !month || !day) return new Date();
-    return new Date(year, month - 1, day);
-  };
-
-  const openMaintenanceDatePicker = (item: MaintenanceItem) => {
-    setCurrentEditingItem(item);
-    setPendingDate(parseLocalDate(item.lastDate));
-    setDatePickerVisible(true);
-  };
-
-  const closeDatePicker = () => {
-    setDatePickerVisible(false);
-    setCurrentEditingItem(null);
-  };
-
-  const handleConfirmDate = async (date: Date) => {
-    setDatePickerVisible(false);
-    if (!currentEditingItem || !userId || !activeUserCarId) {
-      setCurrentEditingItem(null);
+  }, [selectedLanguage, darkModeEnabled]);
+  useEffect(() => {
+    if (!editEmailVisible || emailSheetMode !== "success" || emailResendTimer <= 0) {
       return;
     }
 
-    const selectedDateStr = formatLocalDate(date);
-    if (selectedDateStr === currentEditingItem.lastDate) return;
+    const interval = setInterval(() => {
+      setEmailResendTimer((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
 
-    setSavingId(currentEditingItem.maintenanceTypeId);
+    return () => clearInterval(interval);
+  }, [editEmailVisible, emailSheetMode, emailResendTimer]);
+
+  const closeHelpSheet = () => {
+    Animated.timing(helpSheetDragY, {
+      toValue: 420,
+      duration: 170,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      helpSheetDragY.setValue(0);
+      setHelpVisible(false);
+    });
+  };
+
+  const helpSheetPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dy) > 3 &&
+        Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onMoveShouldSetPanResponderCapture: (_, gestureState) =>
+        Math.abs(gestureState.dy) > 3 &&
+        Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onPanResponderGrant: () => {
+        helpSheetDragY.setOffset(0);
+        helpSheetDragY.setValue(0);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const nextY = Math.max(-16, gestureState.dy);
+        helpSheetDragY.setValue(nextY);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        helpSheetDragY.flattenOffset();
+
+        if (gestureState.dy > 80 || gestureState.vy > 0.85) {
+          closeHelpSheet();
+          return;
+        }
+
+        Animated.spring(helpSheetDragY, {
+          toValue: 0,
+          useNativeDriver: true,
+          friction: 8,
+          tension: 85,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        helpSheetDragY.flattenOffset();
+        Animated.spring(helpSheetDragY, {
+          toValue: 0,
+          useNativeDriver: true,
+          friction: 8,
+          tension: 85,
+        }).start();
+      },
+    }),
+  ).current;
+
+  useEffect(() => {
+    if (helpVisible) {
+      helpSheetDragY.setValue(0);
+    }
+  }, [helpVisible, helpSheetDragY]);
+
+  const handleSettingsLanguageChange = async (lang: "AR" | "EN") => {
+    await changeLanguage(lang);
 
     try {
-      const [year, month, day] = selectedDateStr.split("-").map(Number);
-      const next = new Date(year, month - 1, day);
-      next.setDate(next.getDate() + currentEditingItem.intervalDays);
-      const nextDateStr = formatLocalDate(next);
-
-      const { error } = await supabase.from("maintenance_reminders").upsert(
-        {
-          user_id: userId,
-          user_car_id: activeUserCarId,
-          maintenance_type_id: currentEditingItem.maintenanceTypeId,
-          last_date: selectedDateStr,
-          next_date: nextDateStr,
-          notification_stage: 0,
-          is_active: true,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,user_car_id,maintenance_type_id" },
-      );
-
-      if (error) throw error;
-      await fetchMaintenance();
-
-      try {
-        await fetch("http://207.180.244.27:3102/check-now", { method: "POST" });
-      } catch (error) {
-        console.log("Check notifications now error:", error);
-      }
-
-      const translatedTitle = translateMaintenanceTitle(currentEditingItem.title);
-      setMaintenanceSuccessTitle(
-        isArabic ? "تم تحديث الصيانة" : "Maintenance updated",
-      );
-      setMaintenanceSuccessMessage(
-        isArabic
-          ? `تم حفظ تاريخ ${translatedTitle} في المحفظة بنجاح.`
-          : `${translatedTitle} date has been saved in your wallet successfully.`,
-      );
-      setMaintenanceSuccessVisible(true);
-    } catch (err: any) {
-      console.error("Save maintenance failed:", err);
-      Alert.alert(
-        t.walletErrorTitle,
-        err?.message || t.walletSaveMaintenanceError,
-      );
-    } finally {
-      setSavingId(null);
-      setCurrentEditingItem(null);
+      await saveAppLanguageChange(lang);
+    } catch (error) {
+      console.log("Save language settings error:", error);
     }
   };
 
-  const handleResetMaintenance = (item: MaintenanceItem) => {
-    if (!userId) return;
+  const activeSelectedCarId =
+    connectedCarId ||
+    optimisticSelectedCarId ||
+    selectedCarId ||
+    activeCarId;
 
-    const translatedTitle = translateMaintenanceTitle(item.title);
+  const userName =
+    profile?.full_name || session?.user?.user_metadata?.full_name || "مستخدم";
 
-    Alert.alert(
-      isArabic ? "إعادة تعيين الصيانة" : "Reset maintenance",
-      isArabic
-        ? `هل أنت متأكد من رغبتك في إعادة تعيين صيانة (${translatedTitle})؟ سيتم تصفير التواريخ لتصبح فارغة.`
-        : `Are you sure you want to reset (${translatedTitle})? The maintenance dates will be cleared.`,
-      [
-        {
-          text: isArabic ? "إلغاء" : "Cancel",
-          style: "cancel",
-        },
-        {
-          text: isArabic ? "إعادة تعيين" : "Reset",
-          style: "default",
-          onPress: async () => {
-            setSavingId(item.maintenanceTypeId);
+  useEffect(() => {
+    setDisplayName(userName);
+  }, [userName]);
 
-            try {
-              const { error } = await supabase
-                .from("maintenance_reminders")
-                .update({
-                  last_date: null,
-                  next_date: null,
-                  notification_stage: 0,
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("user_id", userId)
-                .eq("user_car_id", activeUserCarId)
-                .eq("maintenance_type_id", item.maintenanceTypeId);
+  const userEmail =
+    confirmedEmailOverride || session?.user?.email || profile?.email || profile?.username || "—";
 
-              if (error) throw error;
+  const userId = session?.user?.id || "—";
 
-              await fetchMaintenance();
+  const handleSelectDefaultCar = async (carId: string) => {
+    if (switchingCarId) return;
+    if (carId === activeSelectedCarId) return;
 
-              setMaintenanceSuccessTitle(
-                isArabic ? "تمت إعادة التعيين" : "Maintenance reset",
-              );
-              setMaintenanceSuccessMessage(
-                isArabic
-                  ? `تمت إعادة تعيين بيانات ${translatedTitle} بنجاح.`
-                  : `${translatedTitle} data has been reset successfully.`,
-              );
-              setMaintenanceSuccessVisible(true);
-            } catch (err: any) {
-              console.error("Reset maintenance failed:", err);
-              Alert.alert(
-                t.walletErrorTitle,
-                isArabic
-                  ? "تعذر إعادة تعيين بيانات الصيانة"
-                  : "Could not reset maintenance data",
-              );
-            } finally {
-              setSavingId(null);
-            }
-          },
-        },
-      ],
+    setSwitchingCarId(carId);
+    setOptimisticSelectedCarId(carId);
+
+    try {
+      await selectDefaultCar(carId);
+      setOptimisticSelectedCarId(null);
+    } catch (error) {
+      console.log("Select car error:", error);
+
+      setOptimisticSelectedCarId(null);
+
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "تعذر اختيار السيارة. رجعنا للاختيار السابق."
+            : "Could not select car. Restored previous selection.",
+        icon: "alert-circle",
+      });
+    } finally {
+      setSwitchingCarId(null);
+    }
+  };
+
+  const openEditCarName = (car: UserCar) => {
+    setSelectedCarForEdit(car);
+    setCarNameInput(car.display_name || "");
+    setEditCarVisible(true);
+  };
+
+  const handleSaveCarName = async () => {
+    if (!selectedCarForEdit) return;
+
+    setSavingCarName(true);
+
+    try {
+      await renameCar(selectedCarForEdit.id, carNameInput);
+
+      setEditCarVisible(false);
+      setSelectedCarForEdit(null);
+      setCarNameInput("");
+
+      showMessage({
+        title:
+          selectedLanguage === "AR"
+            ? "تم تحديث اسم السيارة"
+            : "Car name updated",
+        body: "",
+        icon: "check-circle",
+      });
+    } catch (error) {
+      console.log("Save car name error:", error);
+
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "تعذر تحديث اسم السيارة."
+            : "Could not update car name.",
+        icon: "alert-circle",
+      });
+    } finally {
+      setSavingCarName(false);
+    }
+  };
+
+  const handleDeleteCar = async (car: UserCar) => {
+    if (!deleteCarPassword.trim()) {
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "اكتبي كلمة مرور الحساب."
+            : "Enter your account password.",
+        icon: "alert-circle",
+      });
+      return;
+    }
+
+    setDeletingCar(true);
+
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: userEmail,
+        password: deleteCarPassword,
+      });
+
+      if (signInError) throw signInError;
+
+      await deleteCar(car);
+
+      setConfirmDeleteCarVisible(false);
+      setCarToDelete(null);
+      setDeleteCarPassword("");
+
+      showMessage({
+        title:
+          selectedLanguage === "AR"
+            ? "تم حذف السيارة بالكامل"
+            : "Car deleted completely",
+        body: "",
+        icon: "check-circle",
+      });
+    } catch (error) {
+      console.log("Delete car error:", error);
+
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "كلمة المرور غير صحيحة أو تعذر حذف السيارة."
+            : "Wrong password or could not delete car.",
+        icon: "alert-circle",
+      });
+    } finally {
+      setDeletingCar(false);
+    }
+  };
+
+  const showMessage = ({
+    title,
+    body,
+    icon = "check-circle",
+  }: {
+    title: string;
+    body: string;
+    icon?: keyof typeof Feather.glyphMap;
+  }) => {
+    setMessageTitle(title);
+    setMessageBody(body);
+    setMessageIcon(icon);
+    setMessageVisible(true);
+  };
+
+  const goToBluetoothSettings = () => {
+    router.push({
+      pathname: "/connection-intro",
+      params: { from: "settings" },
+    } as any);
+  };
+
+  const openSupportEmail = () => {
+    const subject = encodeURIComponent("Tnabbah Support Request");
+    const body = encodeURIComponent(
+      selectedLanguage === "AR"
+        ? `مرحبًا فريق تنبّه،\n\nأحتاج مساعدة بخصوص التطبيق.\n\nمعلومات الحساب:\nUser ID: ${userId}\nEmail: ${userEmail}\nCurrent Vehicle: ${selectedCarId || "—"}\nConnected Vehicle: ${connectedCarId || "—"}\nCar Connection: ${obdConnected ? "Connected" : "Disconnected"}\nData Reading: ${scannerRunning ? "Running" : "Stopped"}\nLast Connection: ${lastConnectionTime || "—"}\n\nاكتبي تفاصيل الاستفسار أو المشكلة هنا:\n`
+        : `Hello Tnabbah Support,\n\nI need help with the app.\n\nAccount details:\nUser ID: ${userId}\nEmail: ${userEmail}\nCurrent Vehicle: ${selectedCarId || "—"}\nConnected Vehicle: ${connectedCarId || "—"}\nCar Connection: ${obdConnected ? "Connected" : "Disconnected"}\nData Reading: ${scannerRunning ? "Running" : "Stopped"}\nLast Connection: ${lastConnectionTime || "—"}\n\nDescribe your question or issue here:\n`,
+    );
+
+    Linking.openURL(
+      `mailto:tanbbahteem@gmail.com?subject=${subject}&body=${body}`,
     );
   };
 
-  const visibleReports = reports.filter((r: any) => {
-    if (reportFilter === "all") return true;
-    return r.status === reportFilter;
-  });
+  const openWhatsAppSupport = () => {
+    const message = encodeURIComponent(
+      selectedLanguage === "AR"
+        ? `مرحبًا، أحتاج مساعدة في تطبيق تنبّه.
+User ID: ${userId}
+Email: ${userEmail}
+Current Vehicle: ${selectedCarId || "—"}`
+        : `Hello, I need help with Tnabbah app.
+User ID: ${userId}
+Email: ${userEmail}
+Current Vehicle: ${selectedCarId || "—"}`,
+    );
 
-  const REPORT_PREVIEW_LIMIT = 5;
-  const hasMoreReports = visibleReports.length > REPORT_PREVIEW_LIMIT;
-  const displayedReports = showAllReports
-    ? visibleReports
-    : visibleReports.slice(0, REPORT_PREVIEW_LIMIT);
-
-  const getFilterCount = (key: "all" | "saved" | "pending") => {
-    if (key === "all") {
-      return reports.filter(
-        (r: any) => r.status === "saved" || r.status === "pending",
-      ).length;
-    }
-    return reports.filter((r: any) => r.status === key).length;
+    Linking.openURL(`https://wa.me/966560602239?text=${message}`);
   };
 
-  if (!fontsLoaded) return null;
+  const sendIssueReport = () => {
+    const subject = encodeURIComponent("Tnabbah Issue Report");
+    const body = encodeURIComponent(
+      `Issue Report
+
+User ID: ${userId}
+Email: ${userEmail}
+Current Vehicle: ${selectedCarId || "—"}
+Connected Vehicle: ${connectedCarId || "—"}
+OBD Connected: ${obdConnected}
+Scanner Running: ${scannerRunning}
+Data Connection: ${mqttConnected}
+Last Connection: ${lastConnectionTime || "—"}
+
+Describe the issue:
+`,
+    );
+
+    Linking.openURL(
+      `mailto:tanbbahteem@gmail.com?subject=${subject}&body=${body}`,
+    );
+  };
+
+  const handleStopScanner = async () => {
+    try {
+      await stopScanner();
+
+      showMessage({
+        title: t.monitoringPaused,
+        body: "",
+        icon: "pause-circle",
+      });
+    } catch (error) {
+      console.log("Stop scanner error:", error);
+
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "تعذر إيقاف المتابعة."
+            : "Could not pause monitoring.",
+        icon: "alert-circle",
+      });
+    }
+  };
+
+  const handleDisconnectObd = async () => {
+    setConfirmDisconnectVisible(false);
+
+    try {
+      await disconnectObd();
+
+      showMessage({
+        title: t.disconnectedDone,
+        body: "",
+        icon: "check-circle",
+      });
+    } catch (error) {
+      console.log("Disconnect OBD error:", error);
+
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "تعذر إنهاء اتصال السيارة."
+            : "Could not end vehicle connection.",
+        icon: "alert-circle",
+      });
+    }
+  };
+
+  const handleUpdateName = async () => {
+    const realUserId = session?.user?.id;
+    const cleanName = fullNameInput.trim();
+
+    if (!realUserId || !cleanName) return;
+
+    if (cleanName.length > MAX_NAME_LENGTH) {
+      setNameSheetError(t.nameLimitError);
+      return;
+    }
+
+    setSavingName(true);
+    setNameSheetError("");
+
+    try {
+      /**
+       * نحدث الاسم في كل مكان بدون نقل المستخدم للهوم:
+       * 1) Provider الخاص بالحساب
+       * 2) جدول profiles في Supabase
+       * 3) user_metadata في Supabase Auth
+       * 4) نعمل refresh للجلسة عشان الواجهات الثانية مثل Home تقرأ الاسم الجديد أسرع
+       */
+      await updateName(cleanName);
+
+      const { error: profileUpdateError } = await supabase
+        .from("profiles")
+        .update({
+          full_name: cleanName,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", realUserId);
+
+      if (profileUpdateError) {
+        throw profileUpdateError;
+      }
+
+      const { error: authUpdateError } = await supabase.auth.updateUser({
+        data: {
+          full_name: cleanName,
+          name: cleanName,
+          display_name: cleanName,
+        },
+      });
+
+      if (authUpdateError) {
+        throw authUpdateError;
+      }
+
+      /**
+       * هذا يساعد AuthProvider والهوم يستقبلون بيانات الجلسة الجديدة أسرع.
+       * لو فشل refresh ما نوقف العملية لأن الاسم تم حفظه في profiles و metadata.
+       */
+      const { error: refreshError } = await supabase.auth.refreshSession();
+
+      if (refreshError) {
+        console.log(
+          "Refresh session after name update error:",
+          refreshError.message,
+        );
+      }
+
+      await supabase.auth.getUser();
+
+      setDisplayName(cleanName);
+      setNameSheetMode("success");
+
+      setTimeout(() => {
+        setEditNameVisible(false);
+        setNameSheetMode("form");
+      }, 1450);
+
+      /**
+       * لا يوجد router.replace هنا.
+       * المستخدم يبقى في الإعدادات، ولما يروح للهوم يلقى الاسم الجديد.
+       */
+    } catch (error) {
+      console.log("Update name error:", error);
+
+      setNameSheetError(
+        selectedLanguage === "AR"
+          ? "تعذر حفظ الاسم."
+          : "Could not save the name.",
+      );
+    } finally {
+      setSavingName(false);
+    }
+  };
+
+  const handleUpdateEmail = async () => {
+    const cleanEmail = emailInput.trim().toLowerCase();
+    const currentEmail =
+      userEmail !== "—" ? userEmail.trim().toLowerCase() : "";
+
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setEmailSheetError(
+        selectedLanguage === "AR"
+          ? "أدخل بريدًا إلكترونيًا صحيحًا."
+          : "Enter a valid email.",
+      );
+      return;
+    }
+
+    if (cleanEmail === currentEmail) {
+      setEmailSheetError(t.emailSameError);
+      return;
+    }
+
+    setSavingEmail(true);
+    setEmailSheetError("");
+
+    try {
+      await AsyncStorage.multiSet([
+        [EMAIL_CHANGE_PENDING_KEY, "true"],
+        [EMAIL_CHANGE_TARGET_KEY, cleanEmail],
+        [EMAIL_CHANGE_SUCCESS_SHOWN_KEY, "false"],
+      ]);
+
+      await AsyncStorage.multiSet([
+        [EMAIL_CHANGE_PENDING_KEY, "true"],
+        [EMAIL_CHANGE_TARGET_KEY, cleanEmail],
+        [EMAIL_CHANGE_SUCCESS_SHOWN_KEY, "false"],
+      ]);
+
+      const { error } = await supabase.auth.updateUser(
+        { email: cleanEmail },
+        { emailRedirectTo: "tnabbah://settings?email_changed=1" },
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      setEmailResendTimer(EMAIL_CHANGE_RESEND_COOLDOWN);
+      setEmailResendNotice("");
+      setEmailSheetMode("success");
+    } catch (error: any) {
+      await AsyncStorage.multiRemove([
+        EMAIL_CHANGE_PENDING_KEY,
+        EMAIL_CHANGE_TARGET_KEY,
+      ]);
+
+      const rawMessage = String(error?.message || "").toLowerCase();
+
+      console.log("Update email error:", error?.message ?? error);
+
+      if (
+        rawMessage.includes("already registered") ||
+        rawMessage.includes("already exists") ||
+        rawMessage.includes("user already registered") ||
+        rawMessage.includes("email address has already been registered") ||
+        rawMessage.includes("email already registered") ||
+        rawMessage.includes("email already exists")
+      ) {
+        setEmailSheetError(
+          selectedLanguage === "AR"
+            ? "هذا البريد الإلكتروني مستخدم في حساب آخر."
+            : "This email address is already used by another account.",
+        );
+        return;
+      }
+
+      if (
+        rawMessage.includes("invalid email") ||
+        rawMessage.includes("email address is invalid") ||
+        rawMessage.includes("invalid")
+      ) {
+        setEmailSheetError(
+          selectedLanguage === "AR"
+            ? "أدخل بريدًا إلكترونيًا صحيحًا."
+            : "Enter a valid email address.",
+        );
+        return;
+      }
+
+      if (
+        rawMessage.includes("rate limit") ||
+        rawMessage.includes("too many") ||
+        rawMessage.includes("too many requests")
+      ) {
+        setEmailSheetError(
+          selectedLanguage === "AR"
+            ? "تمت محاولات كثيرة. انتظر قليلًا ثم جرّب مرة أخرى."
+            : "Too many attempts. Please wait a moment and try again.",
+        );
+        return;
+      }
+
+      setEmailSheetError(t.emailChangeError);
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
+  const handleResendEmailChangeLink = async () => {
+    if (emailResendTimer > 0 || resendingEmailLink) return;
+
+    const cleanEmail = emailInput.trim().toLowerCase();
+
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setEmailResendNotice("");
+      setEmailSheetError(
+        selectedLanguage === "AR"
+          ? "أدخل بريدًا إلكترونيًا صحيحًا."
+          : "Enter a valid email address.",
+      );
+      setEmailSheetMode("form");
+      return;
+    }
+
+    setResendingEmailLink(true);
+    setEmailResendNotice("");
+
+    try {
+      const { error } = await supabase.auth.updateUser(
+        { email: cleanEmail },
+        { emailRedirectTo: "tnabbah://settings?email_changed=1" },
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      setEmailResendTimer(EMAIL_CHANGE_RESEND_COOLDOWN);
+      setEmailResendNotice(
+        selectedLanguage === "AR"
+          ? "تم إرسال رابط التأكيد مرة أخرى."
+          : "The confirmation link was sent again.",
+      );
+    } catch (error: any) {
+      const rawMessage = String(error?.message || "").toLowerCase();
+
+      console.log("Resend email change link error:", error?.message ?? error);
+
+      if (
+        rawMessage.includes("rate limit") ||
+        rawMessage.includes("too many") ||
+        rawMessage.includes("too many requests")
+      ) {
+        setEmailResendNotice(
+          selectedLanguage === "AR"
+            ? "تمت محاولات كثيرة. انتظر قليلًا ثم جرّب مرة أخرى."
+            : "Too many attempts. Please wait a moment and try again.",
+        );
+        setEmailResendTimer(EMAIL_CHANGE_RESEND_COOLDOWN);
+        return;
+      }
+
+      setEmailResendNotice(
+        selectedLanguage === "AR"
+          ? "تعذر إعادة إرسال الرابط الآن. جرّب بعد قليل."
+          : "Could not resend the link right now. Please try again later.",
+      );
+    } finally {
+      setResendingEmailLink(false);
+    }
+  };
+
+  const handleDeleteAccountVerification = async () => {
+    if (!userEmail || userEmail === "—") return;
+
+    if (!deletePassword.trim()) {
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "أدخل كلمة المرور الحالية."
+            : "Enter your current password.",
+        icon: "alert-circle",
+      });
+
+      return;
+    }
+
+    setDeletingAccount(true);
+
+    try {
+      await deleteAccount(deletePassword);
+
+      setDeleteAccountVisible(false);
+      setDeletePassword("");
+
+      showMessage({
+        title:
+          selectedLanguage === "AR"
+            ? "تم حذف الحساب نهائيًا"
+            : "Account deleted permanently",
+        body: "",
+        icon: "check-circle",
+      });
+
+      setTimeout(async () => {
+        router.replace("/start" as any);
+      }, 1200);
+    } catch (error) {
+      console.log("Delete account verify error:", error);
+
+      showMessage({
+        title: t.errorTitle,
+        body:
+          selectedLanguage === "AR"
+            ? "حدث خطأ أثناء التحقق."
+            : "Verification failed.",
+        icon: "alert-circle",
+      });
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
+  const handleLogout = () => {
+    if (loggingOut) return;
+
+    setLoggingOut(true);
+
+    // نودّي المستخدم مباشرة لواجهة البداية بدون شاشة تحميل أو تظليل.
+    requestAnimationFrame(() => {
+      router.replace("/start" as any);
+    });
+
+    // نسجل الخروج في الخلفية حتى لا يعلق المستخدم على شاشة بيضاء.
+    setTimeout(async () => {
+      try {
+        await logout(disconnectObd);
+      } catch (error) {
+        console.log("Logout error:", error);
+      }
+    }, 0);
+  };
+
+  const rowDirection = isRTL ? "row-reverse" : "row";
+  const textAlign = isRTL ? "right" : "left";
+  const alignItems = isRTL ? "flex-end" : "flex-start";
+  const iconMargin = isRTL ? { marginLeft: 12 } : { marginRight: 12 };
+
+  if (!fontsLoaded || settingsLoading) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        edges={["top"]}
+      >
+        <Stack.Screen
+          options={{
+            gestureEnabled: false,
+          }}
+        />
+
+        <View style={styles.loadingSettingsContainer}>
+          <ActivityIndicator size="small" color={theme.iconColor} />
+        </View>
+
+        <AppMessageModal
+          visible={messageVisible}
+          title={messageTitle}
+          message={messageBody}
+          icon={messageIcon}
+          buttonText={t.ok}
+          theme={theme}
+          isRTL={isRTL}
+          onClose={() => setMessageVisible(false)}
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.bg }]}
+      style={[styles.container, { backgroundColor: theme.background }]}
       edges={["top"]}
     >
+      <Stack.Screen
+        options={{
+          gestureEnabled: false,
+        }}
+      />
+
       <StatusBar
         barStyle={darkModeEnabled ? "light-content" : "dark-content"}
-        backgroundColor={theme.bg}
+        backgroundColor={theme.background}
       />
 
       <View
         style={[
           styles.header,
-          { flexDirection: rowDirection, backgroundColor: theme.bg },
-        ]}
-      >
-        <View style={styles.headerSide} />
-        <Text style={[styles.headerTitle, { color: theme.text }]}>
-          {t.walletTitle}
-        </Text>
-        <View style={styles.headerSide} />
-      </View>
-
-      <View style={[styles.headerDivider, { backgroundColor: theme.border }]} />
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scrollContent,
           {
-            backgroundColor: theme.bg,
-            paddingHorizontal: horizontalPadding,
-            paddingTop: isSmallScreen ? 12 : 14,
+            flexDirection: rowDirection,
+            backgroundColor: theme.background,
           },
         ]}
       >
-        {/* ─── قسم التقارير ─── */}
+        <View style={styles.headerSide} />
+
+        <Text
+          allowFontScaling={false}
+          style={[styles.headerTitle, { color: theme.textPrimary }]}
+        >
+          {t.settings}
+        </Text>
+
+        <View style={styles.headerSide} />
+      </View>
+
+      <View
+        style={[styles.headerDivider, { backgroundColor: theme.headerDivider }]}
+      />
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text
+          style={[
+            styles.sectionTitle,
+            { color: theme.textSecondary, textAlign },
+          ]}
+        >
+          {t.account}
+        </Text>
+
         <View
           style={[
-            styles.sectionHeaderCard,
+            styles.accountCard,
             {
-              flexDirection: iconSideDirection,
-              backgroundColor: theme.surface,
-              borderColor: theme.border,
+              backgroundColor: theme.accent,
+              borderColor: theme.accentBorder,
+              shadowColor: theme.accent,
             },
           ]}
         >
-          <View
-            style={[
-              styles.sectionIconCirclePrimary,
-              { backgroundColor: theme.primary },
-            ]}
-          >
-            <Feather name="file-text" size={18} color="#FFFFFF" />
-          </View>
-
-          <View style={[styles.sectionTextBox, { alignItems }]}>
-            <Text
-              style={[styles.sectionTitle, { textAlign, color: theme.text }]}
-            >
-              {t.walletReportsTitle}
-            </Text>
-            <Text
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
               style={[
-                styles.sectionSubtitle,
-                { textAlign, color: theme.muted },
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
               ]}
             >
-              {t.walletReportsSubtitle}
-            </Text>
-          </View>
+              <View style={[styles.accountAvatar, iconMargin]}>
+                <Feather name="user" size={22} color="#FFFFFF" />
+              </View>
 
-          <View style={styles.sectionCountBadge}>
-            <Text style={[styles.sectionCountText, { color: theme.primary }]}>
-              {reportCount}
-            </Text>
-          </View>
-        </View>
-
-        <View
-          style={[styles.reportControlsRow, { flexDirection: rowDirection }]}
-        >
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={[
-              styles.filterScrollContent,
-              { flexDirection: rowDirection },
-            ]}
-            style={styles.filterScroll}
-          >
-            {[
-              { key: "all", label: t.walletFilterAll },
-              { key: "saved", label: t.walletFilterSaved },
-              { key: "pending", label: t.walletFilterPending },
-            ].map((f) => {
-              const key = f.key as "all" | "saved" | "pending";
-              const active = reportFilter === key;
-              return (
-                <TouchableOpacity
-                  key={key}
-                  onPress={() => {
-                    setReportFilter(key);
-                    setShowAllReports(false);
-                  }}
-                  activeOpacity={0.85}
+              <View style={[styles.userInfo, { alignItems }]}>
+                <View
                   style={[
-                    styles.filterChip,
+                    styles.accountNameRow,
                     {
-                      backgroundColor: active ? theme.primary : theme.surface,
-                      borderColor: active ? theme.primary : theme.border,
+                      flexDirection: rowDirection,
+                      alignSelf: isRTL ? "flex-end" : "flex-start",
                     },
                   ]}
                 >
                   <Text
-                    style={[
-                      styles.filterChipText,
-                      { color: active ? "#FFFFFF" : theme.muted },
-                    ]}
+                    numberOfLines={1}
+                    style={[styles.userName, { color: "#FFFFFF", textAlign }]}
                   >
-                    {f.label} ({getFilterCount(key)})
+                    {displayName || userName}
                   </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+                </View>
 
-          <View
-            style={[
-              styles.reportViewToggle,
-              {
-                flexDirection: rowDirection,
-                backgroundColor: theme.surface,
-                borderColor: theme.border,
-              },
-            ]}
-          >
-            {[
-              {
-                key: "horizontal",
-                icon: "columns" as const,
-                accessibilityLabel: isArabic ? "عرض أفقي" : "Horizontal view",
-              },
-              {
-                key: "vertical",
-                icon: "list" as const,
-                accessibilityLabel: isArabic ? "عرض رأسي" : "Vertical view",
-              },
-            ].map((item) => {
-              const active = reportViewMode === item.key;
-
-              return (
-                <TouchableOpacity
-                  key={item.key}
-                  activeOpacity={0.85}
-                  accessibilityRole="button"
-                  accessibilityLabel={item.accessibilityLabel}
-                  onPress={() =>
-                    setReportViewMode(item.key as "horizontal" | "vertical")
-                  }
-                  style={[
-                    styles.reportViewToggleButton,
-                    active
-                      ? { backgroundColor: theme.primary }
-                      : { backgroundColor: "transparent" },
-                  ]}
+                <Text
+                  numberOfLines={1}
+                  style={[styles.userEmail, { color: "#FFFFFF", textAlign }]}
                 >
-                  <Feather
-                    name={item.icon}
-                    size={16}
-                    color={active ? "#FFFFFF" : theme.muted}
-                  />
-                </TouchableOpacity>
-              );
-            })}
+                  {userEmail}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
 
-        <View style={styles.reportsList}>
-          {reportsLoading && reports.length === 0 && (
+        <Pressable
+          style={({ pressed }) => [
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+            pressed && { backgroundColor: theme.cardPressed },
+          ]}
+          onPress={() => {
+            setFullNameInput(
+              (displayName === "مستخدم" ? "" : displayName).slice(
+                0,
+                MAX_NAME_LENGTH,
+              ),
+            );
+            setNameSheetError("");
+            setNameSheetMode("form");
+            setEditNameVisible(true);
+          }}
+        >
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
             <View
               style={[
-                styles.emptyFullCard,
-                { backgroundColor: theme.surface, borderColor: theme.border },
-              ]}
-            >
-              <ActivityIndicator color={theme.primary} />
-              <Text style={[styles.emptyText, { color: theme.muted }]}>
-                {t.walletLoadingReports}
-              </Text>
-            </View>
-          )}
-
-          {!reportsLoading && visibleReports.length === 0 && (
-            <View
-              style={[
-                styles.emptyFullCard,
-                { backgroundColor: theme.surface, borderColor: theme.border },
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
               ]}
             >
               <View
                 style={[
-                  styles.emptyIconCircle,
-                  {
-                    backgroundColor: theme.softGray,
-                    borderColor: theme.border,
-                  },
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
                 ]}
               >
-                <Feather name="folder" size={22} color={theme.primary} />
+                <Feather name="type" size={20} color={theme.iconColor} />
               </View>
-              <Text style={[styles.emptyText, { color: theme.muted }]}>
-                {!userId ? t.walletLoginRequired : t.walletNoReports}
-              </Text>
+
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {selectedLanguage === "AR" ? "تعديل الاسم" : "Edit Name"}
+                </Text>
+
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={[
+                    styles.settingHint,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {selectedLanguage === "AR"
+                    ? "تغيير الاسم الظاهر في الحساب"
+                    : "Change the display name on the account"}
+                </Text>
+              </View>
             </View>
-          )}
 
-          {!reportsLoading && visibleReports.length > 0 ? (
-            reportViewMode === "horizontal" ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                decelerationRate="fast"
-                contentContainerStyle={[
-                  styles.horizontalScroll,
-                  {
-                    flexDirection: isArabic ? "row-reverse" : "row",
-                    paddingRight: isArabic ? 2 : 18,
-                    paddingLeft: isArabic ? 18 : 2,
-                  },
-                ]}
-              >
-                {displayedReports.map((report: any) => {
-                  const isPending = report.status === "pending";
-                  const isDtc = report.type === "DTC";
-                  const reportTypeLabel = isDtc
-                    ? "DTC"
-                    : isArabic
-                      ? "تقرير"
-                      : "Report";
+            <EditActionPill
+              label={selectedLanguage === "AR" ? "تعديل" : "Edit"}
+              theme={theme}
+              isRTL={isRTL}
+            />
+          </View>
+        </Pressable>
 
-                  return (
-                    <TouchableOpacity
-                      key={report.id}
-                      style={[
-                        styles.reportCard,
-                        {
-                          backgroundColor: theme.surface,
-                          borderColor: theme.border,
-                          marginLeft: isArabic ? 0 : 12,
-                          marginRight: isArabic ? 12 : 0,
-                          width: reportCardWidth,
-                        },
-                      ]}
-                      activeOpacity={0.84}
-                      onPress={() => {
-                        if (!isPending) openReport(report.id);
-                      }}
-                    >
-                      <View
-                        style={[
-                          styles.cardTopRow,
-                          { flexDirection: iconSideDirection },
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.reportBadge,
-                            isDtc
-                              ? {
-                                backgroundColor: theme.reportAlertBg,
-                                borderColor: theme.reportAlertBorder,
-                              }
-                              : {
-                                backgroundColor: theme.reportDocumentBg,
-                                borderColor: theme.reportDocumentBorder,
-                              },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.reportBadgeText,
-                              isDtc
-                                ? { color: theme.reportAlert }
-                                : { color: theme.reportDocument },
-                            ]}
-                          >
-                            {reportTypeLabel}
-                          </Text>
-                        </View>
-
-                        <View
-                          style={[
-                            styles.statusSmallPill,
-                            isPending
-                              ? {
-                                backgroundColor: theme.warningBg,
-                                borderColor: "rgba(245,158,11,0.24)",
-                              }
-                              : {
-                                backgroundColor: theme.successBg,
-                                borderColor: "rgba(31,138,76,0.18)",
-                              },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.statusPillText,
-                              isPending
-                                ? { color: theme.warning }
-                                : { color: theme.success },
-                            ]}
-                          >
-                            {isPending ? t.walletPending : t.walletSaved}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View
-                        style={[
-                          styles.reportIconCircle,
-                          isDtc
-                            ? {
-                              backgroundColor: theme.reportAlertBg,
-                              borderColor: theme.reportAlertBorder,
-                              alignSelf: iconSideSelf,
-                            }
-                            : {
-                              backgroundColor: theme.reportDocumentBg,
-                              borderColor: theme.reportDocumentBorder,
-                              alignSelf: iconSideSelf,
-                            },
-                        ]}
-                      >
-                        <Feather
-                          name={isDtc ? "alert-triangle" : "file-text"}
-                          size={22}
-                          color={
-                            isDtc ? theme.reportAlert : theme.reportDocument
-                          }
-                        />
-                      </View>
-
-                      <Text
-                        style={[
-                          styles.cardTitle,
-                          { color: theme.text, textAlign },
-                        ]}
-                        numberOfLines={3}
-                      >
-                        {report.title}
-                      </Text>
-
-                      <Text
-                        style={[
-                          styles.cardDate,
-                          { color: theme.muted, textAlign },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {report.date}
-                      </Text>
-
-                      {isPending ? (
-                        <View
-                          style={[
-                            styles.actionsRow,
-                            { flexDirection: rowDirection },
-                          ]}
-                        >
-                          <TouchableOpacity
-                            style={[
-                              styles.saveReportBtn,
-                              {
-                                backgroundColor: theme.primary,
-                                shadowColor: theme.primaryDark,
-                              },
-                            ]}
-                            activeOpacity={0.85}
-                            onPress={() => handleSaveReport(report.id)}
-                          >
-                            <View
-                              style={[
-                                styles.saveReportContent,
-                                { flexDirection: iconSideDirection },
-                              ]}
-                            >
-                              <Feather
-                                name="bookmark"
-                                size={14}
-                                color="#FFFFFF"
-                              />
-                              <Text style={styles.saveReportText}>
-                                {t.walletSaveReport}
-                              </Text>
-                            </View>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            style={[
-                              styles.rejectBtn,
-                              {
-                                backgroundColor: theme.neutralActionBg,
-                                borderColor: theme.neutralActionBorder,
-                              },
-                            ]}
-                            activeOpacity={0.85}
-                            onPress={() => handleRejectReport(report.id)}
-                          >
-                            <Text
-                              style={[
-                                styles.rejectBtnText,
-                                { color: theme.neutralAction },
-                              ]}
-                            >
-                              {t.walletIgnore}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      ) : (
-                        <TouchableOpacity
-                          style={[
-                            styles.openReportBtn,
-                            { backgroundColor: theme.primary },
-                          ]}
-                          activeOpacity={0.85}
-                          onPress={() => openReport(report.id)}
-                        >
-                          <Text style={styles.openReportText}>
-                            {isArabic ? "عرض التقرير" : "Open report"}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            ) : (
-              <View style={styles.verticalReportsList}>
-                {displayedReports.map((report: any) => {
-                  const isPending = report.status === "pending";
-                  const isDtc = report.type === "DTC";
-                  const reportTypeLabel = isDtc
-                    ? "DTC"
-                    : isArabic
-                      ? "تقرير"
-                      : "Report";
-
-                  return (
-                    <TouchableOpacity
-                      key={report.id}
-                      style={[
-                        styles.reportListCard,
-                        {
-                          backgroundColor: theme.surface,
-                          borderColor: theme.border,
-                        },
-                      ]}
-                      activeOpacity={0.82}
-                      onPress={() => {
-                        if (!isPending) openReport(report.id);
-                      }}
-                    >
-                      <View
-                        style={[
-                          styles.reportListTop,
-                          { flexDirection: iconSideDirection },
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.reportListIconBox,
-                            isDtc
-                              ? {
-                                backgroundColor: theme.reportAlertBg,
-                                borderColor: theme.reportAlertBorder,
-                              }
-                              : {
-                                backgroundColor: theme.reportDocumentBg,
-                                borderColor: theme.reportDocumentBorder,
-                              },
-                          ]}
-                        >
-                          <Feather
-                            name={isDtc ? "alert-triangle" : "file-text"}
-                            size={18}
-                            color={
-                              isDtc ? theme.reportAlert : theme.reportDocument
-                            }
-                          />
-                        </View>
-
-                        <View style={[styles.reportListInfo, { alignItems }]}>
-                          <Text
-                            style={[
-                              styles.reportListTitle,
-                              { textAlign, color: theme.text },
-                            ]}
-                            numberOfLines={2}
-                          >
-                            {report.title}
-                          </Text>
-
-                          <View
-                            style={[
-                              styles.reportListMeta,
-                              {
-                                flexDirection: iconSideDirection,
-                                alignSelf: iconSideSelf,
-                              },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.reportListDate,
-                                { textAlign, color: theme.muted },
-                              ]}
-                            >
-                              {report.date}
-                            </Text>
-
-                            <View
-                              style={[
-                                styles.reportBadge,
-                                isDtc
-                                  ? {
-                                    backgroundColor: theme.reportAlertBg,
-                                    borderColor: theme.reportAlertBorder,
-                                  }
-                                  : {
-                                    backgroundColor: theme.reportDocumentBg,
-                                    borderColor: theme.reportDocumentBorder,
-                                  },
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.reportBadgeText,
-                                  isDtc
-                                    ? { color: theme.reportAlert }
-                                    : { color: theme.reportDocument },
-                                ]}
-                              >
-                                {reportTypeLabel}
-                              </Text>
-                            </View>
-                          </View>
-                        </View>
-
-                        <View style={styles.reportListActionSide}>
-                          <View
-                            style={[
-                              styles.statusSmallPill,
-                              isPending
-                                ? {
-                                  backgroundColor: theme.warningBg,
-                                  borderColor: "rgba(245,158,11,0.24)",
-                                }
-                                : {
-                                  backgroundColor: theme.successBg,
-                                  borderColor: "rgba(31,138,76,0.18)",
-                                },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.statusPillText,
-                                isPending
-                                  ? { color: theme.warning }
-                                  : { color: theme.success },
-                              ]}
-                            >
-                              {isPending ? t.walletPending : t.walletSaved}
-                            </Text>
-                          </View>
-
-                          {!isPending ? (
-                            <Feather
-                              name={isArabic ? "chevron-left" : "chevron-right"}
-                              size={20}
-                              color={theme.mutedLight}
-                            />
-                          ) : null}
-                        </View>
-                      </View>
-
-                      {isPending ? (
-                        <View
-                          style={[
-                            styles.actionsRow,
-                            { flexDirection: rowDirection },
-                          ]}
-                        >
-                          <TouchableOpacity
-                            style={[
-                              styles.saveReportBtn,
-                              {
-                                backgroundColor: theme.primary,
-                                shadowColor: theme.primaryDark,
-                              },
-                            ]}
-                            activeOpacity={0.85}
-                            onPress={() => handleSaveReport(report.id)}
-                          >
-                            <View
-                              style={[
-                                styles.saveReportContent,
-                                { flexDirection: iconSideDirection },
-                              ]}
-                            >
-                              <Feather
-                                name="bookmark"
-                                size={14}
-                                color="#FFFFFF"
-                              />
-                              <Text style={styles.saveReportText}>
-                                {t.walletSaveReport}
-                              </Text>
-                            </View>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            style={[
-                              styles.rejectBtn,
-                              {
-                                backgroundColor: theme.neutralActionBg,
-                                borderColor: theme.neutralActionBorder,
-                              },
-                            ]}
-                            activeOpacity={0.85}
-                            onPress={() => handleRejectReport(report.id)}
-                          >
-                            <Text
-                              style={[
-                                styles.rejectBtnText,
-                                { color: theme.neutralAction },
-                              ]}
-                            >
-                              {t.walletIgnore}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      ) : null}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )
-          ) : null}
-
-          {hasMoreReports ? (
-            <TouchableOpacity
+        <Pressable
+          style={({ pressed }) => [
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+            pressed && { backgroundColor: theme.cardPressed },
+          ]}
+          onPress={() => {
+            setEmailInput(userEmail !== "—" ? userEmail : "");
+            setEmailSheetError("");
+            setEmailResendNotice("");
+            setEmailResendTimer(0);
+            setEmailSheetMode("form");
+            setEditEmailVisible(true);
+          }}
+        >
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
               style={[
-                styles.viewAllReportsButton,
-                {
-                  flexDirection: iconSideDirection,
-                  backgroundColor: theme.surface,
-                  borderColor: theme.neutralActionBorder,
-                },
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
               ]}
-              activeOpacity={0.85}
-              onPress={() => setShowAllReports((prev) => !prev)}
             >
-              <Text
-                style={[styles.viewAllReportsText, { color: theme.primary }]}
-              >
-                {showAllReports
-                  ? isArabic
-                    ? "عرض أقل"
-                    : "Show less"
-                  : isArabic
-                    ? "عرض الكل"
-                    : "View all"}
-              </Text>
-
-              <Text
+              <View
                 style={[
-                  styles.viewAllReportsCount,
-                  { color: theme.neutralAction },
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
                 ]}
               >
-                {showAllReports
-                  ? `${displayedReports.length}/${visibleReports.length}`
-                  : `${REPORT_PREVIEW_LIMIT}/${visibleReports.length}`}
-              </Text>
+                <Feather name="mail" size={20} color={theme.iconColor} />
+              </View>
 
-              <Feather
-                name={
-                  showAllReports
-                    ? "chevron-up"
-                    : isArabic
-                      ? "chevron-left"
-                      : "chevron-right"
-                }
-                size={18}
-                color={theme.primary}
-              />
-            </TouchableOpacity>
-          ) : null}
-        </View>
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {selectedLanguage === "AR" ? "تعديل البريد الإلكتروني" : "Edit Email"}
+                </Text>
 
-        {/* ─── قسم الصيانات الدورية ─── */}
+                <Text
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                  style={[
+                    styles.settingHint,
+                    styles.settingHintTwoLines,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {selectedLanguage === "AR"
+                    ? "سيتم إرسال رابط تأكيد إلى البريد الإلكتروني الجديد"
+                    : "A confirmation link will be sent to the new\nemail address"}
+                </Text>
+              </View>
+            </View>
+
+            <EditActionPill
+              label={selectedLanguage === "AR" ? "تعديل" : "Edit"}
+              theme={theme}
+              isRTL={isRTL}
+            />
+          </View>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+            pressed && { backgroundColor: theme.cardPressed },
+          ]}
+          onPress={async () => {
+            try {
+              await AsyncStorage.multiSet([
+                ["password_change_return_to_settings", "true"],
+                ["password_change_started_from_settings", "true"],
+              ]);
+            } catch (error) {
+              console.log("Save password return target error:", error);
+            }
+
+            router.push({
+              pathname: "/forgot-password",
+              params: {
+                email: userEmail !== "—" ? userEmail : "",
+                from: "settings",
+              },
+            } as any);
+          }}
+        >
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
+                <Feather name="lock" size={20} color={theme.iconColor} />
+              </View>
+
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {selectedLanguage === "AR"
+                    ? "تغيير كلمة المرور"
+                    : "Change Password"}
+                </Text>
+
+                <Text
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                  style={[
+                    styles.settingHint,
+                    styles.settingHintTwoLines,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {selectedLanguage === "AR"
+                    ? "إرسال رمز للتحقق قبل تغيير كلمة المرور"
+                    : "Send a verification code before changing\nthe password"}
+                </Text>
+              </View>
+            </View>
+
+            <EditActionPill
+              label={selectedLanguage === "AR" ? "تعديل" : "Edit"}
+              theme={theme}
+              isRTL={isRTL}
+            />
+          </View>
+        </Pressable>
+
+        <Text
+          style={[
+            styles.sectionTitle,
+            { color: theme.textSecondary, textAlign },
+          ]}
+        >
+          {t.appSettings}
+        </Text>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+            pressed && { backgroundColor: theme.cardPressed },
+          ]}
+          onPress={() => handleNotificationsChange(!notificationsEnabled)}
+        >
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
+                <Feather
+                  name={notificationsEnabled ? "bell" : "bell-off"}
+                  size={20}
+                  color={theme.iconColor}
+                />
+              </View>
+
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {notificationsEnabled
+                    ? t.notifications
+                    : selectedLanguage === "AR"
+                      ? "الإشعارات متوقفة"
+                      : "Notifications Off"}
+                </Text>
+
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={[
+                    styles.settingHint,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {notificationsEnabled
+                    ? t.notificationsDesc
+                    : selectedLanguage === "AR"
+                      ? "لن تصلك تنبيهات الفحص والتذكيرات"
+                      : "You will not receive scan alerts or reminders"}
+                </Text>
+              </View>
+            </View>
+
+            <AppSwitch
+              value={notificationsEnabled}
+              onValueChange={handleNotificationsChange}
+              trackOnColor={theme.accent}
+              trackOffColor={theme.border}
+            />
+          </View>
+        </Pressable>
+
         <View
           style={[
-            styles.sectionHeaderCard,
-            styles.maintenanceHeaderCard,
+            styles.card,
             {
-              flexDirection: iconSideDirection,
               backgroundColor: theme.surface,
-              borderColor: theme.border,
+              borderColor: theme.cardBorder,
             },
           ]}
         >
-          <View
-            style={[
-              styles.sectionIconCirclePrimary,
-              { backgroundColor: theme.primary },
-            ]}
-          >
-            <MaterialCommunityIcons
-              name="wrench-clock"
-              size={18}
-              color="#FFFFFF"
-            />
-          </View>
-
-          <View style={[styles.sectionTextBox, { alignItems }]}>
-            <Text
-              style={[styles.sectionTitle, { textAlign, color: theme.text }]}
-            >
-              {t.walletMaintenanceTitle}
-            </Text>
-            <Text
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
               style={[
-                styles.sectionSubtitle,
-                { textAlign, color: theme.muted },
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
               ]}
             >
-              {t.walletMaintenanceSubtitle}
-            </Text>
-          </View>
-
-          <View style={styles.sectionCountBadge}>
-            <Text style={[styles.sectionCountText, { color: theme.primary }]}>
-              {maintenanceCount}
-            </Text>
-          </View>
-        </View>
-
-        {maintenanceLoading && maintenance.length === 0 ? (
-          <View style={styles.maintenanceLoadingBox}>
-            <ActivityIndicator color={theme.primary} />
-            <Text style={[styles.emptyText, { color: theme.muted }]}>
-              {t.walletLoadingMaintenance}
-            </Text>
-          </View>
-        ) : (
-          maintenance.map((item: MaintenanceItem) => {
-            // حساب الأيام محليًا من nextDate لتجنب اختلاف اليوم بسبب التوقيت.
-            let localRemainingDays = item.remainingDays;
-
-            if (item.nextDate) {
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-
-              const [year, month, day] = item.nextDate.split("-").map(Number);
-              const nextDate = new Date(year, month - 1, day);
-              nextDate.setHours(0, 0, 0, 0);
-
-              localRemainingDays = Math.round(
-                (nextDate.getTime() - today.getTime()) /
-                (1000 * 60 * 60 * 24),
-              );
-            }
-
-            const hasData = !!item.lastDate;
-            const progress = hasData
-              ? Math.min(
-                ((item.intervalDays - (localRemainingDays ?? 0)) /
-                  item.intervalDays) *
-                100,
-                100,
-              )
-              : 0;
-
-            let localStatus = item.status;
-
-            if (hasData && localRemainingDays !== null) {
-              if (localRemainingDays < 0) localStatus = "overdue";
-              else if (localRemainingDays <= MAINTENANCE_WARNING_DAYS)
-                localStatus = "due";
-              else localStatus = "upcoming";
-            }
-
-            const isOverdue = hasData && localStatus === "overdue";
-            const isWarningSoon = hasData && localStatus === "due";
-            const isUpcoming = hasData && localStatus === "upcoming";
-            const remainingDays = localRemainingDays ?? 0;
-            const isCurrentlySaving = savingId === item.maintenanceTypeId;
-
-            let statusColor = theme.success;
-            let statusBg = theme.successBg;
-            if (isWarningSoon) {
-              statusColor = theme.warning;
-              statusBg = theme.warningBg;
-            }
-            if (isOverdue) {
-              statusColor = theme.danger;
-              statusBg = theme.dangerBg;
-            }
-            if (!hasData) {
-              statusColor = theme.muted;
-              statusBg = theme.softGray;
-            }
-
-            // تحديد نص الشارة بناءً على الشروط الجديدة المطلوبة
-            let badgeText = "";
-            if (!hasData) {
-              badgeText = t.walletNotRegistered;
-            } else if (isOverdue) {
-              const absDays = Math.abs(localRemainingDays ?? 0);
-              badgeText = `${absDays} ${t.walletDaysLate}`;
-            } else if (isWarningSoon) {
-              badgeText = `${t.walletRemaining} ${remainingDays} ${t.walletDay}`;
-            } else {
-              badgeText = `${t.walletRemaining} ${remainingDays} ${t.walletDay}`;
-            }
-
-            // تلوين نص التاريخ بناءً على الحالة (أخضر للمستقبل البعيد)
-            let valueDateColor = theme.text;
-            if (isOverdue) valueDateColor = theme.danger;
-            else if (isWarningSoon) valueDateColor = theme.warning;
-            else if (isUpcoming) valueDateColor = theme.success;
-
-            return (
-              <TouchableOpacity
-                key={item.maintenanceTypeId}
+              <View
                 style={[
-                  styles.uxMaintenanceCard,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                  isCurrentlySaving && { opacity: 0.55 },
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
                 ]}
-                activeOpacity={0.75}
-                disabled={isCurrentlySaving}
-                onPress={() => openMaintenanceDatePicker(item)}
               >
-                {/* الجزء العلوي: الأيقونة في اليمين للعربي وتنعكس لليسار في الإنجليزي */}
-                <View
-                  style={[
-                    styles.uxCardTopElement,
-                    { flexDirection: iconSideDirection },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.uxIconContainer,
-                      {
-                        backgroundColor: theme.softGray,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                  >
-                    {isCurrentlySaving ? (
-                      <ActivityIndicator size="small" color={theme.primary} />
-                    ) : (
-                      <MaterialCommunityIcons
-                        name={getMaintenanceIcon(item.title)}
-                        size={22}
-                        color={theme.primary}
-                      />
-                    )}
-                  </View>
+                <Feather name="globe" size={20} color={theme.iconColor} />
+              </View>
 
-                  <View style={[styles.uxTextGroup, { alignItems }]}>
-                    <Text
-                      style={[
-                        styles.uxMaintenanceTitle,
-                        { textAlign, color: theme.text },
-                      ]}
-                    >
-                      {translateMaintenanceTitle(item.title)}
-                    </Text>
-                    <View
-                      style={[
-                        styles.uxMetaRow,
-                        {
-                          flexDirection: iconSideDirection,
-                          alignSelf: iconSideSelf,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.uxMaintenanceSub,
-                          { textAlign, color: theme.muted },
-                        ]}
-                      >
-                        {t.walletEvery} {item.intervalDays} {t.walletDay}
-                      </Text>
-                      <View
-                        style={[
-                          styles.uxStatusBadge,
-                          { backgroundColor: statusBg },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.uxStatusBadgeText,
-                            { color: statusColor },
-                          ]}
-                        >
-                          {badgeText}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View
-                    style={[
-                      styles.uxCardActions,
-                      { flexDirection: iconSideDirection },
-                    ]}
-                  >
-                    {hasData ? (
-                      <TouchableOpacity
-                        style={[
-                          styles.resetButtonCircle,
-                          {
-                            backgroundColor: theme.warningBg,
-                            borderColor: darkModeEnabled
-                              ? "rgba(253,186,116,0.34)"
-                              : "rgba(245,158,11,0.24)",
-                          },
-                        ]}
-                        activeOpacity={0.78}
-                        onPress={() => handleResetMaintenance(item)}
-                        disabled={isCurrentlySaving}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      >
-                        <Feather
-                          name="refresh-cw"
-                          size={13}
-                          color={theme.warning}
-                        />
-                      </TouchableOpacity>
-                    ) : null}
-
-                    <View style={styles.uxEditHint}>
-                      <Feather
-                        name={isArabic ? "chevron-left" : "chevron-right"}
-                        size={20}
-                        color={theme.mutedLight}
-                      />
-                    </View>
-                  </View>
-                </View>
-
-                {/* جزء التواريخ: متناسق تماماً مع القراءة العربية من اليمين (الماضي) إلى اليسار (المستقبل) */}
-                <View
-                  style={[
-                    styles.uxGridContainer,
-                    {
-                      flexDirection: rowDirection,
-                      backgroundColor: theme.soft,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                >
-                  {/* اليمين: آخر صيانة تمت */}
-                  <View style={styles.uxGridItem}>
-                    <Text style={[styles.uxGridLabel, { color: theme.muted }]}>
-                      {t.walletLastMaintenance}
-                    </Text>
-                    <Text style={[styles.uxGridValue, { color: theme.text }]}>
-                      {item.lastDate || "—"}
-                    </Text>
-                  </View>
-
-                  <View
-                    style={[
-                      styles.uxGridDivider,
-                      { backgroundColor: theme.border },
-                    ]}
-                  />
-
-                  {/* اليسار: الموعد القادم المستحق */}
-                  <View style={styles.uxGridItem}>
-                    <Text style={[styles.uxGridLabel, { color: theme.muted }]}>
-                      {t.walletNextDate}
-                    </Text>
-                    <Text
-                      style={[styles.uxGridValue, { color: valueDateColor }]}
-                    >
-                      {item.nextDate || "—"}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* شريط التقدم السفلي ومؤشر التفاعل */}
-                <View
-                  style={[styles.uxFooterRow, { flexDirection: rowDirection }]}
-                >
-                  <View
-                    style={[
-                      styles.uxActionIndicator,
-                      { flexDirection: iconSideDirection },
-                    ]}
-                  >
-                    <Feather
-                      name="calendar"
-                      size={13}
-                      color={theme.mutedLight}
-                    />
-                    <Text style={[styles.uxActionText, { color: theme.muted }]}>
-                      {t.walletUpdate}
-                    </Text>
-                    <Feather
-                      name={isArabic ? "chevron-left" : "chevron-right"}
-                      size={13}
-                      color={theme.mutedLight}
-                    />
-                  </View>
-                  <View
-                    style={[
-                      styles.uxProgressWrapper,
-                      {
-                        flexDirection: rowDirection,
-                        backgroundColor: theme.border,
-                      },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.uxProgressBar,
-                        { width: `${progress}%`, backgroundColor: statusColor },
-                      ]}
-                    />
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
-          })
-        )}
-      </ScrollView>
-
-      {/* Android uses the native date dialog. iOS uses a clear in-app modal. */}
-      {datePickerVisible && Platform.OS === "android" ? (
-        <DateTimePicker
-          value={pendingDate}
-          mode="date"
-          display="calendar"
-          onChange={(event, selectedDate) => {
-            if (event.type === "dismissed") {
-              closeDatePicker();
-              return;
-            }
-
-            if (selectedDate) {
-              handleConfirmDate(selectedDate);
-            } else {
-              closeDatePicker();
-            }
-          }}
-        />
-      ) : null}
-
-      <Modal
-        visible={datePickerVisible && Platform.OS === "ios"}
-        transparent
-        animationType="fade"
-        onRequestClose={closeDatePicker}
-      >
-        <View
-          style={[
-            styles.dateModalOverlay,
-            { backgroundColor: theme.modalOverlay },
-          ]}
-        >
-          <View
-            style={[
-              styles.dateModalCard,
-              { backgroundColor: theme.surface, borderColor: theme.border },
-            ]}
-          >
-            <View
-              style={[styles.dateModalHeader, { flexDirection: rowDirection }]}
-            >
-              <TouchableOpacity
-                style={styles.dateModalTextButton}
-                activeOpacity={0.8}
-                onPress={closeDatePicker}
-              >
-                <Text style={[styles.dateCancelText, { color: theme.muted }]}>
-                  {isArabic ? "إلغاء" : "Cancel"}
-                </Text>
-              </TouchableOpacity>
-
-              <View style={[styles.dateModalTitleBox, { alignItems }]}>
+              <View style={[styles.labelBlock, { alignItems }]}>
                 <Text
                   style={[
-                    styles.dateModalTitle,
-                    { textAlign, color: theme.text },
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
                   ]}
                 >
-                  {currentEditingItem
-                    ? translateMaintenanceTitle(currentEditingItem.title)
-                    : t.walletMaintenanceTitle}
+                  {t.language}
                 </Text>
+
                 <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
                   style={[
-                    styles.dateModalSubtitle,
-                    { textAlign, color: theme.muted },
+                    styles.settingHint,
+                    { color: theme.textSecondary, textAlign },
                   ]}
                 >
-                  {isArabic
-                    ? "اختاري تاريخ آخر صيانة"
-                    : "Select the last maintenance date"}
+                  {selectedLanguage === "AR"
+                    ? "لغة التطبيق الحالية: العربية"
+                    : "Current app language: English"}
                 </Text>
               </View>
             </View>
 
+            <View style={[styles.segment, { backgroundColor: theme.subtle }]}>
+              <Pressable
+                style={[
+                  styles.segmentItem,
+                  selectedLanguage === "AR" && [styles.segmentItemActive, { backgroundColor: theme.accent }],
+                ]}
+                onPress={() => handleSettingsLanguageChange("AR")}
+              >
+                <Text
+                  style={[
+                    styles.segmentText,
+                    { color: theme.textSecondary },
+                    selectedLanguage === "AR" && styles.segmentTextActive,
+                  ]}
+                >
+                  AR
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.segmentItem,
+                  selectedLanguage === "EN" && [styles.segmentItemActive, { backgroundColor: theme.accent }],
+                ]}
+                onPress={() => handleSettingsLanguageChange("EN")}
+              >
+                <Text
+                  style={[
+                    styles.segmentText,
+                    { color: theme.textSecondary },
+                    selectedLanguage === "EN" && styles.segmentTextActive,
+                  ]}
+                >
+                  EN
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+            pressed && { backgroundColor: theme.cardPressed },
+          ]}
+          onPress={() => handleDarkModeChange(!darkModeEnabled)}
+        >
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
             <View
               style={[
-                styles.datePickerBox,
-                { backgroundColor: theme.soft, borderColor: theme.border },
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
               ]}
             >
-              <DateTimePicker
-                value={pendingDate}
-                mode="date"
-                display="spinner"
-                textColor={theme.text}
-                onChange={(_, selectedDate) => {
-                  if (selectedDate) {
-                    setPendingDate(selectedDate);
-                  }
-                }}
-                style={styles.datePicker}
-              />
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
+                <Feather
+                  name={darkModeEnabled ? "moon" : "sun"}
+                  size={20}
+                  color={theme.iconColor}
+                />
+              </View>
+
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {darkModeEnabled
+                    ? t.darkMode
+                    : selectedLanguage === "AR"
+                      ? "الوضع الفاتح"
+                      : "Light Mode"}
+                </Text>
+
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={[
+                    styles.settingHint,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {darkModeEnabled
+                    ? selectedLanguage === "AR"
+                      ? "المظهر الداكن مفعل الآن"
+                      : "Dark appearance is currently active"
+                    : selectedLanguage === "AR"
+                      ? "المظهر الفاتح مفعل الآن"
+                      : "Light appearance is currently active"}
+                </Text>
+              </View>
             </View>
 
-            <TouchableOpacity
-              style={[
-                styles.dateConfirmButton,
-                { backgroundColor: theme.primary },
-              ]}
-              activeOpacity={0.88}
-              onPress={() => handleConfirmDate(pendingDate)}
-            >
-              <Text style={styles.dateConfirmButtonText}>
-                {isArabic ? "تأكيد التاريخ" : "Confirm date"}
-              </Text>
-            </TouchableOpacity>
+            <AppSwitch
+              value={darkModeEnabled}
+              onValueChange={handleDarkModeChange}
+              trackOnColor={theme.accent}
+              trackOffColor={theme.border}
+            />
           </View>
-        </View>
-      </Modal>
+        </Pressable>
 
-      <Modal
-        visible={maintenanceSuccessVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setMaintenanceSuccessVisible(false)}
-      >
-        <View
+        <Text
           style={[
-            styles.successOverlay,
-            { backgroundColor: theme.modalOverlay },
+            styles.sectionTitle,
+            { color: theme.textSecondary, textAlign },
           ]}
         >
+          {t.cars}
+        </Text>
+
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
+                <Ionicons
+                  name="car-sport-outline"
+                  size={20}
+                  color={theme.iconColor}
+                />
+              </View>
+
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {t.currentCar}
+                </Text>
+
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={[
+                    styles.settingHint,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {userCars.find((car) => car.car_id === activeSelectedCarId)
+                    ?.display_name ||
+                    activeSelectedCarId ||
+                    t.noCar}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={[styles.carInfoGrid, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.carInfoPill,
+                {
+                  backgroundColor: darkModeEnabled ? "#2A2A2A" : theme.subtle,
+                  borderColor: darkModeEnabled ? "#3D3D3D" : theme.cardBorder,
+                },
+              ]}
+            >
+              <Text
+                style={[styles.carInfoLabel, { color: theme.textSecondary }]}
+              >
+                {t.totalCars}
+              </Text>
+
+              <Text style={[styles.carInfoValue, { color: theme.textPrimary }]}>
+                {userCars.length}
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.carInfoPill,
+                {
+                  backgroundColor: obdConnected
+                    ? theme.successBg
+                    : theme.dangerBg,
+                  borderColor: theme.cardBorder,
+                },
+              ]}
+            >
+              <Text
+                style={[styles.carInfoLabel, { color: theme.textSecondary }]}
+              >
+                {t.carConnection}
+              </Text>
+
+              <Text
+                style={[
+                  styles.carInfoValue,
+                  { color: obdConnected ? COLORS.success : theme.danger },
+                ]}
+              >
+                {obdConnected ? t.connected : t.disconnected}
+              </Text>
+            </View>
+          </View>
+
+          <Text
+            style={{
+              color: connectedCarId ? COLORS.success : theme.textSecondary,
+              textAlign,
+              marginTop: 10,
+              fontSize: 12,
+              fontFamily: FONT_BOLD,
+            }}
+          >
+            {connectedCarId
+              ? selectedLanguage === "AR"
+                ? `السيارة المتصلة الآن: ${userCars.find((car) => car.car_id === connectedCarId)
+                  ?.display_name || connectedCarId
+                }`
+                : `Connected now: ${userCars.find((car) => car.car_id === connectedCarId)
+                  ?.display_name || connectedCarId
+                }`
+              : selectedLanguage === "AR"
+                ? "لا توجد سيارة متصلة الآن"
+                : "No car is connected now"}
+          </Text>
+
           <View
             style={[
-              styles.successCard,
-              { backgroundColor: theme.surface, borderColor: theme.border },
+              styles.panelDivider,
+              { backgroundColor: theme.headerDivider, marginTop: 16 },
+            ]}
+          />
+
+          {userCars.length === 0 ? (
+            <Text
+              style={{
+                color: theme.textSecondary,
+                textAlign,
+                marginTop: 16,
+                fontSize: 13,
+              }}
+            >
+              {connectedCarId
+                ? selectedLanguage === "AR"
+                  ? "تم العثور على آخر سيارة متصلة، وسيتم حفظها عند وصول أول تحديث اتصال."
+                  : "Last connected car found. It will be saved when the next connection update arrives."
+                : selectedLanguage === "AR"
+                  ? "لا توجد سيارات محفوظة بعد. اربطي قطعة السيارة لإضافة أول سيارة."
+                  : "No saved cars yet. Connect a device to add your first car."}
+            </Text>
+          ) : (
+            <View style={{ marginTop: 12, gap: 12 }}>
+              {userCars.map((car) => {
+                const isCurrent = activeSelectedCarId === car.car_id;
+                const isSwitchingThisCar = switchingCarId === car.car_id;
+                const isConnectedNow = connectedCarId === car.car_id;
+
+                const isLockedByConnectedCar =
+                  (!!connectedCarId || (detectingCar && !obdConnected)) &&
+                  !isConnectedNow;
+
+                const canSelectThisCar =
+                  !isCurrent && !isLockedByConnectedCar && !switchingCarId;
+
+                return (
+                  <Pressable
+                    key={car.id}
+                    onPress={() => {
+                      if (canSelectThisCar) {
+                        handleSelectDefaultCar(car.car_id);
+                      }
+                    }}
+                    disabled={!canSelectThisCar}
+                    style={({ pressed }) => [
+                      styles.carCard,
+                      {
+                        backgroundColor: isCurrent
+                          ? "rgba(135,27,23,0.08)"
+                          : theme.subtle,
+
+                        borderColor: isCurrent
+                          ? "#5F201D"
+                          : theme.cardBorder,
+
+                        transform: [{ scale: isCurrent ? 1.01 : 1 }],
+                        shadowOpacity: isCurrent ? 0.12 : 0.03,
+                        shadowRadius: isCurrent ? 10 : 6,
+                        elevation: isCurrent ? 4 : 1,
+
+                        opacity: isLockedByConnectedCar ? 0.45 : 1,
+                      }, ,
+                      pressed && canSelectThisCar && {
+                        backgroundColor: "rgba(135,27,23,0.12)",
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.settingRow,
+                        {
+                          flexDirection: rowDirection,
+                          alignItems: "flex-start",
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.settingLabelContainer,
+                          {
+                            flexDirection: rowDirection,
+                            flex: 1,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.iconWrapper,
+                            iconMargin,
+                            {
+                              backgroundColor: theme.iconBg,
+                            },
+                          ]}
+                        >
+                          <Ionicons
+                            name="car-sport-outline"
+                            size={18}
+                            color={theme.iconColor}
+                          />
+                        </View>
+
+                        <View
+                          style={[
+                            styles.labelBlock,
+                            {
+                              alignItems,
+                              flex: 1,
+                            },
+                          ]}
+                        >
+                          <Text
+                            numberOfLines={1}
+                            style={[
+                              styles.settingLabel,
+                              {
+                                color: theme.textPrimary,
+                                textAlign,
+                              },
+                            ]}
+                          >
+                            {car.display_name ||
+                              `${selectedLanguage === "AR" ? "سيارة" : "Car"
+                              } ${car.car_id}`}
+                          </Text>
+
+                          {isConnectedNow && (
+                            <View
+                              style={{
+                                alignSelf: isRTL ? "flex-end" : "flex-start",
+                                backgroundColor: theme.successBg,
+                                borderRadius: 999,
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                                marginTop: 6,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: COLORS.success,
+                                  fontSize: 11,
+                                  fontFamily: FONT_EXTRABOLD,
+                                }}
+                              >
+                                {selectedLanguage === "AR"
+                                  ? "متصلة الآن"
+                                  : "Connected now"}
+                              </Text>
+                            </View>
+                          )}
+
+                          {isCurrent && !isConnectedNow && (
+                            <View
+                              style={{
+                                alignSelf: isRTL ? "flex-end" : "flex-start",
+                                backgroundColor: "rgba(135,27,23,0.10)",
+                                borderRadius: 999,
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                                marginTop: 6,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: theme.accent,
+                                  fontSize: 11,
+                                  fontFamily: FONT_EXTRABOLD,
+                                }}
+                              >
+                                {selectedLanguage === "AR" ? "مختارة حاليًا" : "Selected now"}
+                              </Text>
+                            </View>
+                          )}
+
+                          <Text
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                            style={[
+                              styles.settingHint,
+                              {
+                                color: theme.textSecondary,
+                                textAlign,
+                                marginTop: 4,
+                              },
+                            ]}
+                          >
+                            ID: {car.car_id}
+                          </Text>
+
+                          <Text
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                            style={[
+                              styles.settingHint,
+                              {
+                                color: theme.textSecondary,
+                                textAlign,
+                                marginTop: 2,
+                              },
+                            ]}
+                          >
+                            {selectedLanguage === "AR"
+                              ? "آخر اتصال:"
+                              : "Last connection:"}{" "}
+                            {car.last_connected_at
+                              ? new Date(car.last_connected_at).toLocaleString()
+                              : "—"}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <View
+                      style={{
+                        flexDirection: rowDirection,
+                        gap: 8,
+                        marginTop: 14,
+                      }}
+                    >
+
+
+                      <Pressable
+                        onPress={() => openEditCarName(car)}
+                        style={{
+                          backgroundColor: theme.iconBg,
+                          paddingHorizontal: 12,
+                          paddingVertical: 10,
+                          borderRadius: 12,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: theme.textPrimary,
+                            fontSize: 12,
+                            fontFamily: FONT_BOLD,
+                          }}
+                        >
+                          {selectedLanguage === "AR" ? "تعديل" : "Rename"}
+                        </Text>
+                      </Pressable>
+
+                      <Pressable
+                        onPress={() => {
+                          setCarToDelete(car);
+                          setDeleteCarPassword("");
+                          setConfirmDeleteCarVisible(true);
+                        }}
+                        style={{
+                          backgroundColor: theme.iconBg,
+                          paddingHorizontal: 12,
+                          paddingVertical: 10,
+                          borderRadius: 12,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: theme.danger,
+                            fontSize: 12,
+                            fontFamily: FONT_BOLD,
+                          }}
+                        >
+                          {selectedLanguage === "AR" ? "حذف" : "Delete"}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
+        <Text
+          style={[
+            styles.sectionTitle,
+            { color: theme.textSecondary, textAlign },
+          ]}
+        >
+          {t.vehicleConnection}
+        </Text>
+
+        <View
+          style={[
+            styles.connectionPanel,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          <View style={[styles.statusGrid, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.miniStatusCard,
+                {
+                  backgroundColor: obdConnected
+                    ? theme.successBg
+                    : theme.dangerBg,
+                  borderColor: theme.cardBorder,
+                },
+              ]}
+            >
+              <Feather
+                name="radio"
+                size={17}
+                color={obdConnected ? COLORS.success : theme.danger}
+              />
+
+              <Text
+                style={[styles.miniStatusTitle, { color: theme.textSecondary }]}
+              >
+                {t.deviceStatus}
+              </Text>
+
+              <Text
+                style={[
+                  styles.miniStatusText,
+                  { color: obdConnected ? COLORS.success : theme.danger },
+                ]}
+              >
+                {obdConnected ? t.connected : t.disconnected}
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.miniStatusCard,
+                {
+                  backgroundColor: scannerRunning
+                    ? theme.successBg
+                    : theme.subtle,
+                  borderColor: theme.cardBorder,
+                },
+              ]}
+            >
+              <Feather
+                name="activity"
+                size={17}
+                color={scannerRunning ? COLORS.success : theme.textSecondary}
+              />
+
+              <Text
+                style={[styles.miniStatusTitle, { color: theme.textSecondary }]}
+              >
+                {t.scanStatus}
+              </Text>
+
+              <Text
+                style={[
+                  styles.miniStatusText,
+                  {
+                    color: scannerRunning
+                      ? COLORS.success
+                      : theme.textSecondary,
+                  },
+                ]}
+              >
+                {scannerRunning ? t.scannerOn : t.scannerOff}
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.miniStatusCard,
+                {
+                  backgroundColor: mqttConnected
+                    ? theme.successBg
+                    : theme.dangerBg,
+                  borderColor: theme.cardBorder,
+                },
+              ]}
+            >
+              <Feather
+                name="wifi"
+                size={17}
+                color={mqttConnected ? COLORS.success : theme.danger}
+              />
+
+              <Text
+                style={[styles.miniStatusTitle, { color: theme.textSecondary }]}
+              >
+                {t.dataConnection}
+              </Text>
+
+              <Text
+                style={[
+                  styles.miniStatusText,
+                  { color: mqttConnected ? COLORS.success : theme.danger },
+                ]}
+              >
+                {mqttConnected ? t.connected : t.disconnected}
+              </Text>
+            </View>
+          </View>
+
+          {lastConnectionTime && (
+            <Text
+              style={{
+                color: theme.textSecondary,
+                textAlign,
+                fontSize: 12,
+                fontFamily: FONT_BOLD,
+                paddingHorizontal: 16,
+                paddingBottom: 12,
+              }}
+            >
+              {selectedLanguage === "AR" ? "آخر اتصال:" : "Last connection:"}{" "}
+              {new Date(lastConnectionTime).toLocaleString()}
+            </Text>
+          )}
+
+          <View
+            style={[
+              styles.panelDivider,
+              { backgroundColor: theme.headerDivider },
+            ]}
+          />
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.connectionRow,
+              pressed && { backgroundColor: theme.cardPressed },
+            ]}
+            onPress={goToBluetoothSettings}
+          >
+            <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+              <View
+                style={[
+                  styles.settingLabelContainer,
+                  { flexDirection: rowDirection },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.iconWrapper,
+                    iconMargin,
+                    { backgroundColor: theme.iconBg },
+                  ]}
+                >
+                  <Feather name="bluetooth" size={20} color={theme.iconColor} />
+                </View>
+
+                <View style={[styles.labelBlock, { alignItems }]}>
+                  <Text
+                    style={[
+                      styles.settingLabel,
+                      { color: theme.textPrimary, textAlign },
+                    ]}
+                  >
+                    {t.bluetoothSettings}
+                  </Text>
+
+                  <Text
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                    style={[
+                      styles.settingHint,
+                      { color: theme.textSecondary, textAlign },
+                    ]}
+                  >
+                    {t.bluetoothSettingsDesc}
+                  </Text>
+                </View>
+              </View>
+
+              <Feather
+                name={isRTL ? "chevron-left" : "chevron-right"}
+                size={18}
+                color={theme.textSecondary}
+              />
+            </View>
+          </Pressable>
+
+          <View
+            style={[
+              styles.panelDivider,
+              { backgroundColor: theme.headerDivider },
+            ]}
+          />
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.actionButton,
+              {
+                backgroundColor: theme.iconBg,
+                borderColor: theme.cardBorder,
+              },
+              pressed &&
+              scannerRunning && {
+                backgroundColor: theme.cardPressed,
+              },
+              !scannerRunning && { opacity: 0.45 },
+            ]}
+            onPress={handleStopScanner}
+            disabled={!scannerRunning}
+          >
+            <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+              <View
+                style={[
+                  styles.settingLabelContainer,
+                  { flexDirection: rowDirection },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.smallIconWrapper,
+                    iconMargin,
+                    { backgroundColor: theme.iconBg },
+                  ]}
+                >
+                  <Feather
+                    name="pause-circle"
+                    size={18}
+                    color={theme.iconColor}
+                  />
+                </View>
+
+                <View style={[styles.labelBlock, { alignItems }]}>
+                  <Text
+                    style={[
+                      styles.actionLabel,
+                      { color: theme.textPrimary, textAlign },
+                    ]}
+                  >
+                    {t.pauseMonitoring}
+                  </Text>
+
+                  <Text
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                    style={[
+                      styles.settingHint,
+                      { color: theme.textSecondary, textAlign },
+                    ]}
+                  >
+                    {t.pauseMonitoringDesc}
+                  </Text>
+                </View>
+              </View>
+
+              <Feather
+                name={isRTL ? "chevron-left" : "chevron-right"}
+                size={17}
+                color={theme.textSecondary}
+              />
+            </View>
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.actionButton,
+              {
+                backgroundColor: theme.iconBg,
+                borderColor: theme.cardBorder,
+              },
+              pressed &&
+              obdConnected && {
+                backgroundColor: theme.cardPressed,
+              },
+              !obdConnected && { opacity: 0.45 },
+            ]}
+            onPress={() => {
+              if (!obdConnected) return;
+              setConfirmDisconnectVisible(true);
+            }}
+            disabled={!obdConnected}
+          >
+            <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+              <View
+                style={[
+                  styles.settingLabelContainer,
+                  { flexDirection: rowDirection },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.smallIconWrapper,
+                    iconMargin,
+                    { backgroundColor: theme.iconBg },
+                  ]}
+                >
+                  <Feather name="power" size={18} color={theme.iconColor} />
+                </View>
+
+                <View style={[styles.labelBlock, { alignItems }]}>
+                  <Text
+                    style={[
+                      styles.actionLabel,
+                      { color: theme.textPrimary, textAlign },
+                    ]}
+                  >
+                    {t.endVehicleConnection}
+                  </Text>
+
+                  <Text
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                    style={[
+                      styles.settingHint,
+                      { color: theme.textSecondary, textAlign },
+                    ]}
+                  >
+                    {t.endVehicleConnectionDesc}
+                  </Text>
+                </View>
+              </View>
+
+              <Feather
+                name={isRTL ? "chevron-left" : "chevron-right"}
+                size={17}
+                color={theme.textSecondary}
+              />
+            </View>
+          </Pressable>
+        </View>
+
+        <Text
+          style={[
+            styles.sectionTitle,
+            { color: theme.textSecondary, textAlign },
+          ]}
+        >
+          {t.helpSupport}
+        </Text>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+            pressed && { backgroundColor: theme.cardPressed },
+          ]}
+          onPress={() => setHelpVisible(true)}
+        >
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
+                <Feather name="help-circle" size={20} color={theme.iconColor} />
+              </View>
+
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {t.help}
+                </Text>
+
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={[
+                    styles.settingHint,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {t.helpDesc}
+                </Text>
+              </View>
+            </View>
+
+            <Feather
+              name={isRTL ? "chevron-left" : "chevron-right"}
+              size={18}
+              color={theme.textSecondary}
+            />
+          </View>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.card,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+            pressed && { backgroundColor: theme.cardPressed },
+          ]}
+          onPress={() => setDeleteAccountVisible(true)}
+        >
+          <View style={[styles.settingRow, { flexDirection: rowDirection }]}>
+            <View
+              style={[
+                styles.settingLabelContainer,
+                { flexDirection: rowDirection },
+              ]}
+            >
+              <View
+                style={[
+                  styles.iconWrapper,
+                  iconMargin,
+                  { backgroundColor: theme.iconBg },
+                ]}
+              >
+                <Feather name="trash-2" size={20} color={theme.danger} />
+              </View>
+
+              <View style={[styles.labelBlock, { alignItems }]}>
+                <Text
+                  style={[
+                    styles.settingLabel,
+                    {
+                      color: theme.danger,
+                      textAlign,
+                    },
+                  ]}
+                >
+                  {selectedLanguage === "AR" ? "حذف الحساب" : "Delete Account"}
+                </Text>
+
+                <Text
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                  style={[
+                    styles.settingHint,
+                    styles.settingHintTwoLines,
+                    {
+                      color: theme.textSecondary,
+                      textAlign,
+                    },
+                  ]}
+                >
+                  {selectedLanguage === "AR"
+                    ? "حذف نهائي للحساب ويتطلب كلمة المرور الحالية"
+                    : "Permanently deletes the account and requires\nthe current password"}
+                </Text>
+              </View>
+            </View>
+
+            <Feather
+              name={isRTL ? "chevron-left" : "chevron-right"}
+              size={18}
+              color={theme.textSecondary}
+            />
+          </View>
+        </Pressable>
+
+        <View style={styles.logoutSection}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.logoutButtonWrapper,
+              loggingOut && styles.logoutButtonDisabled,
+              pressed && !loggingOut && { opacity: 0.92 },
+            ]}
+            onPress={handleLogout}
+            disabled={loggingOut}
+          >
+            <LinearGradient
+              colors={[theme.accent, theme.accentPressed]}
+              start={{ x: 0.15, y: 0 }}
+              end={{ x: 0.9, y: 1 }}
+              style={styles.logoutGradient}
+            >
+              <View style={styles.logoutShine} />
+
+              <View
+                style={[styles.logoutInner, { flexDirection: rowDirection }]}
+              >
+                {loggingOut ? (
+                  <ActivityIndicator
+                    size="small"
+                    color="#FFFFFF"
+                    style={styles.logoutSpinner}
+                  />
+                ) : (
+                  <Feather name="log-out" size={18} color="#FFFFFF" />
+                )}
+
+                <Text style={styles.logoutText}>
+                  {loggingOut ? t.loggingOut : t.logout}
+                </Text>
+              </View>
+            </LinearGradient>
+          </Pressable>
+        </View>
+      </ScrollView>
+
+      {switchingCarId && (
+        <View style={styles.fullScreenBlockingOverlay}>
+          <View
+            style={[
+              styles.blockingOverlayCard,
+              { backgroundColor: theme.surface },
             ]}
           >
-            <View style={styles.successAnimationWrapper}>
-              <LottieView
-                ref={maintenanceSuccessLottieRef}
-                source={require("../../assets/animations/success-check.json")}
-                loop={false}
-                speed={1.15}
-                style={styles.successLottie}
+            <ActivityIndicator size="small" color={theme.accent} />
+
+            <Text
+              style={[styles.blockingOverlayText, { color: theme.textPrimary }]}
+            >
+              {selectedLanguage === "AR"
+                ? "جاري تبديل السيارة..."
+                : "Switching vehicle..."}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {detectingCar && (
+        <View style={styles.fullScreenBlockingOverlay}>
+          <View
+            style={[
+              styles.blockingOverlayCard,
+              { backgroundColor: theme.surface },
+            ]}
+          >
+            <ActivityIndicator size="small" color={theme.accent} />
+
+            <Text
+              style={[styles.blockingOverlayText, { color: theme.textPrimary }]}
+            >
+              {selectedLanguage === "AR"
+                ? "جاري التعرف على السيارة..."
+                : "Detecting vehicle..."}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      <Modal
+        visible={helpVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeHelpSheet}
+      >
+        <View
+          style={[styles.helpBottomOverlay, { backgroundColor: theme.modalOverlay }]}
+        >
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={closeHelpSheet}
+          />
+
+          <Animated.View
+            style={[
+              styles.helpModal,
+              {
+                backgroundColor: darkModeEnabled ? "#202020" : "#FFFFFF",
+                borderColor: darkModeEnabled ? "#343434" : "#DCDCDC",
+                transform: [{ translateY: helpSheetDragY }],
+              },
+            ]}
+          >
+            <View
+              style={styles.helpSheetHandleArea}
+              {...helpSheetPanResponder.panHandlers}
+            >
+              <View
+                style={[
+                  styles.helpSheetHandle,
+                  { backgroundColor: darkModeEnabled ? "#4A4A4A" : "#D8D8D8" },
+                ]}
               />
             </View>
 
-            <Text
-              style={[
-                styles.successTitle,
-                { color: theme.text, textAlign: "center" },
-              ]}
-              allowFontScaling={false}
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.helpScrollContent}
             >
-              {maintenanceSuccessTitle}
-            </Text>
-
-            {!!maintenanceSuccessMessage.trim() && (
-              <Text
-                style={[
-                  styles.successMessage,
-                  { color: theme.muted, textAlign: "center" },
-                ]}
-                allowFontScaling={false}
+              <View
+                style={[styles.helpHeader, { flexDirection: rowDirection }]}
               >
-                {maintenanceSuccessMessage}
-              </Text>
-            )}
-          </View>
+                <View style={[styles.helpHeaderTextBlock, { alignItems }]}>
+                  <Text
+                    style={[
+                      styles.helpTitle,
+                      { color: theme.textPrimary, textAlign },
+                    ]}
+                  >
+                    {t.helpSupport}
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.helpIntroText,
+                      { color: theme.textSecondary, textAlign },
+                    ]}
+                  >
+                    {t.helpIntro}
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={[
+                  styles.faqCard,
+                  {
+                    backgroundColor: darkModeEnabled ? "#2A2A2A" : "#F7F7F7",
+                    borderColor: darkModeEnabled ? "#3A3A3A" : "#DCDCDC",
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.helpQuestion,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {t.faqConnectionQuestion}
+                </Text>
+                <Text
+                  style={[
+                    styles.helpAnswer,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {t.faqConnectionAnswer}
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.faqCard,
+                  {
+                    backgroundColor: darkModeEnabled ? "#2A2A2A" : "#F7F7F7",
+                    borderColor: darkModeEnabled ? "#3A3A3A" : "#DCDCDC",
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.helpQuestion,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {t.faqNotificationsQuestion}
+                </Text>
+                <Text
+                  style={[
+                    styles.helpAnswer,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {t.faqNotificationsAnswer}
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.faqCard,
+                  {
+                    backgroundColor: darkModeEnabled ? "#2A2A2A" : "#F7F7F7",
+                    borderColor: darkModeEnabled ? "#3A3A3A" : "#DCDCDC",
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.helpQuestion,
+                    { color: theme.textPrimary, textAlign },
+                  ]}
+                >
+                  {t.faqReportQuestion}
+                </Text>
+                <Text
+                  style={[
+                    styles.helpAnswer,
+                    { color: theme.textSecondary, textAlign },
+                  ]}
+                >
+                  {t.faqReportAnswer}
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={openWhatsAppSupport}
+                style={({ pressed }) => [
+                  styles.supportMainButton,
+                  styles.supportWhatsAppMainButton,
+                  { opacity: pressed ? 0.88 : 1 },
+                ]}
+              >
+                <Feather name="message-circle" size={20} color="#FFFFFF" />
+                <Text style={styles.supportMainButtonText}>
+                  {t.supportWhatsAppButton}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={openSupportEmail}
+                style={({ pressed }) => [
+                  styles.supportMainButton,
+                  styles.supportEmailMainButton,
+                  { backgroundColor: theme.accent, opacity: pressed ? 0.88 : 1 },
+                ]}
+              >
+                <Feather name="mail" size={20} color="#FFFFFF" />
+                <Text style={styles.supportMainButtonText}>
+                  {t.supportEmailButton}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={sendIssueReport}
+                style={({ pressed }) => [
+                  styles.supportIssueFullButton,
+                  {
+                    backgroundColor: darkModeEnabled ? "#2A2A2A" : "#F3F4F6",
+                    borderColor: darkModeEnabled ? "#3A3A3A" : "#DCDCDC",
+                    opacity: pressed ? 0.82 : 1,
+                  },
+                ]}
+              >
+                <Feather
+                  name="alert-circle"
+                  size={20}
+                  color={theme.accent}
+                />
+                <Text
+                  style={[
+                    styles.supportIssueFullButtonText,
+                    { color: theme.accent },
+                  ]}
+                >
+                  {t.reportIssueButton}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={closeHelpSheet}
+                style={({ pressed }) => [
+                  styles.closeHelpButton,
+                  {
+                    backgroundColor: darkModeEnabled ? "#252525" : "#FFFFFF",
+                    borderColor: darkModeEnabled ? "#3A3A3A" : "#DCDCDC",
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.closeHelpButtonText,
+                    { color: theme.textPrimary },
+                  ]}
+                >
+                  {t.cancel}
+                </Text>
+              </Pressable>
+            </ScrollView>
+          </Animated.View>
         </View>
       </Modal>
+
+      <ConfirmModal
+        visible={confirmDisconnectVisible}
+        title={t.disconnectTitle}
+        message={t.disconnectMessage}
+        confirmText={t.confirm}
+        cancelText={t.cancel}
+        icon="power"
+        theme={theme}
+        isRTL={isRTL}
+        styles={styles}
+        onCancel={() => setConfirmDisconnectVisible(false)}
+        onConfirm={handleDisconnectObd}
+      />
+
+      <DeleteCarModal
+        visible={confirmDeleteCarVisible}
+        password={deleteCarPassword}
+        onChangePassword={setDeleteCarPassword}
+        loading={deletingCar}
+        theme={theme}
+        isRTL={isRTL}
+        onCancel={() => {
+          if (deletingCar) return;
+          setConfirmDeleteCarVisible(false);
+          setCarToDelete(null);
+          setDeleteCarPassword("");
+        }}
+        onConfirm={() => {
+          if (carToDelete) {
+            handleDeleteCar(carToDelete);
+          }
+        }}
+      />
+
+      <AppMessageModal
+        visible={messageVisible}
+        title={messageTitle}
+        message={messageBody}
+        icon={messageIcon}
+        buttonText={t.ok}
+        theme={theme}
+        isRTL={isRTL}
+        onClose={() => setMessageVisible(false)}
+      />
+
+      <BottomEditSheet
+        visible={editNameVisible}
+        title={selectedLanguage === "AR" ? "تعديل الاسم" : "Edit Name"}
+        subtitle={
+          selectedLanguage === "AR"
+            ? "أدخل الاسم الذي سيظهر في الحساب."
+            : "Enter the name that will appear on the account."
+        }
+        value={fullNameInput}
+        onChangeText={(text: string) => {
+          setNameSheetError("");
+          setFullNameInput(text.slice(0, MAX_NAME_LENGTH));
+        }}
+        placeholder={selectedLanguage === "AR" ? "الاسم" : "Name"}
+        maxLength={MAX_NAME_LENGTH}
+        onClose={() => {
+          setEditNameVisible(false);
+          setNameSheetMode("form");
+          setNameSheetError("");
+        }}
+        onSave={handleUpdateName}
+        saving={savingName}
+        theme={theme}
+        isRTL={isRTL}
+        confirmText={t.confirm}
+        cancelText={t.cancel}
+        mode={nameSheetMode}
+        successTitle={
+          selectedLanguage === "AR" ? "تم حفظ الاسم" : "Name saved"
+        }
+        successMessage={
+          selectedLanguage === "AR"
+            ? "تم حفظ الاسم الجديد في الحساب."
+            : "The new name has been saved."
+        }
+        errorMessage={nameSheetError}
+      />
+
+      <BottomEditSheet
+        visible={editEmailVisible}
+        title={selectedLanguage === "AR" ? "تعديل البريد الإلكتروني" : "Edit Email"}
+        subtitle={
+          selectedLanguage === "AR"
+            ? "أدخل البريد الإلكتروني الجديد، وسيتم إرسال رابط تأكيد له."
+            : "Enter the new email address. A confirmation link will be sent to it."
+        }
+        value={emailInput}
+        onChangeText={(text: string) => {
+          setEmailSheetError("");
+          setEmailInput(text);
+        }}
+        placeholder={selectedLanguage === "AR" ? "البريد الإلكتروني الجديد" : "New email"}
+        keyboardType="email-address"
+        onClose={resetEmailEditSheet}
+        onSave={handleUpdateEmail}
+        saving={savingEmail}
+        theme={theme}
+        isRTL={isRTL}
+        confirmText={t.confirm}
+        cancelText={t.cancel}
+        mode={emailSheetMode}
+        successTitle={t.emailChangeSentTitle}
+        successMessage={t.emailChangeSentBody}
+        successActionText={t.ok}
+        successInfoText={emailResendNotice || t.emailChangeStaySettings}
+        successResendQuestion={
+          selectedLanguage === "AR"
+            ? "لم يصلك رابط التأكيد؟"
+            : "Didn’t receive the confirmation link?"
+        }
+        successResendText={
+          selectedLanguage === "AR"
+            ? "إعادة إرسال الرابط"
+            : "Resend link"
+        }
+        successResendTimer={emailResendTimer}
+        successResending={resendingEmailLink}
+        onSuccessResend={handleResendEmailChangeLink}
+        errorMessage={emailSheetError}
+      />
+
+      <EditCarNameModal
+        visible={editCarVisible}
+        value={carNameInput}
+        onChangeText={setCarNameInput}
+        onCancel={() => {
+          setEditCarVisible(false);
+          setSelectedCarForEdit(null);
+          setCarNameInput("");
+        }}
+        onSave={handleSaveCarName}
+        saving={savingCarName}
+        theme={theme}
+        isRTL={isRTL}
+        styles={styles}
+      />
+
+      <DeleteAccountModal
+        visible={deleteAccountVisible}
+        password={deletePassword}
+        onChangePassword={setDeletePassword}
+        onCancel={() => {
+          setDeleteAccountVisible(false);
+          setDeletePassword("");
+        }}
+        onConfirm={handleDeleteAccountVerification}
+        loading={deletingAccount}
+        theme={theme}
+        isRTL={isRTL}
+      />
+
     </SafeAreaView>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bg,
   },
+
   header: {
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 18,
-    paddingTop: 8,
-    paddingBottom: 8,
-    flexDirection: "row-reverse",
-    backgroundColor: COLORS.bg,
+    paddingTop: 9,
+    paddingBottom: 12,
+    minHeight: 58,
   },
+
   headerSide: {
     width: 40,
     height: 40,
   },
+
   headerDivider: {
     height: 1,
-    backgroundColor: "#F2F2F2",
   },
+
   headerTitle: {
     fontSize: 18,
-    fontWeight: "800",
-    letterSpacing: 0.2,
-    color: COLORS.text,
+    lineHeight: 30,
     fontFamily: FONT_EXTRABOLD,
-    textAlign: "center",
-    lineHeight: 29,
+    letterSpacing: 0.2,
     includeFontPadding: true,
-    paddingBottom: 2,
+    paddingTop: 2,
+    paddingBottom: 3,
+    textAlign: "center",
+    textAlignVertical: "center",
   },
+
+  scrollView: {
+    flex: 1,
+  },
+
   scrollContent: {
     paddingHorizontal: 18,
-    paddingTop: 14,
     paddingBottom: 130,
-    backgroundColor: COLORS.bg,
+    paddingTop: 14,
   },
-  overviewRow: {
-    width: "100%",
-    gap: 10,
-    marginBottom: 8,
-  },
-  overviewCard: {
-    flex: 1,
-    minHeight: 126,
-    borderRadius: 22,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 12,
-    paddingVertical: 13,
-    justifyContent: "space-between",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  overviewTopRow: {
-    alignItems: "center",
-    gap: 9,
-  },
-  overviewIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: COLORS.primaryDark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.14,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  overviewTextBox: {
-    flex: 1,
-  },
-  overviewTitle: {
-    fontSize: 13.5,
-    lineHeight: 19,
-    color: COLORS.text,
-    fontFamily: FONT_BOLD,
-  },
-  overviewSubtitle: {
-    marginTop: 2,
-    fontSize: 10.8,
-    lineHeight: 15,
-    color: COLORS.muted,
-    fontFamily: FONT_REGULAR,
-  },
-  overviewNumber: {
-    marginTop: 10,
-    fontSize: 30,
-    lineHeight: 34,
-    color: COLORS.primary,
-    fontFamily: FONT_BOLD,
-    includeFontPadding: false,
-  },
-  sectionHeaderCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(135,27,23,0.10)",
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    flexDirection: "row-reverse",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 20,
-    marginBottom: 12,
-    gap: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.035,
-    shadowRadius: 8,
-    elevation: 1,
-  },
-  maintenanceHeaderCard: {
-    marginTop: 28,
-  },
-  sectionIconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: COLORS.softGray,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  sectionIconCirclePrimary: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: COLORS.primaryDark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  sectionTextBox: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-  sectionCountBadge: {
-    minWidth: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 2,
-  },
-  sectionCountText: {
-    color: COLORS.primary,
-    fontSize: 23,
-    fontWeight: "900",
-    fontFamily: FONT_EXTRABOLD,
-    lineHeight: 31,
-    includeFontPadding: true,
-    paddingBottom: 1,
-  },
+
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: "900",
-    color: COLORS.text,
-    textAlign: "right",
-    fontFamily: FONT_EXTRABOLD,
-    lineHeight: 27,
-    includeFontPadding: true,
-    paddingBottom: 1,
-  },
-  sectionSubtitle: {
-    marginTop: 2,
-    fontSize: 11.3,
-    fontWeight: "600",
-    color: COLORS.muted,
-    textAlign: "right",
-    fontFamily: FONT_SEMIBOLD,
-    lineHeight: 19,
-    includeFontPadding: true,
-  },
-  reportControlsRow: {
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    marginBottom: 12,
-  },
-  filterScroll: {
-    flex: 1,
-  },
-  filterScrollContent: {
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 1,
-  },
-  filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 18,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  filterChipActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  filterChipText: {
-    fontSize: 11.6,
-    lineHeight: 18,
-    color: COLORS.muted,
-    fontFamily: FONT_BOLD,
-    includeFontPadding: true,
-  },
-  filterChipTextActive: {
-    color: "#FFFFFF",
-  },
-  reportViewToggle: {
-    minWidth: 78,
-    height: 38,
-    borderRadius: 19,
-    borderWidth: 1,
-    padding: 4,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-  },
-  reportViewToggleButton: {
-    width: 32,
-    height: 30,
-    borderRadius: 15,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  verticalReportsList: {
-    width: "100%",
-    gap: 10,
-  },
-  horizontalScroll: {
-    paddingRight: 2,
-    paddingLeft: 18,
-    flexDirection: "row",
-  },
-  emptyCard: {
-    width: 220,
-    height: 180,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: COLORS.surface,
-    marginLeft: 12,
-    gap: 10,
-  },
-  emptyIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: COLORS.softGray,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  emptyText: {
-    color: COLORS.muted,
-    fontFamily: FONT_BOLD,
-    fontSize: 13,
-    lineHeight: 22,
-    textAlign: "center",
-    includeFontPadding: true,
-  },
-  reportsList: {
-    width: "100%",
-    gap: 10,
-  },
-  viewAllReportsButton: {
-    width: "100%",
-    minHeight: 46,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: COLORS.neutralActionBorder,
-    backgroundColor: COLORS.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: 2,
-  },
-  viewAllReportsText: {
-    color: COLORS.primary,
-    fontSize: 13,
-    lineHeight: 21,
-    fontFamily: FONT_BOLD,
-    includeFontPadding: true,
-  },
-  viewAllReportsCount: {
-    color: COLORS.neutralAction,
     fontSize: 12,
     lineHeight: 20,
-    fontFamily: FONT_BOLD,
+    marginTop: 18,
+    marginBottom: 10,
+    fontFamily: FONT_EXTRABOLD,
+    letterSpacing: 0.2,
     includeFontPadding: true,
+    paddingBottom: 1,
   },
-  emptyFullCard: {
-    width: "100%",
-    minHeight: 150,
+
+  card: {
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: COLORS.surface,
-    gap: 10,
-    paddingHorizontal: 18,
-  },
-  reportListCard: {
-    width: "100%",
-    backgroundColor: COLORS.surface,
-    padding: 14,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 17,
+    marginBottom: 10,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
-  reportListTop: {
+
+  accountCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(135,27,23,0.20)",
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+    marginBottom: 10,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: Platform.OS === "android" ? 0.14 : 0.2,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+
+  settingRow: {
     alignItems: "center",
-    gap: 10,
+    justifyContent: "space-between",
   },
-  reportListIconBox: {
-    width: 40,
-    height: 40,
+
+  settingLabelContainer: {
+    alignItems: "center",
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+
+  iconWrapper: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  smallIconWrapper: {
+    width: 38,
+    height: 38,
     borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
   },
-  reportListIconBoxDocument: {
-    backgroundColor: COLORS.reportDocumentBg,
-    borderColor: COLORS.reportDocumentBorder,
-  },
-  reportListIconBoxAlert: {
-    backgroundColor: COLORS.reportAlertBg,
-    borderColor: COLORS.reportAlertBorder,
-  },
-  reportListInfo: {
-    flex: 1,
-  },
-  reportListTitle: {
-    fontSize: 14.8,
-    lineHeight: 22,
-    fontFamily: FONT_BOLD,
-    color: COLORS.text,
-  },
-  reportListMeta: {
-    alignItems: "center",
-    gap: 8,
-    marginTop: 7,
-    flexWrap: "wrap",
-  },
-  reportListDate: {
-    fontSize: 11.5,
-    color: COLORS.muted,
-    fontFamily: FONT_REGULAR,
-  },
-  reportListActionSide: {
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  statusSmallPill: {
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 14,
-  },
-  reportCard: {
-    backgroundColor: COLORS.surface,
-    padding: 16,
-    borderRadius: 24,
-    marginLeft: 12,
-    width: 228,
-    minHeight: 238,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.045,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  cardTopRow: {
-    flexDirection: "row-reverse",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  reportBadge: {
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 12,
-    alignSelf: "flex-end",
-  },
-  reportBadgePdf: {
-    backgroundColor: COLORS.reportDocumentBg,
-    borderWidth: 1,
-    borderColor: COLORS.reportDocumentBorder,
-  },
-  reportBadgeDtc: {
-    backgroundColor: COLORS.reportAlertBg,
-    borderWidth: 1,
-    borderColor: COLORS.reportAlertBorder,
-  },
-  reportBadgeText: {
-    fontSize: 10,
-    lineHeight: 16,
-    fontWeight: "900",
-    fontFamily: FONT_BOLD,
-    includeFontPadding: true,
-  },
-  reportBadgeTextPdf: {
-    color: COLORS.reportDocument,
-  },
-  reportBadgeTextDtc: {
-    color: COLORS.reportAlert,
-  },
-  reportIconCircle: {
+
+  avatar: {
     width: 48,
     height: 48,
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.softGray,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignSelf: "flex-end",
-    marginBottom: 12,
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: "900",
-    color: COLORS.text,
-    textAlign: "right",
-    fontFamily: FONT_BOLD,
-    lineHeight: 22,
-  },
-  cardDate: {
-    fontSize: 12,
-    lineHeight: 20,
-    color: COLORS.muted,
-    marginTop: 5,
-    textAlign: "right",
-    fontFamily: FONT_REGULAR,
-    includeFontPadding: true,
-  },
-  statusPill: {
-    alignSelf: "flex-end",
-    paddingHorizontal: 11,
-    paddingVertical: 5,
-    borderRadius: 14,
-    marginTop: 10,
-  },
-  statusPillPending: {
-    backgroundColor: COLORS.reportPendingBg,
-    borderWidth: 1,
-    borderColor: "rgba(245,158,11,0.24)",
-  },
-  statusPillSaved: {
-    backgroundColor: COLORS.reportSavedBg,
-    borderWidth: 1,
-    borderColor: "rgba(31,138,76,0.14)",
-  },
-  statusPillText: {
-    fontSize: 10.5,
-    lineHeight: 17,
-    fontFamily: FONT_BOLD,
-    includeFontPadding: true,
-  },
-  statusPillTextPending: {
-    color: COLORS.reportPending,
-  },
-  statusPillTextSaved: {
-    color: COLORS.reportSaved,
-  },
-  actionsRow: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    marginTop: 14,
-    gap: 8,
-  },
-  saveReportBtn: {
-    flex: 1,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: COLORS.primaryDark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  saveReportContent: {
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  saveReportText: {
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontWeight: "900",
-    fontSize: 12,
-    lineHeight: 20,
-    fontFamily: FONT_BOLD,
-    includeFontPadding: true,
-  },
-  rejectBtn: {
-    height: 42,
-    paddingHorizontal: 16,
-    borderRadius: 21,
-    borderWidth: 1,
-    borderColor: COLORS.neutralActionBorder,
-    backgroundColor: COLORS.neutralActionBg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rejectBtnText: {
-    color: COLORS.neutralAction,
-    fontSize: 12,
-    lineHeight: 20,
-    fontFamily: FONT_BOLD,
-    includeFontPadding: true,
-  },
-  openReportBtn: {
-    marginTop: 14,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  openReportText: {
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontWeight: "900",
-    fontSize: 12,
-    lineHeight: 20,
-    fontFamily: FONT_BOLD,
-    includeFontPadding: true,
-  },
-  maintenanceLoadingBox: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 32,
-    gap: 10,
   },
 
-  /* ─── الستايلات الحديثة والمحسنة لقسم الصيانات (UX Optimized) ─── */
-  uxMaintenanceCard: {
-    backgroundColor: COLORS.surface,
-    padding: 16,
-    borderRadius: 22,
-    marginBottom: 14,
+  accountAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.16)",
     borderWidth: 1,
-    borderColor: COLORS.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.045,
-    shadowRadius: 9,
-    elevation: 2,
+    borderColor: "rgba(255,255,255,0.18)",
   },
-  uxCardTopElement: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-    gap: 10,
-  },
-  uxTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+
+  labelBlock: {
     flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    paddingTop: 1,
   },
-  uxTextGroup: {
-    alignItems: "flex-end",
+
+  settingLabel: {
+    fontSize: 14,
+    fontFamily: FONT_EXTRABOLD,
+    lineHeight: 22,
+    includeFontPadding: true,
+    paddingBottom: 1,
+  },
+
+  actionLabel: {
+    fontSize: 13.5,
+    fontFamily: FONT_EXTRABOLD,
+    lineHeight: 21,
+    includeFontPadding: true,
+    paddingBottom: 1,
+  },
+
+  settingHint: {
+    fontSize: 10.6,
+    marginTop: 3,
+    lineHeight: 18,
+    fontFamily: FONT_SEMIBOLD,
+    includeFontPadding: true,
+    paddingBottom: 2,
+    flexShrink: 1,
+  },
+
+  settingHintTwoLines: {
+    lineHeight: 16.5,
+    minHeight: 34,
+    marginTop: 3,
+  },
+
+  userInfo: {
     flex: 1,
+    minWidth: 0,
   },
-  uxMetaRow: {
+
+  userName: {
+    fontSize: 17,
+    lineHeight: 26,
+    fontFamily: FONT_EXTRABOLD,
+    flexShrink: 1,
+    includeFontPadding: true,
+    paddingBottom: 1,
+  },
+
+  accountNameRow: {
     alignItems: "center",
     gap: 8,
-    marginTop: 6,
-    flexWrap: "wrap",
+    maxWidth: "100%",
   },
-  uxMaintenanceTitle: {
-    fontSize: 15.5,
-    fontFamily: FONT_BOLD,
-    color: COLORS.text,
-    lineHeight: 23,
-  },
-  uxMaintenanceSub: {
-    fontSize: 11,
-    lineHeight: 18,
-    color: COLORS.muted,
-    fontFamily: FONT_REGULAR,
-    marginTop: 2,
-    includeFontPadding: true,
-  },
-  uxIconContainer: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: COLORS.softGray,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  uxCardActions: {
+
+  editActionPlain: {
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 5,
+    minWidth: 48,
+    flexShrink: 0,
+    paddingHorizontal: 2,
+    paddingVertical: 4,
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
-  resetButtonCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-  },
-  uxEditHint: {
-    width: 22,
-    height: 32,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  uxStatusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.04)",
-  },
-  uxStatusBadgeText: {
-    fontSize: 11,
-    lineHeight: 18,
-    fontFamily: FONT_BOLD,
-    includeFontPadding: true,
-  },
-  uxGridContainer: {
-    flexDirection: "row-reverse",
-    backgroundColor: COLORS.soft,
-    borderRadius: 16,
-    padding: 12,
-    alignItems: "center",
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
-  },
-  uxGridItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  uxGridDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: COLORS.border,
-  },
-  uxGridLabel: {
-    fontSize: 11,
-    lineHeight: 18,
-    color: COLORS.muted,
-    fontFamily: FONT_REGULAR,
-    marginBottom: 3,
-    includeFontPadding: true,
-  },
-  uxGridValue: {
+
+  editActionPlainText: {
+    color: COLORS.primary,
     fontSize: 13,
-    lineHeight: 21,
-    fontFamily: FONT_BOLD,
+    lineHeight: 20,
+    fontFamily: FONT_EXTRABOLD,
     includeFontPadding: true,
+    paddingBottom: 1,
   },
-  uxFooterRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  uxProgressWrapper: {
-    flex: 1,
-    height: 7,
-    backgroundColor: "#ECECEC",
-    borderRadius: 7,
-    overflow: "hidden",
-    flexDirection: "row-reverse",
-  },
-  uxProgressBar: {
-    height: "100%",
-    borderRadius: 3,
-  },
-  uxActionIndicator: {
+
+  accountEditPill: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
   },
-  uxActionText: {
-    fontSize: 11,
-    lineHeight: 18,
-    color: COLORS.muted,
-    fontFamily: FONT_BOLD,
-    includeFontPadding: true,
-  },
-  dateModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.28)",
-    justifyContent: "center",
-    paddingHorizontal: 18,
-  },
-  dateModalCard: {
-    width: "100%",
-    borderRadius: 26,
-    backgroundColor: COLORS.surface,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.14,
-    shadowRadius: 24,
-    elevation: 8,
-  },
-  dateModalHeader: {
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 10,
-  },
-  dateModalTitleBox: {
-    flex: 1,
-  },
-  dateModalTitle: {
-    fontSize: 16,
-    lineHeight: 25,
-    color: COLORS.text,
+
+  accountEditText: {
+    color: "#FFFFFF",
+    fontSize: 10.5,
     fontFamily: FONT_EXTRABOLD,
-    includeFontPadding: true,
   },
-  dateModalSubtitle: {
-    marginTop: 2,
+
+  userEmail: {
     fontSize: 12,
     lineHeight: 20,
-    color: COLORS.muted,
-    fontFamily: FONT_REGULAR,
-    includeFontPadding: true,
-  },
-  dateModalSmallButton: {
-    minWidth: 64,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: COLORS.softGray,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 12,
-  },
-  dateModalSmallButtonText: {
-    fontSize: 12,
-    color: COLORS.muted,
-    fontFamily: FONT_BOLD,
-  },
-  dateModalTextButton: {
-    minWidth: 58,
-    height: 34,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  dateCancelText: {
-    fontSize: 13,
-    lineHeight: 22,
-    color: COLORS.muted,
+    marginTop: 6,
+    opacity: 0.86,
     fontFamily: FONT_BOLD,
     includeFontPadding: true,
     paddingBottom: 1,
   },
-  datePickerBox: {
-    width: "100%",
-    borderRadius: 20,
-    backgroundColor: COLORS.soft,
+
+  userIdText: {
+    fontSize: 10.5,
+    lineHeight: 18,
+    marginTop: 5,
+    opacity: 0.72,
+    fontFamily: FONT_BOLD,
+    includeFontPadding: true,
+  },
+
+  connectionPanel: {
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    marginBottom: 10,
     overflow: "hidden",
+    paddingBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+
+  statusGrid: {
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
+  },
+
+  miniStatusCard: {
+    flex: 1,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 8,
+    gap: 5,
   },
-  datePicker: {
-    width: "100%",
-    height: Platform.OS === "ios" ? 216 : undefined,
+
+  miniStatusTitle: {
+    fontSize: 10.5,
+    fontFamily: FONT_BOLD,
+    textAlign: "center",
   },
-  dateConfirmButton: {
-    height: 50,
-    borderRadius: 25,
+
+  miniStatusText: {
+    fontSize: 12,
+    fontFamily: FONT_EXTRABOLD,
+    textAlign: "center",
+  },
+
+  panelDivider: {
+    height: 1,
+    marginHorizontal: 16,
+  },
+
+  connectionRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+
+  actionButton: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+
+  segment: {
+    flexDirection: "row",
+    borderRadius: 10,
+    padding: 3,
+  },
+
+  segmentItem: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+
+  segmentItemActive: {
     backgroundColor: COLORS.primary,
+  },
+
+  segmentText: {
+    fontSize: 13,
+    fontFamily: FONT_EXTRABOLD,
+  },
+
+  segmentTextActive: {
+    color: "#FFFFFF",
+  },
+
+  logoutSection: {
+    marginTop: 18,
+  },
+
+  logoutButtonWrapper: {
+    width: "100%",
+    height: 60,
+    borderRadius: 30,
+    overflow: "hidden",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
+    shadowRadius: 14,
+    elevation: 6,
+    backgroundColor: COLORS.primary,
+  },
+
+  logoutButtonDisabled: {
+    opacity: 0.72,
+  },
+
+  logoutGradient: {
+    flex: 1,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+
+  logoutShine: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "48%",
+    backgroundColor: "rgba(255,255,255,0.10)",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+  },
+
+  logoutInner: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    zIndex: 5,
+  },
+
+  logoutSpinner: {
+    marginHorizontal: 2,
+  },
+
+  logoutText: {
+    color: "#FFFFFF",
+    fontFamily: FONT_EXTRABOLD,
+    fontSize: 18,
+    lineHeight: 30,
+    textAlign: "center",
+    includeFontPadding: true,
+    paddingBottom: 2,
+  },
+
+  switchTrack: {
+    width: 56,
+    height: 32,
+    borderRadius: 18,
+    padding: 3,
+    justifyContent: "center",
+  },
+
+  switchThumb: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+
+  /* helpModal: {
+        width: "100%",
+        height: "86%",
+        borderRadius: 30,
+        borderWidth: 1,
+        overflow: "hidden",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.18,
+        shadowRadius: 18,
+        elevation: 8,
+    }, */
+
+  helpModalHeader: {
+    minHeight: 72,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
+  },
+
+  modalCloseButton: {
+    position: "absolute",
+    top: 15,
+    left: 16,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 5,
+  },
+
+  helpModalTitle: {
+    fontSize: 18,
+    fontFamily: FONT_EXTRABOLD,
+    textAlign: "center",
+  },
+
+  modalHeaderSpace: {
+    width: 42,
+    height: 42,
+  },
+
+  modalDivider: {
+    height: 1,
+  },
+
+  helpModalScroll: {
+    flex: 1,
+  },
+
+  helpModalContent: {
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 34,
+  },
+
+  helpModalBody: {
+    minHeight: 620,
+  },
+
+  helpParagraph: {
+    fontSize: 14,
+    fontFamily: FONT_BOLD,
+    lineHeight: 24,
+    marginBottom: 14,
+  },
+
+  confirmModal: {
+    width: "100%",
+    borderRadius: 28,
+    borderWidth: 1,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 20,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+
+  confirmIconCircle: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+
+  successAnimationWrapper: {
+    width: 90,
+    height: 90,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+
+  successLottie: {
+    width: 145,
+    height: 145,
+  },
+
+  successPulseRing: {
+    position: "absolute",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: "rgba(46,125,50,0.28)",
+    backgroundColor: "rgba(46,125,50,0.08)",
+  },
+
+  successPulseRingSecond: {
+    borderColor: "rgba(46,125,50,0.18)",
+    backgroundColor: "rgba(46,125,50,0.05)",
+  },
+
+  successCheckCircle: {
+    width: 66,
+    height: 66,
+    borderRadius: 33,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.success,
+    shadowColor: COLORS.success,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: Platform.OS === "android" ? 0.16 : 0.26,
+    shadowRadius: 14,
+    elevation: 6,
+  },
+
+  appMessagePlainErrorIcon: {
+    marginBottom: 14,
+  },
+
+  appMessageIconCircle: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+
+  appMessageSuccessIconCircle: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+    backgroundColor: "transparent",
+  },
+
+  confirmTitle: {
+    fontSize: 18,
+    lineHeight: 28,
+    fontFamily: FONT_EXTRABOLD,
+    textAlign: "center",
+    marginBottom: 8,
+    includeFontPadding: true,
+    paddingBottom: 1,
+  },
+
+  confirmMessage: {
+    fontSize: 14,
+    fontFamily: FONT_BOLD,
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+
+  confirmButtons: {
+    width: "100%",
+    gap: 10,
+  },
+
+  confirmSecondaryButton: {
+    flex: 1,
+    minHeight: 50,
+    height: 50,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  confirmPrimaryButton: {
+    flex: 1,
+    minHeight: 50,
+    height: 50,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  confirmSecondaryText: {
+    fontSize: 14,
+    lineHeight: 22,
+    fontFamily: FONT_EXTRABOLD,
+    includeFontPadding: true,
+    paddingBottom: 1,
+  },
+
+  confirmPrimaryText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    lineHeight: 22,
+    fontFamily: FONT_EXTRABOLD,
+    includeFontPadding: true,
+    paddingBottom: 1,
+  },
+
+  singleModalButton: {
+    width: "100%",
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  deleteAccountIconCircle: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+    borderWidth: 1,
+  },
+
+  deletePasswordLabel: {
+    width: "100%",
+    fontSize: 13,
+    fontFamily: FONT_EXTRABOLD,
+    marginBottom: 8,
+  },
+
+  deletePasswordInput: {
+    width: "100%",
+    height: 52,
+    borderRadius: 17,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    fontFamily: FONT_EXTRABOLD,
+    marginBottom: 16,
+  },
+
+  logoutLoadingBox: {
+    width: "86%",
+    borderRadius: 28,
+    borderWidth: 1,
+    paddingHorizontal: 22,
+    paddingTop: 28,
+    paddingBottom: 26,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+
+  logoutLoadingIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+
+  logoutLoadingSpinner: {
+    marginBottom: 12,
+  },
+
+  logoutLoadingText: {
+    fontSize: 16,
+    fontFamily: FONT_EXTRABOLD,
+    textAlign: "center",
+  },
+  helpSectionTitle: {
+    fontSize: 15.5,
+    fontFamily: FONT_EXTRABOLD,
+    lineHeight: 24,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  carInfoGrid: {
+    gap: 10,
+    marginTop: 14,
+  },
+
+  carInfoPill: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  carInfoLabel: {
+    fontSize: 10.5,
+    fontFamily: FONT_EXTRABOLD,
+    textAlign: "center",
+  },
+
+  carInfoValue: {
+    marginTop: 4,
+    fontSize: 13,
+    fontFamily: FONT_EXTRABOLD,
+    textAlign: "center",
+  },
+
+  loadingSettingsContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  nameInput: {
+    width: "100%",
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    fontFamily: FONT_EXTRABOLD,
+    marginBottom: 18,
+  },
+
+  helpBottomOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+
+  helpModal: {
+    width: "100%",
+    maxWidth: 680,
+    alignSelf: "center",
+    maxHeight: "86%",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: Platform.OS === "ios" ? 18 : 10,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: Platform.OS === "android" ? 0.20 : 0.24,
+    shadowRadius: 22,
+    elevation: 16,
+  },
+
+  helpSheetHandleArea: {
+    width: "100%",
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  helpSheetHandle: {
+    width: 46,
+    height: 5,
+    borderRadius: 999,
+  },
+
+  helpScrollContent: {
+    paddingHorizontal: 22,
+    paddingTop: 8,
+    paddingBottom: 22,
+  },
+
+  helpCloseButton: {
+    display: "none",
+  },
+
+  helpHeader: {
+    alignItems: "stretch",
+    justifyContent: "flex-start",
+    marginBottom: 14,
+    gap: 0,
+  },
+
+  helpHeaderIconBox: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+
+  helpHeaderTextBlock: {
+    width: "100%",
+    minWidth: 0,
+  },
+
+  helpTitle: {
+    fontSize: 20,
+    fontFamily: FONT_EXTRABOLD,
+    lineHeight: 28,
+  },
+
+  helpIntroText: {
+    fontSize: 13.5,
+    lineHeight: 21,
+    fontFamily: FONT_BOLD,
+    marginTop: 6,
+  },
+
+  faqCard: {
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+  },
+
+  helpQuestion: {
+    fontSize: 14.5,
+    fontFamily: FONT_EXTRABOLD,
+    marginBottom: 5,
+    lineHeight: 21,
+  },
+
+  helpAnswer: {
+    fontSize: 12.8,
+    lineHeight: 20,
+    fontFamily: FONT_BOLD,
+  },
+
+  supportMainButton: {
+    minHeight: 54,
+    borderRadius: 16,
+    marginTop: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    paddingHorizontal: 14,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: Platform.OS === "android" ? 0.08 : 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+
+  supportWhatsAppMainButton: {
+    backgroundColor: "#25C96A",
+  },
+
+  supportEmailMainButton: {
+    backgroundColor: COLORS.primary,
+  },
+
+  supportMainButtonText: {
+    color: "#FFFFFF",
+    fontFamily: FONT_EXTRABOLD,
+    fontSize: 14.2,
+    lineHeight: 23,
+    textAlign: "center",
+    includeFontPadding: true,
+    paddingBottom: Platform.OS === "ios" ? 1 : 2,
+  },
+
+  supportIssueFullButton: {
+    minHeight: 54,
+    borderRadius: 16,
+    marginTop: 9,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    paddingHorizontal: 14,
+    gap: 8,
+  },
+
+  supportIssueFullButtonText: {
+    fontFamily: FONT_EXTRABOLD,
+    fontSize: 14.2,
+    lineHeight: 23,
+    textAlign: "center",
+    includeFontPadding: true,
+    paddingBottom: Platform.OS === "ios" ? 1 : 2,
+  },
+
+  closeHelpButton: {
+    marginTop: 18,
+    minHeight: 54,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+
+  closeHelpButtonText: {
+    fontSize: 15.5,
+    lineHeight: 25,
+    fontFamily: FONT_EXTRABOLD,
+    textAlign: "center",
+    includeFontPadding: true,
+    paddingBottom: Platform.OS === "ios" ? 1 : 2,
+  },
+
+  fullScreenBlockingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.22)",
+    zIndex: 9999,
+    elevation: 9999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  blockingOverlayCard: {
+    minWidth: 210,
+    borderRadius: 24,
+    paddingVertical: 22,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    justifyContent: "center",
+
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+
+  blockingOverlayText: {
+    marginTop: 12,
+    fontSize: 14,
+    fontFamily: FONT_EXTRABOLD,
+    textAlign: "center",
+  },
+
+  bottomSheetRoot: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+
+  bottomSheetKeyboardAvoider: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+
+  bottomSheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+
+  bottomSheetContainer: {
+    width: "100%",
+    maxWidth: 680,
+    alignSelf: "center",
+    maxHeight: "86%",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 26 : 18,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: Platform.OS === "android" ? 0.18 : 0.22,
+    shadowRadius: 18,
+    elevation: 18,
+  },
+
+  bottomSheetHandleArea: {
+    width: "100%",
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  bottomSheetHandle: {
+    width: 46,
+    height: 5,
+    borderRadius: 999,
+  },
+
+  bottomSheetHeader: {
+    width: "100%",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 4,
+    marginBottom: 18,
+  },
+
+  bottomSheetHeaderTextBlock: {
+    flex: 1,
+  },
+
+  bottomSheetTitle: {
+    fontSize: 20,
+    fontFamily: FONT_EXTRABOLD,
+    lineHeight: 28,
+  },
+
+  bottomSheetSubtitle: {
+    marginTop: 6,
+    fontSize: 14,
+    fontFamily: FONT_BOLD,
+    lineHeight: 21,
+  },
+
+  bottomSheetCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  bottomSheetInput: {
+    width: "100%",
+    minHeight: 54,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 15,
+    fontSize: 15.5,
+    fontFamily: FONT_EXTRABOLD,
+    marginBottom: 12,
+  },
+
+  bottomSheetErrorBox: {
+    width: "100%",
+    minHeight: 30,
+    alignItems: "center",
+    paddingHorizontal: 2,
+    paddingVertical: 4,
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  bottomSheetErrorText: {
+    flex: 1,
+    fontSize: 13.2,
+    fontFamily: FONT_EXTRABOLD,
+    lineHeight: 19,
+  },
+
+  bottomSheetActions: {
+    width: "100%",
+    gap: 10,
+    marginTop: 4,
+  },
+
+  bottomSheetSecondaryButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  bottomSheetPrimaryButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 18,
+    overflow: "hidden",
+    backgroundColor: COLORS.primary,
+  },
+
+  bottomSheetPrimaryGradient: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 18,
+  },
+
+  bottomSheetSecondaryText: {
+    fontSize: 14,
+    lineHeight: 22,
+    fontFamily: FONT_EXTRABOLD,
+    includeFontPadding: true,
+    paddingBottom: Platform.OS === "ios" ? 1 : 2,
+  },
+
+  bottomSheetPrimaryText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    lineHeight: 22,
+    fontFamily: FONT_EXTRABOLD,
+    includeFontPadding: true,
+    paddingBottom: Platform.OS === "ios" ? 1 : 2,
+  },
+
+  bottomSheetSuccessContent: {
+    minHeight: 220,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 16,
+  },
+
+  bottomSheetSuccessLottie: {
+    width: 138,
+    height: 138,
+    marginBottom: 8,
+  },
+
+  bottomSheetSuccessButton: {
+    width: "100%",
+    height: 52,
+    borderRadius: 18,
+    overflow: "hidden",
+    backgroundColor: COLORS.primary,
+    marginTop: 18,
+  },
+
+  bottomSheetSuccessButtonGradient: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 18,
+  },
+
+  bottomSheetSuccessInfoText: {
+    width: "100%",
+    marginTop: 10,
+    fontSize: 12.5,
+    fontFamily: FONT_EXTRABOLD,
+    lineHeight: 18,
+  },
+
+  bottomSheetResendArea: {
+    width: "100%",
     alignItems: "center",
     justifyContent: "center",
     marginTop: 14,
   },
-  dateConfirmButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    lineHeight: 23,
-    fontFamily: FONT_BOLD,
-    includeFontPadding: true,
-  },
-  successOverlay: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-  successCard: {
-    width: "100%",
-    maxWidth: 330,
-    borderRadius: 28,
-    borderWidth: 1,
-    paddingHorizontal: 22,
-    paddingTop: 22,
-    paddingBottom: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
-    elevation: 10,
-  },
-  successAnimationWrapper: {
-    width: 94,
-    height: 94,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-  },
-  successLottie: {
-    width: 94,
-    height: 94,
-  },
-  successTitle: {
-    fontSize: 17,
-    lineHeight: 28,
-    fontFamily: FONT_EXTRABOLD,
-    includeFontPadding: true,
-    paddingBottom: 1,
-  },
-  successMessage: {
-    marginTop: 5,
+
+  bottomSheetResendQuestion: {
     fontSize: 12.5,
-    lineHeight: 22,
-    fontFamily: FONT_SEMIBOLD,
-    includeFontPadding: true,
-    paddingHorizontal: 4,
+    fontFamily: FONT_EXTRABOLD,
+    lineHeight: 18,
+    marginBottom: 8,
   },
+
+  bottomSheetResendTimerText: {
+    color: COLORS.primary,
+    fontSize: 12.5,
+    fontFamily: FONT_EXTRABOLD,
+    textAlign: "center",
+  },
+
+  bottomSheetResendButton: {
+    minHeight: 40,
+    minWidth: 150,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  bottomSheetResendButtonText: {
+    color: COLORS.primary,
+    fontSize: 13,
+    fontFamily: FONT_EXTRABOLD,
+  },
+
+  carCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 0,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+  },
+
 });

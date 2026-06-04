@@ -25,12 +25,24 @@ import {
   Alexandria_700Bold,
   useFonts,
 } from "@expo-google-fonts/alexandria";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Sharing from "expo-sharing";
+import * as Clipboard from "expo-clipboard";
+import { Animated, Alert } from "react-native";
 
 const CHATBOT_API_URL = "http://207.180.244.27:4010/chat";
 
 const SESSION_ID = `session-${Date.now()}-${Math.random()
   .toString(36)
   .slice(2, 10)}`;
+
+
+const CHAT_STORAGE_KEY = "tnabbah_chat_messages";
+
+const CHAT_SESSIONS_KEY = "tnabbah_chat_sessions";
+
+const makeMessagesKey = (sessionId: string) =>
+  `tnabbah_chat_messages_${sessionId}`;
 
 const FONT_REGULAR = "Alexandria_400Regular";
 const FONT_SEMIBOLD = "Alexandria_600SemiBold";
@@ -97,7 +109,11 @@ function getCurrentTime(language: "AR" | "EN") {
 export default function Chatbot() {
   const { session, profile } = useAuth();
   const { t, isArabic, language } = useLanguage();
-  const { activeCarId } = useCars();
+  const {
+    activeCarId,
+    connectedCarId,
+    userCars,
+  } = useCars();
   const { darkModeEnabled } = useAppSettings();
   const { width } = useWindowDimensions();
 
@@ -108,10 +124,14 @@ export default function Chatbot() {
   });
 
   const COLORS = darkModeEnabled ? DARK_COLORS : LIGHT_COLORS;
-  const styles = useMemo(() => createStyles(COLORS), [COLORS]);
-
+  const styles = useMemo(() => createStyles(COLORS, isArabic), [COLORS, isArabic]);
   const params = useLocalSearchParams<{ carId?: string }>();
   const incomingCarId = params.carId;
+
+  const effectiveCarId = incomingCarId || activeCarId || null;
+
+  const currentCar =
+    userCars.find((car) => car.car_id === effectiveCarId) || null;
 
   const scrollRef = useRef<ScrollView | null>(null);
   const inputRef = useRef<TextInput | null>(null);
@@ -129,6 +149,103 @@ export default function Chatbot() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const [activeSessionId, setActiveSessionId] = useState(SESSION_ID);
+  const [chatSessions, setChatSessions] = useState<any[]>([
+    {
+      id: SESSION_ID,
+      title: "محادثة جديدة",
+      updatedAt: Date.now(),
+    },
+  ]);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const drawerAnim = useRef(
+    new Animated.Value(isArabic ? -320 : 320)
+  ).current;
+
+  useEffect(() => {
+    Animated.timing(drawerAnim, {
+      toValue: sidebarOpen
+        ? 0
+        : isArabic
+          ? -320
+          : 320,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
+  }, [sidebarOpen]);
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 350,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.getItem(CHAT_SESSIONS_KEY).then((saved) => {
+      if (!saved) return;
+
+      try {
+        const parsed = JSON.parse(saved);
+
+        if (Array.isArray(parsed) && parsed.length) {
+          setChatSessions(parsed);
+          setActiveSessionId(parsed[0].id);
+        }
+      } catch { }
+    });
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.getItem(
+      makeMessagesKey(activeSessionId)
+    ).then((saved) => {
+
+      if (!saved) {
+        setMessages([
+          {
+            id: Date.now(),
+            from: "bot",
+            text: t.chatWelcome,
+            time: getCurrentTime(language),
+          },
+        ]);
+
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(saved);
+
+        if (Array.isArray(parsed)) {
+          setMessages(parsed);
+        }
+      } catch { }
+    });
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    AsyncStorage.setItem(
+      makeMessagesKey(activeSessionId),
+      JSON.stringify(messages)
+    );
+  }, [messages, activeSessionId]);
+
+  useEffect(() => {
+    AsyncStorage.setItem(
+      CHAT_SESSIONS_KEY,
+      JSON.stringify(chatSessions)
+    );
+  }, [chatSessions]);
+  /* 
+    useEffect(() => {
+      AsyncStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    }, [messages]);
+   */
   const isWide = width >= 760;
   const textAlign = isArabic ? "right" : "left";
   const rowDirection = isArabic ? "row-reverse" : "row";
@@ -176,11 +293,25 @@ export default function Chatbot() {
           },
           body: JSON.stringify({
             message: userText,
+
             userId: session?.user?.id,
-            carId: incomingCarId || activeCarId || null,
+
+            carId: effectiveCarId,
+
+            userCarId: currentCar?.id ?? null,
+
+            connectedCarId,
+
+            currentCar,
+
+            userCars,
+
             email: session?.user?.email,
+
             fullName: profile?.full_name ?? null,
-            sessionId: SESSION_ID,
+
+            sessionId: activeSessionId,
+
             language,
           }),
           signal: controller.signal,
@@ -244,6 +375,50 @@ export default function Chatbot() {
     }
   };
 
+  const sendQuickMessage = async (text: string) => {
+    if (isLoading) return;
+
+    setInput(text);
+
+    const userMessage: Message = {
+      id: Date.now(),
+      from: "user",
+      text,
+      time: getCurrentTime(language),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+
+    setChatSessions((prev) =>
+      prev.map((s) =>
+        s.id === activeSessionId
+          ? {
+            ...s,
+            title:
+              s.title === "محادثة جديدة"
+                ? text.slice(0, 30)
+                : s.title,
+            updatedAt: Date.now(),
+          }
+          : s
+      )
+    );
+    setIsLoading(true);
+
+    const replyText = await fetchBotReply(text);
+
+    const botReply: Message = {
+      id: Date.now() + 1,
+      from: "bot",
+      text: replyText,
+      time: getCurrentTime(language),
+    };
+
+    setMessages((prev) => [...prev, botReply]);
+    setInput("");
+    setIsLoading(false);
+  };
+
   const sendMessage = async () => {
     const userText = input.trim();
     if (!userText || isLoading) return;
@@ -256,6 +431,20 @@ export default function Chatbot() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    setChatSessions((prev) =>
+      prev.map((s) =>
+        s.id === activeSessionId
+          ? {
+            ...s,
+            title:
+              s.title === "محادثة جديدة"
+                ? userText.slice(0, 30)
+                : s.title,
+            updatedAt: Date.now(),
+          }
+          : s
+      )
+    );
     setInput("");
     setIsLoading(true);
 
@@ -273,6 +462,39 @@ export default function Chatbot() {
 
     setMessages((prev) => [...prev, botReply]);
     setIsLoading(false);
+  };
+
+  const clearChat = () => {
+    Alert.alert(
+      "حذف المحادثة",
+      "تبغين تحذفين سجل المحادثة؟",
+      [
+        { text: "إلغاء", style: "cancel" },
+        {
+          text: "حذف",
+          style: "destructive",
+          onPress: async () => {
+            await AsyncStorage.removeItem(makeMessagesKey(activeSessionId)); setMessages([
+              {
+                id: Date.now(),
+                from: "bot",
+                text: t.chatWelcome,
+                time: getCurrentTime(language),
+              },
+            ]);
+          },
+        },
+      ],
+    );
+  };
+
+  const shareChat = async () => {
+    const text = messages
+      .map((m) => `${m.from === "user" ? "أنا" : "مساعد تنبّه"}: ${m.text}`)
+      .join("\n\n");
+
+    await Clipboard.setStringAsync(text);
+    Alert.alert("تم النسخ", "تم نسخ المحادثة، تقدرين تشاركينها الآن.");
   };
 
   const goBackHome = () => {
@@ -321,133 +543,422 @@ export default function Chatbot() {
           {t.chatTitle}
         </Text>
 
-        <View style={styles.headerSide} />
+        <TouchableOpacity
+          style={styles.headerMenuButton}
+          onPress={() => setSidebarOpen(true)}
+        >
+          <Feather
+            name="menu"
+            size={24}
+            color={COLORS.backIcon}
+          />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.headerDivider} />
 
+      {/*  <View
+        pointerEvents={sidebarOpen ? "auto" : "none"}
+        style={styles.sidebarOverlay}
+      >
+        <TouchableOpacity
+          style={[
+            styles.sidebarBackdrop,
+            { opacity: sidebarOpen ? 1 : 0 },
+          ]}
+          onPress={() => setSidebarOpen(false)}
+          activeOpacity={1}
+        />
+
+        <Animated.View
+          style={[
+            styles.sidebar,
+            {
+              transform: [{ translateX: drawerAnim }],
+            },
+          ]}
+        >
+          <Text allowFontScaling={false} style={styles.sidebarTitle}>
+            محادثات تنبّه
+          </Text>
+
+          <TouchableOpacity
+            style={styles.newChatBtn}
+            onPress={() => {
+              const newId = `session-${Date.now()}-${Math.random()
+                .toString(36)
+                .slice(2, 8)}`;
+
+              setChatSessions((prev) => [
+                {
+                  id: newId,
+                  title: "محادثة جديدة",
+                  updatedAt: Date.now(),
+                },
+                ...prev,
+              ]);
+
+              setActiveSessionId(newId);
+              setSidebarOpen(false);
+            }}
+          >
+            <View style={styles.sidebarRow}>
+              <Feather name="edit-3" size={17} color={COLORS.primary} />
+              <Text allowFontScaling={false} style={styles.newChatText}>
+                محادثة جديدة
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {chatSessions.map((s) => (
+            <TouchableOpacity
+              key={s.id}
+              style={[
+                styles.sidebarItem,
+                s.id === activeSessionId && styles.sidebarItemActive,
+              ]}
+              onPress={() => {
+                setActiveSessionId(s.id);
+                setSidebarOpen(false);
+              }}
+            >
+              <View style={styles.sidebarRow}>
+                <Feather name="message-square" size={16} color={COLORS.textSecondary} />
+                <Text allowFontScaling={false} style={styles.sidebarItemTitle} numberOfLines={1}>
+                  {s.title}
+                </Text>
+
+                <TouchableOpacity
+                  onPress={async () => {
+                    await AsyncStorage.removeItem(makeMessagesKey(s.id));
+
+                    await fetch(`${CHATBOT_API_URL.replace("/chat", "")}/chat/session`, {
+                      method: "DELETE",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        userId: session?.user?.id,
+                        sessionId: s.id,
+                      }),
+                    });
+
+                    const remaining = chatSessions.filter((x) => x.id !== s.id);
+                    setChatSessions(remaining);
+
+                    if (s.id === activeSessionId) {
+                      const next = remaining[0];
+
+                      if (next) {
+                        setActiveSessionId(next.id);
+                      } else {
+                        const newId = `session-${Date.now()}`;
+                        setChatSessions([{ id: newId, title: "محادثة جديدة", updatedAt: Date.now() }]);
+                        setActiveSessionId(newId);
+                      }
+                    }
+                  }}
+                >
+                  <Feather name="trash-2" size={15} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          ))}
+
+          <TouchableOpacity style={styles.sidebarItem} onPress={shareChat}>
+            <Text allowFontScaling={false} style={styles.sidebarItemTitle}>
+              مشاركة المحادثة
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.sidebarDanger} onPress={clearChat}>
+            <Text allowFontScaling={false} style={styles.sidebarDangerText}>
+              حذف المحادثة
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View> */}
+
+      <View
+        pointerEvents={sidebarOpen ? "auto" : "none"}
+        style={styles.sidebarOverlay}
+      >
+        <TouchableOpacity
+          style={[
+            styles.sidebarBackdrop,
+            { opacity: sidebarOpen ? 1 : 0 },
+          ]}
+          onPress={() => setSidebarOpen(false)}
+          activeOpacity={1}
+        />
+
+        <Animated.View
+          style={[
+            styles.sidebar,
+            isArabic ? styles.sidebarArabic : styles.sidebarEnglish,
+            {
+              transform: [{ translateX: drawerAnim }],
+            },
+          ]}
+        >
+          <Text allowFontScaling={false} style={styles.sidebarTitle}>
+            محادثات تنبّه
+          </Text>
+
+          <TouchableOpacity
+            style={styles.newChatBtn}
+            onPress={() => {
+              const newId = `session-${Date.now()}-${Math.random()
+                .toString(36)
+                .slice(2, 8)}`;
+
+              setChatSessions((prev) => [
+                { id: newId, title: "محادثة جديدة", updatedAt: Date.now() },
+                ...prev,
+              ]);
+
+              setActiveSessionId(newId);
+              setSidebarOpen(false);
+            }}
+          >
+            <View style={styles.sidebarRow}>
+              <Feather name="edit-3" size={17} color={COLORS.primary} />
+              <Text allowFontScaling={false} style={styles.newChatText}>
+                محادثة جديدة
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {chatSessions.map((s) => (
+            <TouchableOpacity
+              key={s.id}
+              style={[
+                styles.sidebarItem,
+                s.id === activeSessionId && styles.sidebarItemActive,
+              ]}
+              onPress={() => {
+                setActiveSessionId(s.id);
+                setSidebarOpen(false);
+              }}
+            >
+              <View style={styles.sidebarRow}>
+                <Feather name="message-square" size={16} color={COLORS.textSecondary} />
+
+                <Text
+                  allowFontScaling={false}
+                  style={styles.sidebarItemTitle}
+                  numberOfLines={1}
+                >
+                  {s.title}
+                </Text>
+
+                <TouchableOpacity
+                  onPress={async () => {
+                    await AsyncStorage.removeItem(makeMessagesKey(s.id));
+
+                    await fetch(`${CHATBOT_API_URL.replace("/chat", "")}/chat/session`, {
+                      method: "DELETE",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        userId: session?.user?.id,
+                        sessionId: s.id,
+                      }),
+                    });
+
+                    const remaining = chatSessions.filter((x) => x.id !== s.id);
+                    setChatSessions(remaining);
+
+                    if (s.id === activeSessionId) {
+                      const next = remaining[0];
+                      if (next) {
+                        setActiveSessionId(next.id);
+                      } else {
+                        const newId = `session-${Date.now()}`;
+                        setChatSessions([
+                          { id: newId, title: "محادثة جديدة", updatedAt: Date.now() },
+                        ]);
+                        setActiveSessionId(newId);
+                      }
+                    }
+                  }}
+                >
+                  <Feather name="trash-2" size={15} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          ))}
+
+          <TouchableOpacity style={styles.sidebarItem} onPress={shareChat}>
+            <View style={styles.sidebarRow}>
+              <Feather name="share-2" size={16} color={COLORS.textSecondary} />
+              <Text allowFontScaling={false} style={styles.sidebarItemTitle}>
+                مشاركة المحادثة
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.sidebarDanger} onPress={clearChat}>
+            <View style={styles.sidebarRow}>
+              <Feather name="trash" size={16} color={COLORS.primary} />
+              <Text allowFontScaling={false} style={styles.sidebarDangerText}>
+                حذف المحادثة الحالية
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+
+      <View pointerEvents="none" style={styles.scanBackground}>
+        <Animated.View style={[styles.scanCircleBig, { opacity: fadeAnim }]} />
+        <Animated.View style={[styles.scanCircleSmall, { opacity: fadeAnim }]} />
+        <View style={styles.scanLine} />
+      </View>
+
       <KeyboardAvoidingView
         style={[styles.keyboardView, isWide && styles.keyboardViewWide]}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
-        <ScrollView
-          ref={scrollRef}
-          style={styles.chatArea}
-          contentContainerStyle={styles.chatContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          directionalLockEnabled
-          bounces={false}
-          overScrollMode="never"
-          onContentSizeChange={() => {
-            scrollRef.current?.scrollToEnd({ animated: true });
-          }}
-        >
-          {messages.map((msg) => {
-            const isUser = msg.from === "user";
+        <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+          <ScrollView
+            ref={scrollRef}
+            style={styles.chatArea}
+            contentContainerStyle={styles.chatContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            directionalLockEnabled
+            bounces={false}
+            overScrollMode="never"
+            onContentSizeChange={() => {
+              scrollRef.current?.scrollToEnd({ animated: true });
+            }}
+          >
+            {messages.map((msg) => {
+              const isUser = msg.from === "user";
 
-            return (
-              <View
-                key={msg.id}
-                style={[
-                  styles.messageRow,
-                  isUser
-                    ? { alignItems: userAlign }
-                    : {
-                      flexDirection: rowDirection,
-                      alignItems: "flex-start",
-                      justifyContent: "flex-start",
-                    },
-                ]}
-              >
-                {!isUser ? renderAssistantIcon() : null}
-
+              return (
                 <View
+                  key={msg.id}
                   style={[
-                    styles.messageGroup,
+                    styles.messageRow,
                     isUser
                       ? { alignItems: userAlign }
-                      : { alignItems: botAlign },
+                      : {
+                        flexDirection: rowDirection,
+                        alignItems: "flex-start",
+                        justifyContent: "flex-start",
+                      },
                   ]}
                 >
+                  {!isUser ? renderAssistantIcon() : null}
+
+                  <View
+                    style={[
+                      styles.messageGroup,
+                      isUser
+                        ? { alignItems: userAlign }
+                        : { alignItems: botAlign },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.messageBubble,
+                        isUser
+                          ? [styles.userBubble, userBubbleTail]
+                          : [styles.botBubble, botBubbleTail],
+                      ]}
+                    >
+                      <Text
+                        allowFontScaling={false}
+                        style={[
+                          styles.messageText,
+                          { textAlign },
+                          isUser ? styles.userMessageText : styles.botMessageText,
+                        ]}
+                      >
+                        {msg.text}
+                      </Text>
+                    </View>
+
+                    <Text
+                      allowFontScaling={false}
+                      style={[
+                        styles.messageTime,
+                        {
+                          textAlign: isUser
+                            ? isArabic
+                              ? "left"
+                              : "right"
+                            : textAlign,
+                        },
+                      ]}
+                    >
+                      {msg.time}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+
+            {isLoading ? (
+              <View
+                style={[
+                  styles.messageRow,
+                  {
+                    flexDirection: rowDirection,
+                    alignItems: "flex-start",
+                    justifyContent: "flex-start",
+                  },
+                ]}
+              >
+                {renderAssistantIcon()}
+
+                <View style={[styles.messageGroup, { alignItems: botAlign }]}>
                   <View
                     style={[
                       styles.messageBubble,
-                      isUser
-                        ? [styles.userBubble, userBubbleTail]
-                        : [styles.botBubble, botBubbleTail],
+                      styles.botBubble,
+                      botBubbleTail,
+                      styles.loadingBubble,
                     ]}
                   >
                     <Text
                       allowFontScaling={false}
                       style={[
                         styles.messageText,
+                        styles.botMessageText,
                         { textAlign },
-                        isUser ? styles.userMessageText : styles.botMessageText,
                       ]}
                     >
-                      {msg.text}
+                      ...
                     </Text>
                   </View>
-
-                  <Text
-                    allowFontScaling={false}
-                    style={[
-                      styles.messageTime,
-                      {
-                        textAlign: isUser
-                          ? isArabic
-                            ? "left"
-                            : "right"
-                          : textAlign,
-                      },
-                    ]}
-                  >
-                    {msg.time}
-                  </Text>
                 </View>
               </View>
-            );
-          })}
-
-          {isLoading ? (
-            <View
-              style={[
-                styles.messageRow,
-                {
-                  flexDirection: rowDirection,
-                  alignItems: "flex-start",
-                  justifyContent: "flex-start",
-                },
-              ]}
-            >
-              {renderAssistantIcon()}
-
-              <View style={[styles.messageGroup, { alignItems: botAlign }]}>
-                <View
-                  style={[
-                    styles.messageBubble,
-                    styles.botBubble,
-                    botBubbleTail,
-                    styles.loadingBubble,
-                  ]}
-                >
-                  <Text
-                    allowFontScaling={false}
-                    style={[
-                      styles.messageText,
-                      styles.botMessageText,
-                      { textAlign },
-                    ]}
-                  >
-                    ...
-                  </Text>
-                </View>
-              </View>
-            </View>
-          ) : null}
-        </ScrollView>
+            ) : null}
+          </ScrollView>
+        </Animated.View>
+        {messages.length <= 1 && !isLoading ? (
+          <View style={styles.quickActions}>
+            {[
+              "كيف حالة سيارتي؟",
+              "وش آخر تقرير؟",
+              "كم حرارة المحرك؟",
+              "كم فولت البطارية؟",
+            ].map((q) => (
+              <TouchableOpacity
+                key={q}
+                style={styles.quickChip}
+                onPress={() => sendQuickMessage(q)}
+                activeOpacity={0.8}
+              >
+                <Text allowFontScaling={false} style={styles.quickChipText}>
+                  {q}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
 
         <View style={styles.inputContainer}>
           <View style={[styles.inputRow, { flexDirection: rowDirection }]}>
@@ -483,7 +994,7 @@ export default function Chatbot() {
   );
 }
 
-function createStyles(COLORS: AppColors) {
+function createStyles(COLORS: AppColors, isArabic: boolean) {
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -641,11 +1152,10 @@ function createStyles(COLORS: AppColors) {
 
     inputContainer: {
       paddingHorizontal: 18,
-      paddingTop: 9,
-      paddingBottom: Platform.OS === "ios" ? 16 : 12,
-      borderTopWidth: 1,
-      borderTopColor: COLORS.border,
-      backgroundColor: COLORS.background,
+      paddingTop: 8,
+      paddingBottom: Platform.OS === "ios" ? 16 : 8,
+      borderTopWidth: 0,
+      backgroundColor: "transparent",
     },
 
     inputRow: {
@@ -697,5 +1207,202 @@ function createStyles(COLORS: AppColors) {
     sendBtnDisabled: {
       opacity: 0.45,
     },
+
+    carStatusBar: {
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      backgroundColor: COLORS.lightGray,
+      borderBottomWidth: 1,
+      borderBottomColor: COLORS.border,
+    },
+
+    carStatusText: {
+      fontSize: 11,
+      fontFamily: FONT_SEMIBOLD,
+      color: COLORS.primary,
+      textAlign: "center",
+    },
+
+    carNameText: {
+      marginTop: 3,
+      fontSize: 13,
+      fontFamily: FONT_BOLD,
+      color: COLORS.textPrimary,
+      textAlign: "center",
+    },
+
+    quickActions: {
+      flexDirection: "row-reverse",
+      flexWrap: "wrap",
+      justifyContent: "center",
+      gap: 8,
+      paddingHorizontal: 18,
+      paddingTop: 8,
+      paddingBottom: 8,
+      backgroundColor: "transparent",
+    },
+
+    quickChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 999,
+      backgroundColor: "transparent",
+      borderWidth: 1,
+      borderColor: COLORS.border,
+    },
+
+    quickChipText: {
+      fontSize: 11,
+      fontFamily: FONT_SEMIBOLD,
+      color: COLORS.textPrimary,
+    },
+    headerMenuButton: {
+      width: 42,
+      height: 42,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    sidebarOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 999,
+    },
+
+    sidebarBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(0,0,0,0.25)",
+    },
+
+    sidebar: {
+      position: "absolute",
+      top: 0,
+      bottom: 0,
+      width: 300,
+      backgroundColor: COLORS.surface,
+      paddingHorizontal: 14,
+      paddingTop: Platform.OS === "android" ? 54 : 28,
+      paddingBottom: 18,
+    },
+
+    sidebarArabic: {
+      left: 0,
+      borderRightWidth: 1,
+      borderRightColor: COLORS.border,
+    },
+
+    sidebarEnglish: {
+      right: 0,
+      borderLeftWidth: 1,
+      borderLeftColor: COLORS.border,
+    },
+
+    sidebarTitle: {
+      fontSize: 18,
+      fontFamily: FONT_BOLD,
+      color: COLORS.textPrimary,
+      marginBottom: 16,
+      textAlign: "right",
+    },
+
+    newChatBtn: {
+      paddingVertical: 13,
+      paddingHorizontal: 14,
+      borderRadius: 16,
+      backgroundColor: COLORS.lightGray,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      marginBottom: 14,
+    },
+
+    newChatText: {
+      fontSize: 13,
+      fontFamily: FONT_SEMIBOLD,
+      color: COLORS.primary,
+      textAlign: "right",
+    },
+
+    sidebarItem: {
+      paddingVertical: 12,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      marginBottom: 4,
+    },
+
+    sidebarItemActive: {
+      backgroundColor: COLORS.lightGray,
+    },
+
+    sidebarItemTitle: {
+      fontSize: 13,
+      fontFamily: FONT_SEMIBOLD,
+      color: COLORS.textPrimary,
+      textAlign: "right",
+    },
+
+    /* sidebarItemSub: {
+      marginTop: 3,
+      fontSize: 11,
+      fontFamily: FONT_REGULAR,
+      color: COLORS.textSecondary,
+      textAlign: "right",
+    }, */
+
+    sidebarDanger: {
+      marginTop: 12,
+      paddingVertical: 13,
+      paddingHorizontal: 12,
+      borderRadius: 14,
+      backgroundColor: "rgba(135,27,23,0.08)",
+    },
+
+    sidebarDangerText: {
+      fontSize: 13,
+      fontFamily: FONT_SEMIBOLD,
+      color: COLORS.primary,
+      textAlign: "right",
+    },
+
+    scanBackground: {
+      ...StyleSheet.absoluteFillObject,
+      top: 72,
+      opacity: 0.13,
+    },
+
+    scanCircleBig: {
+      position: "absolute",
+      width: 270,
+      height: 270,
+      borderRadius: 135,
+      borderWidth: 1,
+      borderColor: COLORS.primary,
+      right: -90,
+      top: 120,
+    },
+
+    scanCircleSmall: {
+      position: "absolute",
+      width: 150,
+      height: 150,
+      borderRadius: 75,
+      borderWidth: 1,
+      borderColor: COLORS.primary,
+      left: -45,
+      top: 310,
+    },
+
+    scanLine: {
+      position: "absolute",
+      width: 230,
+      height: 1,
+      backgroundColor: COLORS.primary,
+      right: 18,
+      top: 255,
+      opacity: 0.5,
+    },
+    sidebarRow: {
+      flexDirection: "row-reverse",
+      alignItems: "center",
+      gap: 9,
+    },
   });
+
 }

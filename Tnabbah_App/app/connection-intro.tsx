@@ -38,6 +38,7 @@ import { elmBluetoothService } from "@/services/elmBluetoothService";
 import { vehicleScannerService } from "@/services/vehicleScannerService";
 import { useLanguage } from "../providers/LanguageProvider";
 import { useAppSettings } from "../providers/AppSettingsProvider";
+import { useCars } from "../providers/CarsProvider";
 
 const START_IMAGE_LIGHT = require("../assets/images/obd-connection-start-light.png");
 const START_IMAGE_DARK = require("../assets/images/obd-connection-start-dark.png");
@@ -142,6 +143,7 @@ export default function ConnectionIntroScreen() {
   const { from } = useLocalSearchParams<{ from?: string }>();
   const { t, isArabic } = useLanguage();
   const { darkModeEnabled } = useAppSettings();
+  const { beginDetectingCar } = useCars();
   const [fontsLoaded] = useFonts({
     Alexandria_400Regular,
     Alexandria_600SemiBold,
@@ -460,10 +462,12 @@ export default function ConnectionIntroScreen() {
         readyDevice.name || readyDevice.localName || readyDevice.id
       );
 
+      beginDetectingCar();
+
       appRouter.replace("/(tabs)/home" as any);
 
       vehicleScannerService
-        .startAutoScan({ forceFull: false })
+        .startAutoScan({ forceFull: true })
         .catch((scanError: any) => {
           console.log("Auto scan background error:", scanError);
         });
