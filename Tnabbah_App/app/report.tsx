@@ -63,6 +63,22 @@ const LIGHT_COLORS = {
   error: "#C62828",
 };
 
+const LIGHT_SEVERITY_MAP: Record<string, { bg: string; fg: string; border: string }> = {
+  NORMAL:   { bg: '#F0FDF4', fg: '#15803D', border: '#BBF7D0' },
+  LOW:      { bg: '#DCFCE7', fg: '#166534', border: '#86EFAC' },
+  MEDIUM:   { bg: '#FEF9C3', fg: '#854D0E', border: '#FDE68A' },
+  HIGH:     { bg: '#FFEDD5', fg: '#9A3412', border: '#FDBA74' },
+  CRITICAL: { bg: '#FEE2E2', fg: '#991B1B', border: '#FCA5A5' },
+};
+
+const DARK_SEVERITY_MAP: Record<string, { bg: string; fg: string; border: string }> = {
+  NORMAL:   { bg: 'rgba(21, 128, 61, 0.15)', fg: '#4ade80', border: 'rgba(74, 222, 128, 0.35)' },
+  LOW:      { bg: 'rgba(22, 101, 52, 0.18)',  fg: '#22c55e', border: 'rgba(34, 197, 94, 0.40)' },
+  MEDIUM:   { bg: 'rgba(133, 77, 14, 0.18)',  fg: '#facc15', border: 'rgba(250, 204, 21, 0.40)' },
+  HIGH:     { bg: 'rgba(154, 52, 18, 0.18)',  fg: '#fb923c', border: 'rgba(251, 146, 60, 0.40)' },
+  CRITICAL: { bg: 'rgba(153, 27, 27, 0.15)',  fg: '#f87171', border: 'rgba(248, 113, 113, 0.40)' },
+};
+
 const DARK_COLORS = {
   primary: "#B63A34",
   primaryLight: "#B63A34",
@@ -861,13 +877,7 @@ const ReportScreen = () => {
 
   // Severity styles (mirror web report)
   const severity = String(report.severity || 'NORMAL').toUpperCase();
-  const SEVERITY_MAP: Record<string, { bg: string; fg: string; border: string }> = {
-    NORMAL:   { bg: '#F0FDF4', fg: '#15803D', border: '#BBF7D0' },
-    LOW:      { bg: '#DCFCE7', fg: '#166534', border: '#86EFAC' },
-    MEDIUM:   { bg: '#FEF9C3', fg: '#854D0E', border: '#FDE68A' },
-    HIGH:     { bg: '#FFEDD5', fg: '#9A3412', border: '#FDBA74' },
-    CRITICAL: { bg: '#FEE2E2', fg: '#991B1B', border: '#FCA5A5' },
-  };
+  const SEVERITY_MAP = darkModeEnabled ? DARK_SEVERITY_MAP : LIGHT_SEVERITY_MAP;
   const sevStyle = SEVERITY_MAP[severity] || SEVERITY_MAP.NORMAL;
   const sevLabel = (t.severity[severity] || t.severity.NORMAL);
 
