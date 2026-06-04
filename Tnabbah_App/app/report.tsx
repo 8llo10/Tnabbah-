@@ -437,10 +437,10 @@ const ReportScreen = () => {
 
   const { darkModeEnabled } = useAppSettings();
   const COLORS = darkModeEnabled ? DARK_COLORS : LIGHT_COLORS;
-  const styles = useMemo(() => createStyles(COLORS), [COLORS]);
+  const isAR = lang === 'AR';
+  const styles = useMemo(() => createStyles(COLORS, isAR), [COLORS, isAR]);
 
   const t = UI[lang];
-  const isAR = lang === 'AR';
   // Translate any Arabic string to current language. Falls back to original.
   const tr = (s?: string | null): string => {
     if (!s) return '';
@@ -882,7 +882,7 @@ const ReportScreen = () => {
     );
   }
 
-  const reportDate = new Date(report.timestamp).toLocaleDateString(isAR ? 'ar-SA' : 'en-US');
+  const reportDate = new Date(report.timestamp).toLocaleDateString('en-US');
   const isHealthy = report.analysis_metadata?.is_vehicle_healthy === true;
   const overallHealth = report.analysis_metadata?.overall_health ?? 100;
   const userFriendly = report.user_friendly_report_ar || {};
@@ -979,7 +979,7 @@ const ReportScreen = () => {
         >
           {/* رأس الصفحة */}
           <View style={styles.header}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.headerButton}
               onPress={handleBackPress}
             >
@@ -992,22 +992,9 @@ const ReportScreen = () => {
                 <Text style={styles.dateText}>{reportDate}</Text>
               </View>
             </View>
-            <TouchableOpacity
-              style={styles.langButton}
-              onPress={handleToggleLanguage}
-              disabled={translating}
-              activeOpacity={0.8}
-            >
-              {translating ? (
-                <ActivityIndicator size="small" color={COLORS.primary} />
-              ) : (
-                <>
-                  <Icon name="globe" size={14} color={COLORS.primary} />
-                  <Text style={styles.langButtonText}>{isAR ? 'EN' : 'AR'}</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            <View style={styles.headerButton} />
           </View>
+          <View style={styles.headerDivider} />
 
           <View style={styles.content}>
             {/* البطاقة الرئيسية */}
@@ -1359,7 +1346,10 @@ const ReportScreen = () => {
   );
 }
 
-function createStyles(COLORS: typeof LIGHT_COLORS) {
+function createStyles(COLORS: typeof LIGHT_COLORS, isAR = true) {
+  const rowDirection = isAR ? 'row-reverse' : 'row';
+  const textAlign = isAR ? 'right' : 'left';
+  const alignSelf = isAR ? 'flex-end' : 'flex-start';
   return StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -1377,23 +1367,21 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     includeFontPadding: true,
   },
   header: {
-    backgroundColor: COLORS.surface,
-    flexDirection: 'row',
+    backgroundColor: COLORS.bg,
+    flexDirection: rowDirection,
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 18,
-    paddingTop: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  headerDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
   },
   headerButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.soft,
-    borderWidth: 1,
-    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1401,33 +1389,31 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: '900',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.2,
     color: COLORS.ink,
+    fontFamily: FONT_BOLD,
+    textAlign: 'center',
+    lineHeight: 26,
     includeFontPadding: true,
   },
   dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 3,
+    gap: 5,
+    marginTop: 2,
   },
   dateText: {
     fontSize: 11,
     fontWeight: '700',
     color: COLORS.gray,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
     includeFontPadding: true,
   },
   headerIcon: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.soft,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   langButton: {
     minWidth: 56,
@@ -1502,7 +1488,7 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     borderColor: COLORS.border,
   },
   healthHeader: {
-    flexDirection: 'row',
+    flexDirection: rowDirection,
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
@@ -1573,7 +1559,7 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     includeFontPadding: true,
   },
   listHeader: {
-    flexDirection: 'row',
+    flexDirection: rowDirection,
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
@@ -1616,13 +1602,13 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     borderColor: 'rgba(135,27,23,0.25)',
   },
   sensorButton: {
-    flexDirection: 'row',
+    flexDirection: rowDirection,
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
   },
   sensorLeft: {
-    flexDirection: 'row',
+    flexDirection: rowDirection,
     alignItems: 'center',
     gap: 12,
   },
@@ -1648,7 +1634,7 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     includeFontPadding: true,
   },
   statusRow: {
-    flexDirection: 'row',
+    flexDirection: rowDirection,
     alignItems: 'center',
     gap: 5,
   },
@@ -1663,12 +1649,12 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     includeFontPadding: true,
   },
   sensorRight: {
-    flexDirection: 'row',
+    flexDirection: rowDirection,
     alignItems: 'center',
     gap: 10,
   },
   valueContainer: {
-    flexDirection: 'row',
+    flexDirection: rowDirection,
     alignItems: 'baseline',
     gap: 2,
   },
@@ -1692,7 +1678,7 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     paddingBottom: 16,
   },
   explanationHeader: {
-    flexDirection: 'row',
+    flexDirection: rowDirection,
     alignItems: 'center',
     gap: 8,
     marginBottom: 8,
@@ -1720,7 +1706,7 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     includeFontPadding: true,
   },
   labelRow: {
-    flexDirection: 'row',
+    flexDirection: rowDirection,
     alignItems: 'center',
     gap: 6,
     marginBottom: 3,
@@ -1729,7 +1715,7 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     marginHorizontal: 2,
   },
   recommendationBox: {
-    flexDirection: 'row',
+    flexDirection: rowDirection,
     alignItems: 'flex-start',
     gap: 8,
     marginTop: 12,
@@ -1869,14 +1855,14 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     elevation: 1,
   },
   recHeader: {
-    flexDirection: 'row',
+    flexDirection: rowDirection,
     alignItems: 'center',
     gap: 8,
     backgroundColor: COLORS.primary,
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 14,
-    alignSelf: 'flex-start',
+    alignSelf: alignSelf,
     marginBottom: 14,
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
@@ -1896,7 +1882,7 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     fontWeight: '700',
     color: COLORS.ink,
     lineHeight: 24,
-    textAlign: 'right',
+    textAlign,
     includeFontPadding: true,
   },
   unifiedBodyText: {
@@ -1904,7 +1890,7 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     fontWeight: '700',
     color: COLORS.ink,
     lineHeight: 24,
-    textAlign: 'right',
+    textAlign,
     includeFontPadding: true,
   },
   unifiedDivider: {
@@ -1918,11 +1904,11 @@ function createStyles(COLORS: typeof LIGHT_COLORS) {
     color: COLORS.primary,
     letterSpacing: 0.5,
     marginBottom: 6,
-    textAlign: 'right',
+    textAlign,
     includeFontPadding: true,
   },
   mechanicBox: {
-    flexDirection: 'row',
+    flexDirection: rowDirection,
     alignItems: 'flex-start',
     gap: 10,
     marginTop: 14,
