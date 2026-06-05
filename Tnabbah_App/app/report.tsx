@@ -465,10 +465,21 @@ const ReportScreen = () => {
           rawStatus === 'HIGH' ? 'HIGH' :
           rawStatus === 'CRITICAL' ? 'CRITICAL' :
           'MEDIUM';
+        // State-based / bit-encoded PIDs (fuel system status, monitor status,
+        // freeze DTC) carry a human-readable string, not a number. The backend
+        // flags them with is_state; we also fall back to a numeric check so a
+        // text value is never force-cast to a float (which produced the
+        // "41030200.00" garbage in the UI).
+        const rawValue = reading.value;
+        const isStateValue =
+          reading.is_state === true ||
+          typeof rawValue === 'string' && !Number.isFinite(parseFloat(rawValue)) ||
+          !Number.isFinite(Number(rawValue));
         return {
           label: reading.name_ar || reading.pid_name_ar || reading.name || reading.pid_name,
-          value: String(reading.value),
+          value: String(rawValue),
           unit: reading.unit,
+          isState: isStateValue,
           // Legacy binary status (kept for existing visual checks like 'valueError').
           status: severityLevel === 'NORMAL' ? 'SUCCESS' : 'WARNING',
           severityLevel,
@@ -1255,36 +1266,39 @@ const ReportScreen = () => {
                     style={styles.sensorButton}
                     onPress={() => setOpenIndex(isOpen ? null : idx)}
                   >
-                    <View style={styles.sensorLeft}>
-                      <View style={[styles.iconBox, isOpen && styles.iconBoxOpen]}>
-                        <PidGlyph item={item} size={18} color={statusColor} />
-                      </View>
-                      <View>
-                        <View style={styles.labelRow}>
-                          <Text style={styles.sensorLabel}>{tr(item.label)}</Text>
-                          {hasAI && <Icon name="zap" size={12} color={COLORS.primary} style={styles.aiIndicator} />}
+                    <View style={styles.sensorContent}>
+                      <View style={styles.sensorTopRow}>
+                        <View style={[styles.iconBox, isOpen && styles.iconBoxOpen]}>
+                          <PidGlyph item={item} size={18} color={statusColor} />
                         </View>
-                        <View style={styles.statusRow}>
-                          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                          <Text style={[styles.statusText, { color: statusColor }]}>
-                            {statusText}
+                        <View style={styles.sensorTextBlock}>
+                          <View style={styles.labelRow}>
+                            <Text style={styles.sensorLabel} numberOfLines={2} ellipsizeMode="tail">{tr(item.label)}</Text>
+                          </View>
+                          <View style={styles.statusRow}>
+                            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                            <Text style={[styles.statusText, { color: statusColor }]}>
+                              {statusText}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                      <View style={styles.sensorValueRow}>
+                        <View style={styles.valueContainer}>
+                          <Text style={[styles.value, item.status === 'WARNING' && styles.valueError]}>
+                            {item.isState ? item.value : parseFloat(item.value).toFixed(2)}
                           </Text>
+                          {!!item.unit && !item.isState && (
+                            <Text style={styles.unit}>{item.unit}</Text>
+                          )}
                         </View>
                       </View>
                     </View>
-                    <View style={styles.sensorRight}>
-                      <View style={styles.valueContainer}>
-                        <Text style={[styles.value, item.status === 'WARNING' && styles.valueError]}>
-                          {parseFloat(item.value).toFixed(2)}
-                        </Text>
-                        <Text style={styles.unit}>{item.unit}</Text>
-                      </View>
-                      <Icon 
-                        name={isOpen ? "chevron-up" : "chevron-down"} 
-                        size={16} 
-                        color={COLORS.gray} 
-                      />
-                    </View>
+                    <Icon 
+                      name={isOpen ? "chevron-up" : "chevron-down"} 
+                      size={16} 
+                      color={COLORS.gray} 
+                    />
                   </TouchableOpacity>
 
                   {isOpen && (
@@ -1629,10 +1643,22 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isAR = true) {
     justifyContent: 'space-between',
     padding: 16,
   },
-  sensorLeft: {
+  sensorContent: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: isAR ? 'flex-end' : 'flex-start',
+    gap: 8,
+  },
+  sensorTopRow: {
     flexDirection: rowDirection,
     alignItems: 'center',
     gap: 12,
+    width: '100%',
+  },
+  sensorTextBlock: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: isAR ? 'flex-end' : 'flex-start',
   },
   iconBox: {
     width: 36,
@@ -1654,6 +1680,9 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isAR = true) {
     color: COLORS.ink,
     marginBottom: 3,
     includeFontPadding: true,
+    maxWidth: 200,
+    lineHeight: 18,
+    textAlign,
   },
   statusRow: {
     flexDirection: rowDirection,
@@ -1670,10 +1699,13 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isAR = true) {
     fontWeight: '700',
     includeFontPadding: true,
   },
-  sensorRight: {
+  sensorValueRow: {
     flexDirection: rowDirection,
     alignItems: 'center',
-    gap: 10,
+    gap: 6,
+    marginTop: 4,
+    marginLeft: isAR ? 0 : 48,
+    marginRight: isAR ? 0 : 0,
   },
   valueContainer: {
     flexDirection: rowDirection,
