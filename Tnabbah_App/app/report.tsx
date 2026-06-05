@@ -421,6 +421,7 @@ const ReportScreen = () => {
   const [saving, setSaving] = useState(false);
   const [supabaseRowId, setSupabaseRowId] = useState<string | null>(null);
   const [carName, setCarName] = useState<string | null>(null);
+  const [userCarUuid, setUserCarUuid] = useState<string | null>(null);
   const autoSaveTriedRef = useRef<string | null>(null);
   const [lang, setLang] = useState<'AR' | 'EN'>('AR');
   const [trMap, setTrMap] = useState<Record<string, string>>({});
@@ -601,14 +602,31 @@ const ReportScreen = () => {
     })();
   }, [params.id, session?.user?.id, parseReport]);
 
-  // Auto-insert as 'pending' once the report is parsed (only for freshly generated reports)
+  // Auto-insert as 'pending' once the report is parsed (only for freshly generated reports).
+  // Also re-runs when userCarUuid resolves so the row is backfilled if the car lookup
+  // finished after the initial insert.
   useEffect(() => {
     if (!report || !session?.user?.id) return;
-    if (supabaseRowId) return; // already exists in DB (loaded by id)
 
     const dedupKey =
       String(report.report_id || '') ||
       `${session.user.id}:${report.timestamp || ''}`;
+
+    if (supabaseRowId) {
+      // Row already exists — backfill user_car_id if it just resolved.
+      if (userCarUuid) {
+        supabase
+          .from('reports')
+          .update({ user_car_id: userCarUuid })
+          .eq('id', supabaseRowId)
+          .eq('user_id', session.user.id)
+          .then(({ error }: { error: any }) => {
+            if (error) console.error('Backfill user_car_id failed:', error.message);
+          });
+      }
+      return;
+    }
+
     if (autoSaveTriedRef.current === dedupKey) return;
     autoSaveTriedRef.current = dedupKey;
 
@@ -626,6 +644,7 @@ const ReportScreen = () => {
             expiry_at: expiry.toISOString(),
             status: 'pending',
             is_permanently_saved: false,
+            ...(userCarUuid ? { user_car_id: userCarUuid } : {}),
           })
           .select('id')
           .single();
@@ -635,7 +654,7 @@ const ReportScreen = () => {
         console.error('Auto-save (pending) failed:', err?.message || err);
       }
     })();
-  }, [report, session?.user?.id, supabaseRowId]);
+  }, [report, session?.user?.id, supabaseRowId, userCarUuid]);
 
   // Resolve the car's display name for the report header. The MQTT car_id
   // (text) is stored in the report content; map it to the user's saved car
@@ -658,7 +677,7 @@ const ReportScreen = () => {
       try {
         const { data, error } = await supabase
           .from('user_cars')
-          .select('display_name, car_id')
+          .select('id, display_name, car_id')
           .eq('user_id', session.user.id)
           .eq('car_id', carIdText)
           .eq('is_deleted', false)
@@ -667,6 +686,7 @@ const ReportScreen = () => {
         if (cancelled) return;
         if (!error && data) {
           setCarName(data.display_name || data.car_id || carIdText);
+          setUserCarUuid(data.id || null);
         } else {
           setCarName(carIdText);
         }
@@ -700,6 +720,7 @@ const ReportScreen = () => {
             is_permanently_saved: true,
             saved_at: now.toISOString(),
             expiry_at: expiry.toISOString(),
+            ...(userCarUuid ? { user_car_id: userCarUuid } : {}),
           })
           .eq('id', supabaseRowId)
           .eq('user_id', session.user.id);
@@ -716,6 +737,7 @@ const ReportScreen = () => {
             expiry_at: expiry.toISOString(),
             status: 'saved',
             is_permanently_saved: true,
+            ...(userCarUuid ? { user_car_id: userCarUuid } : {}),
           })
           .select('id')
           .single();
