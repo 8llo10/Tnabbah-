@@ -2728,9 +2728,4 @@ const styles = StyleSheet.create({
     includeFontPadding: true,
     paddingHorizontal: 4,
   },
-<<<<<<< HEAD
-
 });
-=======
-});
->>>>>>> 30814681d235d3cb6ed7db323a7b27a6a6de5e19

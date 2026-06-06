@@ -200,16 +200,16 @@ export default function HomeScreen() {
 
     const styles = useMemo(() => createStyles(COLORS, isArabic), [COLORS, isArabic]);
 
-    const vehicleRealtime = useVehicleRealtime() as any;
-
-    const metrics = vehicleRealtime?.metrics ?? {};
-    const vin = vehicleRealtime?.vin ?? null;
-    const dtcCount = vehicleRealtime?.dtcCount ?? 0;
-    const supportedCount = vehicleRealtime?.supportedCount ?? 0;
-    const lastRaw = vehicleRealtime?.lastRaw ?? "";
-    const statusText = vehicleRealtime?.statusText ?? "";
-    const isConnected = vehicleRealtime?.isConnected ?? false;
-    const isAutoRunning = vehicleRealtime?.isAutoRunning ?? false;
+    const {
+        metrics,
+        vin,
+        dtcCount,
+        supportedCount,
+        lastRaw,
+        statusText,
+        isConnected,
+        isAutoRunning,
+    } = useVehicleRealtime();
 
     const { width, height } = useWindowDimensions();
 
@@ -1381,46 +1381,6 @@ export default function HomeScreen() {
                             subtitle={lastScanAt ? "آخر تقرير تم إنشاؤه" : "لم يتم إنشاء تقرير بعد"}
                         />
 
-<<<<<<< HEAD
-                    <QuickSummaryCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        iconPack="feather"
-                        icon="alert-triangle"
-                        title="الأعطال"
-                        value={String(dtcCount ?? 0)}
-                        subtitle="أكواد الأعطال المكتشفة"
-                    />
-                </View>
-                <View style={[styles.quickSummaryRow, isWide && styles.quickSummaryRowWide]}>
-                    <QuickSummaryCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        icon="battery"
-                        title="البطارية"
-                        value={`${safeValue(metrics?.voltage)} V`}
-                        subtitle="Battery Voltage"
-                    />
-
-                    <QuickSummaryCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        icon="activity"
-                        title="RPM"
-                        value={safeValue(metrics?.rpm)}
-                        subtitle="Engine Speed"
-                    />
-
-                    <QuickSummaryCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        icon="thermometer"
-                        title="حرارة المحرك"
-                        value={`${safeValue(metrics?.coolant)} °C`}
-                        subtitle="Engine Temperature"
-                    />
-                </View>
-=======
                         <QuickSummaryCard
                             styles={styles}
                             COLORS={COLORS}
@@ -1460,7 +1420,6 @@ export default function HomeScreen() {
                             subtitle="Engine Temperature"
                         />
                     </View>
->>>>>>> 30814681d235d3cb6ed7db323a7b27a6a6de5e19
 
 
                     {/* <View style={styles.statusCard}>
