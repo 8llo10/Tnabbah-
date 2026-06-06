@@ -68,8 +68,8 @@ const LIGHT_COLORS = {
 const DARK_COLORS = {
   screenBackground: "#151515",
 
-  primary: "#B63A34",
-  primaryDark: "#871B17",
+  primary: "#C8564E",
+  primaryDark: "#C8564E",
   primaryText: "#C8564E",
   buttonGradientStart: "#B63A34",
   buttonGradientEnd: "#871B17",
@@ -123,14 +123,24 @@ export default function ResetPasswordScreen() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
-  const initialEmail =
-    typeof params.email === "string"
-      ? params.email
-      : Array.isArray(params.email)
-      ? params.email[0]
-      : "";
+  const initialEmail = useMemo(() => {
+    const value =
+      typeof params.email === "string"
+        ? params.email
+        : Array.isArray(params.email)
+        ? params.email[0]
+        : "";
 
-  const [email] = useState(initialEmail || "");
+    return value.trim().toLowerCase();
+  }, [params.email]);
+
+  const [email, setEmail] = useState(initialEmail || "");
+
+  useEffect(() => {
+    if (initialEmail) {
+      setEmail(initialEmail);
+    }
+  }, [initialEmail]);
 
   const [otpValues, setOtpValues] = useState<string[]>(
     Array(OTP_DIGITS).fill("")
@@ -380,15 +390,43 @@ export default function ResetPasswordScreen() {
       });
 
       if (verifyError) {
-        console.log("verifyOtp error:", verifyError.message);
+        const message = verifyError.message?.toLowerCase() || "";
+
+        console.log("RESET VERIFY OTP ERROR:", {
+          message: verifyError.message,
+          status: verifyError.status,
+          code: verifyError.code,
+          email: cleanEmail,
+          tokenLength: cleanOtp.length,
+        });
+
+        if (
+          message.includes("rate limit") ||
+          message.includes("too many") ||
+          message.includes("429")
+        ) {
+          setErrorMessage(t.resetOtpResendFailedLater);
+          return;
+        }
+
         setErrorMessage(t.resetOtpInvalidCode);
         return;
       }
 
-      console.log(
-        "verifyOtp success:",
-        data?.session ? "session exists" : "no session"
-      );
+      if (!data?.session?.access_token || !data?.session?.refresh_token) {
+        console.log("RESET VERIFY OTP ERROR: no session returned", {
+          email: cleanEmail,
+          tokenLength: cleanOtp.length,
+        });
+
+        setErrorMessage(t.resetOtpInvalidCode);
+        return;
+      }
+
+      await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
 
       await setPasswordRecoveryMode(true);
       await AsyncStorage.setItem("password_recovery_flow", "true");
@@ -396,7 +434,10 @@ export default function ResetPasswordScreen() {
       Keyboard.dismiss();
       setFocusedIndex(null);
 
-      router.replace("/auth/new-password" as any);
+      router.replace({
+        pathname: "/auth/new-password",
+        params: { email: cleanEmail },
+      } as any);
     } catch (error) {
       console.log("verify otp error:", error);
       setErrorMessage(t.resetOtpUnexpectedError);
@@ -424,7 +465,24 @@ export default function ResetPasswordScreen() {
       const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
 
       if (error) {
-        console.log("resend code error:", error.message);
+        const message = error.message?.toLowerCase() || "";
+
+        console.log("RESET RESEND CODE ERROR:", {
+          message: error.message,
+          status: error.status,
+          code: error.code,
+          email: cleanEmail,
+        });
+
+        if (
+          message.includes("rate limit") ||
+          message.includes("too many") ||
+          message.includes("429")
+        ) {
+          setErrorMessage(t.resetOtpResendFailedLater);
+          return;
+        }
+
         setErrorMessage(t.resetOtpResendFailedLater);
         return;
       }

@@ -48,6 +48,8 @@ const LIGHT_COLORS = {
 
   primary: "#9A211C",
   primaryDark: "#761713",
+  buttonGradientStart: "#9A211C",
+  buttonGradientEnd: "#761713",
   title: "#9A211C",
 
   textDark: "#111111",
@@ -73,9 +75,11 @@ const LIGHT_COLORS = {
 const DARK_COLORS = {
   screenBackground: "#151515",
 
-  primary: "#B63A34",
-  primaryDark: "#871B17",
-  title: "#B63A34",
+  primary: "#C8564E",
+  primaryDark: "#C8564E",
+  buttonGradientStart: "#B63A34",
+  buttonGradientEnd: "#871B17",
+  title: "#C8564E",
 
   textDark: "#FFFFFF",
   textMuted: "#C7C7C7",
@@ -89,14 +93,14 @@ const DARK_COLORS = {
   subtleBorder: "#333333",
   placeholder: "#8E8E8E",
   mutedBoxText: "#C7C7C7",
-  primarySoft: "rgba(182,58,52,0.16)",
-  primarySoftStrong: "rgba(182,58,52,0.20)",
-  primarySoftBorder: "rgba(182,58,52,0.28)",
-  primarySoftBorderLight: "rgba(182,58,52,0.22)",
+  primarySoft: "rgba(200,86,78,0.16)",
+  primarySoftStrong: "rgba(200,86,78,0.20)",
+  primarySoftBorder: "rgba(200,86,78,0.28)",
+  primarySoftBorderLight: "rgba(200,86,78,0.22)",
 
-  error: "#EF7676",
-  errorSoft: "rgba(239,118,118,0.10)",
-  errorBorder: "rgba(239,118,118,0.45)",
+  error: "#C8564E",
+  errorSoft: "rgba(200,86,78,0.10)",
+  errorBorder: "rgba(200,86,78,0.45)",
 
   white: "#FFFFFF",
   statusBar: "light-content" as const,
@@ -152,6 +156,9 @@ export default function ConnectionIntroScreen() {
   });
 
   const COLORS = darkModeEnabled ? DARK_COLORS : LIGHT_COLORS;
+
+  const entrySource = String(from || "").toLowerCase().trim();
+  const exitRoute = entrySource === "settings" ? "/(tabs)/settings" : "/(tabs)/home";
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -421,12 +428,12 @@ export default function ConnectionIntroScreen() {
   const goBackToPreviousScreen = () => {
     stopScan(false);
 
-    if (from === "settings") {
+    if (entrySource === "settings") {
       appRouter.replace("/(tabs)/settings" as any);
       return;
     }
 
-    if (from === "home") {
+    if (entrySource === "home") {
       appRouter.replace("/(tabs)/home" as any);
       return;
     }
@@ -441,7 +448,7 @@ export default function ConnectionIntroScreen() {
 
   const handleSkip = () => {
     stopScan(false);
-    appRouter.replace("/(tabs)/home" as any);
+    appRouter.replace(exitRoute as any);
   };
 
   const handleConnectDevice = async () => {
@@ -464,7 +471,7 @@ export default function ConnectionIntroScreen() {
 
       beginDetectingCar();
 
-      appRouter.replace("/(tabs)/home" as any);
+      appRouter.replace(exitRoute as any);
 
       vehicleScannerService
         .startAutoScan({ forceFull: true })
@@ -841,7 +848,7 @@ export default function ConnectionIntroScreen() {
                 disabled={isButtonDisabled}
               >
                 <LinearGradient
-                  colors={[COLORS.primary, COLORS.primaryDark]}
+                  colors={[COLORS.buttonGradientStart, COLORS.buttonGradientEnd]}
                   start={{ x: 0.15, y: 0 }}
                   end={{ x: 0.9, y: 1 }}
                   style={styles.startGradient}
@@ -1887,12 +1894,12 @@ function createStyles({
       height: buttonHeight,
       borderRadius: buttonRadius,
       overflow: "hidden",
-      shadowColor: COLORS.primaryDark,
+      shadowColor: COLORS.buttonGradientEnd,
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: Platform.OS === "android" ? 0.18 : 0.24,
       shadowRadius: 14,
       elevation: 6,
-      backgroundColor: COLORS.primary,
+      backgroundColor: COLORS.buttonGradientStart,
     },
 
     disabledButton: {

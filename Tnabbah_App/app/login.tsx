@@ -15,6 +15,7 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../lib/supabase";
 // import * as Notifications from "expo-notifications";
 // import * as Device from "expo-device";
@@ -39,6 +40,8 @@ const LIGHT_COLORS = {
 
   primary: "#9A211C",
   primaryDark: "#761713",
+  buttonGradientStart: "#9A211C",
+  buttonGradientEnd: "#761713",
   primaryText: "#871B17",
   authLink: "#202020",
 
@@ -70,8 +73,10 @@ const DARK_COLORS = {
   screenBackground: "#151515",
   nextScreenBackground: "rgba(21,21,21,0.38)",
 
-  primary: "#B63A34",
-  primaryDark: "#871B17",
+  primary: "#C8564E",
+  primaryDark: "#C8564E",
+  buttonGradientStart: "#B63A34",
+  buttonGradientEnd: "#871B17",
   primaryText: "#C8564E",
   authLink: "#FFFFFF",
 
@@ -110,6 +115,8 @@ const FONT_EXTRABOLD = "Alexandria_800ExtraBold";
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
+const APP_DARK_MODE_KEY = "app_dark_mode_enabled";
+
 const SAVED_EMAIL_KEY = "tnabbah_saved_email";
 const SAVED_PASSWORD_KEY = "tnabbah_saved_password";
 
@@ -132,7 +139,51 @@ export default function LoginScreen() {
     Alexandria_800ExtraBold,
   });
 
-  const COLORS = darkModeEnabled ? DARK_COLORS : LIGHT_COLORS;
+  const [storedDarkModePreference, setStoredDarkModePreference] =
+    useState<boolean | null>(null);
+  const [themePreferenceReady, setThemePreferenceReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadSavedDarkMode = async () => {
+      try {
+        const savedDarkMode = await AsyncStorage.getItem(APP_DARK_MODE_KEY);
+
+        if (!mounted) return;
+
+        if (savedDarkMode === "true") {
+          setStoredDarkModePreference(true);
+        } else if (savedDarkMode === "false") {
+          setStoredDarkModePreference(false);
+        } else {
+          setStoredDarkModePreference(null);
+        }
+
+        setThemePreferenceReady(true);
+      } catch (error) {
+        console.log("Load auth dark mode error:", error);
+
+        if (mounted) {
+          setStoredDarkModePreference(null);
+          setThemePreferenceReady(true);
+        }
+      }
+    };
+
+    loadSavedDarkMode();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const isDarkMode =
+    storedDarkModePreference !== null
+      ? storedDarkModePreference
+      : darkModeEnabled === true;
+
+  const COLORS = isDarkMode ? DARK_COLORS : LIGHT_COLORS;
 
   const textAlign = isArabic ? "right" : "left";
   const rowDirection = isArabic ? "row-reverse" : "row";
@@ -575,7 +626,7 @@ export default function LoginScreen() {
     }
   };
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || !themePreferenceReady) {
     return null;
   }
 
@@ -596,7 +647,7 @@ export default function LoginScreen() {
         <StatusBar
           translucent
           backgroundColor="transparent"
-          barStyle={darkModeEnabled ? "light-content" : "dark-content"}
+          barStyle={isDarkMode ? "light-content" : "dark-content"}
         />
 
         <Animated.View
@@ -877,7 +928,7 @@ export default function LoginScreen() {
                     activeOpacity={0.9}
                   >
                     <LinearGradient
-                      colors={[COLORS.primary, COLORS.primaryDark]}
+                      colors={[COLORS.buttonGradientStart, COLORS.buttonGradientEnd]}
                       start={{ x: 0.15, y: 0 }}
                       end={{ x: 0.9, y: 1 }}
                       style={styles.loginGradient}

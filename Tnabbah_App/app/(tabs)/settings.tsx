@@ -21,10 +21,11 @@ import {
 import { supabase } from "../../lib/supabase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import { useAuth } from "../../providers/AuthProvider";
 
 import { useCars, UserCar } from "../../providers/CarsProvider";
@@ -61,7 +62,11 @@ const EMAIL_CHANGE_RESEND_COOLDOWN = 60;
 const EMAIL_CHANGE_PENDING_KEY = "settings_email_change_pending";
 const EMAIL_CHANGE_TARGET_KEY = "settings_email_change_target_email";
 const EMAIL_CHANGE_SUCCESS_SHOWN_KEY = "settings_email_change_success_shown";
+const EMAIL_CHANGE_APP_LEFT_KEY = "settings_email_change_app_left";
 
+// نفس مفتاح الدارك مود الموجود في AppSettingsProvider.
+// نعرّفه هنا كنص ثابت عشان ما يصير undefined لو ما كان معمول له export.
+const APP_DARK_MODE_KEY = "app_dark_mode_enabled";
 
 const FONT_REGULAR = "Alexandria_400Regular";
 const FONT_SEMIBOLD = "Alexandria_600SemiBold";
@@ -567,6 +572,135 @@ function AppMessageModal({
             </Pressable>
           )}
         </View>
+      </View>
+    </Modal>
+  );
+}
+
+
+function EmailChangeSuccessOverlay({
+  visible,
+  title,
+  message,
+  isDarkMode,
+  onFinish,
+}: {
+  visible: boolean;
+  title: string;
+  message: string;
+  isDarkMode: boolean;
+  onFinish: () => void;
+}) {
+  const lottieRef = useRef<LottieView>(null);
+  const cardScale = useRef(new Animated.Value(0.96)).current;
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+  const onFinishRef = useRef(onFinish);
+  const playedOnceRef = useRef(false);
+
+  useEffect(() => {
+    onFinishRef.current = onFinish;
+  }, [onFinish]);
+
+  useEffect(() => {
+    if (!visible) {
+      playedOnceRef.current = false;
+      return;
+    }
+
+    if (playedOnceRef.current) return;
+    playedOnceRef.current = true;
+
+    cardScale.setValue(0.96);
+    cardOpacity.setValue(0);
+    lottieRef.current?.reset();
+
+    const playTimer = setTimeout(() => {
+      lottieRef.current?.play(0, 50);
+    }, 35);
+
+    Animated.parallel([
+      Animated.timing(cardOpacity, {
+        toValue: 1,
+        duration: 90,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.spring(cardScale, {
+        toValue: 1,
+        friction: 8,
+        tension: 120,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    const closeTimer = setTimeout(() => {
+      onFinishRef.current();
+    }, 2350);
+
+    return () => {
+      clearTimeout(playTimer);
+      clearTimeout(closeTimer);
+    };
+  }, [visible, cardScale, cardOpacity]);
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onFinish}>
+      <View
+        style={[
+          styles.emailChangeSuccessOverlay,
+          {
+            backgroundColor: isDarkMode
+              ? "rgba(0,0,0,0.44)"
+              : "rgba(255,255,255,0.62)",
+          },
+        ]}
+      >
+        <BlurView
+          intensity={isDarkMode ? 42 : 58}
+          tint={isDarkMode ? "dark" : "light"}
+          style={StyleSheet.absoluteFillObject}
+        />
+
+        <Animated.View
+          style={[
+            styles.emailChangeSuccessContent,
+            {
+              opacity: cardOpacity,
+              transform: [{ scale: cardScale }],
+            },
+          ]}
+        >
+          <LottieView
+            ref={lottieRef}
+            source={require("../../assets/animations/success-check.json")}
+            loop={false}
+            autoPlay={false}
+            speed={1.45}
+            style={styles.emailChangeSuccessAnimation}
+          />
+
+          <Text
+            style={[
+              styles.emailChangeSuccessTitle,
+              { color: isDarkMode ? "#FFFFFF" : COLORS.primary },
+            ]}
+            allowFontScaling={false}
+          >
+            {title}
+          </Text>
+
+          <Text
+            style={[
+              styles.emailChangeSuccessSubtitle,
+              { color: isDarkMode ? "rgba(255,255,255,0.86)" : "#2C2C2C" },
+            ]}
+            allowFontScaling={false}
+          >
+            {message}
+          </Text>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -1287,6 +1421,13 @@ function BottomEditSheet({
 export default function Settings() {
   const { profile, session } = useAuth();
   const router = useRouter();
+  const routeParams = useLocalSearchParams<{
+    email_changed?: string;
+    email_change?: string;
+    type?: string;
+    access_token?: string;
+    refresh_token?: string;
+  }>();
   const { language, changeLanguage } = useLanguage();
   const [fontsLoaded] = useFonts({
     Alexandria_400Regular,
@@ -1359,6 +1500,11 @@ export default function Settings() {
   const [messageIcon, setMessageIcon] =
     useState<keyof typeof Feather.glyphMap>("check-circle");
 
+  const [emailChangeSuccessVisible, setEmailChangeSuccessVisible] =
+    useState(false);
+  const [emailChangeSuccessTitle, setEmailChangeSuccessTitle] = useState("");
+  const [emailChangeSuccessMessage, setEmailChangeSuccessMessage] = useState("");
+
   const [editEmailVisible, setEditEmailVisible] = useState(false);
   const [emailInput, setEmailInput] = useState("");
   const [savingEmail, setSavingEmail] = useState(false);
@@ -1370,6 +1516,7 @@ export default function Settings() {
   const [emailResendNotice, setEmailResendNotice] = useState("");
   const [confirmedEmailOverride, setConfirmedEmailOverride] = useState("");
   const emailChangeHandledRef = useRef(false);
+  const appWentToBackgroundRef = useRef(false);
 
   const [deleteAccountVisible, setDeleteAccountVisible] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
@@ -1396,18 +1543,19 @@ export default function Settings() {
   };
 
   const showEmailChangedSuccessImmediately = async () => {
-    setMessageTitle(
+    resetEmailEditSheet();
+    setMessageVisible(false);
+    setEmailChangeSuccessTitle(
       selectedLanguage === "AR"
-        ? "تم تغيير البريد الإلكتروني بنجاح"
-        : "Email changed successfully",
+        ? "تم تأكيد تغيير البريد الإلكتروني بنجاح"
+        : "Email change confirmed successfully",
     );
-    setMessageBody(
+    setEmailChangeSuccessMessage(
       selectedLanguage === "AR"
-        ? "تم تأكيد البريد الإلكتروني الجديد وتحديثه في حسابك."
-        : "The new email has been confirmed and updated on your account.",
+        ? "تم تحديث البريد الإلكتروني الجديد في حسابك."
+        : "Your new email address has been updated on your account.",
     );
-    setMessageIcon("check-circle");
-    setMessageVisible(true);
+    setEmailChangeSuccessVisible(true);
 
     try {
       await AsyncStorage.setItem(EMAIL_CHANGE_SUCCESS_SHOWN_KEY, "true");
@@ -1416,47 +1564,7 @@ export default function Settings() {
     }
   };
 
-  const handleConfirmedEmailChangeLink = async (url?: string | null) => {
-    if (!url || emailChangeHandledRef.current) return;
-
-    const lowerUrl = url.toLowerCase();
-
-    let hasPendingEmailChange = false;
-
-    try {
-      hasPendingEmailChange =
-        (await AsyncStorage.getItem(EMAIL_CHANGE_PENDING_KEY)) === "true";
-    } catch (error) {
-      console.log("Read pending email change flag error:", error);
-    }
-
-    const isSettingsDeepLink =
-      lowerUrl.includes("settings") || lowerUrl.includes("email");
-
-    const isConfirmedEmailChange =
-      lowerUrl.includes("email_changed=1") ||
-      lowerUrl.includes("email_change=1") ||
-      lowerUrl.includes("email-change=1") ||
-      lowerUrl.includes("type=email_change") ||
-      lowerUrl.includes("type=email_change_current") ||
-      lowerUrl.includes("type=email_change_new") ||
-      lowerUrl.includes("type=email") ||
-      lowerUrl.includes("email_change_token") ||
-      lowerUrl.includes("email_change_token_new") ||
-      lowerUrl.includes("email_change_token_current") ||
-      (hasPendingEmailChange && isSettingsDeepLink);
-
-    if (!isConfirmedEmailChange) return;
-
-    emailChangeHandledRef.current = true;
-    resetEmailEditSheet();
-
-    /**
-     * نعرض رسالة النجاح فورًا أول ما التطبيق ينفتح من رابط الإيميل.
-     * لا ننتظر refreshSession ولا تحديث profiles عشان ما تتأخر الرسالة.
-     */
-    await showEmailChangedSuccessImmediately();
-
+  const syncConfirmedEmailInBackground = async () => {
     try {
       const { error: refreshError } = await supabase.auth.refreshSession();
 
@@ -1466,7 +1574,14 @@ export default function Settings() {
           refreshError.message,
         );
       }
+    } catch (refreshNetworkError: any) {
+      console.log(
+        "Refresh session after email change network error:",
+        refreshNetworkError?.message ?? refreshNetworkError,
+      );
+    }
 
+    try {
       const {
         data: { user },
         error: userError,
@@ -1482,62 +1597,217 @@ export default function Settings() {
         setConfirmedEmailOverride(confirmedEmail);
         setEmailInput(confirmedEmail);
 
-        const { error: profileEmailError } = await supabase
-          .from("profiles")
-          .update({
-            username: confirmedEmail,
-            email: confirmedEmail,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", user.id);
+        try {
+          const { error: profileEmailError } = await supabase
+            .from("profiles")
+            .update({
+              username: confirmedEmail,
+              email: confirmedEmail,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", user.id);
 
-        if (profileEmailError) {
+          if (profileEmailError) {
+            console.log(
+              "Profile email sync after email change error:",
+              profileEmailError.message,
+            );
+          }
+        } catch (profileNetworkError: any) {
           console.log(
-            "Profile email sync after email change error:",
-            profileEmailError.message,
+            "Profile email sync after email change network error:",
+            profileNetworkError?.message ?? profileNetworkError,
           );
         }
       }
+    } catch (userNetworkError: any) {
+      console.log(
+        "Get user after email change network error:",
+        userNetworkError?.message ?? userNetworkError,
+      );
+    } finally {
+      try {
+        await AsyncStorage.multiRemove([
+          EMAIL_CHANGE_PENDING_KEY,
+          EMAIL_CHANGE_TARGET_KEY,
+          EMAIL_CHANGE_APP_LEFT_KEY,
+        ]);
+      } catch (storageError) {
+        console.log("Clean email change pending flags error:", storageError);
+      }
+    }
+  };
+
+  const triggerEmailChangeSuccess = async (reason: string) => {
+    if (emailChangeHandledRef.current) return;
+
+    try {
+      const wasSuccessShown =
+        (await AsyncStorage.getItem(EMAIL_CHANGE_SUCCESS_SHOWN_KEY)) === "true";
+
+      /**
+       * مهم جدًا:
+       * بعض الأجهزة ترجع نفس رابط الإيميل أكثر من مرة عن طريق getInitialURL أو url event
+       * أو AppState active. إذا سبق عرض النجاح، نقفل كل الـ triggers وما نعيد الأنيميشن.
+       */
+      if (wasSuccessShown) {
+        emailChangeHandledRef.current = true;
+        setEmailChangeSuccessVisible(false);
+        return;
+      }
+
+      emailChangeHandledRef.current = true;
+
+      await AsyncStorage.multiSet([
+        [EMAIL_CHANGE_SUCCESS_SHOWN_KEY, "true"],
+        [EMAIL_CHANGE_APP_LEFT_KEY, "false"],
+      ]);
 
       await AsyncStorage.multiRemove([
         EMAIL_CHANGE_PENDING_KEY,
         EMAIL_CHANGE_TARGET_KEY,
+        EMAIL_CHANGE_APP_LEFT_KEY,
       ]);
     } catch (error) {
-      console.log("Email change deep link background sync error:", error);
+      console.log("Prepare email success overlay error:", error);
+      emailChangeHandledRef.current = true;
     }
+
+    console.log("Email change success overlay triggered:", reason);
+
+    /**
+     * نعرض الأنيميشن فورًا أول ما التطبيق يرجع من رابط التأكيد.
+     * التحديث مع Supabase يصير في الخلفية ولا ننتظره عشان ما تتأخر الرسالة.
+     */
+    resetEmailEditSheet();
+    setMessageVisible(false);
+    setEmailChangeSuccessTitle(
+      selectedLanguage === "AR"
+        ? "تم تأكيد تغيير البريد الإلكتروني بنجاح"
+        : "Email change confirmed successfully",
+    );
+    setEmailChangeSuccessMessage(
+      selectedLanguage === "AR"
+        ? "تم تحديث البريد الإلكتروني الجديد في حسابك."
+        : "Your new email address has been updated on your account.",
+    );
+    setEmailChangeSuccessVisible(true);
+
+    syncConfirmedEmailInBackground().catch((error) => {
+      console.log("Email change background sync error:", error);
+    });
   };
+
+  const urlLooksLikeEmailChangeConfirmation = (url?: string | null) => {
+    if (!url) return false;
+
+    const lowerUrl = decodeURIComponent(url).toLowerCase();
+
+    return (
+      lowerUrl.includes("email_changed=1") ||
+      lowerUrl.includes("email_change=1") ||
+      lowerUrl.includes("email-change=1") ||
+      lowerUrl.includes("type=email_change") ||
+      lowerUrl.includes("type=email_change_current") ||
+      lowerUrl.includes("type=email_change_new") ||
+      lowerUrl.includes("email_change_token") ||
+      lowerUrl.includes("email_change_token_new") ||
+      lowerUrl.includes("email_change_token_current") ||
+      lowerUrl.includes("access_token=") ||
+      lowerUrl.includes("refresh_token=") ||
+      (lowerUrl.includes("settings") && lowerUrl.includes("email"))
+    );
+  };
+
+  const handleConfirmedEmailChangeLink = async (url?: string | null) => {
+    if (!url || emailChangeHandledRef.current) return;
+
+    let hasPendingEmailChange = false;
+
+    try {
+      hasPendingEmailChange =
+        (await AsyncStorage.getItem(EMAIL_CHANGE_PENDING_KEY)) === "true";
+    } catch (error) {
+      console.log("Read pending email change flag error:", error);
+    }
+
+    if (!hasPendingEmailChange && !urlLooksLikeEmailChangeConfirmation(url)) {
+      return;
+    }
+
+    await triggerEmailChangeSuccess("deep-link-url");
+  };
+
   useEffect(() => {
-    const checkInitialEmailChangeLink = async () => {
+    const paramsIndicateEmailChange =
+      routeParams?.email_changed === "1" ||
+      routeParams?.email_change === "1" ||
+      String(routeParams?.type || "").toLowerCase().includes("email_change") ||
+      !!routeParams?.access_token ||
+      !!routeParams?.refresh_token;
+
+    if (paramsIndicateEmailChange) {
+      triggerEmailChangeSuccess("route-params");
+    }
+  }, [
+    routeParams?.email_changed,
+    routeParams?.email_change,
+    routeParams?.type,
+    routeParams?.access_token,
+    routeParams?.refresh_token,
+  ]);
+
+  useEffect(() => {
+    const markEmailChangeAppLeft = async () => {
+      try {
+        const hasPendingEmailChange =
+          (await AsyncStorage.getItem(EMAIL_CHANGE_PENDING_KEY)) === "true";
+
+        if (hasPendingEmailChange) {
+          await AsyncStorage.setItem(EMAIL_CHANGE_APP_LEFT_KEY, "true");
+        }
+      } catch (error) {
+        console.log("Mark email change app left error:", error);
+      }
+    };
+
+    const checkEmailChangeReturn = async (source: string) => {
       try {
         const initialUrl = await Linking.getInitialURL();
 
-        if (initialUrl) {
+        if (urlLooksLikeEmailChangeConfirmation(initialUrl)) {
           await handleConfirmedEmailChangeLink(initialUrl);
           return;
         }
 
-        const hasPendingEmailChange =
-          (await AsyncStorage.getItem(EMAIL_CHANGE_PENDING_KEY)) === "true";
-        const wasSuccessShown =
-          (await AsyncStorage.getItem(EMAIL_CHANGE_SUCCESS_SHOWN_KEY)) === "true";
+        const [pendingValue, successShownValue, appLeftValue] =
+          await Promise.all([
+            AsyncStorage.getItem(EMAIL_CHANGE_PENDING_KEY),
+            AsyncStorage.getItem(EMAIL_CHANGE_SUCCESS_SHOWN_KEY),
+            AsyncStorage.getItem(EMAIL_CHANGE_APP_LEFT_KEY),
+          ]);
+
+        const hasPendingEmailChange = pendingValue === "true";
+        const wasSuccessShown = successShownValue === "true";
+        const didLeaveApp = appLeftValue === "true";
 
         /**
-         * احتياط:
-         * لو رجع التطبيق من المتصفح وما وصل url event لأي سبب،
-         * نعرض النجاح عند وجود pending flag، لكن مرة واحدة فقط.
+         * أقوى fallback:
+         * أحيانًا رابط تأكيد الإيميل يرجع التطبيق بدون url event واضح،
+         * أو يرجع على نفس شاشة الإعدادات بدون route params.
+         * لذلك إذا كان تغيير البريد معلّق، والمستخدم خرج من التطبيق ثم رجع،
+         * نعرض أنيميشن النجاح فورًا بدون انتظار refreshSession.
          */
-        if (hasPendingEmailChange && !wasSuccessShown) {
-          emailChangeHandledRef.current = true;
-          resetEmailEditSheet();
-          await showEmailChangedSuccessImmediately();
-
-          supabase.auth.refreshSession().catch((error) => {
-            console.log("Refresh session after pending email change error:", error);
-          });
+        if (
+          hasPendingEmailChange &&
+          !wasSuccessShown &&
+          (source === "app-active-return" || source === "mount") &&
+          (didLeaveApp || appWentToBackgroundRef.current)
+        ) {
+          await triggerEmailChangeSuccess(`pending-flag-${source}`);
         }
       } catch (error) {
-        console.log("Initial email change URL error:", error);
+        console.log("Check email change return error:", error);
       }
     };
 
@@ -1546,12 +1816,23 @@ export default function Settings() {
     });
 
     const appStateSubscription = AppState.addEventListener("change", (state) => {
+      if (state === "inactive" || state === "background") {
+        appWentToBackgroundRef.current = true;
+        markEmailChangeAppLeft();
+        return;
+      }
+
       if (state === "active") {
-        checkInitialEmailChangeLink();
+        const cameBackFromBackground = appWentToBackgroundRef.current;
+        appWentToBackgroundRef.current = false;
+
+        if (cameBackFromBackground) {
+          checkEmailChangeReturn("app-active-return");
+        }
       }
     });
 
-    checkInitialEmailChangeLink();
+    checkEmailChangeReturn("mount");
 
     return () => {
       subscription.remove();
@@ -2017,21 +2298,18 @@ Describe the issue:
     setEmailSheetError("");
 
     try {
-      await AsyncStorage.multiSet([
-        [EMAIL_CHANGE_PENDING_KEY, "true"],
-        [EMAIL_CHANGE_TARGET_KEY, cleanEmail],
-        [EMAIL_CHANGE_SUCCESS_SHOWN_KEY, "false"],
-      ]);
+      emailChangeHandledRef.current = false;
 
       await AsyncStorage.multiSet([
         [EMAIL_CHANGE_PENDING_KEY, "true"],
         [EMAIL_CHANGE_TARGET_KEY, cleanEmail],
         [EMAIL_CHANGE_SUCCESS_SHOWN_KEY, "false"],
+        [EMAIL_CHANGE_APP_LEFT_KEY, "false"],
       ]);
 
       const { error } = await supabase.auth.updateUser(
         { email: cleanEmail },
-        { emailRedirectTo: "tnabbah://settings?email_changed=1" },
+        { emailRedirectTo: "tnabbah://settings?email_changed=1&type=email_change" },
       );
 
       if (error) {
@@ -2045,6 +2323,7 @@ Describe the issue:
       await AsyncStorage.multiRemove([
         EMAIL_CHANGE_PENDING_KEY,
         EMAIL_CHANGE_TARGET_KEY,
+        EMAIL_CHANGE_APP_LEFT_KEY,
       ]);
 
       const rawMessage = String(error?.message || "").toLowerCase();
@@ -2121,7 +2400,7 @@ Describe the issue:
     try {
       const { error } = await supabase.auth.updateUser(
         { email: cleanEmail },
-        { emailRedirectTo: "tnabbah://settings?email_changed=1" },
+        { emailRedirectTo: "tnabbah://settings?email_changed=1&type=email_change" },
       );
 
       if (error) {
@@ -2220,19 +2499,45 @@ Describe the issue:
 
     setLoggingOut(true);
 
-    // نودّي المستخدم مباشرة لواجهة البداية بدون شاشة تحميل أو تظليل.
-    requestAnimationFrame(() => {
-      router.replace("/start" as any);
-    });
+    const lastDarkModeValue = darkModeEnabled ? "true" : "false";
 
-    // نسجل الخروج في الخلفية حتى لا يعلق المستخدم على شاشة بيضاء.
-    setTimeout(async () => {
+    const logoutSafely = async () => {
+      try {
+        // نحفظ آخر ثيم قبل الخروج عشان Start/Login/Register يطلعوا بنفس آخر وضع.
+        await AsyncStorage.setItem(APP_DARK_MODE_KEY, lastDarkModeValue);
+      } catch (error) {
+        console.log("Save theme before logout error:", error);
+      }
+
+      // ننقل المستخدم مباشرة للبداية بدون انتظار الشبكة.
+      requestAnimationFrame(() => {
+        router.replace("/start" as any);
+      });
+
       try {
         await logout(disconnectObd);
       } catch (error) {
         console.log("Logout error:", error);
+
+        try {
+          // لو Supabase فشل بسبب الشبكة، نسوي خروج محلي فقط حتى ما يعلق التطبيق.
+          await supabase.auth.signOut({ scope: "local" });
+        } catch (localLogoutError) {
+          console.log("Local logout error:", localLogoutError);
+        }
+      } finally {
+        try {
+          // لو logout مسح AsyncStorage، نرجّع آخر قيمة للثيم بصيغة صحيحة.
+          await AsyncStorage.setItem(APP_DARK_MODE_KEY, lastDarkModeValue);
+        } catch (restoreError) {
+          console.log("Restore theme after logout error:", restoreError);
+        }
+
+        setLoggingOut(false);
       }
-    }, 0);
+    };
+
+    logoutSafely();
   };
 
   const rowDirection = isRTL ? "row-reverse" : "row";
@@ -2266,6 +2571,7 @@ Describe the issue:
           isRTL={isRTL}
           onClose={() => setMessageVisible(false)}
         />
+
       </SafeAreaView>
     );
   }
@@ -4083,6 +4389,13 @@ Describe the issue:
         isRTL={isRTL}
         onClose={() => setMessageVisible(false)}
       />
+        <EmailChangeSuccessOverlay
+          visible={emailChangeSuccessVisible}
+          title={emailChangeSuccessTitle}
+          message={emailChangeSuccessMessage}
+          isDarkMode={darkModeEnabled}
+          onFinish={() => setEmailChangeSuccessVisible(false)}
+        />
 
       <BottomEditSheet
         visible={editNameVisible}
@@ -5411,6 +5724,52 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
+  },
+
+
+  emailChangeSuccessOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 28,
+  },
+
+  emailChangeSuccessContent: {
+    width: "100%",
+    maxWidth: 335,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: -44,
+  },
+
+  emailChangeSuccessAnimation: {
+    width: 172,
+    height: 172,
+  },
+
+  emailChangeSuccessTitle: {
+    fontFamily: FONT_EXTRABOLD,
+    marginTop: 4,
+    fontSize: 18.5,
+    textAlign: "center",
+    lineHeight: 27,
+    includeFontPadding: false,
+    textShadowColor: "rgba(0,0,0,0.24)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 8,
+  },
+
+  emailChangeSuccessSubtitle: {
+    fontFamily: FONT_SEMIBOLD,
+    marginTop: 8,
+    fontSize: 14.2,
+    textAlign: "center",
+    lineHeight: 22,
+    includeFontPadding: false,
+    textShadowColor: "rgba(0,0,0,0.16)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
 
 });

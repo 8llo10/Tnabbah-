@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
+  Image,
   Platform,
   ScrollView,
   StatusBar,
@@ -31,6 +32,8 @@ import * as Clipboard from "expo-clipboard";
 import { Animated, Alert } from "react-native";
 
 const CHATBOT_API_URL = "http://207.180.244.27:4010/chat";
+
+const CHATBOT_ASSISTANT_ICON = require("../assets/images/chatbot-ai-white.png");
 
 const SESSION_ID = `session-${Date.now()}-${Math.random()
   .toString(36)
@@ -505,10 +508,10 @@ export default function Chatbot() {
 
   const renderAssistantIcon = () => (
     <View style={styles.smallBotIcon}>
-      <Ionicons
-        name="chatbubble-ellipses-outline"
-        size={18}
-        color={COLORS.primary}
+      <Image
+        source={CHATBOT_ASSISTANT_ICON}
+        style={styles.smallBotImage}
+        resizeMode="contain"
       />
     </View>
   );
@@ -1067,15 +1070,25 @@ function createStyles(COLORS: AppColors, isArabic: boolean) {
     },
 
     smallBotIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: 13,
-      backgroundColor: COLORS.lightGray,
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: COLORS.primary,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 1,
-      borderColor: COLORS.border,
+      borderColor: COLORS.primary,
       marginTop: 2,
+      shadowColor: COLORS.primaryDark,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: Platform.OS === "android" ? 0.08 : 0.12,
+      shadowRadius: 6,
+      elevation: 2,
+    },
+
+    smallBotImage: {
+      width: 22,
+      height: 22,
     },
 
     messageGroup: {

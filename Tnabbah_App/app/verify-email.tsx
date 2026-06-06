@@ -18,6 +18,7 @@ import {
   ScrollView,
   PermissionsAndroid,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../lib/supabase";
 import * as Notifications from "expo-notifications";
 import { elmBluetoothService } from "@/services/elmBluetoothService";
@@ -36,6 +37,8 @@ import {
 import { useLanguage } from "../providers/LanguageProvider";
 import { useAppSettings } from "../providers/AppSettingsProvider";
 
+const APP_DARK_MODE_KEY = "app_dark_mode_enabled";
+
 const OTP_DIGITS = 8;
 const RESEND_COOLDOWN = 60;
 const SUCCESS_ANIMATION_START_FRAME = 0;
@@ -50,7 +53,9 @@ const LIGHT_COLORS = {
 
   primary: "#9A211C",
   primaryDark: "#761713",
-  primaryText: "#9A211C",
+  buttonGradientStart: "#9A211C",
+  buttonGradientEnd: "#761713",
+  primaryText: "#871B17",
 
   title: "#202020",
   textDark: "#2C2C2C",
@@ -95,8 +100,10 @@ const DARK_COLORS = {
   screenBackground: "#151515",
   nextScreenBackground: "#151515",
 
-  primary: "#B63A34",
-  primaryDark: "#871B17",
+  primary: "#C8564E",
+  primaryDark: "#C8564E",
+  buttonGradientStart: "#B63A34",
+  buttonGradientEnd: "#871B17",
   primaryText: "#C8564E",
 
   title: "#FFFFFF",
@@ -153,6 +160,7 @@ export default function VerifyEmailScreen() {
   const params = useLocalSearchParams();
   const { t, isArabic } = useLanguage();
   const { darkModeEnabled } = useAppSettings();
+
   const [fontsLoaded] = useFonts({
     Alexandria_400Regular,
     Alexandria_600SemiBold,
@@ -160,7 +168,51 @@ export default function VerifyEmailScreen() {
     Alexandria_800ExtraBold,
   });
 
-  const COLORS = darkModeEnabled ? DARK_COLORS : LIGHT_COLORS;
+  const [storedDarkModePreference, setStoredDarkModePreference] =
+    useState<boolean | null>(null);
+  const [themePreferenceReady, setThemePreferenceReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadSavedDarkMode = async () => {
+      try {
+        const savedDarkMode = await AsyncStorage.getItem(APP_DARK_MODE_KEY);
+
+        if (!mounted) return;
+
+        if (savedDarkMode === "true") {
+          setStoredDarkModePreference(true);
+        } else if (savedDarkMode === "false") {
+          setStoredDarkModePreference(false);
+        } else {
+          setStoredDarkModePreference(null);
+        }
+
+        setThemePreferenceReady(true);
+      } catch (error) {
+        console.log("Load VerifyEmail dark mode error:", error);
+
+        if (mounted) {
+          setStoredDarkModePreference(null);
+          setThemePreferenceReady(true);
+        }
+      }
+    };
+
+    loadSavedDarkMode();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const isDarkMode =
+    storedDarkModePreference !== null
+      ? storedDarkModePreference
+      : darkModeEnabled === true;
+
+  const COLORS = isDarkMode ? DARK_COLORS : LIGHT_COLORS;
 
   const textAlign = isArabic ? "right" : "left";
   const rowDirection = isArabic ? "row-reverse" : "row";
@@ -236,7 +288,7 @@ export default function VerifyEmailScreen() {
     () =>
       createStyles({
         COLORS,
-        darkModeEnabled,
+        isDarkMode,
         horizontalPadding,
         backButtonSize,
         backButtonRadius,
@@ -255,7 +307,7 @@ export default function VerifyEmailScreen() {
       }),
     [
       COLORS,
-      darkModeEnabled,
+      isDarkMode,
       horizontalPadding,
       backButtonSize,
       backButtonRadius,
@@ -548,7 +600,6 @@ export default function VerifyEmailScreen() {
         return;
       }
 
-      // مهم: نثبت الجلسة بعد التحقق عشان ما يرجعك AuthProvider إلى Login
       if (data.session) {
         await supabase.auth.setSession({
           access_token: data.session.access_token,
@@ -642,10 +693,8 @@ export default function VerifyEmailScreen() {
         return;
       }
 
-      // بعد التسجيل والتحقق يروح مباشرة إلى واجهة الإنترو
       smoothReplace("/connection-intro");
 
-      // نخلي طلب الصلاحيات بعد التنقل حتى ما يأخر الجلسة ويرجعك Login
       setTimeout(() => {
         requestPostVerifyPermissions().catch((error) => {
           console.log("Post verify permissions error:", error);
@@ -664,7 +713,10 @@ export default function VerifyEmailScreen() {
             color={COLORS.error}
             style={iconMargin}
           />
-          <Text style={[styles.messageTextError, { textAlign }]} allowFontScaling={false}>
+          <Text
+            style={[styles.messageTextError, { textAlign }]}
+            allowFontScaling={false}
+          >
             {errorMessage}
           </Text>
         </View>
@@ -680,7 +732,10 @@ export default function VerifyEmailScreen() {
             color={COLORS.success}
             style={iconMargin}
           />
-          <Text style={[styles.messageTextInfo, { textAlign }]} allowFontScaling={false}>
+          <Text
+            style={[styles.messageTextInfo, { textAlign }]}
+            allowFontScaling={false}
+          >
             {infoMessage}
           </Text>
         </View>
@@ -704,7 +759,9 @@ export default function VerifyEmailScreen() {
 
     return (
       <View style={[styles.resendRow, { flexDirection: rowDirection }]}>
-        <Text style={styles.resendQuestion} allowFontScaling={false}>{t.didNotReceiveCode}</Text>
+        <Text style={styles.resendQuestion} allowFontScaling={false}>
+          {t.didNotReceiveCode}
+        </Text>
 
         <TouchableOpacity
           activeOpacity={0.75}
@@ -719,7 +776,7 @@ export default function VerifyEmailScreen() {
     );
   };
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || !themePreferenceReady) {
     return null;
   }
 
@@ -730,7 +787,7 @@ export default function VerifyEmailScreen() {
       <StatusBar
         translucent
         backgroundColor="transparent"
-        barStyle={darkModeEnabled ? "light-content" : "dark-content"}
+        barStyle={isDarkMode ? "light-content" : "dark-content"}
       />
 
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
@@ -756,7 +813,11 @@ export default function VerifyEmailScreen() {
                     disabled={loading || resending}
                   >
                     <Ionicons
-                      name={isArabic ? "arrow-forward-outline" : "arrow-back-outline"}
+                      name={
+                        isArabic
+                          ? "arrow-forward-outline"
+                          : "arrow-back-outline"
+                      }
                       size={isVerySmallScreen ? 23 : 25}
                       color={COLORS.textDark}
                     />
@@ -774,15 +835,24 @@ export default function VerifyEmailScreen() {
                 </View>
 
                 <View style={styles.titleArea}>
-                  <Text style={styles.title} allowFontScaling={false}>{t.verifyEmailTitle}</Text>
+                  <Text style={styles.title} allowFontScaling={false}>
+                    {t.verifyEmailTitle}
+                  </Text>
 
-                  <Text style={styles.subtitle} allowFontScaling={false}>{t.verifyEmailSubtitle}</Text>
+                  <Text style={styles.subtitle} allowFontScaling={false}>
+                    {t.verifyEmailSubtitle}
+                  </Text>
 
-                  <Text style={styles.emailText} allowFontScaling={false}>{email || t.emailFallback}</Text>
+                  <Text style={styles.emailText} allowFontScaling={false}>
+                    {email || t.emailFallback}
+                  </Text>
                 </View>
 
                 <View style={styles.otpArea}>
-                  <Text style={[styles.inputLabel, { textAlign }]} allowFontScaling={false}>
+                  <Text
+                    style={[styles.inputLabel, { textAlign }]}
+                    allowFontScaling={false}
+                  >
                     {t.enterCode}
                   </Text>
 
@@ -858,10 +928,7 @@ export default function VerifyEmailScreen() {
                       activeOpacity={0.9}
                     >
                       <LinearGradient
-                        colors={[
-                          COLORS.primary,
-                          COLORS.primaryDark,
-                        ]}
+                        colors={[COLORS.buttonGradientStart, COLORS.buttonGradientEnd]}
                         start={{ x: 0.15, y: 0 }}
                         end={{ x: 0.9, y: 1 }}
                         style={styles.buttonGradient}
@@ -876,7 +943,10 @@ export default function VerifyEmailScreen() {
                               style={styles.loadingSpinner}
                             />
                           ) : (
-                            <Text style={styles.buttonText} allowFontScaling={false}>
+                            <Text
+                              style={styles.buttonText}
+                              allowFontScaling={false}
+                            >
                               {t.verifyCode}
                             </Text>
                           )}
@@ -896,8 +966,8 @@ export default function VerifyEmailScreen() {
       {showVerifySuccess ? (
         <View style={styles.verifySuccessOverlay} pointerEvents="none">
           <BlurView
-            intensity={darkModeEnabled ? 42 : 62}
-            tint={darkModeEnabled ? "dark" : "light"}
+            intensity={isDarkMode ? 42 : 62}
+            tint={isDarkMode ? "dark" : "light"}
             style={styles.successBlurLayer}
           />
 
@@ -965,7 +1035,7 @@ export default function VerifyEmailScreen() {
 
 function createStyles({
   COLORS,
-  darkModeEnabled,
+  isDarkMode,
   horizontalPadding,
   backButtonSize,
   backButtonRadius,
@@ -983,7 +1053,7 @@ function createStyles({
   isArabic,
 }: {
   COLORS: AppColors;
-  darkModeEnabled: boolean;
+  isDarkMode: boolean;
   horizontalPadding: number;
   backButtonSize: number;
   backButtonRadius: number;
@@ -1089,8 +1159,8 @@ function createStyles({
       letterSpacing: -0.35,
       lineHeight: isVerySmallScreen ? 32 : isSmallScreen ? 35 : 38,
       textShadowColor: COLORS.titleShadow,
-      textShadowOffset: { width: 0, height: darkModeEnabled ? 0 : 2 },
-      textShadowRadius: darkModeEnabled ? 0 : 12,
+      textShadowOffset: { width: 0, height: isDarkMode ? 0 : 2 },
+      textShadowRadius: isDarkMode ? 0 : 12,
     },
 
     subtitle: {
@@ -1102,8 +1172,8 @@ function createStyles({
       textAlign: "center",
       maxWidth: clamp(width * 0.9, 300, 360),
       textShadowColor: COLORS.subtitleShadow,
-      textShadowOffset: { width: 0, height: darkModeEnabled ? 0 : 1 },
-      textShadowRadius: darkModeEnabled ? 0 : 10,
+      textShadowOffset: { width: 0, height: isDarkMode ? 0 : 1 },
+      textShadowRadius: isDarkMode ? 0 : 10,
     },
 
     emailText: {
@@ -1149,9 +1219,9 @@ function createStyles({
       alignItems: "center",
       shadowColor: COLORS.shadowGray,
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: darkModeEnabled ? 0.1 : Platform.OS === "android" ? 0.14 : 0.2,
+      shadowOpacity: isDarkMode ? 0.1 : Platform.OS === "android" ? 0.14 : 0.2,
       shadowRadius: 4,
-      elevation: darkModeEnabled ? 1 : 3,
+      elevation: isDarkMode ? 1 : 3,
     },
 
     otpBoxFilled: {
@@ -1164,7 +1234,7 @@ function createStyles({
       backgroundColor: COLORS.otpFocusedBackground,
       shadowColor: COLORS.primaryDark,
       shadowOffset: { width: 0, height: 5 },
-      shadowOpacity: darkModeEnabled ? 0.14 : Platform.OS === "android" ? 0.2 : 0.25,
+      shadowOpacity: isDarkMode ? 0.14 : Platform.OS === "android" ? 0.2 : 0.25,
       shadowRadius: 10,
       elevation: 6,
     },
@@ -1174,7 +1244,7 @@ function createStyles({
       backgroundColor: COLORS.errorSoft,
       shadowColor: COLORS.error,
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: darkModeEnabled ? 0.1 : Platform.OS === "android" ? 0.13 : 0.16,
+      shadowOpacity: isDarkMode ? 0.1 : Platform.OS === "android" ? 0.13 : 0.16,
       shadowRadius: 8,
       elevation: 4,
     },
@@ -1254,7 +1324,7 @@ function createStyles({
       overflow: "hidden",
       shadowColor: COLORS.primaryDark,
       shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: darkModeEnabled ? 0.14 : Platform.OS === "android" ? 0.18 : 0.24,
+      shadowOpacity: isDarkMode ? 0.14 : Platform.OS === "android" ? 0.18 : 0.24,
       shadowRadius: 14,
       elevation: 6,
       backgroundColor: COLORS.primary,
@@ -1267,7 +1337,7 @@ function createStyles({
       overflow: "hidden",
       shadowColor: COLORS.primaryDark,
       shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: darkModeEnabled ? 0.14 : Platform.OS === "android" ? 0.18 : 0.24,
+      shadowOpacity: isDarkMode ? 0.14 : Platform.OS === "android" ? 0.18 : 0.24,
       shadowRadius: 14,
       elevation: 6,
       backgroundColor: COLORS.primary,
@@ -1386,7 +1456,7 @@ function createStyles({
 
     successWhiteVeil: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: darkModeEnabled
+      backgroundColor: isDarkMode
         ? "rgba(255,255,255,0.20)"
         : "rgba(255,255,255,0.88)",
     },
@@ -1417,12 +1487,14 @@ function createStyles({
     verifySuccessTitle: {
       fontFamily: FONT_EXTRABOLD,
       marginTop: 18,
-      color: darkModeEnabled ? COLORS.white : COLORS.primaryDark,
+      color: isDarkMode ? COLORS.white : COLORS.primaryDark,
       fontSize: isVerySmallScreen ? 22 : 24,
       textAlign: "center",
       lineHeight: isVerySmallScreen ? 30 : 32,
       includeFontPadding: true,
-      textShadowColor: darkModeEnabled ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.85)",
+      textShadowColor: isDarkMode
+        ? "rgba(0,0,0,0.45)"
+        : "rgba(255,255,255,0.85)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 7,
     },
@@ -1430,12 +1502,14 @@ function createStyles({
     verifySuccessSubtitle: {
       fontFamily: FONT_SEMIBOLD,
       marginTop: 8,
-      color: darkModeEnabled ? "rgba(255,255,255,0.84)" : COLORS.muted,
+      color: isDarkMode ? "rgba(255,255,255,0.84)" : COLORS.muted,
       fontSize: isVerySmallScreen ? 13.8 : 14.8,
       textAlign: "center",
       lineHeight: isVerySmallScreen ? 21 : 23,
       includeFontPadding: true,
-      textShadowColor: darkModeEnabled ? "rgba(0,0,0,0.42)" : "rgba(255,255,255,0.75)",
+      textShadowColor: isDarkMode
+        ? "rgba(0,0,0,0.42)"
+        : "rgba(255,255,255,0.75)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 6,
     },

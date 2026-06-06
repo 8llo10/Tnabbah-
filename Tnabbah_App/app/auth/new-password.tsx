@@ -35,6 +35,8 @@ import {
 import { useLanguage } from "../../providers/LanguageProvider";
 import { useAppSettings } from "../../providers/AppSettingsProvider";
 
+const APP_DARK_MODE_KEY = "app_dark_mode_enabled";
+
 const LIGHT_COLORS = {
   screenBackground: "#FFFFFF",
 
@@ -69,8 +71,8 @@ const LIGHT_COLORS = {
 const DARK_COLORS = {
   screenBackground: "#151515",
 
-  primary: "#B63A34",
-  primaryDark: "#871B17",
+  primary: "#C8564E",
+  primaryDark: "#C8564E",
   primaryText: "#C8564E",
   buttonGradientStart: "#B63A34",
   buttonGradientEnd: "#871B17",
@@ -118,11 +120,6 @@ export default function NewPasswordScreen() {
 
   const from = String(params.from || "").toLowerCase().trim();
 
-  /**
-   * نحدد وجهة الرجوع بعد تغيير كلمة المرور:
-   * - إذا المستخدم بدأ من الإعدادات نحفظ flag في AsyncStorage من settings.
-   * - إذا المستخدم بدأ من Login / Forgot Password ما يكون فيه flag، ويرجع للـ Login.
-   */
   const [shouldReturnToSettingsAfterSuccess, setShouldReturnToSettingsAfterSuccess] =
     useState(from === "settings");
 
@@ -133,7 +130,58 @@ export default function NewPasswordScreen() {
     Alexandria_800ExtraBold,
   });
 
-  const isDarkMode = darkModeEnabled;
+  /**
+   * مهم جدًا:
+   * نفس المفتاح الموجود في AppSettingsProvider:
+   * app_dark_mode_enabled
+   *
+   * لا نستخدم مفاتيح تخمين؛ لأنها ممكن تلقط false من مفتاح قديم
+   * وتخلي New Password يطلع Light بالغلط.
+   */
+  const [storedDarkModePreference, setStoredDarkModePreference] =
+    useState<boolean | null>(null);
+  const [themePreferenceReady, setThemePreferenceReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadSavedDarkMode = async () => {
+      try {
+        const savedDarkMode = await AsyncStorage.getItem(APP_DARK_MODE_KEY);
+
+        if (!mounted) return;
+
+        if (savedDarkMode === "true") {
+          setStoredDarkModePreference(true);
+        } else if (savedDarkMode === "false") {
+          setStoredDarkModePreference(false);
+        } else {
+          setStoredDarkModePreference(null);
+        }
+
+        setThemePreferenceReady(true);
+      } catch (error) {
+        console.log("Load NewPassword dark mode error:", error);
+
+        if (mounted) {
+          setStoredDarkModePreference(null);
+          setThemePreferenceReady(true);
+        }
+      }
+    };
+
+    loadSavedDarkMode();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const isDarkMode =
+    storedDarkModePreference !== null
+      ? storedDarkModePreference
+      : darkModeEnabled === true;
+
   const colors = isDarkMode ? DARK_COLORS : LIGHT_COLORS;
 
   const textAlign = isArabic ? "right" : "left";
@@ -280,10 +328,6 @@ export default function NewPasswordScreen() {
           setShouldReturnToSettingsAfterSuccess(shouldReturnToSettings);
         }
 
-        /**
-         * لو الصفحة مفتوحة من Login / Forgot Password وما فيه flags للإعدادات،
-         * نمسح أي قيمة قديمة احتياطًا.
-         */
         if (!shouldReturnToSettings) {
           await AsyncStorage.multiRemove([
             "password_change_return_to_settings",
@@ -461,10 +505,6 @@ export default function NewPasswordScreen() {
 
       setTimeout(() => {
         if (shouldReturnToSettingsAfterSuccess) {
-          /**
-           * من الإعدادات:
-           * نرجع للإعدادات أول، وبعدها نمسح flags الاستعادة.
-           */
           router.replace("/(tabs)/settings" as any);
 
           setTimeout(() => {
@@ -474,11 +514,6 @@ export default function NewPasswordScreen() {
           return;
         }
 
-        /**
-         * من Login / Forgot Password:
-         * نمسح كل flags، ثم نرجع للـ Login.
-         * هذا يمنع الرجوع للإعدادات بالغلط بسبب flags قديمة.
-         */
         cleanupPasswordRecoveryFlags().finally(() => {
           smoothReplace("/login");
         });
@@ -541,7 +576,7 @@ export default function NewPasswordScreen() {
     return <View style={styles.messagePlaceholder} />;
   };
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || !themePreferenceReady) {
     return null;
   }
 
@@ -745,27 +780,26 @@ export default function NewPasswordScreen() {
                   <View style={styles.buttonGlassTop} />
 
                   <View style={styles.loadingRow}>
-                        {loading ? (
-                          <ActivityIndicator
-                            size="small"
-                            color={colors.white}
-                          />
-                        ) : (
-                          <Text style={styles.buttonText} allowFontScaling={false}>
-                            {t.saveNewPassword}
-                          </Text>
-                        )}
-                      </View>
+                    {loading ? (
+                      <ActivityIndicator size="small" color={colors.white} />
+                    ) : (
+                      <Text style={styles.buttonText} allowFontScaling={false}>
+                        {t.saveNewPassword}
+                      </Text>
+                    )}
+                  </View>
                 </LinearGradient>
               </AnimatedTouchableOpacity>
 
-                  <View style={styles.loadingStatusArea}>
-                    {loading ? (
-                      <Text style={styles.loadingStatusText} allowFontScaling={false}>
-                        {isArabic ? "جاري تحديث كلمة المرور..." : "Updating password..."}
-                      </Text>
-                    ) : null}
-                  </View>
+              <View style={styles.loadingStatusArea}>
+                {loading ? (
+                  <Text style={styles.loadingStatusText} allowFontScaling={false}>
+                    {isArabic
+                      ? "جاري تحديث كلمة المرور..."
+                      : "Updating password..."}
+                  </Text>
+                ) : null}
+              </View>
             </View>
           </View>
         </SafeAreaView>
@@ -773,8 +807,8 @@ export default function NewPasswordScreen() {
         {showPasswordSuccess ? (
           <View style={styles.passwordSuccessOverlay} pointerEvents="none">
             <BlurView
-              intensity={darkModeEnabled ? 42 : 58}
-              tint={darkModeEnabled ? "dark" : "light"}
+              intensity={isDarkMode ? 42 : 58}
+              tint={isDarkMode ? "dark" : "light"}
               style={StyleSheet.absoluteFillObject}
             />
 
@@ -800,10 +834,11 @@ export default function NewPasswordScreen() {
                 {t.newPasswordSavedSuccess}
               </Text>
 
-              <Text style={styles.passwordSuccessSubtitle} allowFontScaling={false}>
-                {isArabic
-                  ? "سيتم نقلك الآن"
-                  : "You will be redirected now"}
+              <Text
+                style={styles.passwordSuccessSubtitle}
+                allowFontScaling={false}
+              >
+                {isArabic ? "سيتم نقلك الآن" : "You will be redirected now"}
               </Text>
             </Animated.View>
           </View>
@@ -1188,7 +1223,9 @@ function createStyles({
       textAlign: "center",
       lineHeight: isVerySmallScreen ? 24 : 27,
       includeFontPadding: false,
-      textShadowColor: isDarkMode ? "rgba(0,0,0,0.24)" : "rgba(255,255,255,0.9)",
+      textShadowColor: isDarkMode
+        ? "rgba(0,0,0,0.24)"
+        : "rgba(255,255,255,0.9)",
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 8,
     },

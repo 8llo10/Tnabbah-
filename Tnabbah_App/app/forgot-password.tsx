@@ -38,6 +38,8 @@ const LIGHT_COLORS = {
 
   primary: "#9A211C",
   primaryDark: "#761713",
+  buttonGradientStart: "#9A211C",
+  buttonGradientEnd: "#761713",
   primaryText: "#871B17",
 
   title: "#202020",
@@ -67,8 +69,10 @@ const DARK_COLORS = {
   screenBackground: "#151515",
   nextScreenBackground: "#151515",
 
-  primary: "#B63A34",
-  primaryDark: "#871B17",
+  primary: "#C8564E",
+  primaryDark: "#C8564E",
+  buttonGradientStart: "#B63A34",
+  buttonGradientEnd: "#871B17",
   primaryText: "#C8564E",
 
   title: "#FFFFFF",
@@ -493,7 +497,7 @@ export default function ForgotPasswordScreen() {
                     activeOpacity={0.9}
                   >
                     <LinearGradient
-                      colors={[COLORS.primary, COLORS.primaryDark]}
+                      colors={[COLORS.buttonGradientStart, COLORS.buttonGradientEnd]}
                       start={{ x: 0.15, y: 0 }}
                       end={{ x: 0.9, y: 1 }}
                       style={styles.resetGradient}

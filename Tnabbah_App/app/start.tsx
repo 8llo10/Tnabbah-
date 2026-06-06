@@ -10,6 +10,7 @@ import {
   StatusBar,
   Platform,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useLanguage } from "../providers/LanguageProvider";
 import { useAppSettings } from "../providers/AppSettingsProvider";
@@ -128,6 +129,8 @@ const FONT_SEMIBOLD = "Alexandria_600SemiBold";
 const FONT_BOLD = "Alexandria_700Bold";
 const FONT_EXTRABOLD = "Alexandria_800ExtraBold";
 
+const APP_DARK_MODE_KEY = "app_dark_mode_enabled";
+
 export default function StartScreen() {
   const router = useRouter();
   const { t, isArabic, language, changeLanguage } = useLanguage();
@@ -140,7 +143,51 @@ export default function StartScreen() {
     Alexandria_800ExtraBold,
   });
 
-  const COLORS = darkModeEnabled ? DARK_COLORS : LIGHT_COLORS;
+  const [storedDarkModePreference, setStoredDarkModePreference] =
+    useState<boolean | null>(null);
+  const [themePreferenceReady, setThemePreferenceReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadSavedDarkMode = async () => {
+      try {
+        const savedDarkMode = await AsyncStorage.getItem(APP_DARK_MODE_KEY);
+
+        if (!mounted) return;
+
+        if (savedDarkMode === "true") {
+          setStoredDarkModePreference(true);
+        } else if (savedDarkMode === "false") {
+          setStoredDarkModePreference(false);
+        } else {
+          setStoredDarkModePreference(null);
+        }
+
+        setThemePreferenceReady(true);
+      } catch (error) {
+        console.log("Load start dark mode error:", error);
+
+        if (mounted) {
+          setStoredDarkModePreference(null);
+          setThemePreferenceReady(true);
+        }
+      }
+    };
+
+    loadSavedDarkMode();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const isDarkMode =
+    storedDarkModePreference !== null
+      ? storedDarkModePreference
+      : darkModeEnabled === true;
+
+  const COLORS = isDarkMode ? DARK_COLORS : LIGHT_COLORS;
 
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -171,11 +218,11 @@ export default function StartScreen() {
   const headerTop = clamp(height * 0.014, 6, 14);
 
   const backgroundImage = useMemo(() => {
-    return darkModeEnabled ? START_BACKGROUND_DARK : START_BACKGROUND_LIGHT;
-  }, [darkModeEnabled]);
+    return isDarkMode ? START_BACKGROUND_DARK : START_BACKGROUND_LIGHT;
+  }, [isDarkMode]);
 
-  const logoArabic = darkModeEnabled ? LOGO_ARABIC_DARK : LOGO_ARABIC_LIGHT;
-  const logoEnglish = darkModeEnabled ? LOGO_ENGLISH_DARK : LOGO_ENGLISH_LIGHT;
+  const logoArabic = isDarkMode ? LOGO_ARABIC_DARK : LOGO_ARABIC_LIGHT;
+  const logoEnglish = isDarkMode ? LOGO_ENGLISH_DARK : LOGO_ENGLISH_LIGHT;
 
   const styles = useMemo(
     () =>
@@ -557,7 +604,7 @@ export default function StartScreen() {
     outputRange: [0, -3],
   });
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || !themePreferenceReady) {
     return null;
   }
 
@@ -566,7 +613,7 @@ export default function StartScreen() {
       <StatusBar
         translucent
         backgroundColor="transparent"
-        barStyle={darkModeEnabled ? "light-content" : "dark-content"}
+        barStyle={isDarkMode ? "light-content" : "dark-content"}
       />
 
       <Image

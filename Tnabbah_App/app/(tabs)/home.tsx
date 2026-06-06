@@ -8,6 +8,7 @@ import {
     ActivityIndicator,
     Alert,
     Animated,
+    Image,
     Modal,
     PanResponder,
     Platform,
@@ -40,9 +41,10 @@ const CORTEX_URL =
     process.env.EXPO_PUBLIC_CORTEX_API || "http://207.180.244.27:3101";
 
 const FLOATING_ASSISTANT_POSITION_KEY = "home_ai_assistant_position";
-const FLOATING_ASSISTANT_WIDTH = Platform.OS === "android" ? 64 : 76;
-const FLOATING_ASSISTANT_HEIGHT = Platform.OS === "android" ? 64 : 76;
+const FLOATING_ASSISTANT_WIDTH = 78;
+const FLOATING_ASSISTANT_HEIGHT = 78;
 const FLOATING_ASSISTANT_MARGIN = 18;
+const CHATBOT_ASSISTANT_ICON = require("../../assets/images/chatbot-ai-white.png");
 
 const LIGHT_COLORS = {
     primary: "#871B17",
@@ -145,17 +147,25 @@ function safeValue(value: any) {
     return String(value);
 }
 
-function formatLastScan(value: string | null) {
+function formatLastScan(value: string | null, isArabic: boolean) {
     if (!value) return "--";
 
     const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "--";
 
-    return date.toLocaleString("en-US", {
+    const locale = isArabic ? "ar-SA" : "en-US";
+
+    const datePart = date.toLocaleDateString(locale, {
+        day: "2-digit",
         month: "short",
-        day: "numeric",
+    });
+
+    const timePart = date.toLocaleTimeString(locale, {
         hour: "2-digit",
         minute: "2-digit",
     });
+
+    return `${datePart}\n${timePart}`;
 }
 
 /* function prettyJson(value: unknown) {
@@ -200,16 +210,16 @@ export default function HomeScreen() {
 
     const styles = useMemo(() => createStyles(COLORS, isArabic), [COLORS, isArabic]);
 
-    const {
-        metrics,
-        vin,
-        dtcCount,
-        supportedCount,
-        lastRaw,
-        statusText,
-        isConnected,
-        isAutoRunning,
-    } = useVehicleRealtime();
+    const vehicleRealtime = useVehicleRealtime() as any;
+
+    const metrics = vehicleRealtime?.metrics ?? {};
+    const vin = vehicleRealtime?.vin ?? null;
+    const dtcCount = vehicleRealtime?.dtcCount ?? 0;
+    const supportedCount = vehicleRealtime?.supportedCount ?? 0;
+    const lastRaw = vehicleRealtime?.lastRaw ?? "";
+    const statusText = vehicleRealtime?.statusText ?? "";
+    const isConnected = vehicleRealtime?.isConnected ?? false;
+    const isAutoRunning = vehicleRealtime?.isAutoRunning ?? false;
 
     const { width, height } = useWindowDimensions();
 
@@ -380,12 +390,12 @@ export default function HomeScreen() {
 
     const assistantPanResponder = useRef(
         PanResponder.create({
-            onStartShouldSetPanResponder: () => false,
-            onStartShouldSetPanResponderCapture: () => false,
-            onMoveShouldSetPanResponder: (_, gestureState) =>
-                Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5,
-            onMoveShouldSetPanResponderCapture: (_, gestureState) =>
-                Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5,
+            onStartShouldSetPanResponder: () => true,
+            onStartShouldSetPanResponderCapture: () => true,
+            onMoveShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponderCapture: () => true,
+            onPanResponderTerminationRequest: () => false,
+            onShouldBlockNativeResponder: () => true,
             onPanResponderGrant: () => {
                 floatingMovedRef.current = false;
 
@@ -397,7 +407,12 @@ export default function HomeScreen() {
                 });
             },
             onPanResponderMove: (_, gestureState) => {
-                floatingMovedRef.current = true;
+                if (
+                    Math.abs(gestureState.dx) > 3 ||
+                    Math.abs(gestureState.dy) > 3
+                ) {
+                    floatingMovedRef.current = true;
+                }
 
                 const nextPosition = clampFloatingPosition(
                     floatingLastPositionRef.current.x + gestureState.dx,
@@ -407,6 +422,18 @@ export default function HomeScreen() {
                 floatingPosition.setValue(nextPosition);
             },
             onPanResponderRelease: async (_, gestureState) => {
+                const wasTap =
+                    Math.abs(gestureState.dx) < 6 &&
+                    Math.abs(gestureState.dy) < 6;
+
+                if (wasTap) {
+                    floatingMovedRef.current = false;
+                    router.push({
+                        pathname: "/chatbot",
+                    });
+                    return;
+                }
+
                 const nextPosition = clampFloatingPosition(
                     floatingLastPositionRef.current.x + gestureState.dx,
                     floatingLastPositionRef.current.y + gestureState.dy,
@@ -441,21 +468,22 @@ export default function HomeScreen() {
                     friction: 8,
                     tension: 80,
                 }).start();
+
+                setTimeout(() => {
+                    floatingMovedRef.current = false;
+                }, 80);
             },
         }),
     ).current;
 
     const blockHorizontalSwipeResponder = useRef(
         PanResponder.create({
-            // يمنع سحب الصفحة يمين/يسار حتى لا ينتقل المستخدم لتاب أو شاشة سابقة بالغلط
-            onStartShouldSetPanResponderCapture: (_, gestureState) =>
-                Math.abs(gestureState.dx) > 2 &&
-                Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
-            onMoveShouldSetPanResponderCapture: (_, gestureState) =>
-                Math.abs(gestureState.dx) > 8 &&
-                Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.05,
-            onShouldBlockNativeResponder: () => true,
-            onPanResponderTerminationRequest: () => false,
+            // نترك السحب الأفقي للمساعد العائم بدون اعتراض.
+            // تعطيل gesture في Stack يكفي لمنع الرجوع بالغلط.
+            onStartShouldSetPanResponderCapture: () => false,
+            onMoveShouldSetPanResponderCapture: () => false,
+            onShouldBlockNativeResponder: () => false,
+            onPanResponderTerminationRequest: () => true,
             onPanResponderMove: () => { },
             onPanResponderRelease: () => { },
             onPanResponderTerminate: () => { },
@@ -1335,15 +1363,17 @@ export default function HomeScreen() {
                             >
                                 <LinearGradient
                                     colors={[COLORS.buttonGradientStart, COLORS.buttonGradientEnd]}
-                                    start={{ x: 0.5, y: 0 }}
-                                    end={{ x: 0.5, y: 1 }}
+                                    start={{ x: 0.15, y: 0 }}
+                                    end={{ x: 0.9, y: 1 }}
                                     style={styles.mainButtonGradient}
                                 >
+                                    <View pointerEvents="none" style={styles.mainButtonGlassTop} />
+
                                     {isChecking ? (
                                         <ActivityIndicator color="#FFFFFF" />
                                     ) : (
                                         <>
-                                            <MaterialCommunityIcons name="car-search" size={22} color="#FFFFFF" />
+                                            <MaterialCommunityIcons name="car-search-outline" size={23} color="#FFFFFF" />
                                             <Text style={styles.mainButtonText}>{t.homeCreateReport}</Text>
                                         </>
                                     )}
@@ -1358,17 +1388,23 @@ export default function HomeScreen() {
                             COLORS={COLORS}
                             iconPack="material"
                             icon="car-info"
-                            title="حالة السيارة"
+                            title={isArabic ? "صحة السيارة" : "Vehicle Health"}
                             value={
                                 homeAi?.status === "urgent"
-                                    ? "حرجة"
+                                    ? isArabic ? "حرجة" : "Urgent"
                                     : homeAi?.status === "watch"
-                                        ? "تحتاج متابعة"
+                                        ? isArabic ? "تحتاج متابعة" : "Needs Watch"
                                         : obdConnected
-                                            ? "مطمئنة"
-                                            : "غير متصلة"
+                                            ? isArabic ? "مطمئنة" : "Healthy"
+                                            : isArabic ? "بانتظار الاتصال" : "Waiting"
                             }
-                            subtitle={statusText || "آخر حالة من السيارة"}
+                            subtitle={
+                                obdConnected
+                                    ? statusText || (isArabic ? "آخر قراءة من السيارة" : "Latest vehicle reading")
+                                    : isArabic
+                                        ? "وصّلي القطعة لقراءة الحالة"
+                                        : "Connect the device to read status"
+                            }
                         />
 
                         <QuickSummaryCard
@@ -1376,9 +1412,13 @@ export default function HomeScreen() {
                             COLORS={COLORS}
                             iconPack="material"
                             icon="clipboard-clock-outline"
-                            title="آخر فحص"
-                            value={formatLastScan(lastScanAt)}
-                            subtitle={lastScanAt ? "آخر تقرير تم إنشاؤه" : "لم يتم إنشاء تقرير بعد"}
+                            title={isArabic ? "آخر فحص" : "Last Scan"}
+                            value={formatLastScan(lastScanAt, isArabic)}
+                            subtitle={
+                                lastScanAt
+                                    ? isArabic ? "آخر تقرير" : "Latest report"
+                                    : isArabic ? "لم يتم إنشاء تقرير بعد" : "No report yet"
+                            }
                         />
 
                         <QuickSummaryCard
@@ -1386,9 +1426,9 @@ export default function HomeScreen() {
                             COLORS={COLORS}
                             iconPack="feather"
                             icon="alert-triangle"
-                            title="الأعطال"
+                            title={isArabic ? "الأعطال" : "Faults"}
                             value={String(dtcCount ?? 0)}
-                            subtitle="أكواد الأعطال المكتشفة"
+                            subtitle={isArabic ? "أكواد الأعطال المكتشفة" : "Detected fault codes"}
                             danger={(dtcCount ?? 0) > 0}
                         />
                     </View>
@@ -1397,27 +1437,27 @@ export default function HomeScreen() {
                             styles={styles}
                             COLORS={COLORS}
                             icon="battery"
-                            title="البطارية"
+                            title={isArabic ? "البطارية" : "Battery"}
                             value={`${safeValue(metrics.voltage)} V`}
-                            subtitle="Battery Voltage"
+                            subtitle={isArabic ? "جهد البطارية" : "Battery voltage"}
                         />
 
                         <QuickSummaryCard
                             styles={styles}
                             COLORS={COLORS}
                             icon="activity"
-                            title="RPM"
+                            title={isArabic ? "دوران المحرك" : "RPM"}
                             value={safeValue(metrics.rpm)}
-                            subtitle="Engine Speed"
+                            subtitle={isArabic ? "سرعة المحرك" : "Engine speed"}
                         />
 
                         <QuickSummaryCard
                             styles={styles}
                             COLORS={COLORS}
                             icon="thermometer"
-                            title="حرارة المحرك"
+                            title={isArabic ? "حرارة المحرك" : "Coolant"}
                             value={`${safeValue(metrics.coolant)} °C`}
-                            subtitle="Engine Temperature"
+                            subtitle={isArabic ? "درجة حرارة المحرك" : "Engine temperature"}
                         />
                     </View>
 
@@ -1478,13 +1518,6 @@ export default function HomeScreen() {
                             styles.aiFloatingButton,
                             pressed && styles.aiFloatingButtonPressed,
                         ]}
-                        onPress={() => {
-                            if (floatingMovedRef.current) return;
-
-                            router.push({
-                                pathname: "/chatbot",
-                            });
-                        }}
                     >
                         <View pointerEvents="none" style={styles.aiTypingBubble}>
                             <Animated.View
@@ -1537,11 +1570,10 @@ export default function HomeScreen() {
                             />
                         </View>
 
-                        <Ionicons
-                            name="chatbubble-ellipses-outline"
-                            size={31}
-                            color={COLORS.floatingIcon}
-                            style={styles.aiFloatingMainIcon}
+                        <Image
+                            source={CHATBOT_ASSISTANT_ICON}
+                            style={styles.aiFloatingImage}
+                            resizeMode="contain"
                         />
 
                         <Text style={styles.aiFloatingQuestion} numberOfLines={2}>
@@ -1573,21 +1605,20 @@ function QuickSummaryCard({
     danger?: boolean;
 }) {
     return (
-        <View
-            style={[
-                styles.quickSummaryCard,
-                danger && {
-                    backgroundColor: "#EBD8D8",
-                    borderColor: "#C8B6B6",
-                    borderWidth: 1.5,
-                },
-            ]}
-        >
+        <View style={styles.quickSummaryCard}>
             <View style={styles.quickSummaryIconCircle}>
                 {iconPack === "material" ? (
-                    <MaterialCommunityIcons name={icon as any} size={19} color={COLORS.primary} />
+                    <MaterialCommunityIcons
+                        name={icon as any}
+                        size={19}
+                        color={danger ? COLORS.danger : COLORS.primary}
+                    />
                 ) : (
-                    <Feather name={icon as keyof typeof Feather.glyphMap} size={18} color={COLORS.primary} />
+                    <Feather
+                        name={icon as keyof typeof Feather.glyphMap}
+                        size={18}
+                        color={danger ? COLORS.danger : COLORS.primary}
+                    />
                 )}
             </View>
 
@@ -1595,7 +1626,12 @@ function QuickSummaryCard({
                 {title}
             </Text>
 
-            <Text style={styles.quickSummaryValue} numberOfLines={1}>
+            <Text
+                style={[styles.quickSummaryValue, danger && { color: COLORS.danger }]}
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.82}
+            >
                 {value}
             </Text>
 
@@ -1987,12 +2023,12 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
 
         quickSummaryCard: {
             flex: 1,
-            minHeight: 126,
+            minHeight: 136,
             borderRadius: 22,
             borderWidth: 1,
             borderColor: COLORS.border,
             backgroundColor: COLORS.surface,
-            paddingHorizontal: 10,
+            paddingHorizontal: 8,
             paddingVertical: 12,
             alignItems: "center",
             justifyContent: "flex-start",
@@ -2027,17 +2063,17 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
         quickSummaryValue: {
             marginTop: 4,
             color: COLORS.primary,
-            fontSize: 12.8,
-            lineHeight: 21,
+            fontSize: 11.6,
+            lineHeight: 17,
             fontFamily: FONT_EXTRABOLD,
             textAlign: "center",
             includeFontPadding: true,
         },
 
         quickSummarySubtitle: {
-            marginTop: 2,
+            marginTop: 3,
             color: COLORS.muted,
-            fontSize: 9.4,
+            fontSize: 9.2,
             lineHeight: 14,
             fontFamily: FONT_REGULAR,
             textAlign: "center",
@@ -2118,6 +2154,19 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
             justifyContent: "center",
             gap: 10,
             paddingTop: Platform.OS === "android" ? 1 : 0,
+            overflow: "hidden",
+        },
+
+        mainButtonGlassTop: {
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: "48%",
+            borderTopLeftRadius: 28,
+            borderTopRightRadius: 28,
+            backgroundColor: "rgba(255,255,255,0.10)",
+            zIndex: 1,
         },
 
         mainButtonText: {
@@ -2128,6 +2177,7 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
             includeFontPadding: false,
             textAlignVertical: "center",
             lineHeight: 22,
+            zIndex: 2,
         },
 
         sectionTitle: {
@@ -2518,8 +2568,8 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
             alignItems: "center",
             justifyContent: "center",
             paddingHorizontal: 6,
-            paddingTop: Platform.OS === "android" ? 6 : 9,
-            paddingBottom: Platform.OS === "android" ? 5 : 7,
+            paddingTop: Platform.OS === "android" ? 7 : 8,
+            paddingBottom: Platform.OS === "android" ? 6 : 7,
 
             shadowColor: COLORS.floatingIcon,
             shadowOffset: { width: 0, height: 4 },
@@ -2589,6 +2639,14 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
             zIndex: 3,
         },
 
+        aiFloatingImage: {
+            width: Platform.OS === "android" ? 34 : 38,
+            height: Platform.OS === "android" ? 34 : 38,
+            marginTop: Platform.OS === "android" ? 1 : 3,
+            marginBottom: Platform.OS === "android" ? 2 : 4,
+            zIndex: 3,
+        },
+
         aiFloatingMainIcon: {
             marginTop: Platform.OS === "android" ? 1 : 3,
             marginBottom: Platform.OS === "android" ? 2 : 4,
@@ -2601,6 +2659,7 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
             shadowOpacity: 0.3,
             shadowRadius: 4,
         },
+
 
         aiTypingDotsRow: {
             width: 25,
@@ -2622,15 +2681,15 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
 
         aiFloatingQuestion: {
             color: COLORS.floatingTitle,
-            fontSize: 7.8,
-            lineHeight: 10.2,
+            fontSize: 8.4,
+            lineHeight: 10.8,
             fontWeight: "900",
             textAlign: "center",
             includeFontPadding: false,
             zIndex: 3,
             fontFamily: FONT_BOLD,
-            marginTop: -1,
-            maxWidth: 58,
+            marginTop: 0,
+            maxWidth: 62,
             alignSelf: "center",
         },
 
