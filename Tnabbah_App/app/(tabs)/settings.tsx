@@ -696,6 +696,122 @@ function DeleteAccountModal({
   );
 }
 
+function DeleteCarModal({
+  visible,
+  password,
+  onChangePassword,
+  onCancel,
+  onConfirm,
+  loading,
+  theme,
+  isRTL,
+}: {
+  visible: boolean;
+  password: string;
+  onChangePassword: (value: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+  loading: boolean;
+  theme: typeof lightTheme;
+  isRTL: boolean;
+}) {
+  const rowDirection = isRTL ? "row-reverse" : "row";
+  const textAlign = isRTL ? "right" : "left";
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={loading ? undefined : onCancel}
+    >
+      <View style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}>
+        <View
+          style={[
+            styles.confirmModal,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          <Text style={[styles.confirmTitle, { color: theme.danger }]}>
+            {isRTL ? "حذف السيارة" : "Delete car"}
+          </Text>
+
+          <Text style={[styles.confirmMessage, { color: theme.textSecondary, textAlign }]}>
+            {isRTL
+              ? "أدخل كلمة مرور الحساب لتأكيد حذف السيارة. لا يمكن التراجع عن هذه العملية."
+              : "Enter your account password to confirm deleting this car. This action cannot be undone."}
+          </Text>
+
+          <Text style={[styles.deletePasswordLabel, { color: theme.textSecondary, textAlign }]}>
+            {isRTL ? "كلمة المرور الحالية" : "Current password"}
+          </Text>
+
+          <TextInput
+            value={password}
+            onChangeText={onChangePassword}
+            secureTextEntry
+            editable={!loading}
+            placeholder={isRTL ? "اكتبي كلمة المرور" : "Enter password"}
+            placeholderTextColor="#A9A9A9"
+            selectionColor={theme.accent}
+            textAlign={textAlign}
+            style={[
+              styles.deletePasswordInput,
+              {
+                color: theme.textPrimary,
+                backgroundColor: theme.subtle,
+                borderColor: theme.cardBorder,
+              },
+            ]}
+          />
+
+          <View style={[styles.confirmButtons, { flexDirection: rowDirection }]}>
+            <Pressable
+              onPress={onCancel}
+              disabled={loading}
+              style={({ pressed }) => [
+                styles.confirmSecondaryButton,
+                {
+                  borderColor: theme.cardBorder,
+                  backgroundColor: theme.subtle,
+                  opacity: pressed ? 0.78 : loading ? 0.6 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.confirmSecondaryText, { color: theme.textPrimary }]}>
+                {isRTL ? "إلغاء" : "Cancel"}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={onConfirm}
+              disabled={loading}
+              style={({ pressed }) => [
+                styles.confirmPrimaryButton,
+                {
+                  backgroundColor: theme.danger,
+                  opacity: pressed ? 0.9 : loading ? 0.72 : 1,
+                },
+              ]}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.confirmPrimaryText}>
+                  {isRTL ? "حذف السيارة" : "Delete car"}
+                </Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 
 type BottomEditSheetMode = "form" | "success";
 
@@ -3109,6 +3225,7 @@ Describe the issue:
                       <Pressable
                         onPress={() => {
                           setCarToDelete(car);
+                          setDeleteCarPassword("");
                           setConfirmDeleteCarVisible(true);
                         }}
                         style={{
@@ -3936,30 +4053,23 @@ Describe the issue:
         onConfirm={handleDisconnectObd}
       />
 
-      <ConfirmModal
+      <DeleteCarModal
         visible={confirmDeleteCarVisible}
-        title={selectedLanguage === "AR" ? "حذف السيارة" : "Delete Car"}
-        message={
-          selectedLanguage === "AR"
-            ? "هل أنتِ متأكدة؟ سيتم حذف السيارة من قائمتك، وإذا كانت متصلة سيتم فصل الاتصال وإيقاف المتابعة."
-            : "Are you sure? This car will be removed from your list. If it is connected, the connection will be ended."
-        }
-        confirmText={selectedLanguage === "AR" ? "حذف" : "Delete"}
-        cancelText={t.cancel}
-        icon="trash-2"
+        password={deleteCarPassword}
+        onChangePassword={setDeleteCarPassword}
+        loading={deletingCar}
         theme={theme}
         isRTL={isRTL}
-        danger
-        styles={styles}
         onCancel={() => {
+          if (deletingCar) return;
           setConfirmDeleteCarVisible(false);
           setCarToDelete(null);
+          setDeleteCarPassword("");
         }}
-        onConfirm={async () => {
-          if (!carToDelete) return;
-          setConfirmDeleteCarVisible(false);
-          await handleDeleteCar(carToDelete);
-          setCarToDelete(null);
+        onConfirm={() => {
+          if (carToDelete) {
+            handleDeleteCar(carToDelete);
+          }
         }}
       />
 

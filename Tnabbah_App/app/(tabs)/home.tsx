@@ -31,6 +31,8 @@ const FONT_SEMIBOLD = "Alexandria-SemiBold";
 const FONT_BOLD = "Alexandria-Bold";
 const FONT_EXTRABOLD = "Alexandria-Bold";
 
+
+
 const API_URL =
     process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://207.180.244.27:8001";
 
@@ -38,8 +40,8 @@ const CORTEX_URL =
     process.env.EXPO_PUBLIC_CORTEX_API || "http://207.180.244.27:3101";
 
 const FLOATING_ASSISTANT_POSITION_KEY = "home_ai_assistant_position";
-const FLOATING_ASSISTANT_WIDTH = 76;
-const FLOATING_ASSISTANT_HEIGHT = 76;
+const FLOATING_ASSISTANT_WIDTH = Platform.OS === "android" ? 64 : 76;
+const FLOATING_ASSISTANT_HEIGHT = Platform.OS === "android" ? 64 : 76;
 const FLOATING_ASSISTANT_MARGIN = 18;
 
 const LIGHT_COLORS = {
@@ -186,12 +188,16 @@ function getUserDisplayName(user: any) {
     return String(name).trim();
 }
 
+
+
 export default function HomeScreen() {
     const { activeCarId, obdConnected } = useCars();
     const { darkModeEnabled } = useAppSettings();
     const { t, isArabic } = useLanguage();
 
     const COLORS = darkModeEnabled ? DARK_COLORS : LIGHT_COLORS;
+
+
     const styles = useMemo(() => createStyles(COLORS, isArabic), [COLORS, isArabic]);
 
     const {
@@ -1092,330 +1098,331 @@ export default function HomeScreen() {
 
 
     return (
-        <SafeAreaView
-            style={styles.safeArea}
-            edges={["top"]}
-            {...blockHorizontalSwipeResponder.panHandlers}
-        >
-            <Stack.Screen
-                options={{
-                    gestureEnabled: false,
-                    fullScreenGestureEnabled: false,
-                    animation: "none",
-                }}
-            />
-            <StatusBar barStyle={darkModeEnabled ? "light-content" : "dark-content"} backgroundColor={COLORS.bg} />
-
-            {inAppNotification && (
-                <Pressable
-                    style={styles.inAppNotificationCard}
-                    onPress={() => {
-                        setShowNotifications(true);
-                        setInAppNotification(null);
-                        markNotificationAsRead(inAppNotification.id);
-                    }}
-                >
-                    <View style={styles.inAppNotificationIcon}>
-                        <Feather name="bell" size={18} color="#FFFFFF" />
-                    </View>
-
-                    <View style={styles.inAppNotificationTextBox}>
-                        <Text style={styles.inAppNotificationTitle} numberOfLines={1}>
-                            {inAppNotification.title}
-                        </Text>
-                        <Text style={styles.inAppNotificationBody} numberOfLines={2}>
-                            {inAppNotification.body}
-                        </Text>
-                    </View>
-
-                    <Pressable
-                        style={styles.inAppNotificationClose}
-                        onPress={() => setInAppNotification(null)}
-                    >
-                        <Feather name="x" size={17} color={COLORS.muted} />
-                    </Pressable>
-                </Pressable>
-            )}
-
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={[
-                    styles.scrollContent,
-                    isWide && styles.scrollContentWide,
-                ]}
-                showsVerticalScrollIndicator={false}
-                bounces={false}
-                alwaysBounceVertical={false}
-                overScrollMode="never"
-                directionalLockEnabled
-                keyboardShouldPersistTaps="handled"
+        
+            <SafeAreaView style={styles.safeArea}
+                edges={["top"]}
                 {...blockHorizontalSwipeResponder.panHandlers}
             >
-                <View style={[styles.header, isWide && styles.headerWide]}>
-                    <View style={styles.headerTextBox}>
-                        <Text style={styles.helloText} numberOfLines={2}>
-                            {userName
-                                ? `${t.homeGreeting}${isArabic ? " " : ", "}${userName}`
-                                : t.homeGreeting}
-                        </Text>
+                <Stack.Screen
+                    options={{
+                        gestureEnabled: false,
+                        fullScreenGestureEnabled: false,
+                        animation: "none",
+                    }}
+                />
+                <StatusBar barStyle={darkModeEnabled ? "light-content" : "dark-content"} backgroundColor={COLORS.bg} />
 
-                        <Text style={styles.headerTitle} numberOfLines={2}>
-                            {t.homeSubtitle}
-                        </Text>
-                    </View>
+                {inAppNotification && (
+                    <Pressable
+                        style={styles.inAppNotificationCard}
+                        onPress={() => {
+                            setShowNotifications(true);
+                            setInAppNotification(null);
+                            markNotificationAsRead(inAppNotification.id);
+                        }}
+                    >
+                        <View style={styles.inAppNotificationIcon}>
+                            <Feather name="bell" size={18} color="#FFFFFF" />
+                        </View>
 
-                    <View style={styles.headerActions}>
-                        <View style={styles.headerRightArea}>
-                            <Pressable
-                                onPress={() => setShowNotifications(true)}
-                                style={styles.notificationButton}
-                            >
-                                <Feather name="bell" size={21} color={COLORS.text} />
+                        <View style={styles.inAppNotificationTextBox}>
+                            <Text style={styles.inAppNotificationTitle} numberOfLines={1}>
+                                {inAppNotification.title}
+                            </Text>
+                            <Text style={styles.inAppNotificationBody} numberOfLines={2}>
+                                {inAppNotification.body}
+                            </Text>
+                        </View>
 
-                                {notificationsCount > 0 && (
-                                    <View style={styles.notificationDot} />
-                                )}
-                            </Pressable>
+                        <Pressable
+                            style={styles.inAppNotificationClose}
+                            onPress={() => setInAppNotification(null)}
+                        >
+                            <Feather name="x" size={17} color={COLORS.muted} />
+                        </Pressable>
+                    </Pressable>
+                )}
 
-                            <Modal
-                                visible={showNotifications}
-                                transparent={true}
-                                animationType="none"
-                                statusBarTranslucent
-                                onRequestClose={() => setShowNotifications(false)}
-                            >
-                                <View style={styles.modalOverlay}>
-                                    <View style={styles.modalContainer}>
-                                        <View style={styles.modalHeader}>
-                                            <Text style={styles.notificationsTitle}>{t.homeNotificationsTitle}</Text>
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={[
+                        styles.scrollContent,
+                        isWide && styles.scrollContentWide,
+                    ]}
+                    showsVerticalScrollIndicator={false}
+                    bounces={false}
+                    alwaysBounceVertical={false}
+                    overScrollMode="never"
+                    directionalLockEnabled
+                    keyboardShouldPersistTaps="handled"
+                    {...blockHorizontalSwipeResponder.panHandlers}
+                >
+                    <View style={[styles.header, isWide && styles.headerWide]}>
+                        <View style={styles.headerTextBox}>
+                            <Text style={styles.helloText} numberOfLines={2}>
+                                {userName
+                                    ? `${t.homeGreeting}${isArabic ? " " : ", "}${userName}`
+                                    : t.homeGreeting}
+                            </Text>
 
-                                            <Pressable
-                                                style={styles.closeButton}
-                                                hitSlop={10}
-                                                onPress={() => setShowNotifications(false)}
+                            <Text style={styles.headerTitle} numberOfLines={2}>
+                                {t.homeSubtitle}
+                            </Text>
+                        </View>
+
+                        <View style={styles.headerActions}>
+                            <View style={styles.headerRightArea}>
+                                <Pressable
+                                    onPress={() => setShowNotifications(true)}
+                                    style={styles.notificationButton}
+                                >
+                                    <Feather name="bell" size={21} color={COLORS.text} />
+
+                                    {notificationsCount > 0 && (
+                                        <View style={styles.notificationDot} />
+                                    )}
+                                </Pressable>
+
+                                <Modal
+                                    visible={showNotifications}
+                                    transparent={true}
+                                    animationType="none"
+                                    statusBarTranslucent
+                                    onRequestClose={() => setShowNotifications(false)}
+                                >
+                                    <View style={styles.modalOverlay}>
+                                        <View style={styles.modalContainer}>
+                                            <View style={styles.modalHeader}>
+                                                <Text style={styles.notificationsTitle}>{t.homeNotificationsTitle}</Text>
+
+                                                <Pressable
+                                                    style={styles.closeButton}
+                                                    hitSlop={10}
+                                                    onPress={() => setShowNotifications(false)}
+                                                >
+                                                    <Feather name="x" size={20} color={COLORS.text} />
+                                                </Pressable>
+                                            </View>
+
+                                            <ScrollView
+                                                showsVerticalScrollIndicator={true}
+                                                style={styles.modalScroll}
+                                                contentContainerStyle={styles.modalScrollContent}
+                                                nestedScrollEnabled
+                                                keyboardShouldPersistTaps="always"
+                                                scrollEventThrottle={16}
+                                                decelerationRate="fast"
+                                                bounces={false}
+                                                overScrollMode="never"
+                                                directionalLockEnabled
                                             >
-                                                <Feather name="x" size={20} color={COLORS.text} />
-                                            </Pressable>
-                                        </View>
+                                                {notificationsList.length === 0 ? (
+                                                    <Text style={styles.emptyNotificationText}>
+                                                        {t.homeNoNotifications}
+                                                    </Text>
+                                                ) : (
+                                                    notificationsList.map((item) => (
+                                                        <View
+                                                            key={item.id}
+                                                            style={[
+                                                                styles.notificationItem,
+                                                                !item.is_read && styles.notificationItemUnread,
+                                                            ]}
+                                                        >
+                                                            <View style={styles.notificationTopRow}>
+                                                                {!item.is_read && <View style={styles.unreadDot} />}
 
-                                        <ScrollView
-                                            showsVerticalScrollIndicator={true}
-                                            style={styles.modalScroll}
-                                            contentContainerStyle={styles.modalScrollContent}
-                                            nestedScrollEnabled
-                                            keyboardShouldPersistTaps="always"
-                                            scrollEventThrottle={16}
-                                            decelerationRate="fast"
-                                            bounces={false}
-                                            overScrollMode="never"
-                                            directionalLockEnabled
-                                        >
-                                            {notificationsList.length === 0 ? (
-                                                <Text style={styles.emptyNotificationText}>
-                                                    {t.homeNoNotifications}
-                                                </Text>
-                                            ) : (
-                                                notificationsList.map((item) => (
-                                                    <View
-                                                        key={item.id}
-                                                        style={[
-                                                            styles.notificationItem,
-                                                            !item.is_read && styles.notificationItemUnread,
-                                                        ]}
-                                                    >
-                                                        <View style={styles.notificationTopRow}>
-                                                            {!item.is_read && <View style={styles.unreadDot} />}
+                                                                <Text style={styles.notificationTitleText} numberOfLines={2}>
+                                                                    {getNotificationTitle(item)}
+                                                                </Text>
+                                                            </View>
 
-                                                            <Text style={styles.notificationTitleText} numberOfLines={2}>
-                                                                {getNotificationTitle(item)}
+                                                            <Text style={styles.notificationText} numberOfLines={3}>
+                                                                {getNotificationBody(item)}
                                                             </Text>
-                                                        </View>
 
-                                                        <Text style={styles.notificationText} numberOfLines={3}>
-                                                            {getNotificationBody(item)}
-                                                        </Text>
+                                                            <View style={styles.notificationActions}>
+                                                                {!item.is_read && (
+                                                                    <Pressable
+                                                                        style={({ pressed }) => [
+                                                                            styles.readButton,
+                                                                            (pressed || pendingNotificationActionIds.has(item.id)) &&
+                                                                            styles.notificationActionPressed,
+                                                                        ]}
+                                                                        hitSlop={12}
+                                                                        android_ripple={{ color: COLORS.soft }}
+                                                                        disabled={pendingNotificationActionIds.has(item.id)}
+                                                                        onPress={() => markNotificationAsRead(item.id)}
+                                                                    >
+                                                                        <Text style={styles.readButtonText}>{t.homeMarkAsRead}</Text>
+                                                                    </Pressable>
+                                                                )}
 
-                                                        <View style={styles.notificationActions}>
-                                                            {!item.is_read && (
                                                                 <Pressable
                                                                     style={({ pressed }) => [
-                                                                        styles.readButton,
+                                                                        styles.deleteButton,
                                                                         (pressed || pendingNotificationActionIds.has(item.id)) &&
                                                                         styles.notificationActionPressed,
                                                                     ]}
                                                                     hitSlop={12}
                                                                     android_ripple={{ color: COLORS.soft }}
                                                                     disabled={pendingNotificationActionIds.has(item.id)}
-                                                                    onPress={() => markNotificationAsRead(item.id)}
+                                                                    onPress={() => deleteNotification(item.id)}
                                                                 >
-                                                                    <Text style={styles.readButtonText}>{t.homeMarkAsRead}</Text>
+                                                                    <Text style={styles.deleteButtonText}>{t.homeDeleteNotification}</Text>
                                                                 </Pressable>
-                                                            )}
-
-                                                            <Pressable
-                                                                style={({ pressed }) => [
-                                                                    styles.deleteButton,
-                                                                    (pressed || pendingNotificationActionIds.has(item.id)) &&
-                                                                    styles.notificationActionPressed,
-                                                                ]}
-                                                                hitSlop={12}
-                                                                android_ripple={{ color: COLORS.soft }}
-                                                                disabled={pendingNotificationActionIds.has(item.id)}
-                                                                onPress={() => deleteNotification(item.id)}
-                                                            >
-                                                                <Text style={styles.deleteButtonText}>{t.homeDeleteNotification}</Text>
-                                                            </Pressable>
+                                                            </View>
                                                         </View>
-                                                    </View>
-                                                ))
-                                            )}
-                                        </ScrollView>
+                                                    ))
+                                                )}
+                                            </ScrollView>
+                                        </View>
                                     </View>
-                                </View>
-                            </Modal>
-                        </View>
+                                </Modal>
+                            </View>
 
-                        <View
-                            style={[
-                                styles.connectionBadge,
-                                obdConnected ? styles.connectedBadge : styles.disconnectedBadge,
-                            ]}
-                        >
                             <View
                                 style={[
-                                    styles.connectionDot,
-                                    {
-                                        backgroundColor: obdConnected
-                                            ? COLORS.success
-                                            : COLORS.danger,
-                                    },
-                                ]}
-                            />
-
-                            <Text
-                                style={[
-                                    styles.connectionText,
-                                    {
-                                        color: obdConnected ? COLORS.success : COLORS.danger,
-                                    },
+                                    styles.connectionBadge,
+                                    obdConnected ? styles.connectedBadge : styles.disconnectedBadge,
                                 ]}
                             >
-                                {obdConnected ? t.connected : t.disconnected}
-                            </Text>
+                                <View
+                                    style={[
+                                        styles.connectionDot,
+                                        {
+                                            backgroundColor: obdConnected
+                                                ? COLORS.success
+                                                : COLORS.danger,
+                                        },
+                                    ]}
+                                />
+
+                                <Text
+                                    style={[
+                                        styles.connectionText,
+                                        {
+                                            color: obdConnected ? COLORS.success : COLORS.danger,
+                                        },
+                                    ]}
+                                >
+                                    {obdConnected ? t.connected : t.disconnected}
+                                </Text>
+                            </View>
                         </View>
                     </View>
-                </View>
 
-                <View style={[styles.heroCard, isWide && styles.heroCardWide]}>
-                    <View style={styles.heroContent}>
-                        <Text style={styles.heroTitle}>{t.homeScanTitle}</Text>
-                    </View>
-
-                    {homeAi && (
-                        <View style={styles.aiHomeBox}>
-                            <Text style={styles.aiHomeMessage}>{homeAi.message}</Text>
+                    <View style={[styles.heroCard, isWide && styles.heroCardWide]}>
+                        <View style={styles.heroContent}>
+                            <Text style={styles.heroTitle}>{t.homeScanTitle}</Text>
                         </View>
-                    )}
 
-                    <View style={styles.heroButtons}>
-                        <Pressable
-                            style={({ pressed }) => [
-                                styles.mainButton,
-                                pressed && { opacity: 0.9 },
-                                isChecking && { opacity: 0.65 },
-                            ]}
-                            onPress={performDirectScan}
-                            disabled={isChecking}
-                        >
-                            <LinearGradient
-                                colors={[COLORS.buttonGradientStart, COLORS.buttonGradientEnd]}
-                                start={{ x: 0.5, y: 0 }}
-                                end={{ x: 0.5, y: 1 }}
-                                style={styles.mainButtonGradient}
+                        {homeAi && (
+                            <View style={styles.aiHomeBox}>
+                                <Text style={styles.aiHomeMessage}>{homeAi.message}</Text>
+                            </View>
+                        )}
+
+                        <View style={styles.heroButtons}>
+                            <Pressable
+                                style={({ pressed }) => [
+                                    styles.mainButton,
+                                    pressed && { opacity: 0.9 },
+                                    isChecking && { opacity: 0.65 },
+                                ]}
+                                onPress={performDirectScan}
+                                disabled={isChecking}
                             >
-                                {isChecking ? (
-                                    <ActivityIndicator color="#FFFFFF" />
-                                ) : (
-                                    <>
-                                        <Feather name="file-text" size={18} color="#FFFFFF" />
-                                        <Text style={styles.mainButtonText}>{t.homeCreateReport}</Text>
-                                    </>
-                                )}
-                            </LinearGradient>
-                        </Pressable>
+                                <LinearGradient
+                                    colors={[COLORS.buttonGradientStart, COLORS.buttonGradientEnd]}
+                                    start={{ x: 0.5, y: 0 }}
+                                    end={{ x: 0.5, y: 1 }}
+                                    style={styles.mainButtonGradient}
+                                >
+                                    {isChecking ? (
+                                        <ActivityIndicator color="#FFFFFF" />
+                                    ) : (
+                                        <>
+                                            <MaterialCommunityIcons name="car-search" size={22} color="#FFFFFF" />
+                                            <Text style={styles.mainButtonText}>{t.homeCreateReport}</Text>
+                                        </>
+                                    )}
+                                </LinearGradient>
+                            </Pressable>
+                        </View>
                     </View>
-                </View>
 
-                <View style={[styles.quickSummaryRow, isWide && styles.quickSummaryRowWide]}>
-                    <QuickSummaryCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        iconPack="material"
-                        icon="car-info"
-                        title="حالة السيارة"
-                        value={
-                            homeAi?.status === "urgent"
-                                ? "حرجة"
-                                : homeAi?.status === "watch"
-                                    ? "تحتاج متابعة"
-                                    : obdConnected
-                                        ? "مطمئنة"
-                                        : "غير متصلة"
-                        }
-                        subtitle={statusText || "آخر حالة من السيارة"}
-                    />
+                    <View style={[styles.quickSummaryRow, isWide && styles.quickSummaryRowWide]}>
+                        <QuickSummaryCard
+                            styles={styles}
+                            COLORS={COLORS}
+                            iconPack="material"
+                            icon="car-info"
+                            title="حالة السيارة"
+                            value={
+                                homeAi?.status === "urgent"
+                                    ? "حرجة"
+                                    : homeAi?.status === "watch"
+                                        ? "تحتاج متابعة"
+                                        : obdConnected
+                                            ? "مطمئنة"
+                                            : "غير متصلة"
+                            }
+                            subtitle={statusText || "آخر حالة من السيارة"}
+                        />
 
-                    <QuickSummaryCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        iconPack="material"
-                        icon="clipboard-clock-outline"
-                        title="آخر فحص"
-                        value={formatLastScan(lastScanAt)}
-                        subtitle={lastScanAt ? "آخر تقرير تم إنشاؤه" : "لم يتم إنشاء تقرير بعد"}
-                    />
+                        <QuickSummaryCard
+                            styles={styles}
+                            COLORS={COLORS}
+                            iconPack="material"
+                            icon="clipboard-clock-outline"
+                            title="آخر فحص"
+                            value={formatLastScan(lastScanAt)}
+                            subtitle={lastScanAt ? "آخر تقرير تم إنشاؤه" : "لم يتم إنشاء تقرير بعد"}
+                        />
 
-                    <QuickSummaryCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        iconPack="feather"
-                        icon="alert-triangle"
-                        title="الأعطال"
-                        value={String(dtcCount ?? 0)}
-                        subtitle="أكواد الأعطال المكتشفة"
-                    />
-                </View>
-                <View style={[styles.quickSummaryRow, isWide && styles.quickSummaryRowWide]}>
-                    <QuickSummaryCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        icon="battery"
-                        title="البطارية"
-                        value={`${safeValue(metrics.voltage)} V`}
-                        subtitle="Battery Voltage"
-                    />
+                        <QuickSummaryCard
+                            styles={styles}
+                            COLORS={COLORS}
+                            iconPack="feather"
+                            icon="alert-triangle"
+                            title="الأعطال"
+                            value={String(dtcCount ?? 0)}
+                            subtitle="أكواد الأعطال المكتشفة"
+                            danger={(dtcCount ?? 0) > 0}
+                        />
+                    </View>
+                    <View style={[styles.quickSummaryRow, isWide && styles.quickSummaryRowWide]}>
+                        <QuickSummaryCard
+                            styles={styles}
+                            COLORS={COLORS}
+                            icon="battery"
+                            title="البطارية"
+                            value={`${safeValue(metrics.voltage)} V`}
+                            subtitle="Battery Voltage"
+                        />
 
-                    <QuickSummaryCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        icon="activity"
-                        title="RPM"
-                        value={safeValue(metrics.rpm)}
-                        subtitle="Engine Speed"
-                    />
+                        <QuickSummaryCard
+                            styles={styles}
+                            COLORS={COLORS}
+                            icon="activity"
+                            title="RPM"
+                            value={safeValue(metrics.rpm)}
+                            subtitle="Engine Speed"
+                        />
 
-                    <QuickSummaryCard
-                        styles={styles}
-                        COLORS={COLORS}
-                        icon="thermometer"
-                        title="حرارة المحرك"
-                        value={`${safeValue(metrics.coolant)} °C`}
-                        subtitle="Engine Temperature"
-                    />
-                </View>
+                        <QuickSummaryCard
+                            styles={styles}
+                            COLORS={COLORS}
+                            icon="thermometer"
+                            title="حرارة المحرك"
+                            value={`${safeValue(metrics.coolant)} °C`}
+                            subtitle="Engine Temperature"
+                        />
+                    </View>
 
 
-                {/* <View style={styles.statusCard}>
+                    {/* <View style={styles.statusCard}>
                     <View style={styles.statusHeader}>
                         <View style={styles.statusIconCircle}>
                             <Feather name="info" size={18} color={COLORS.primary} />
@@ -1438,7 +1445,7 @@ export default function HomeScreen() {
                     )}
                 </View> */}
 
-                {/* <View style={styles.tipCard}>
+                    {/* <View style={styles.tipCard}>
                     <View style={styles.tipIcon}>
                         <Feather name="wifi" size={18} color={COLORS.primary} />
                     </View>
@@ -1450,99 +1457,99 @@ export default function HomeScreen() {
                         </Text>
                     </View>
                 </View> */}
-            </ScrollView>
+                </ScrollView>
 
-            <Animated.View
-                style={[
-                    styles.aiFloatingButtonWrapper,
-                    {
-                        transform: [
-                            { translateX: floatingPosition.x },
-                            { translateY: floatingPosition.y },
-                        ],
-                    },
-                ]}
-                {...assistantPanResponder.panHandlers}
-            >
-                <View pointerEvents="none" style={styles.aiFloatingGlow} />
-
-                <Pressable
-                    style={({ pressed }) => [
-                        styles.aiFloatingButton,
-                        pressed && styles.aiFloatingButtonPressed,
+                <Animated.View
+                    style={[
+                        styles.aiFloatingButtonWrapper,
+                        {
+                            transform: [
+                                { translateX: floatingPosition.x },
+                                { translateY: floatingPosition.y },
+                            ],
+                        },
                     ]}
-                    onPress={() => {
-                        if (floatingMovedRef.current) return;
-
-                        router.push({
-                            pathname: "/chatbot",
-                        });
-                    }}
+                    {...assistantPanResponder.panHandlers}
                 >
-                    <View pointerEvents="none" style={styles.aiTypingBubble}>
-                        <Animated.View
-                            style={[
-                                styles.aiTypingDot,
-                                {
-                                    opacity: typingDotOne,
-                                    transform: [
-                                        {
-                                            translateY: typingDotOne.interpolate({
-                                                inputRange: [0.35, 1],
-                                                outputRange: [1, -2],
-                                            }),
-                                        },
-                                    ],
-                                },
-                            ]}
-                        />
-                        <Animated.View
-                            style={[
-                                styles.aiTypingDot,
-                                {
-                                    opacity: typingDotTwo,
-                                    transform: [
-                                        {
-                                            translateY: typingDotTwo.interpolate({
-                                                inputRange: [0.35, 1],
-                                                outputRange: [1, -2],
-                                            }),
-                                        },
-                                    ],
-                                },
-                            ]}
-                        />
-                        <Animated.View
-                            style={[
-                                styles.aiTypingDot,
-                                {
-                                    opacity: typingDotThree,
-                                    transform: [
-                                        {
-                                            translateY: typingDotThree.interpolate({
-                                                inputRange: [0.35, 1],
-                                                outputRange: [1, -2],
-                                            }),
-                                        },
-                                    ],
-                                },
-                            ]}
-                        />
-                    </View>
+                    <View pointerEvents="none" style={styles.aiFloatingGlow} />
 
-                    <Ionicons
-                        name="chatbubble-ellipses-outline"
-                        size={31}
-                        color={COLORS.floatingIcon}
-                        style={styles.aiFloatingMainIcon}
-                    />
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.aiFloatingButton,
+                            pressed && styles.aiFloatingButtonPressed,
+                        ]}
+                        onPress={() => {
+                            if (floatingMovedRef.current) return;
 
-                    <Text style={styles.aiFloatingQuestion} numberOfLines={2}>
-                        {t.homeNeedHelp}
-                    </Text>
-                </Pressable>
-            </Animated.View>
-        </SafeAreaView>
+                            router.push({
+                                pathname: "/chatbot",
+                            });
+                        }}
+                    >
+                        <View pointerEvents="none" style={styles.aiTypingBubble}>
+                            <Animated.View
+                                style={[
+                                    styles.aiTypingDot,
+                                    {
+                                        opacity: typingDotOne,
+                                        transform: [
+                                            {
+                                                translateY: typingDotOne.interpolate({
+                                                    inputRange: [0.35, 1],
+                                                    outputRange: [1, -2],
+                                                }),
+                                            },
+                                        ],
+                                    },
+                                ]}
+                            />
+                            <Animated.View
+                                style={[
+                                    styles.aiTypingDot,
+                                    {
+                                        opacity: typingDotTwo,
+                                        transform: [
+                                            {
+                                                translateY: typingDotTwo.interpolate({
+                                                    inputRange: [0.35, 1],
+                                                    outputRange: [1, -2],
+                                                }),
+                                            },
+                                        ],
+                                    },
+                                ]}
+                            />
+                            <Animated.View
+                                style={[
+                                    styles.aiTypingDot,
+                                    {
+                                        opacity: typingDotThree,
+                                        transform: [
+                                            {
+                                                translateY: typingDotThree.interpolate({
+                                                    inputRange: [0.35, 1],
+                                                    outputRange: [1, -2],
+                                                }),
+                                            },
+                                        ],
+                                    },
+                                ]}
+                            />
+                        </View>
+
+                        <Ionicons
+                            name="chatbubble-ellipses-outline"
+                            size={31}
+                            color={COLORS.floatingIcon}
+                            style={styles.aiFloatingMainIcon}
+                        />
+
+                        <Text style={styles.aiFloatingQuestion} numberOfLines={2}>
+                            {t.homeNeedHelp}
+                        </Text>
+                    </Pressable>
+                </Animated.View>
+            </SafeAreaView>
     );
 }
 
@@ -1554,6 +1561,7 @@ function QuickSummaryCard({
     subtitle,
     styles,
     COLORS,
+    danger = false,
 }: {
     iconPack?: "feather" | "material";
     icon: keyof typeof Feather.glyphMap | React.ComponentProps<typeof MaterialCommunityIcons>["name"];
@@ -1562,9 +1570,19 @@ function QuickSummaryCard({
     subtitle: string;
     styles: ReturnType<typeof createStyles>;
     COLORS: typeof LIGHT_COLORS;
+    danger?: boolean;
 }) {
     return (
-        <View style={styles.quickSummaryCard}>
+        <View
+            style={[
+                styles.quickSummaryCard,
+                danger && {
+                    backgroundColor: "#EBD8D8",
+                    borderColor: "#C8B6B6",
+                    borderWidth: 1.5,
+                },
+            ]}
+        >
             <View style={styles.quickSummaryIconCircle}>
                 {iconPack === "material" ? (
                     <MaterialCommunityIcons name={icon as any} size={19} color={COLORS.primary} />
@@ -2009,7 +2027,7 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
         quickSummaryValue: {
             marginTop: 4,
             color: COLORS.primary,
-            fontSize: 13.7,
+            fontSize: 12.8,
             lineHeight: 21,
             fontFamily: FONT_EXTRABOLD,
             textAlign: "center",
@@ -2098,15 +2116,18 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
             flexDirection: rowDirection,
             alignItems: "center",
             justifyContent: "center",
-            gap: 8,
+            gap: 10,
+            paddingTop: Platform.OS === "android" ? 1 : 0,
         },
 
         mainButtonText: {
             color: "#FFFFFF",
-            fontSize: 17,
+            fontSize: Platform.OS === "android" ? 15.5 : 17,
             fontWeight: "900",
             fontFamily: FONT_BOLD,
-            includeFontPadding: true,
+            includeFontPadding: false,
+            textAlignVertical: "center",
+            lineHeight: 22,
         },
 
         sectionTitle: {
@@ -2497,8 +2518,8 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
             alignItems: "center",
             justifyContent: "center",
             paddingHorizontal: 6,
-            paddingTop: 9,
-            paddingBottom: 7,
+            paddingTop: Platform.OS === "android" ? 6 : 9,
+            paddingBottom: Platform.OS === "android" ? 5 : 7,
 
             shadowColor: COLORS.floatingIcon,
             shadowOffset: { width: 0, height: 4 },
@@ -2569,8 +2590,8 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
         },
 
         aiFloatingMainIcon: {
-            marginTop: 3,
-            marginBottom: 4,
+            marginTop: Platform.OS === "android" ? 1 : 3,
+            marginBottom: Platform.OS === "android" ? 2 : 4,
             zIndex: 3,
             textShadowColor: "rgba(0,0,0,0.28)",
             textShadowOffset: { width: 0, height: 2 },
