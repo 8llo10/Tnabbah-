@@ -466,7 +466,7 @@ export default function Chatbot() {
 
   const clearChat = () => {
     Alert.alert(
-      "حذف المحادثة",
+      "حذف جميع المحادثات",
       "تبغين تحذفين سجل المحادثة؟",
       [
         { text: "إلغاء", style: "cancel" },
@@ -808,15 +808,13 @@ export default function Chatbot() {
         </Animated.View>
       </View>
 
-      <View pointerEvents="none" style={styles.scanBackground}>
-        <Animated.View style={[styles.scanCircleBig, { opacity: fadeAnim }]} />
-        <Animated.View style={[styles.scanCircleSmall, { opacity: fadeAnim }]} />
-        <View style={styles.scanLine} />
+      <View pointerEvents="none" style={styles.softBackground}>
+        <Animated.View style={[styles.softBlobTop, { opacity: fadeAnim }]} />
+        <Animated.View style={[styles.softBlobBottom, { opacity: fadeAnim }]} />
       </View>
 
       <KeyboardAvoidingView
-        style={[styles.keyboardView, isWide && styles.keyboardViewWide]}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={[styles.keyboardView, isWide && styles.keyboardViewWide, { zIndex: 1 }]} behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
         <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
@@ -1053,7 +1051,7 @@ function createStyles(COLORS: AppColors, isArabic: boolean) {
 
     chatArea: {
       flex: 1,
-      backgroundColor: COLORS.background,
+      backgroundColor: "transparent",
     },
 
     chatContent: {
@@ -1153,26 +1151,26 @@ function createStyles(COLORS: AppColors, isArabic: boolean) {
     inputContainer: {
       paddingHorizontal: 18,
       paddingTop: 8,
-      paddingBottom: Platform.OS === "ios" ? 16 : 8,
+      paddingBottom: Platform.OS === "ios" ? 16 : 10,
       borderTopWidth: 0,
       backgroundColor: "transparent",
     },
 
     inputRow: {
-      minHeight: 54,
-      borderRadius: 27,
+      minHeight: 56,
+      borderRadius: 28,
       backgroundColor: COLORS.surface,
       borderWidth: 1,
-      borderColor: COLORS.border,
+      borderColor: "rgba(135, 27, 23, 0.08)",
       paddingLeft: 7,
       paddingRight: 7,
       paddingVertical: 5,
       alignItems: "center",
-      shadowColor: COLORS.shadow,
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: COLORS.inputShadowOpacity,
-      shadowRadius: 6,
-      elevation: COLORS.inputShadowOpacity > 0 ? 1 : 0,
+      shadowColor: COLORS.primary,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: Platform.OS === "android" ? 0.08 : 0.06,
+      shadowRadius: 18,
+      elevation: 3,
     },
 
     input: {
@@ -1265,6 +1263,7 @@ function createStyles(COLORS: AppColors, isArabic: boolean) {
     sidebarOverlay: {
       ...StyleSheet.absoluteFillObject,
       zIndex: 999,
+
     },
 
     sidebarBackdrop: {
@@ -1360,44 +1359,33 @@ function createStyles(COLORS: AppColors, isArabic: boolean) {
       color: COLORS.primary,
       textAlign: "right",
     },
-
-    scanBackground: {
+    softBackground: {
       ...StyleSheet.absoluteFillObject,
       top: 72,
-      opacity: 0.13,
+      bottom: 86,
+      zIndex: 0,
     },
 
-    scanCircleBig: {
+    softBlobTop: {
       position: "absolute",
-      width: 270,
-      height: 270,
-      borderRadius: 135,
-      borderWidth: 1,
-      borderColor: COLORS.primary,
-      right: -90,
-      top: 120,
+      width: 260,
+      height: 260,
+      borderRadius: 130,
+      backgroundColor: "rgba(135,27,23,0.035)",
+      top: 40,
+      right: -95,
     },
 
-    scanCircleSmall: {
+    softBlobBottom: {
       position: "absolute",
-      width: 150,
-      height: 150,
-      borderRadius: 75,
-      borderWidth: 1,
-      borderColor: COLORS.primary,
-      left: -45,
-      top: 310,
+      width: 300,
+      height: 300,
+      borderRadius: 150,
+      backgroundColor: "rgba(135,27,23,0.025)",
+      bottom: -80,
+      left: -120,
     },
 
-    scanLine: {
-      position: "absolute",
-      width: 230,
-      height: 1,
-      backgroundColor: COLORS.primary,
-      right: 18,
-      top: 255,
-      opacity: 0.5,
-    },
     sidebarRow: {
       flexDirection: "row-reverse",
       alignItems: "center",

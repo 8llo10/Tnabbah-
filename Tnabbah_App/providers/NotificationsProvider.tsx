@@ -40,7 +40,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     try {
       const { data: settings, error: settingsError } = await supabase
         .from("user_settings")
-        .select("notifications_enabled")
+        .select("notifications_enabled, language")
         .eq("user_id", userId)
         .maybeSingle();
 
@@ -50,7 +50,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
       const { data: rows, error } = await supabase
         .from("notifications")
-        .select("id, title, body")
+        .select("id, title, body, title_ar, body_ar, title_en, body_en")
         .eq("user_id", userId)
         .eq("delivered_locally", false)
         .order("created_at", { ascending: true })
@@ -60,10 +60,19 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       if (!rows?.length) return;
 
       for (const item of rows) {
+        const isEnglish = settings?.language === "EN";
+
+        const title = isEnglish
+          ? item.title_en || item.title || "TNABBAH Alert"
+          : item.title_ar || item.title || "تنبيه من تنبَّه";
+
+        const body = isEnglish
+          ? item.body_en || item.body || "You have a new notification"
+          : item.body_ar || item.body || "لديك إشعار جديد";
         await Notifications.scheduleNotificationAsync({
           content: {
-            title: item.title || "تنبيه من تنبّه",
-            body: item.body || "لديك إشعار جديد",
+            title,
+            body,
             sound: true,
           },
           trigger: null,
@@ -117,13 +126,13 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     await saveUserSettings({ notifications_enabled: false });
   };
 
-  useEffect(() => {
+  /* useEffect(() => {
     checkNotifications();
 
     const interval = setInterval(checkNotifications, 5000);
 
     return () => clearInterval(interval);
-  }, [session?.user?.id]);
+  }, [session?.user?.id]); */
 
   return (
     <NotificationsContext.Provider
