@@ -17,6 +17,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../lib/supabase';
 import { useAppSettings } from '../providers/AppSettingsProvider';
 import { useAuth } from '../providers/AuthProvider';
+import { useLanguage } from '../providers/LanguageProvider';
 
 const API_URL = process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://127.0.0.1:8001";
 
@@ -226,6 +227,89 @@ const UI = {
 
 const hasArabic = (s: any) => typeof s === 'string' && /[\u0600-\u06FF]/.test(s);
 
+/**
+ * Translate a full report object from Arabic to English.
+ * Collects all Arabic strings, translates them via API, and rebuilds
+ * the report with English values while preserving structure.
+ */
+const translateReportToEnglish = async (report: any): Promise<any> => {
+  if (!report) {
+    console.log('[translateReportToEnglish] report is null');
+    return null;
+  }
+
+  // Collect all Arabic strings from the report
+  const items: Record<string, string> = {};
+
+  const collectStrings = (obj: any, path: string = '') => {
+    if (typeof obj === 'string' && hasArabic(obj)) {
+      items[path] = obj;
+      return;
+    }
+    if (Array.isArray(obj)) {
+      obj.forEach((item, idx) => collectStrings(item, `${path}[${idx}]`));
+    } else if (obj && typeof obj === 'object') {
+      Object.entries(obj).forEach(([key, val]) => {
+        const newPath = path ? `${path}.${key}` : key;
+        collectStrings(val, newPath);
+      });
+    }
+  };
+
+  collectStrings(report);
+  console.log('[translateReportToEnglish] Found', Object.keys(items).length, 'Arabic strings');
+
+  if (Object.keys(items).length === 0) {
+    console.log('[translateReportToEnglish] No Arabic text found, returning original report');
+    return report; // No Arabic text to translate
+  }
+
+  // Call translation API
+  console.log('[translateReportToEnglish] Calling translation API...');
+  const res = await fetch(`${API_URL}/api/translate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items, target: 'en' }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Translation API failed: ${res.status}`);
+  }
+
+  const { items: translated } = await res.json();
+  console.log('[translateReportToEnglish] Received', Object.keys(translated || {}).length, 'translations');
+
+  // Rebuild report with translated values
+  const setValueAtPath = (obj: any, path: string, value: any) => {
+    const keys = path.split('.');
+    let current = obj;
+    for (let i = 0; i < keys.length - 1; i++) {
+      const key = keys[i];
+      const arrayMatch = key.match(/^(\w+)\[(\d+)\]$/);
+      if (arrayMatch) {
+        current = current[arrayMatch[1]][parseInt(arrayMatch[2])];
+      } else {
+        current = current[key];
+      }
+    }
+    const lastKey = keys[keys.length - 1];
+    const arrayMatch = lastKey.match(/^(\w+)\[(\d+)\]$/);
+    if (arrayMatch) {
+      current[arrayMatch[1]][parseInt(arrayMatch[2])] = value;
+    } else {
+      current[lastKey] = value;
+    }
+  };
+
+  const translatedReport = JSON.parse(JSON.stringify(report)); // Deep clone
+  Object.entries(translated || {}).forEach(([path, value]) => {
+    setValueAtPath(translatedReport, path, value);
+  });
+
+  console.log('[translateReportToEnglish] Translation complete');
+  return translatedReport;
+};
+
 // DTC categories as published over MQTT (stored/pending/permanent).
 const DTC_CATEGORY_LABEL_AR: Record<'stored' | 'pending' | 'permanent', string> = {
   stored: 'أعطال موجودة فعلاً',
@@ -423,7 +507,8 @@ const ReportScreen = () => {
   const [carName, setCarName] = useState<string | null>(null);
   const [userCarUuid, setUserCarUuid] = useState<string | null>(null);
   const autoSaveTriedRef = useRef<string | null>(null);
-  const [lang, setLang] = useState<'AR' | 'EN'>('AR');
+  const { language: appLanguage, isArabic } = useLanguage();
+  const [lang, setLang] = useState<'AR' | 'EN'>(isArabic ? 'AR' : 'EN');
   const [trMap, setTrMap] = useState<Record<string, string>>({});
   const [translating, setTranslating] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'pids' | 'analysis'>('analysis');
@@ -569,14 +654,38 @@ const ReportScreen = () => {
   // Path 1: Report passed via params (freshly generated flow)
   useEffect(() => {
     if (!params.report) return;
-    try {
-      const parsed = JSON.parse(String(params.report));
-      parseReport(parsed);
-    } catch (e) {
-      console.error("Failed to parse params.report:", e);
-      setLoading(false);
-    }
-  }, [params.report, parseReport]);
+
+    (async () => {
+      try {
+        let parsed = JSON.parse(String(params.report));
+
+        // If app language is English, translate the report before displaying
+        if (appLanguage === 'EN') {
+          console.log('[Fresh report] App language is EN, translating...');
+          setTranslating(true);
+          try {
+            parsed = await translateReportToEnglish(parsed);
+            console.log('[Fresh report] Translation complete');
+          } catch (trErr: any) {
+            console.warn('[Fresh report] Translation failed, showing Arabic:', trErr?.message);
+          } finally {
+            setTranslating(false);
+          }
+        }
+
+        // Set language based on app language for fresh reports
+        if (appLanguage === 'EN') {
+          setLang('EN');
+        } else {
+          setLang('AR');
+        }
+        parseReport(parsed);
+      } catch (e) {
+        console.error("Failed to parse params.report:", e);
+        setLoading(false);
+      }
+    })();
+  }, [params.report, parseReport, appLanguage]);
 
   // Path 2: Report opened by id (from history/list) — load from Supabase
   useEffect(() => {
@@ -588,7 +697,7 @@ const ReportScreen = () => {
         setLoading(true);
         const { data, error } = await supabase
           .from('reports')
-          .select('id, content, status, is_permanently_saved')
+          .select('id, content, content_en, status, is_permanently_saved')
           .eq('id', id)
           .eq('user_id', session.user.id)
           .single();
@@ -598,8 +707,24 @@ const ReportScreen = () => {
         if (data.is_permanently_saved || data.status === 'saved') {
           setSaved(true);
         }
+        // Use English content if app language is EN and content_en exists
+        console.log('[Load report] appLanguage:', appLanguage, 'content_en exists:', !!data.content_en);
+        if (data.content_en) {
+          console.log('[Load report] content_en type:', typeof data.content_en);
+          console.log('[Load report] content_en keys:', Object.keys(data.content_en).slice(0, 5));
+        }
+        const useEnglish = appLanguage === 'EN' && data.content_en;
+        const content = useEnglish ? data.content_en : (data.content || {});
+        console.log('[Load report] Using content language:', useEnglish ? 'EN' : 'AR');
+
+        // Set the lang state to match the content being displayed
+        if (useEnglish) {
+          setLang('EN');
+        } else {
+          setLang('AR');
+        }
+
         // Mark dedup key so the auto-insert effect won't fire for this report.
-        const content = data.content || {};
         const dedupKey =
           String(content.report_id || '') ||
           `${session.user.id}:${content.timestamp || ''}:${data.id}`;
@@ -611,7 +736,7 @@ const ReportScreen = () => {
         setLoading(false);
       }
     })();
-  }, [params.id, session?.user?.id, parseReport]);
+  }, [params.id, session?.user?.id, parseReport, appLanguage]);
 
   // Auto-insert as 'pending' once the report is parsed (only for freshly generated reports).
   // Also re-runs when userCarUuid resolves so the row is backfilled if the car lookup
@@ -646,17 +771,37 @@ const ReportScreen = () => {
         const now = new Date();
         // Pending reports live for 24h, then auto-delete (per UX).
         const expiry = new Date(now.getTime() + 1000 * 60 * 60 * 24);
+
+        // Always translate to English to save both versions (AR + EN)
+        let contentEn = null;
+        console.log('[Auto-save] Starting translation for pending report...');
+        try {
+          contentEn = await translateReportToEnglish(report);
+          console.log('[Auto-save] Translation success, content_en type:', typeof contentEn);
+          if (contentEn) {
+            console.log('[Auto-save] content_en has keys:', Object.keys(contentEn).slice(0, 5));
+          }
+        } catch (trErr: any) {
+          console.warn('[Auto-save] Translation failed:', trErr?.message);
+        }
+
+        const insertData: any = {
+          user_id: session.user.id,
+          content: report,
+          created_at: now.toISOString(),
+          expiry_at: expiry.toISOString(),
+          status: 'pending',
+          is_permanently_saved: false,
+          ...(userCarUuid ? { user_car_id: userCarUuid } : {}),
+        };
+        // Add English content if translation succeeded
+        if (contentEn) {
+          insertData.content_en = contentEn;
+        }
+
         const { data, error } = await supabase
           .from('reports')
-          .insert({
-            user_id: session.user.id,
-            content: report,
-            created_at: now.toISOString(),
-            expiry_at: expiry.toISOString(),
-            status: 'pending',
-            is_permanently_saved: false,
-            ...(userCarUuid ? { user_car_id: userCarUuid } : {}),
-          })
+          .insert(insertData)
           .select('id')
           .single();
         if (error) throw error;
@@ -665,7 +810,7 @@ const ReportScreen = () => {
         console.error('Auto-save (pending) failed:', err?.message || err);
       }
     })();
-  }, [report, session?.user?.id, supabaseRowId, userCarUuid]);
+  }, [report, session?.user?.id, supabaseRowId, userCarUuid, appLanguage]);
 
   // Resolve the car's display name for the report header. The MQTT car_id
   // (text) is stored in the report content; map it to the user's saved car
@@ -722,34 +867,57 @@ const ReportScreen = () => {
       // Permanent save -> push expiry far out (10 years).
       const expiry = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 365 * 10);
 
+      // Always translate to English to save both versions (AR + EN)
+      let contentEn = null;
+      console.log('[handleSaveReport] Starting translation...');
+      try {
+        contentEn = await translateReportToEnglish(report);
+        console.log('[handleSaveReport] Translation success, content_en type:', typeof contentEn);
+        if (contentEn) {
+          console.log('[handleSaveReport] content_en has keys:', Object.keys(contentEn).slice(0, 5));
+        }
+      } catch (trErr: any) {
+        console.warn('[handleSaveReport] Translation failed:', trErr?.message);
+      }
+
       if (supabaseRowId) {
         // Promote the existing pending row to 'saved'.
+        const updateData: any = {
+          status: 'saved',
+          is_permanently_saved: true,
+          saved_at: now.toISOString(),
+          expiry_at: expiry.toISOString(),
+          ...(userCarUuid ? { user_car_id: userCarUuid } : {}),
+        };
+        // Add English content if translation succeeded
+        if (contentEn) {
+          updateData.content_en = contentEn;
+        }
         const { error } = await supabase
           .from('reports')
-          .update({
-            status: 'saved',
-            is_permanently_saved: true,
-            saved_at: now.toISOString(),
-            expiry_at: expiry.toISOString(),
-            ...(userCarUuid ? { user_car_id: userCarUuid } : {}),
-          })
+          .update(updateData)
           .eq('id', supabaseRowId)
           .eq('user_id', session.user.id);
         if (error) throw error;
       } else {
         // Fallback: auto-insert hadn't finished yet -> insert directly as 'saved'.
+        const insertData: any = {
+          user_id: session.user.id,
+          content: report,
+          created_at: now.toISOString(),
+          saved_at: now.toISOString(),
+          expiry_at: expiry.toISOString(),
+          status: 'saved',
+          is_permanently_saved: true,
+          ...(userCarUuid ? { user_car_id: userCarUuid } : {}),
+        };
+        // Add English content if translation succeeded
+        if (contentEn) {
+          insertData.content_en = contentEn;
+        }
         const { data, error } = await supabase
           .from('reports')
-          .insert({
-            user_id: session.user.id,
-            content: report,
-            created_at: now.toISOString(),
-            saved_at: now.toISOString(),
-            expiry_at: expiry.toISOString(),
-            status: 'saved',
-            is_permanently_saved: true,
-            ...(userCarUuid ? { user_car_id: userCarUuid } : {}),
-          })
+          .insert(insertData)
           .select('id')
           .single();
         if (error) throw error;
