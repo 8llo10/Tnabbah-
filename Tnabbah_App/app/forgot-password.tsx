@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
 
@@ -104,6 +104,8 @@ const FONT_SEMIBOLD = "Alexandria_600SemiBold";
 const FONT_BOLD = "Alexandria_700Bold";
 const FONT_EXTRABOLD = "Alexandria_800ExtraBold";
 
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ email?: string; from?: string }>();
@@ -155,6 +157,29 @@ export default function ForgotPasswordScreen() {
 
   const buttonHeight = isVerySmallScreen ? 54 : 58;
   const buttonRadius = 30;
+
+  const buttonFullWidth = Math.min(
+    430,
+    Math.max(buttonHeight, width - horizontalPadding * 2)
+  );
+
+  const buttonWidthAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.timing(buttonWidthAnim, {
+      toValue: loading ? 0 : 1,
+      duration: 190,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: false,
+    }).start();
+  }, [buttonWidthAnim, loading]);
+
+  const animatedMainButtonStyle = {
+    width: buttonWidthAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [buttonHeight, buttonFullWidth],
+    }),
+  };
 
   const styles = useMemo(
     () =>
@@ -457,9 +482,10 @@ export default function ForgotPasswordScreen() {
                 </View>
 
                 <View style={styles.buttonsArea}>
-                  <TouchableOpacity
+                  <AnimatedTouchableOpacity
                     style={[
                       styles.resetButtonWrapper,
+                    animatedMainButtonStyle,
                       loading && styles.resetButtonDisabled,
                     ]}
                     onPress={handleSubmit}
@@ -479,16 +505,23 @@ export default function ForgotPasswordScreen() {
                           <ActivityIndicator
                             size="small"
                             color={COLORS.white}
-                            style={styles.loadingSpinner}
                           />
-                        ) : null}
-
-                        <Text style={styles.resetText} allowFontScaling={false}>
-                          {loading ? t.sending : t.sendCode}
-                        </Text>
+                        ) : (
+                          <Text style={styles.resetText} allowFontScaling={false}>
+                            {t.sendCode}
+                          </Text>
+                        )}
                       </View>
                     </LinearGradient>
-                  </TouchableOpacity>
+                  </AnimatedTouchableOpacity>
+
+                  <View style={styles.loadingStatusArea}>
+                    {loading ? (
+                      <Text style={styles.loadingStatusText} allowFontScaling={false}>
+                        {isArabic ? "جاري إرسال الرمز..." : "Sending verification code..."}
+                      </Text>
+                    ) : null}
+                  </View>
                 </View>
               </View>
             </KeyboardAvoidingView>
@@ -608,7 +641,7 @@ function createStyles({
     title: {
       fontFamily: FONT_EXTRABOLD,
       fontSize: isVerySmallScreen ? 23 : isSmallScreen ? 25 : 27,
-      color: COLORS.title,
+      color: COLORS.primaryText,
       textAlign: "center",
       letterSpacing: -0.35,
       lineHeight: isVerySmallScreen ? 32 : isSmallScreen ? 35 : 38,
@@ -715,12 +748,14 @@ function createStyles({
     buttonsArea: {
       marginTop: "auto",
       width: "100%",
+      alignItems: "center",
       paddingTop: isVerySmallScreen ? 14 : 20,
       paddingBottom: isVerySmallScreen ? 4 : 8,
     },
 
     resetButtonWrapper: {
       width: "100%",
+      alignSelf: "center",
       height: buttonHeight,
       borderRadius: buttonRadius,
       overflow: "hidden",
@@ -780,6 +815,26 @@ function createStyles({
       textAlignVertical: "center",
       paddingTop: Platform.OS === "ios" ? 1 : 0,
       paddingBottom: Platform.OS === "ios" ? 1 : 0,
+    },
+
+    loadingStatusArea: {
+      width: "100%",
+      minHeight: isVerySmallScreen ? 30 : 34,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: isVerySmallScreen ? 6 : 8,
+      marginBottom: isVerySmallScreen ? -2 : 0,
+    },
+
+    loadingStatusText: {
+      marginTop: 0,
+      width: "100%",
+      fontFamily: FONT_BOLD,
+      color: COLORS.muted,
+      fontSize: isVerySmallScreen ? 12.8 : 13.8,
+      lineHeight: isVerySmallScreen ? 20 : 22,
+      textAlign: "center",
+      includeFontPadding: true,
     },
 
     transitionOverlay: {

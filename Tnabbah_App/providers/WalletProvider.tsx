@@ -19,6 +19,7 @@ export interface ReportItem {
     type: "PDF" | "DTC";
     status: ReportStatus;
     createdAt: string;
+    expiryAt: string;
 }
 
 export interface MaintenanceItem {
@@ -89,6 +90,7 @@ const mapRowToReport = (row: any): ReportItem => {
         type: hasDtc ? "DTC" : "PDF",
         status: (row.status || "pending") as ReportStatus,
         createdAt: row.created_at,
+        expiryAt: row.expiry_at,
     };
 };
 
@@ -125,7 +127,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         try {
             let query = supabase
                 .from("reports")
-                .select("id, content, status, created_at, is_permanently_saved, user_car_id")
+                .select(
+                    "id, content, status, created_at, expiry_at, is_permanently_saved, user_car_id"
+                )
                 .eq("user_id", userId)
                 .in("status", ["pending", "saved"])
                 .order("created_at", { ascending: false });
@@ -224,6 +228,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         refreshWallet();
     }, [activeUserCarId]);
+
+
 
     useEffect(() => {
         if (!userId) return;

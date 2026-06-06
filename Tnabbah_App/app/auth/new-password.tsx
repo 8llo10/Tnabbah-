@@ -21,6 +21,8 @@ import {
 } from "react-native";
 
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
+import LottieView from "lottie-react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -102,6 +104,12 @@ const FONT_SEMIBOLD = "Alexandria_600SemiBold";
 const FONT_BOLD = "Alexandria_700Bold";
 const FONT_EXTRABOLD = "Alexandria_800ExtraBold";
 
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+
+const SUCCESS_LOTTIE_START_FRAME = 0;
+const SUCCESS_LOTTIE_END_FRAME = 50;
+const SUCCESS_NAVIGATION_DELAY_MS = 2350;
+
 export default function NewPasswordScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ from?: string }>();
@@ -149,10 +157,9 @@ export default function NewPasswordScreen() {
 
   const keyboardTranslateY = useRef(new Animated.Value(0)).current;
   const transitionAnim = useRef(new Animated.Value(0)).current;
-  const successCardScale = useRef(new Animated.Value(0.88)).current;
+  const successCardScale = useRef(new Animated.Value(0.92)).current;
   const successCardOpacity = useRef(new Animated.Value(0)).current;
-  const successIconScale = useRef(new Animated.Value(0.35)).current;
-  const successIconOpacity = useRef(new Animated.Value(0)).current;
+  const successLottieRef = useRef<LottieView>(null);
 
   const isVerySmallScreen = height < 650;
   const isSmallScreen = height < 720;
@@ -171,6 +178,29 @@ export default function NewPasswordScreen() {
 
   const buttonHeight = isVerySmallScreen ? 54 : 58;
   const buttonRadius = 30;
+
+  const buttonFullWidth = Math.min(
+    430,
+    Math.max(buttonHeight, width - horizontalPadding * 2)
+  );
+
+  const buttonWidthAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.timing(buttonWidthAnim, {
+      toValue: loading ? 0 : 1,
+      duration: 190,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: false,
+    }).start();
+  }, [buttonWidthAnim, loading]);
+
+  const animatedMainButtonStyle = {
+    width: buttonWidthAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [buttonHeight, buttonFullWidth],
+    }),
+  };
 
   const digitCount = (password.match(/[0-9]/g) || []).length;
 
@@ -328,49 +358,34 @@ export default function NewPasswordScreen() {
   useEffect(() => {
     if (!showPasswordSuccess) return;
 
-    successCardScale.setValue(0.88);
+    successCardScale.setValue(0.96);
     successCardOpacity.setValue(0);
-    successIconScale.setValue(0.35);
-    successIconOpacity.setValue(0);
+    successLottieRef.current?.reset();
+
+    const playTimer = setTimeout(() => {
+      successLottieRef.current?.play(
+        SUCCESS_LOTTIE_START_FRAME,
+        SUCCESS_LOTTIE_END_FRAME
+      );
+    }, 35);
 
     Animated.parallel([
       Animated.timing(successCardOpacity, {
         toValue: 1,
-        duration: 160,
+        duration: 90,
         easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }),
       Animated.spring(successCardScale, {
         toValue: 1,
-        friction: 7,
-        tension: 90,
+        friction: 8,
+        tension: 120,
         useNativeDriver: true,
       }),
-      Animated.sequence([
-        Animated.delay(90),
-        Animated.parallel([
-          Animated.timing(successIconOpacity, {
-            toValue: 1,
-            duration: 120,
-            easing: Easing.out(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.spring(successIconScale, {
-            toValue: 1,
-            friction: 5,
-            tension: 115,
-            useNativeDriver: true,
-          }),
-        ]),
-      ]),
     ]).start();
-  }, [
-    showPasswordSuccess,
-    successCardScale,
-    successCardOpacity,
-    successIconScale,
-    successIconOpacity,
-  ]);
+
+    return () => clearTimeout(playTimer);
+  }, [showPasswordSuccess, successCardScale, successCardOpacity]);
 
   const cleanupPasswordRecoveryFlags = async () => {
     try {
@@ -467,7 +482,7 @@ export default function NewPasswordScreen() {
         cleanupPasswordRecoveryFlags().finally(() => {
           smoothReplace("/login");
         });
-      }, 1500);
+      }, SUCCESS_NAVIGATION_DELAY_MS);
     } catch (error) {
       console.log("new password error:", error);
       setErrorMessage(t.newPasswordUnexpectedError);
@@ -708,9 +723,10 @@ export default function NewPasswordScreen() {
             </Animated.View>
 
             <View style={styles.bottomArea}>
-              <TouchableOpacity
+              <AnimatedTouchableOpacity
                 style={[
                   styles.mainButtonWrapper,
+                  animatedMainButtonStyle,
                   loading && styles.mainButtonDisabled,
                 ]}
                 onPress={handleUpdatePassword}
@@ -729,53 +745,65 @@ export default function NewPasswordScreen() {
                   <View style={styles.buttonGlassTop} />
 
                   <View style={styles.loadingRow}>
-                    {loading ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={colors.white}
-                        style={styles.loadingSpinner}
-                      />
-                    ) : null}
-
-                    <Text style={styles.buttonText} allowFontScaling={false}>
-                      {loading ? t.savingNewPassword : t.saveNewPassword}
-                    </Text>
-                  </View>
+                        {loading ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={colors.white}
+                          />
+                        ) : (
+                          <Text style={styles.buttonText} allowFontScaling={false}>
+                            {t.saveNewPassword}
+                          </Text>
+                        )}
+                      </View>
                 </LinearGradient>
-              </TouchableOpacity>
+              </AnimatedTouchableOpacity>
+
+                  <View style={styles.loadingStatusArea}>
+                    {loading ? (
+                      <Text style={styles.loadingStatusText} allowFontScaling={false}>
+                        {isArabic ? "جاري تحديث كلمة المرور..." : "Updating password..."}
+                      </Text>
+                    ) : null}
+                  </View>
             </View>
           </View>
         </SafeAreaView>
 
         {showPasswordSuccess ? (
           <View style={styles.passwordSuccessOverlay} pointerEvents="none">
+            <BlurView
+              intensity={darkModeEnabled ? 42 : 58}
+              tint={darkModeEnabled ? "dark" : "light"}
+              style={StyleSheet.absoluteFillObject}
+            />
+
             <Animated.View
               style={[
-                styles.passwordSuccessBox,
+                styles.passwordSuccessContent,
                 {
                   opacity: successCardOpacity,
                   transform: [{ scale: successCardScale }],
                 },
               ]}
             >
-              <Animated.View
-                style={[
-                  styles.passwordSuccessIconWrap,
-                  {
-                    opacity: successIconOpacity,
-                    transform: [{ scale: successIconScale }],
-                  },
-                ]}
-              >
-                <Ionicons
-                  name="checkmark-circle"
-                  size={74}
-                  color={colors.success}
-                />
-              </Animated.View>
+              <LottieView
+                ref={successLottieRef}
+                source={require("../../assets/animations/success-check.json")}
+                loop={false}
+                autoPlay={false}
+                speed={1.45}
+                style={styles.passwordSuccessAnimation}
+              />
 
               <Text style={styles.passwordSuccessTitle} allowFontScaling={false}>
                 {t.newPasswordSavedSuccess}
+              </Text>
+
+              <Text style={styles.passwordSuccessSubtitle} allowFontScaling={false}>
+                {isArabic
+                  ? "سيتم نقلك الآن"
+                  : "You will be redirected now"}
               </Text>
             </Animated.View>
           </View>
@@ -893,7 +921,7 @@ function createStyles({
     title: {
       fontFamily: FONT_EXTRABOLD,
       fontSize: isVerySmallScreen ? 23 : isSmallScreen ? 25 : 27,
-      color: colors.title,
+      color: colors.primaryText,
       textAlign: "center",
       letterSpacing: -0.35,
       lineHeight: isVerySmallScreen ? 32 : isSmallScreen ? 35 : 38,
@@ -1066,6 +1094,7 @@ function createStyles({
 
     mainButtonWrapper: {
       width: "100%",
+      alignSelf: "center",
       height: buttonHeight,
       borderRadius: buttonRadius,
       overflow: "hidden",
@@ -1131,55 +1160,67 @@ function createStyles({
       ...StyleSheet.absoluteFillObject,
       zIndex: 90,
       backgroundColor: isDarkMode
-        ? "rgba(0,0,0,0.55)"
-        : "rgba(255,255,255,0.70)",
+        ? "rgba(0,0,0,0.44)"
+        : "rgba(255,255,255,0.62)",
       alignItems: "center",
       justifyContent: "center",
       paddingHorizontal: 28,
     },
 
-    passwordSuccessBox: {
+    passwordSuccessContent: {
       width: "100%",
       maxWidth: 335,
-      minHeight: 188,
       alignItems: "center",
       justifyContent: "center",
-      paddingHorizontal: 22,
-      paddingTop: 26,
-      paddingBottom: 24,
-      borderRadius: 26,
-      backgroundColor: isDarkMode ? "#242424" : "#F7F7F7",
-      borderWidth: 1.2,
-      borderColor: isDarkMode
-        ? "rgba(255,255,255,0.18)"
-        : "rgba(170,170,170,0.42)",
-      shadowColor: isDarkMode ? "#000000" : colors.shadowGray,
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: Platform.OS === "android" ? 0.22 : 0.28,
-      shadowRadius: 22,
-      elevation: 10,
-      overflow: "visible",
+      marginTop: -44,
     },
 
-    passwordSuccessIconWrap: {
-      width: 86,
-      height: 86,
-      borderRadius: 43,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: isDarkMode
-        ? "rgba(110,219,123,0.12)"
-        : "rgba(46,125,50,0.08)",
-      overflow: "visible",
+    passwordSuccessAnimation: {
+      width: isVerySmallScreen ? 150 : 172,
+      height: isVerySmallScreen ? 150 : 172,
     },
 
     passwordSuccessTitle: {
-      marginTop: 14,
-      color: isDarkMode ? "#F6F6F6" : colors.primaryText,
-      fontSize: isVerySmallScreen ? 16.5 : 17.5,
+      fontFamily: FONT_EXTRABOLD,
+      marginTop: isVerySmallScreen ? 2 : 4,
+      color: isDarkMode ? "#FFFFFF" : colors.primaryText,
+      fontSize: isVerySmallScreen ? 17 : 18.5,
       textAlign: "center",
-      lineHeight: isVerySmallScreen ? 23 : 25,
+      lineHeight: isVerySmallScreen ? 24 : 27,
       includeFontPadding: false,
+      textShadowColor: isDarkMode ? "rgba(0,0,0,0.24)" : "rgba(255,255,255,0.9)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 8,
+    },
+
+    passwordSuccessSubtitle: {
+      fontFamily: FONT_SEMIBOLD,
+      marginTop: 8,
+      color: isDarkMode ? "rgba(255,255,255,0.86)" : colors.textDark,
+      fontSize: isVerySmallScreen ? 13.2 : 14.2,
+      textAlign: "center",
+      lineHeight: isVerySmallScreen ? 20 : 22,
+      includeFontPadding: false,
+    },
+
+    loadingStatusArea: {
+      width: "100%",
+      minHeight: isVerySmallScreen ? 30 : 34,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: isVerySmallScreen ? 6 : 8,
+      marginBottom: isVerySmallScreen ? -2 : 0,
+    },
+
+    loadingStatusText: {
+      marginTop: 0,
+      width: "100%",
+      fontFamily: FONT_BOLD,
+      color: colors.label,
+      fontSize: isVerySmallScreen ? 12.8 : 13.8,
+      lineHeight: isVerySmallScreen ? 20 : 22,
+      textAlign: "center",
+      includeFontPadding: true,
     },
 
     transitionOverlay: {

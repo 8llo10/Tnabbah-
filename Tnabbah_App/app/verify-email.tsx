@@ -25,6 +25,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
 import {
   Alexandria_400Regular,
   Alexandria_600SemiBold,
@@ -37,6 +38,11 @@ import { useAppSettings } from "../providers/AppSettingsProvider";
 
 const OTP_DIGITS = 8;
 const RESEND_COOLDOWN = 60;
+const SUCCESS_ANIMATION_START_FRAME = 0;
+const SUCCESS_ANIMATION_END_FRAME = 50;
+const SUCCESS_ANIMATION_PLAY_DELAY_MS = 60;
+const SUCCESS_ANIMATION_FALLBACK_MS = 3300;
+const SUCCESS_HOLD_AFTER_ANIMATION_MS = 1200;
 
 const LIGHT_COLORS = {
   screenBackground: "#FFFFFF",
@@ -188,9 +194,12 @@ export default function VerifyEmailScreen() {
   const [resendTimer, setResendTimer] = useState(RESEND_COOLDOWN);
 
   const transitionAnim = useRef(new Animated.Value(0)).current;
+  const buttonMorphAnim = useRef(new Animated.Value(0)).current;
   const emailSentLottieRef = useRef<LottieView>(null);
+  const successCheckLottieRef = useRef<LottieView>(null);
+  const successNavigationStartedRef = useRef(false);
 
-  const successCardScale = useRef(new Animated.Value(0.88)).current;
+  const successCardScale = useRef(new Animated.Value(0.92)).current;
   const successCardOpacity = useRef(new Animated.Value(0)).current;
   const successIconScale = useRef(new Animated.Value(0.35)).current;
   const successIconOpacity = useRef(new Animated.Value(0)).current;
@@ -212,6 +221,16 @@ export default function VerifyEmailScreen() {
 
   const otpBoxSize = clamp((width - horizontalPadding * 2 - 28) / 8, 34, 42);
   const otpBoxHeight = isVerySmallScreen ? 58 : 66;
+
+  const buttonFullWidth = Math.min(width - horizontalPadding * 2, 430);
+  const animatedButtonWidth = buttonMorphAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [buttonFullWidth, buttonHeight],
+  });
+  const animatedButtonRadius = buttonMorphAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [buttonRadius, buttonHeight / 2],
+  });
 
   const styles = useMemo(
     () =>
@@ -271,44 +290,67 @@ export default function VerifyEmailScreen() {
   }, [resendTimer]);
 
   useEffect(() => {
+    Animated.timing(buttonMorphAnim, {
+      toValue: loading ? 1 : 0,
+      duration: loading ? 220 : 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [loading, buttonMorphAnim]);
+
+  useEffect(() => {
     if (!showVerifySuccess) return;
 
-    successCardScale.setValue(0.88);
+    successNavigationStartedRef.current = false;
+
+    successCardScale.setValue(0.98);
     successCardOpacity.setValue(0);
-    successIconScale.setValue(0.35);
+    successIconScale.setValue(0.92);
     successIconOpacity.setValue(0);
 
     Animated.parallel([
       Animated.timing(successCardOpacity, {
         toValue: 1,
-        duration: 160,
+        duration: 130,
         easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }),
-      Animated.spring(successCardScale, {
+      Animated.timing(successCardScale, {
         toValue: 1,
-        friction: 7,
-        tension: 90,
+        duration: 170,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
-      Animated.sequence([
-        Animated.delay(90),
-        Animated.parallel([
-          Animated.timing(successIconOpacity, {
-            toValue: 1,
-            duration: 120,
-            easing: Easing.out(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.spring(successIconScale, {
-            toValue: 1,
-            friction: 5,
-            tension: 115,
-            useNativeDriver: true,
-          }),
-        ]),
-      ]),
+      Animated.timing(successIconOpacity, {
+        toValue: 1,
+        duration: 120,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(successIconScale, {
+        toValue: 1,
+        duration: 180,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
     ]).start();
+
+    const playTimer = setTimeout(() => {
+      successCheckLottieRef.current?.reset();
+      successCheckLottieRef.current?.play(
+        SUCCESS_ANIMATION_START_FRAME,
+        SUCCESS_ANIMATION_END_FRAME
+      );
+    }, SUCCESS_ANIMATION_PLAY_DELAY_MS);
+
+    const fallbackTimer = setTimeout(() => {
+      handleSuccessAnimationFinish();
+    }, SUCCESS_ANIMATION_FALLBACK_MS);
+
+    return () => {
+      clearTimeout(playTimer);
+      clearTimeout(fallbackTimer);
+    };
   }, [
     showVerifySuccess,
     successCardScale,
@@ -506,6 +548,14 @@ export default function VerifyEmailScreen() {
         return;
       }
 
+      // مهم: نثبت الجلسة بعد التحقق عشان ما يرجعك AuthProvider إلى Login
+      if (data.session) {
+        await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+      }
+
       if (data.user) {
         const { error: profileError } = await supabase.from("profiles").upsert({
           id: data.user.id,
@@ -524,16 +574,6 @@ export default function VerifyEmailScreen() {
       Keyboard.dismiss();
       setFocusedIndex(null);
       setShowVerifySuccess(true);
-
-      setTimeout(async () => {
-        if (source === "forgot-password") {
-          smoothReplace("/forgot-password");
-          return;
-        }
-
-        await requestPostVerifyPermissions();
-        smoothReplace("/connection-intro");
-      }, 1400);
     } catch (err) {
       console.log(err);
       setErrorMessage(t.verifyUnexpectedError);
@@ -591,13 +631,36 @@ export default function VerifyEmailScreen() {
     }
   };
 
+  const handleSuccessAnimationFinish = () => {
+    if (successNavigationStartedRef.current) return;
+
+    successNavigationStartedRef.current = true;
+
+    setTimeout(() => {
+      if (source === "forgot-password") {
+        smoothReplace("/forgot-password");
+        return;
+      }
+
+      // بعد التسجيل والتحقق يروح مباشرة إلى واجهة الإنترو
+      smoothReplace("/connection-intro");
+
+      // نخلي طلب الصلاحيات بعد التنقل حتى ما يأخر الجلسة ويرجعك Login
+      setTimeout(() => {
+        requestPostVerifyPermissions().catch((error) => {
+          console.log("Post verify permissions error:", error);
+        });
+      }, 700);
+    }, SUCCESS_HOLD_AFTER_ANIMATION_MS);
+  };
+
   const renderMessage = () => {
     if (errorMessage) {
       return (
         <View style={[styles.messageBoxError, { flexDirection: rowDirection }]}>
           <Ionicons
             name="alert-circle"
-            size={14}
+            size={isVerySmallScreen ? 17 : 18}
             color={COLORS.error}
             style={iconMargin}
           />
@@ -613,7 +676,7 @@ export default function VerifyEmailScreen() {
         <View style={[styles.messageBoxInfo, { flexDirection: rowDirection }]}>
           <Ionicons
             name="checkmark-circle"
-            size={14}
+            size={isVerySmallScreen ? 17 : 18}
             color={COLORS.success}
             style={iconMargin}
           />
@@ -776,41 +839,51 @@ export default function VerifyEmailScreen() {
                 </View>
 
                 <View style={styles.bottomArea}>
-                  <TouchableOpacity
+                  <Animated.View
                     style={[
-                      styles.mainButtonWrapper,
-                      loading && styles.mainButtonDisabled,
+                      styles.mainButtonAnimatedWrapper,
+                      {
+                        width: animatedButtonWidth,
+                        borderRadius: animatedButtonRadius,
+                      },
                     ]}
-                    onPress={handleVerifyCode}
-                    disabled={loading || resending || showVerifySuccess}
-                    activeOpacity={0.9}
                   >
-                    <LinearGradient
-                      colors={[
-                        COLORS.primary,
-                        COLORS.primaryDark,
+                    <TouchableOpacity
+                      style={[
+                        styles.mainButtonWrapper,
+                        loading && styles.mainButtonLoading,
                       ]}
-                      start={{ x: 0.15, y: 0 }}
-                      end={{ x: 0.9, y: 1 }}
-                      style={styles.buttonGradient}
+                      onPress={handleVerifyCode}
+                      disabled={loading || resending || showVerifySuccess}
+                      activeOpacity={0.9}
                     >
-                      <View style={styles.buttonGlassTop} />
+                      <LinearGradient
+                        colors={[
+                          COLORS.primary,
+                          COLORS.primaryDark,
+                        ]}
+                        start={{ x: 0.15, y: 0 }}
+                        end={{ x: 0.9, y: 1 }}
+                        style={styles.buttonGradient}
+                      >
+                        <View style={styles.buttonGlassTop} />
 
-                      <View style={styles.loadingRow}>
-                        {loading ? (
-                          <ActivityIndicator
-                            size="small"
-                            color={COLORS.white}
-                            style={styles.loadingSpinner}
-                          />
-                        ) : null}
-
-                        <Text style={styles.buttonText} allowFontScaling={false}>
-                          {loading ? t.verifying : t.verifyCode}
-                        </Text>
-                      </View>
-                    </LinearGradient>
-                  </TouchableOpacity>
+                        <View style={styles.loadingRow}>
+                          {loading ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={COLORS.white}
+                              style={styles.loadingSpinner}
+                            />
+                          ) : (
+                            <Text style={styles.buttonText} allowFontScaling={false}>
+                              {t.verifyCode}
+                            </Text>
+                          )}
+                        </View>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </Animated.View>
 
                   {renderResendArea()}
                 </View>
@@ -822,12 +895,23 @@ export default function VerifyEmailScreen() {
 
       {showVerifySuccess ? (
         <View style={styles.verifySuccessOverlay} pointerEvents="none">
+          <BlurView
+            intensity={darkModeEnabled ? 42 : 62}
+            tint={darkModeEnabled ? "dark" : "light"}
+            style={styles.successBlurLayer}
+          />
+
+          <View style={styles.successWhiteVeil} />
+
           <Animated.View
             style={[
-              styles.verifySuccessBox,
+              styles.verifySuccessContent,
               {
                 opacity: successCardOpacity,
-                transform: [{ scale: successCardScale }],
+                transform: [
+                  { translateY: isVerySmallScreen ? -34 : -54 },
+                  { scale: successCardScale },
+                ],
               },
             ]}
           >
@@ -840,10 +924,14 @@ export default function VerifyEmailScreen() {
                 },
               ]}
             >
-              <Ionicons
-                name="checkmark-circle"
-                size={74}
-                color={COLORS.success}
+              <LottieView
+                ref={successCheckLottieRef}
+                source={require("../assets/animations/success-check.json")}
+                autoPlay={false}
+                loop={false}
+                speed={0.95}
+                onAnimationFinish={handleSuccessAnimationFinish}
+                style={styles.verifySuccessLottie}
               />
             </Animated.View>
 
@@ -996,8 +1084,7 @@ function createStyles({
     title: {
       fontFamily: FONT_EXTRABOLD,
       fontSize: isVerySmallScreen ? 23 : isSmallScreen ? 25 : 27,
-      color: COLORS.title,
-      
+      color: COLORS.primaryDark,
       textAlign: "center",
       letterSpacing: -0.35,
       lineHeight: isVerySmallScreen ? 32 : isSmallScreen ? 35 : 38,
@@ -1113,45 +1200,45 @@ function createStyles({
     },
 
     messagePlaceholder: {
-      minHeight: isVerySmallScreen ? 28 : 32,
+      minHeight: isVerySmallScreen ? 34 : 38,
     },
 
     messageBoxError: {
       width: "100%",
-      minHeight: isVerySmallScreen ? 28 : 32,
+      minHeight: isVerySmallScreen ? 34 : 38,
       alignItems: "center",
       justifyContent: "flex-start",
-      marginTop: 0,
+      marginTop: 1,
       paddingHorizontal: 8,
     },
 
     messageBoxInfo: {
       width: "100%",
-      minHeight: isVerySmallScreen ? 28 : 32,
+      minHeight: isVerySmallScreen ? 34 : 38,
       alignItems: "center",
       justifyContent: "flex-start",
-      marginTop: 0,
+      marginTop: 1,
       paddingHorizontal: 8,
     },
 
     messageTextInfo: {
-      fontFamily: FONT_SEMIBOLD,
+      fontFamily: FONT_BOLD,
       color: COLORS.success,
-      fontSize: isVerySmallScreen ? 12.2 : 13,
+      fontSize: isVerySmallScreen ? 13.8 : 14.8,
       textAlign: "right",
       flex: 1,
-      lineHeight: isVerySmallScreen ? 18 : 20,
-      includeFontPadding: false,
+      lineHeight: isVerySmallScreen ? 21 : 23,
+      includeFontPadding: true,
     },
 
     messageTextError: {
-      fontFamily: FONT_SEMIBOLD,
+      fontFamily: FONT_BOLD,
       color: COLORS.error,
-      fontSize: isVerySmallScreen ? 12.2 : 13,
+      fontSize: isVerySmallScreen ? 13.8 : 14.8,
       textAlign: "right",
       flex: 1,
-      lineHeight: isVerySmallScreen ? 18 : 20,
-      includeFontPadding: false,
+      lineHeight: isVerySmallScreen ? 21 : 23,
+      includeFontPadding: true,
     },
 
     bottomArea: {
@@ -1159,6 +1246,18 @@ function createStyles({
       alignItems: "center",
       paddingTop: isVerySmallScreen ? 14 : 20,
       paddingBottom: isVerySmallScreen ? 4 : 8,
+    },
+
+    mainButtonAnimatedWrapper: {
+      height: buttonHeight,
+      alignSelf: "center",
+      overflow: "hidden",
+      shadowColor: COLORS.primaryDark,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: darkModeEnabled ? 0.14 : Platform.OS === "android" ? 0.18 : 0.24,
+      shadowRadius: 14,
+      elevation: 6,
+      backgroundColor: COLORS.primary,
     },
 
     mainButtonWrapper: {
@@ -1174,8 +1273,8 @@ function createStyles({
       backgroundColor: COLORS.primary,
     },
 
-    mainButtonDisabled: {
-      opacity: 0.72,
+    mainButtonLoading: {
+      opacity: 1,
     },
 
     buttonGradient: {
@@ -1206,8 +1305,8 @@ function createStyles({
     },
 
     loadingSpinner: {
-      marginRight: 8,
-      transform: [{ scale: isVerySmallScreen ? 0.85 : 0.95 }],
+      marginRight: 0,
+      transform: [{ scale: isVerySmallScreen ? 0.9 : 1 }],
     },
 
     buttonText: {
@@ -1226,13 +1325,13 @@ function createStyles({
     timerBox: {
       marginTop: isVerySmallScreen ? 12 : 14,
       width: "100%",
-      minHeight: isVerySmallScreen ? 48 : 52,
-      paddingHorizontal: isVerySmallScreen ? 14 : 16,
-      paddingVertical: isVerySmallScreen ? 9 : 10,
-      borderRadius: 22,
-      backgroundColor: COLORS.timerBackground,
-      borderWidth: 1.1,
-      borderColor: COLORS.timerBorder,
+      minHeight: isVerySmallScreen ? 30 : 34,
+      paddingHorizontal: isVerySmallScreen ? 6 : 8,
+      paddingVertical: isVerySmallScreen ? 4 : 5,
+      borderRadius: 0,
+      backgroundColor: "transparent",
+      borderWidth: 0,
+      borderColor: "transparent",
       flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "center",
@@ -1240,12 +1339,12 @@ function createStyles({
     },
 
     timerText: {
-      fontFamily: FONT_SEMIBOLD,
+      fontFamily: FONT_BOLD,
       flexShrink: 1,
       color: COLORS.timerText,
-      fontSize: isVerySmallScreen ? 12.8 : 14,
+      fontSize: isVerySmallScreen ? 13.8 : 15,
       textAlign: "center",
-      lineHeight: isVerySmallScreen ? 19 : 21,
+      lineHeight: isVerySmallScreen ? 21 : 23,
     },
 
     resendRow: {
@@ -1260,14 +1359,14 @@ function createStyles({
     resendQuestion: {
       fontFamily: FONT_REGULAR,
       color: COLORS.resendQuestion,
-      fontSize: isVerySmallScreen ? 14.2 : 15.2,
+      fontSize: isVerySmallScreen ? 14.6 : 15.6,
       lineHeight: isVerySmallScreen ? 22 : 24,
     },
 
     resendText: {
       fontFamily: FONT_BOLD,
       color: COLORS.primary,
-      fontSize: isVerySmallScreen ? 14.2 : 15.2,
+      fontSize: isVerySmallScreen ? 14.6 : 15.6,
       textDecorationLine: "none",
       lineHeight: isVerySmallScreen ? 22 : 24,
     },
@@ -1275,67 +1374,70 @@ function createStyles({
     verifySuccessOverlay: {
       ...StyleSheet.absoluteFillObject,
       zIndex: 90,
-      backgroundColor: darkModeEnabled
-        ? "rgba(0,0,0,0.55)"
-        : "rgba(255,255,255,0.70)",
+      backgroundColor: "transparent",
       alignItems: "center",
       justifyContent: "center",
       paddingHorizontal: 28,
     },
 
-    verifySuccessBox: {
+    successBlurLayer: {
+      ...StyleSheet.absoluteFillObject,
+    },
+
+    successWhiteVeil: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: darkModeEnabled
+        ? "rgba(255,255,255,0.20)"
+        : "rgba(255,255,255,0.88)",
+    },
+
+    verifySuccessContent: {
       width: "100%",
-      maxWidth: 335,
-      minHeight: 188,
+      maxWidth: 360,
       alignItems: "center",
       justifyContent: "center",
-      paddingHorizontal: 22,
-      paddingTop: 26,
-      paddingBottom: 24,
-      borderRadius: 26,
-      backgroundColor: darkModeEnabled ? "#242424" : "#F7F7F7",
-      borderWidth: 1.2,
-      borderColor: darkModeEnabled
-        ? "rgba(255,255,255,0.18)"
-        : "rgba(170,170,170,0.42)",
-      shadowColor: "#000000",
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: Platform.OS === "android" ? 0.22 : 0.28,
-      shadowRadius: 22,
-      elevation: 10,
-      overflow: "visible",
+      paddingHorizontal: 18,
+      backgroundColor: "transparent",
     },
 
     verifySuccessIconWrap: {
-      width: 86,
-      height: 86,
-      borderRadius: 43,
+      width: isVerySmallScreen ? 138 : 154,
+      height: isVerySmallScreen ? 138 : 154,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: darkModeEnabled
-        ? "rgba(102,187,106,0.12)"
-        : "rgba(46,125,50,0.08)",
+      backgroundColor: "transparent",
       overflow: "visible",
+    },
+
+    verifySuccessLottie: {
+      width: isVerySmallScreen ? 138 : 154,
+      height: isVerySmallScreen ? 138 : 154,
     },
 
     verifySuccessTitle: {
       fontFamily: FONT_EXTRABOLD,
-      marginTop: 14,
-      color: darkModeEnabled ? "#F6F6F6" : COLORS.primaryText,
-      fontSize: isVerySmallScreen ? 16.5 : 17.5,
+      marginTop: 18,
+      color: darkModeEnabled ? COLORS.white : COLORS.primaryDark,
+      fontSize: isVerySmallScreen ? 22 : 24,
       textAlign: "center",
-      lineHeight: isVerySmallScreen ? 23 : 25,
-      includeFontPadding: false,
+      lineHeight: isVerySmallScreen ? 30 : 32,
+      includeFontPadding: true,
+      textShadowColor: darkModeEnabled ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.85)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 7,
     },
 
     verifySuccessSubtitle: {
       fontFamily: FONT_SEMIBOLD,
       marginTop: 8,
-      color: darkModeEnabled ? "#D7D7D7" : COLORS.muted,
-      fontSize: isVerySmallScreen ? 13.5 : 14.5,
+      color: darkModeEnabled ? "rgba(255,255,255,0.84)" : COLORS.muted,
+      fontSize: isVerySmallScreen ? 13.8 : 14.8,
       textAlign: "center",
-      lineHeight: isVerySmallScreen ? 20 : 22,
-      includeFontPadding: false,
+      lineHeight: isVerySmallScreen ? 21 : 23,
+      includeFontPadding: true,
+      textShadowColor: darkModeEnabled ? "rgba(0,0,0,0.42)" : "rgba(255,255,255,0.75)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 6,
     },
 
     transitionOverlay: {

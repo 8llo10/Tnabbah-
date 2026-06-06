@@ -16,8 +16,9 @@ import {
   TouchableWithoutFeedback,
 } from "react-native";
 import { supabase } from "../lib/supabase";
-import * as Notifications from "expo-notifications";
-import * as Device from "expo-device";
+// import * as Notifications from "expo-notifications";
+// import * as Device from "expo-device";
+import * as SecureStore from "expo-secure-store";
 
 import { LinearGradient } from "expo-linear-gradient";
 import { useLanguage } from "../providers/LanguageProvider";
@@ -107,7 +108,12 @@ const FONT_SEMIBOLD = "Alexandria_600SemiBold";
 const FONT_BOLD = "Alexandria_700Bold";
 const FONT_EXTRABOLD = "Alexandria_800ExtraBold";
 
-type LoginRoute = "/register" | "/forgot-password" | "/connection-intro";
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+
+const SAVED_EMAIL_KEY = "tnabbah_saved_email";
+const SAVED_PASSWORD_KEY = "tnabbah_saved_password";
+
+type LoginRoute = "/register" | "/forgot-password" | "/connection-intro" | "/(tabs)/home";
 
 type FieldErrors = {
   email?: string;
@@ -133,6 +139,11 @@ export default function LoginScreen() {
   const iconMargin = isArabic ? { marginLeft: 10 } : { marginRight: 10 };
   const eyeMargin = isArabic ? { marginRight: 8 } : { marginLeft: 8 };
 
+  const rememberPasswordText = isArabic ? "تذكرني" : "Remember me";
+  const rememberPasswordSubText = isArabic
+    ? "لتسهيل تسجيل الدخول لاحقًا"
+    : "For easier sign in later";
+
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
@@ -140,6 +151,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
 
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberPassword, setRememberPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [loading, setLoading] = useState(false);
@@ -171,6 +183,29 @@ export default function LoginScreen() {
 
   const buttonHeight = isVerySmallScreen ? 54 : 58;
   const buttonRadius = 34;
+
+  const buttonFullWidth = Math.min(
+    430,
+    Math.max(buttonHeight, width - horizontalPadding * 2)
+  );
+
+  const buttonWidthAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.timing(buttonWidthAnim, {
+      toValue: loading ? 0 : 1,
+      duration: 190,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: false,
+    }).start();
+  }, [buttonWidthAnim, loading]);
+
+  const animatedMainButtonStyle = {
+    width: buttonWidthAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [buttonHeight, buttonFullWidth],
+    }),
+  };
 
   const styles = useMemo(
     () =>
@@ -213,6 +248,34 @@ export default function LoginScreen() {
       isArabic,
     ]
   );
+
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSavedCredentials = async () => {
+      try {
+        const savedEmail = await SecureStore.getItemAsync(SAVED_EMAIL_KEY);
+        const savedPassword = await SecureStore.getItemAsync(SAVED_PASSWORD_KEY);
+
+        if (!isMounted) return;
+
+        if (savedEmail && savedPassword) {
+          setEmail(savedEmail);
+          setPassword(savedPassword);
+          setRememberPassword(true);
+        }
+      } catch (error) {
+        console.log("Load saved credentials error:", error);
+      }
+    };
+
+    loadSavedCredentials();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const showEvent =
@@ -447,38 +510,60 @@ export default function LoginScreen() {
 
       setFieldErrors({});
 
-      if (data.session) {
-        try {
-          if (Device.isDevice) {
-            const { status: existingStatus } =
-              await Notifications.getPermissionsAsync();
-
-            let finalStatus = existingStatus;
-
-            if (existingStatus !== "granted") {
-              const { status } = await Notifications.requestPermissionsAsync();
-              finalStatus = status;
-            }
-
-            if (finalStatus === "granted") {
-              const tokenData = await Notifications.getExpoPushTokenAsync();
-              const expoPushToken = tokenData.data;
-
-              console.log("EXPO PUSH TOKEN:", expoPushToken);
-
-              await supabase
-                .from("profiles")
-                .update({
-                  expo_push_token: expoPushToken,
-                })
-                .eq("id", user.id);
-            }
-          }
-        } catch (pushError) {
-          console.log("Push token error:", pushError);
+      try {
+        if (rememberPassword) {
+          await SecureStore.setItemAsync(SAVED_EMAIL_KEY, cleanEmail);
+          await SecureStore.setItemAsync(SAVED_PASSWORD_KEY, password);
+        } else {
+          await SecureStore.deleteItemAsync(SAVED_EMAIL_KEY);
+          await SecureStore.deleteItemAsync(SAVED_PASSWORD_KEY);
         }
+      } catch (secureStoreError) {
+        console.log("Save credentials error:", secureStoreError);
+      }
 
-        smoothReplace("/connection-intro");
+      if (data.session) {
+        /**
+         * Push Notifications are currently commented out for iOS/free Apple account builds.
+         * السبب: في iOS يظهر الخطأ:
+         * no valid “aps-environment” entitlement string found for application
+         *
+         * لو رجعتوا تدعمون Push Notifications لاحقًا، فعّلوا الاستيرادات فوق:
+         * import * as Notifications from "expo-notifications";
+         * import * as Device from "expo-device";
+         * ثم فعّلوا هذا البلوك.
+         */
+        // try {
+        //   if (Platform.OS === "android" && Device.isDevice) {
+        //     const { status: existingStatus } =
+        //       await Notifications.getPermissionsAsync();
+        //
+        //     let finalStatus = existingStatus;
+        //
+        //     if (existingStatus !== "granted") {
+        //       const { status } = await Notifications.requestPermissionsAsync();
+        //       finalStatus = status;
+        //     }
+        //
+        //     if (finalStatus === "granted") {
+        //       const tokenData = await Notifications.getExpoPushTokenAsync();
+        //       const expoPushToken = tokenData.data;
+        //
+        //       console.log("EXPO PUSH TOKEN:", expoPushToken);
+        //
+        //       await supabase
+        //         .from("profiles")
+        //         .update({
+        //           expo_push_token: expoPushToken,
+        //         })
+        //         .eq("id", user.id);
+        //     }
+        //   }
+        // } catch (pushError) {
+        //   console.log("Push token error:", pushError);
+        // }
+
+        smoothReplace("/(tabs)/home");
       }
     } catch (err) {
       console.log("Login Error:", err);
@@ -692,6 +777,47 @@ export default function LoginScreen() {
                         </TouchableOpacity>
                       </View>
 
+                      <TouchableOpacity
+                        activeOpacity={0.78}
+                        onPress={() => setRememberPassword((prev) => !prev)}
+                        disabled={loading || isNavigating}
+                        style={[
+                          styles.rememberPasswordRow,
+                          { flexDirection: rowDirection },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.rememberCheckbox,
+                            rememberPassword && styles.rememberCheckboxActive,
+                          ]}
+                        >
+                          {rememberPassword ? (
+                            <Ionicons
+                              name="checkmark"
+                              size={15}
+                              color={COLORS.white}
+                            />
+                          ) : null}
+                        </View>
+
+                        <View style={styles.rememberTextArea}>
+                          <Text
+                            style={[styles.rememberPasswordText, { textAlign }]}
+                            allowFontScaling={false}
+                          >
+                            {rememberPasswordText}
+                          </Text>
+
+                          <Text
+                            style={[styles.rememberPasswordSubText, { textAlign }]}
+                            allowFontScaling={false}
+                          >
+                            {rememberPasswordSubText}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+
                       {fieldErrors.password ? (
                         <View
                           style={[
@@ -740,9 +866,10 @@ export default function LoginScreen() {
                 </Animated.View>
 
                 <View style={styles.bottomArea}>
-                  <TouchableOpacity
+                  <AnimatedTouchableOpacity
                     style={[
                       styles.loginButtonWrapper,
+                      animatedMainButtonStyle,
                       loading && styles.loginButtonDisabled,
                     ]}
                     onPress={handleLogin}
@@ -762,16 +889,23 @@ export default function LoginScreen() {
                           <ActivityIndicator
                             size="small"
                             color={COLORS.white}
-                            style={styles.loadingSpinner}
                           />
-                        ) : null}
-
-                        <Text style={styles.loginText} allowFontScaling={false}>
-                          {loading ? t.loggingIn : t.login}
-                        </Text>
+                        ) : (
+                          <Text style={styles.loginText} allowFontScaling={false}>
+                            {t.login}
+                          </Text>
+                        )}
                       </View>
                     </LinearGradient>
-                  </TouchableOpacity>
+                  </AnimatedTouchableOpacity>
+
+                  <View style={styles.loadingStatusArea}>
+                    {loading ? (
+                      <Text style={styles.loadingStatusText} allowFontScaling={false}>
+                        {isArabic ? "جاري تسجيل الدخول..." : "Signing you in..."}
+                      </Text>
+                    ) : null}
+                  </View>
 
                   <View style={styles.orArea}>
                     <View style={styles.orLine} />
@@ -940,7 +1074,7 @@ function createStyles({
     title: {
       fontFamily: FONT_EXTRABOLD,
       fontSize: isVerySmallScreen ? 23 : isSmallScreen ? 25 : 27,
-      color: COLORS.title,
+      color: COLORS.primaryDark,
       textAlign: "center",
       letterSpacing: -0.35,
       lineHeight: isVerySmallScreen ? 32 : isSmallScreen ? 35 : 38,
@@ -1027,6 +1161,54 @@ function createStyles({
       alignItems: "center",
     },
 
+    rememberPasswordRow: {
+      width: "100%",
+      marginTop: 9,
+      marginBottom: isVerySmallScreen ? 8 : 10,
+      paddingHorizontal: 7,
+      alignItems: "center",
+      justifyContent: "flex-start",
+    },
+
+    rememberCheckbox: {
+      width: isVerySmallScreen ? 19 : 21,
+      height: isVerySmallScreen ? 19 : 21,
+      borderRadius: 6,
+      borderWidth: 1.5,
+      borderColor: COLORS.inputBorder,
+      backgroundColor: COLORS.inputBackground,
+      alignItems: "center",
+      justifyContent: "center",
+      marginLeft: isArabic ? 9 : 0,
+      marginRight: isArabic ? 0 : 9,
+    },
+
+    rememberCheckboxActive: {
+      borderColor: COLORS.primary,
+      backgroundColor: COLORS.primary,
+    },
+
+    rememberTextArea: {
+      flex: 1,
+    },
+
+    rememberPasswordText: {
+      fontFamily: FONT_BOLD,
+      color: COLORS.label,
+      fontSize: isVerySmallScreen ? 12.2 : 13,
+      lineHeight: isVerySmallScreen ? 18 : 19,
+      includeFontPadding: true,
+    },
+
+    rememberPasswordSubText: {
+      marginTop: 1,
+      fontFamily: FONT_SEMIBOLD,
+      color: COLORS.placeholder,
+      fontSize: isVerySmallScreen ? 10.5 : 11.2,
+      lineHeight: isVerySmallScreen ? 15 : 16,
+      includeFontPadding: true,
+    },
+
     forgotPasswordButton: {
       marginTop: isVerySmallScreen ? 2 : 4,
       marginBottom: isVerySmallScreen ? 8 : 10,
@@ -1069,6 +1251,7 @@ function createStyles({
 
     loginButtonWrapper: {
       width: "100%",
+      alignSelf: "center",
       height: buttonHeight,
       borderRadius: buttonRadius,
       overflow: "hidden",
@@ -1126,6 +1309,26 @@ function createStyles({
       backgroundColor: "rgba(255,255,255,0.10)",
       borderTopLeftRadius: buttonRadius,
       borderTopRightRadius: buttonRadius,
+    },
+
+    loadingStatusArea: {
+      width: "100%",
+      minHeight: isVerySmallScreen ? 30 : 34,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: isVerySmallScreen ? 6 : 8,
+      marginBottom: isVerySmallScreen ? -2 : 0,
+    },
+
+    loadingStatusText: {
+      marginTop: 0,
+      width: "100%",
+      fontFamily: FONT_BOLD,
+      color: COLORS.muted,
+      fontSize: isVerySmallScreen ? 12.8 : 13.8,
+      lineHeight: isVerySmallScreen ? 20 : 22,
+      textAlign: "center",
+      includeFontPadding: true,
     },
 
     orArea: {

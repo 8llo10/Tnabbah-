@@ -114,6 +114,8 @@ const FONT_SEMIBOLD = "Alexandria_600SemiBold";
 const FONT_BOLD = "Alexandria_700Bold";
 const FONT_EXTRABOLD = "Alexandria_800ExtraBold";
 
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+
 const MAX_FIRST_NAME_LENGTH = 15;
 
 type RegisterRoute = "/login" | "/start";
@@ -152,6 +154,7 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
 
   const [showPassword, setShowPassword] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [loading, setLoading] = useState(false);
@@ -184,6 +187,29 @@ export default function RegisterScreen() {
 
   const buttonHeight = isVerySmallScreen ? 54 : 58;
   const buttonRadius = 34;
+
+  const buttonFullWidth = Math.min(
+    430,
+    Math.max(buttonHeight, width - horizontalPadding * 2)
+  );
+
+  const buttonWidthAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.timing(buttonWidthAnim, {
+      toValue: loading ? 0 : 1,
+      duration: 190,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: false,
+    }).start();
+  }, [buttonWidthAnim, loading]);
+
+  const animatedMainButtonStyle = {
+    width: buttonWidthAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [buttonHeight, buttonFullWidth],
+    }),
+  };
 
   const styles = useMemo(
     () =>
@@ -233,7 +259,7 @@ export default function RegisterScreen() {
     const hideEvent =
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
 
-    const keyboardShift = isVerySmallScreen ? -125 : isSmallScreen ? -108 : -90;
+    const keyboardShift = isVerySmallScreen ? -150 : isSmallScreen ? -125 : -100;
 
     const showSubscription = Keyboard.addListener(showEvent, () => {
       Animated.timing(keyboardTranslateY, {
@@ -277,7 +303,7 @@ export default function RegisterScreen() {
     passwordChecks.hasSixDigits &&
     passwordChecks.hasSpecialCharacter;
 
-  const showPasswordRules = password.length > 0;
+  const showPasswordRules = (isPasswordFocused || password.length > 0) && !isPasswordValid;
 
   const passwordRules = [
     {
@@ -732,6 +758,8 @@ export default function RegisterScreen() {
                           autoCapitalize="none"
                           autoCorrect={false}
                           returnKeyType="done"
+                          onFocus={() => setIsPasswordFocused(true)}
+                          onBlur={() => setIsPasswordFocused(false)}
                           editable={!loading && !isNavigating}
                           selectionColor={COLORS.primary}
                         />
@@ -828,76 +856,85 @@ export default function RegisterScreen() {
                 </Animated.View>
 
                 <View style={styles.bottomArea}>
-                  <TouchableOpacity
-                    style={[
-                      styles.registerButtonWrapper,
-                      loading && styles.registerButtonDisabled,
-                    ]}
-                    onPress={handleRegister}
-                    disabled={loading || isNavigating}
-                    activeOpacity={0.9}
-                  >
-                    <LinearGradient
-                      colors={[COLORS.primary, COLORS.primaryDark]}
-                      start={{ x: 0.15, y: 0 }}
-                      end={{ x: 0.9, y: 1 }}
-                      style={styles.registerGradient}
+                  <View style={styles.mainButtonCenterWrapper}>
+                    <AnimatedTouchableOpacity
+                      style={[
+                        styles.registerButtonWrapper,
+                        animatedMainButtonStyle,
+                        loading && styles.registerButtonDisabled,
+                      ]}
+                      onPress={handleRegister}
+                      disabled={loading || isNavigating}
+                      activeOpacity={0.9}
                     >
-                      <View style={styles.loginShine} />
-
-                      <View style={styles.loadingContent}>
-                        {loading ? (
-                          <ActivityIndicator
-                            size="small"
-                            color={COLORS.white}
-                            style={styles.loadingSpinner}
-                          />
-                        ) : null}
-
-                        <Text
-                          style={styles.registerButtonText}
-                          allowFontScaling={false}
-                        >
-                          {loading ? t.registering : t.registerButton}
-                        </Text>
-                      </View>
-                    </LinearGradient>
-                  </TouchableOpacity>
-
-                  <View style={styles.orArea}>
-                    <View style={styles.orLine} />
-                    <Text style={styles.orText} allowFontScaling={false}>
-                      {t.or}
-                    </Text>
-                    <View style={styles.orLine} />
-                  </View>
-
-                  <View
-                    style={[
-                      styles.loginTextArea,
-                      { flexDirection: isArabic ? "row-reverse" : "row" },
-                    ]}
-                  >
-                    <Text style={styles.loginLightText} allowFontScaling={false}>
-                      {t.alreadyHaveAccount}{" "}
-                    </Text>
-
-                    <TouchableOpacity
-                      activeOpacity={0.7}
-                      onPress={() => smoothPush("/login")}
-                      disabled={isNavigating || loading}
-                    >
-                      <Text
-                        style={[
-                          styles.loginBoldText,
-                          isArabic ? { marginRight: 6 } : { marginLeft: 6 },
-                        ]}
-                        allowFontScaling={false}
+                      <LinearGradient
+                        colors={[COLORS.primary, COLORS.primaryDark]}
+                        start={{ x: 0.15, y: 0 }}
+                        end={{ x: 0.9, y: 1 }}
+                        style={styles.registerGradient}
                       >
-                        {t.login}
-                      </Text>
-                    </TouchableOpacity>
+                        <View style={styles.loginShine} />
+
+                        <View style={styles.loadingContent}>
+                          {loading ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={COLORS.white}
+                            />
+                          ) : (
+                            <Text style={styles.registerButtonText} allowFontScaling={false}>
+                              {t.registerButton}
+                            </Text>
+                          )}
+                        </View>
+                      </LinearGradient>
+                    </AnimatedTouchableOpacity>
                   </View>
+
+                  {loading ? (
+                    <View style={styles.loadingStatusArea}>
+                      <Text style={styles.loadingStatusText} allowFontScaling={false}>
+                        {isArabic ? "جاري إنشاء الحساب..." : "Creating your account..."}
+                      </Text>
+                    </View>
+                  ) : (
+                    <>
+                      <View style={styles.orArea}>
+                        <View style={styles.orLine} />
+                        <Text style={styles.orText} allowFontScaling={false}>
+                          {t.or}
+                        </Text>
+                        <View style={styles.orLine} />
+                      </View>
+
+                      <View
+                        style={[
+                          styles.loginTextArea,
+                          { flexDirection: isArabic ? "row-reverse" : "row" },
+                        ]}
+                      >
+                        <Text style={styles.loginLightText} allowFontScaling={false}>
+                          {t.alreadyHaveAccount}{" "}
+                        </Text>
+
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={() => smoothPush("/login")}
+                          disabled={isNavigating || loading}
+                        >
+                          <Text
+                            style={[
+                              styles.loginBoldText,
+                              isArabic ? { marginRight: 6 } : { marginLeft: 6 },
+                            ]}
+                            allowFontScaling={false}
+                          >
+                            {t.login}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  )}
                 </View>
               </View>
             </View>
@@ -1031,7 +1068,7 @@ function createStyles({
     title: {
       fontFamily: FONT_EXTRABOLD,
       fontSize: isVerySmallScreen ? 23 : isSmallScreen ? 25 : 27,
-      color: COLORS.title,
+       color: COLORS.primaryDark,
       textAlign: "center",
       letterSpacing: -0.35,
       lineHeight: isVerySmallScreen ? 32 : isSmallScreen ? 35 : 38,
@@ -1142,10 +1179,10 @@ function createStyles({
 
     passwordRulesBox: {
       width: "100%",
-      minHeight: isVerySmallScreen ? 114 : 122,
+      minHeight: isVerySmallScreen ? 104 : 112,
       marginTop: 7,
       paddingHorizontal: isVerySmallScreen ? 12 : 14,
-      paddingVertical: isVerySmallScreen ? 6 : 7,
+      paddingVertical: isVerySmallScreen ? 7 : 8,
       borderRadius: 17,
       backgroundColor: COLORS.rulesBackground,
       borderWidth: 1.1,
@@ -1155,6 +1192,11 @@ function createStyles({
 
     passwordRulesBoxHidden: {
       opacity: 0,
+      minHeight: 0,
+      height: 0,
+      marginTop: 0,
+      paddingVertical: 0,
+      borderWidth: 0,
     },
 
     passwordRulesTitle: {
@@ -1188,14 +1230,22 @@ function createStyles({
     },
 
     bottomArea: {
-      marginTop: isVerySmallScreen ? 10 : 16,
+      marginTop: isVerySmallScreen ? 6 : 10,
       width: "100%",
-      paddingTop: isVerySmallScreen ? 10 : 14,
-      paddingBottom: isVerySmallScreen ? 2 : 6,
+      paddingTop: isVerySmallScreen ? 6 : 8,
+      paddingBottom: isVerySmallScreen ? 18 : 24,
+      alignItems: "center",
+    },
+
+    mainButtonCenterWrapper: {
+      width: "100%",
+      alignItems: "center",
+      justifyContent: "center",
     },
 
     registerButtonWrapper: {
       width: "100%",
+      alignSelf: "center",
       height: buttonHeight,
       borderRadius: buttonRadius,
       overflow: "hidden",
@@ -1242,6 +1292,26 @@ function createStyles({
       letterSpacing: -0.15,
       paddingTop: Platform.OS === "ios" ? 1 : 0,
       paddingBottom: Platform.OS === "ios" ? 1 : 0,
+    },
+
+    loadingStatusArea: {
+      width: "100%",
+      minHeight: isVerySmallScreen ? 34 : 38,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: isVerySmallScreen ? 10 : 12,
+      marginBottom: isVerySmallScreen ? 6 : 8,
+    },
+
+    loadingStatusText: {
+      marginTop: 0,
+      width: "100%",
+      fontFamily: FONT_BOLD,
+      color: COLORS.muted,
+      fontSize: isVerySmallScreen ? 12.8 : 13.8,
+      lineHeight: isVerySmallScreen ? 20 : 22,
+      textAlign: "center",
+      includeFontPadding: true,
     },
 
     orArea: {

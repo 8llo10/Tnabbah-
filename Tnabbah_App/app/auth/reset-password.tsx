@@ -18,6 +18,7 @@ import {
   StatusBar,
   useWindowDimensions,
   Animated,
+  Easing,
 } from "react-native";
 
 import { LinearGradient } from "expo-linear-gradient";
@@ -99,6 +100,8 @@ const FONT_SEMIBOLD = "Alexandria_600SemiBold";
 const FONT_BOLD = "Alexandria_700Bold";
 const FONT_EXTRABOLD = "Alexandria_800ExtraBold";
 
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+
 export default function ResetPasswordScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -163,6 +166,29 @@ export default function ResetPasswordScreen() {
 
   const buttonHeight = isVerySmallScreen ? 54 : 58;
   const buttonRadius = 30;
+
+  const buttonFullWidth = Math.min(
+    430,
+    Math.max(buttonHeight, width - horizontalPadding * 2)
+  );
+
+  const buttonWidthAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.timing(buttonWidthAnim, {
+      toValue: loading ? 0 : 1,
+      duration: 190,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: false,
+    }).start();
+  }, [buttonWidthAnim, loading]);
+
+  const animatedMainButtonStyle = {
+    width: buttonWidthAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [buttonHeight, buttonFullWidth],
+    }),
+  };
 
   const otpBoxSize = clamp((width - horizontalPadding * 2 - 28) / 8, 34, 42);
   const otpBoxHeight = isVerySmallScreen ? 58 : 66;
@@ -423,7 +449,7 @@ export default function ResetPasswordScreen() {
         <View style={[styles.messageBoxError, { flexDirection: rowDirection }]}>
           <Ionicons
             name="alert-circle"
-            size={14}
+            size={isVerySmallScreen ? 17 : 18}
             color={colors.error}
             style={iconMargin}
           />
@@ -439,7 +465,7 @@ export default function ResetPasswordScreen() {
         <View style={[styles.messageBoxInfo, { flexDirection: rowDirection }]}>
           <Ionicons
             name="checkmark-circle"
-            size={14}
+            size={isVerySmallScreen ? 17 : 18}
             color={colors.success}
             style={iconMargin}
           />
@@ -593,9 +619,10 @@ export default function ResetPasswordScreen() {
               </View>
 
               <View style={styles.bottomArea}>
-                <TouchableOpacity
+                <AnimatedTouchableOpacity
                   style={[
                     styles.mainButtonWrapper,
+                  animatedMainButtonStyle,
                     loading && styles.mainButtonDisabled,
                   ]}
                   onPress={handleVerifyOtp}
@@ -611,20 +638,27 @@ export default function ResetPasswordScreen() {
                     <View style={styles.buttonGlassTop} />
 
                     <View style={styles.loadingRow}>
-                      {loading ? (
-                        <ActivityIndicator
-                          size="small"
-                          color={colors.white}
-                          style={styles.loadingSpinner}
-                        />
-                      ) : null}
-
-                      <Text style={styles.buttonText} allowFontScaling={false}>
-                        {loading ? t.resetOtpVerifying : t.resetOtpContinue}
-                      </Text>
-                    </View>
+                        {loading ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={colors.white}
+                          />
+                        ) : (
+                          <Text style={styles.buttonText} allowFontScaling={false}>
+                            {t.resetOtpContinue}
+                          </Text>
+                        )}
+                      </View>
                   </LinearGradient>
-                </TouchableOpacity>
+                </AnimatedTouchableOpacity>
+
+                  <View style={styles.loadingStatusArea}>
+                    {loading ? (
+                      <Text style={styles.loadingStatusText} allowFontScaling={false}>
+                        {isArabic ? "جاري التحقق..." : "Verifying code..."}
+                      </Text>
+                    ) : null}
+                  </View>
 
                 {renderResendArea()}
               </View>
@@ -746,7 +780,7 @@ function createStyles({
     title: {
       fontFamily: FONT_EXTRABOLD,
       fontSize: isVerySmallScreen ? 23 : isSmallScreen ? 25 : 27,
-      color: colors.title,
+      color: colors.primaryText,
       textAlign: "center",
       letterSpacing: -0.35,
       lineHeight: isVerySmallScreen ? 32 : isSmallScreen ? 35 : 38,
@@ -852,45 +886,45 @@ function createStyles({
     },
 
     messagePlaceholder: {
-      minHeight: isVerySmallScreen ? 28 : 32,
+      minHeight: isVerySmallScreen ? 34 : 38,
     },
 
     messageBoxError: {
       width: "100%",
-      minHeight: isVerySmallScreen ? 28 : 32,
+      minHeight: isVerySmallScreen ? 34 : 38,
       alignItems: "center",
       justifyContent: "flex-start",
-      marginTop: 0,
+      marginTop: 1,
       paddingHorizontal: 8,
     },
 
     messageBoxInfo: {
       width: "100%",
-      minHeight: isVerySmallScreen ? 28 : 32,
+      minHeight: isVerySmallScreen ? 34 : 38,
       alignItems: "center",
       justifyContent: "flex-start",
-      marginTop: 0,
+      marginTop: 1,
       paddingHorizontal: 8,
     },
 
     messageTextError: {
-      fontFamily: FONT_SEMIBOLD,
+      fontFamily: FONT_BOLD,
       color: colors.error,
-      fontSize: isVerySmallScreen ? 12.2 : 13,
+      fontSize: isVerySmallScreen ? 13.8 : 14.8,
       textAlign: "right",
       flex: 1,
-      lineHeight: isVerySmallScreen ? 18 : 20,
-      includeFontPadding: false,
+      lineHeight: isVerySmallScreen ? 21 : 23,
+      includeFontPadding: true,
     },
 
     messageTextInfo: {
-      fontFamily: FONT_SEMIBOLD,
+      fontFamily: FONT_BOLD,
       color: colors.success,
-      fontSize: isVerySmallScreen ? 12.2 : 13,
+      fontSize: isVerySmallScreen ? 13.8 : 14.8,
       textAlign: "right",
       flex: 1,
-      lineHeight: isVerySmallScreen ? 18 : 20,
-      includeFontPadding: false,
+      lineHeight: isVerySmallScreen ? 21 : 23,
+      includeFontPadding: true,
     },
 
     bottomArea: {
@@ -902,6 +936,7 @@ function createStyles({
 
     mainButtonWrapper: {
       width: "100%",
+      alignSelf: "center",
       height: buttonHeight,
       borderRadius: buttonRadius,
       overflow: "hidden",
@@ -962,16 +997,36 @@ function createStyles({
       paddingBottom: Platform.OS === "ios" ? 1 : 0,
     },
 
+    loadingStatusArea: {
+      width: "100%",
+      minHeight: isVerySmallScreen ? 30 : 34,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: isVerySmallScreen ? 6 : 8,
+      marginBottom: isVerySmallScreen ? -2 : 0,
+    },
+
+    loadingStatusText: {
+      marginTop: 0,
+      width: "100%",
+      fontFamily: FONT_BOLD,
+      color: colors.muted,
+      fontSize: isVerySmallScreen ? 12.8 : 13.8,
+      lineHeight: isVerySmallScreen ? 20 : 22,
+      textAlign: "center",
+      includeFontPadding: true,
+    },
+
     timerBox: {
       marginTop: isVerySmallScreen ? 12 : 14,
       width: "100%",
-      minHeight: isVerySmallScreen ? 48 : 52,
-      paddingHorizontal: isVerySmallScreen ? 14 : 16,
-      paddingVertical: isVerySmallScreen ? 9 : 10,
-      borderRadius: 22,
-      backgroundColor: isDarkMode ? "rgba(255,255,255,0.055)" : "#F5F5F5",
-      borderWidth: 1.1,
-      borderColor: isDarkMode ? "rgba(255,255,255,0.14)" : "rgba(170,170,170,0.45)",
+      minHeight: isVerySmallScreen ? 30 : 34,
+      paddingHorizontal: isVerySmallScreen ? 6 : 8,
+      paddingVertical: isVerySmallScreen ? 4 : 5,
+      borderRadius: 0,
+      backgroundColor: "transparent",
+      borderWidth: 0,
+      borderColor: "transparent",
       flexDirection: "row-reverse",
       alignItems: "center",
       justifyContent: "center",

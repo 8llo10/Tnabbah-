@@ -194,16 +194,16 @@ export default function HomeScreen() {
     const COLORS = darkModeEnabled ? DARK_COLORS : LIGHT_COLORS;
     const styles = useMemo(() => createStyles(COLORS, isArabic), [COLORS, isArabic]);
 
-    const {
-        metrics,
-        vin,
-        dtcCount,
-        supportedCount,
-        lastRaw,
-        statusText,
-        isConnected,
-        isAutoRunning,
-    } = useVehicleRealtime();
+    const vehicleRealtime = useVehicleRealtime() as any;
+
+    const metrics = vehicleRealtime?.metrics ?? {};
+    const vin = vehicleRealtime?.vin ?? null;
+    const dtcCount = vehicleRealtime?.dtcCount ?? 0;
+    const supportedCount = vehicleRealtime?.supportedCount ?? 0;
+    const lastRaw = vehicleRealtime?.lastRaw ?? "";
+    const statusText = vehicleRealtime?.statusText ?? "";
+    const isConnected = vehicleRealtime?.isConnected ?? false;
+    const isAutoRunning = vehicleRealtime?.isAutoRunning ?? false;
 
     const { width, height } = useWindowDimensions();
 
@@ -1391,7 +1391,7 @@ export default function HomeScreen() {
                         COLORS={COLORS}
                         icon="battery"
                         title="البطارية"
-                        value={`${safeValue(metrics.voltage)} V`}
+                        value={`${safeValue(metrics?.voltage)} V`}
                         subtitle="Battery Voltage"
                     />
 
@@ -1400,7 +1400,7 @@ export default function HomeScreen() {
                         COLORS={COLORS}
                         icon="activity"
                         title="RPM"
-                        value={safeValue(metrics.rpm)}
+                        value={safeValue(metrics?.rpm)}
                         subtitle="Engine Speed"
                     />
 
@@ -1409,7 +1409,7 @@ export default function HomeScreen() {
                         COLORS={COLORS}
                         icon="thermometer"
                         title="حرارة المحرك"
-                        value={`${safeValue(metrics.coolant)} °C`}
+                        value={`${safeValue(metrics?.coolant)} °C`}
                         subtitle="Engine Temperature"
                     />
                 </View>
