@@ -1,0 +1,2 @@
+window.TNABBAH_SUPABASE_URL = "";
+window.TNABBAH_SUPABASE_ANON_KEY = "";

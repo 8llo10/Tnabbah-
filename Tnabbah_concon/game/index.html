@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>TNABBAH Panic Mode</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="noise"></div>
+
+  <main class="app">
+    <section id="start" class="screen active">
+      <div class="glass hero">
+        <div class="logo">🚗</div>
+        <p class="kicker">TNABBAH BOOTH CHALLENGE</p>
+        <h1>وضع الطوارئ</h1>
+        <p class="sub">أنقذ السيارة خلال <b>45 ثانية</b>، اكسر الرقم، وخلي اسمك في لوحة الصدارة.</p>
+        <input id="playerName" maxlength="16" placeholder="اكتب اسمك" />
+        <button id="startBtn" class="primary">ابدأ التحدي ⚡</button>
+        <button id="howBtn" class="ghost">كيف ألعب؟</button>
+        <div class="mini-board" id="homeBoard"></div>
+      </div>
+    </section>
+
+    <section id="how" class="screen">
+      <div class="glass panel">
+        <h2>طريقة اللعب</h2>
+        <p>تطلع لك حالات بسرعة. اضغط القرار الصح قبل ما يمتلئ عداد الخطر.</p>
+        <div class="rules">
+          <span>🔥 حرارة عالية = أوقف</span>
+          <span>🚨 لمبة مكينة = افحص بتنبّه</span>
+          <span>💸 ورشة مبالغ فيها = ارفض وافحص</span>
+        </div>
+        <button class="primary" id="backStart">رجوع</button>
+      </div>
+    </section>
+
+    <section id="game" class="screen">
+      <header class="hudTop">
+        <div><small>الوقت</small><b id="time">45</b></div>
+        <div><small>النقاط</small><b id="score">0</b></div>
+        <div><small>وفرت</small><b id="saved">0﷼</b></div>
+      </header>
+
+      <div class="roadWrap">
+        <div class="danger"><span id="dangerBar"></span></div>
+        <div class="car" id="car">🚘</div>
+        <div class="caseCard" id="caseCard">
+          <div id="caseIcon" class="caseIcon">🚨</div>
+          <h2 id="caseTitle">Check Engine</h2>
+          <p id="caseText">السيارة تحتاج قرار سريع</p>
+          <div class="timer"><span id="caseTimer"></span></div>
+        </div>
+      </div>
+
+      <div class="actions" id="actions"></div>
+      <div id="toast" class="toast"></div>
+    </section>
+
+    <section id="end" class="screen">
+      <div class="glass result">
+        <p class="kicker">RESULT</p>
+        <h1 id="titleResult">أسطورة تنبّه 🏆</h1>
+        <div class="resultScore" id="finalScore">0</div>
+        <p id="finalText"></p>
+        <div class="stats">
+          <div><small>وفرت</small><b id="finalSaved">0﷼</b></div>
+          <div><small>صحة السيارة</small><b id="finalHealth">100%</b></div>
+          <div><small>كومبو</small><b id="finalCombo">x0</b></div>
+        </div>
+        <h3>🏁 لوحة الصدارة</h3>
+        <div id="leaderboard" class="leaderboard"></div>
+        <button id="againBtn" class="primary">العب مرة ثانية</button>
+        <a class="ghost link" href="../index.html">رجوع للموقع</a>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
