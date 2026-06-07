@@ -191,6 +191,7 @@ export default function ConnectionIntroScreen() {
   const isSmallScreen = height < 720;
   const isVerySmallScreen = height < 650;
   const isTablet = width >= 768;
+  const isAndroid = Platform.OS === "android";
 
   const horizontalPadding = clamp(width * 0.055, 20, isTablet ? 34 : 26);
   const maxContentWidth = isTablet ? clamp(width * 0.72, 520, 680) : width;
@@ -1269,7 +1270,7 @@ function createStyles({
   const stepSize = isVerySmallScreen ? 35 : 38;
   const stepItemWidth = isVerySmallScreen ? 50 : 54;
 
-  const buttonHeight = isVerySmallScreen ? 54 : 58;
+  const buttonHeight = isVerySmallScreen ? 58 : 64;
   const buttonRadius = 34;
 
   const topPadding = Platform.OS === "ios" ? safeTop - 18 : safeTop - 8;
@@ -1381,8 +1382,8 @@ function createStyles({
       flexDirection: isArabic ? "row-reverse" : "row",
       alignItems: "flex-start",
       justifyContent: "space-between",
-      marginTop: isVerySmallScreen ? 10 : 14,
-      marginBottom: isVerySmallScreen ? 18 : 24,
+      marginTop: isVerySmallScreen ? 14 : 20,
+      marginBottom: isVerySmallScreen ? 22 : 30,
       paddingHorizontal: 0,
     },
 
@@ -1463,7 +1464,7 @@ function createStyles({
     },
 
     title: {
-      fontSize: isVerySmallScreen ? 19.5 : isTablet ? 25 : 22,
+      fontSize: isVerySmallScreen ? 21 : isTablet ? 25 : 24,
       fontFamily: FONT_EXTRABOLD,
       color: COLORS.title,
       textAlign: "center",
@@ -1478,7 +1479,7 @@ function createStyles({
 
     subtitle: {
       width: "100%",
-      fontSize: isVerySmallScreen ? 13 : isTablet ? 15.4 : 14.2,
+      fontSize: isVerySmallScreen ? 14 : isTablet ? 15.4 : 15,
       color: COLORS.textMuted,
       fontFamily: FONT_SEMIBOLD,
       textAlign: "center",
@@ -1600,15 +1601,22 @@ function createStyles({
 
     animationBox: {
       width: "100%",
-      height: isVerySmallScreen ? 168 : isSmallScreen ? 195 : 225,
+      height: Platform.OS === "android"
+        ? (isVerySmallScreen ? 130 : isSmallScreen ? 155 : 175)
+        : (isVerySmallScreen ? 168 : isSmallScreen ? 195 : 225),
       justifyContent: "center",
       alignItems: "center",
       marginVertical: isVerySmallScreen ? 4 : 8,
     },
 
     lottie: {
-      width: isVerySmallScreen ? 195 : isTablet ? 265 : 240,
-      height: isVerySmallScreen ? 195 : isTablet ? 265 : 240,
+      width: Platform.OS === "android"
+        ? (isVerySmallScreen ? 150 : 180)
+        : (isVerySmallScreen ? 195 : isTablet ? 265 : 240),
+
+      height: Platform.OS === "android"
+        ? (isVerySmallScreen ? 150 : 180)
+        : (isVerySmallScreen ? 195 : isTablet ? 265 : 240),
     },
 
     bluetoothCard: {
