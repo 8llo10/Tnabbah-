@@ -36,11 +36,11 @@ const translations = {
     chatInputPlaceholder: "اكتب رسالتك...",
     chatLoginRequired: "سجّل الدخول أولًا عشان أقدر أقرأ بيانات سيارتك.",
     chatNoAssistantReply:
-      'ما وصلني رد من المساعد. تأكد أن الـ workflow في n8n يرجّع رد عبر "Respond to Webhook".',
+      'ما وصلني رد واضح من المساعد. حاولي مرة ثانية بعد قليل.',
     chatTimeout:
-      "انتهت مدة الانتظار. تأكد أن الـ workflow في n8n شغّال Active.",
+      "انتهت مدة الانتظار. تأكدي من اتصال الإنترنت وحاولي مرة ثانية.",
     chatNetworkError:
-      "فشل الاتصال بالشبكة. تأكد من:\n• أن الـ Workflow في n8n مفعّل Active\n• إن الرابط صحيح webhook وليس webhook-test",
+      "فشل الاتصال بالشبكة. تأكدي من اتصال الإنترنت ثم حاولي مرة ثانية.",
     chatConnectionError: "تعذّر الاتصال بالمساعد.",
 
     walletTitle: "المحفظة",
@@ -516,10 +516,10 @@ const translations = {
     chatInputPlaceholder: "Type your message...",
     chatLoginRequired: "Please log in first so I can read your car data.",
     chatNoAssistantReply:
-      'I did not receive a reply from the assistant. Make sure the n8n workflow returns a response using "Respond to Webhook".',
-    chatTimeout: "The request timed out. Make sure the n8n workflow is active.",
+      'I did not receive a clear reply from the assistant. Please try again shortly.',
+    chatTimeout: "The request timed out. Please check your internet connection and try again.",
     chatNetworkError:
-      "Network connection failed. Make sure:\n• The n8n workflow is active\n• The URL is a webhook URL, not webhook-test",
+      "Network connection failed. Please check your internet connection and try again.",
     chatConnectionError: "Could not connect to the assistant.",
 
     walletTitle: "Wallet",

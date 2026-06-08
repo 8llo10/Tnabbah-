@@ -18,11 +18,16 @@
         "NSBluetoothPeripheralUsageDescription": "Tnabbah needs Bluetooth access to connect to the OBD device.",
         "UIBackgroundModes": [
           "bluetooth-central"
-        ]
+        ],
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        }
       }
     },
     "android": {
       "package": "com.rawanamoodi.tnabbahapp",
+      "usesCleartextTraffic": true,
       "permissions": [
         "BLUETOOTH",
         "BLUETOOTH_ADMIN",
@@ -80,8 +85,7 @@
       "expo-font"
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     },
     "extra": {
       "router": {},

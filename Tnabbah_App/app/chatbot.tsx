@@ -31,8 +31,8 @@ import * as Sharing from "expo-sharing";
 import * as Clipboard from "expo-clipboard";
 import { Animated, Alert } from "react-native";
 
-const CHATBOT_API_URL = "http://207.180.244.27:4010/chat";
-
+const CHATBOT_API_URL =
+  process.env.EXPO_PUBLIC_CHATBOT_API_URL || "http://207.180.244.27:4010/chat";
 const CHATBOT_ASSISTANT_ICON = require("../assets/images/chatbot-ai-white.png");
 
 const SESSION_ID = `session-${Date.now()}-${Math.random()
@@ -133,8 +133,8 @@ export default function Chatbot() {
 
   const effectiveCarId = incomingCarId || activeCarId || null;
 
-  const currentCar =
-    userCars.find((car) => car.car_id === effectiveCarId) || null;
+  const currentCar: any =
+    (userCars as any[]).find((car: any) => car?.car_id === effectiveCarId) || null;
 
   const scrollRef = useRef<ScrollView | null>(null);
   const inputRef = useRef<TextInput | null>(null);
@@ -276,71 +276,167 @@ export default function Chatbot() {
     );
   }, [t.chatWelcome, language]);
 
-  const fetchBotReply = async (userText: string): Promise<string> => {
-    try {
-      if (!session?.user?.id) {
-        return t.chatLoginRequired;
-      }
+  const postJsonWithTimeout = (
+    url: string,
+    payload: Record<string, any>,
+    timeoutMs = 30000,
+  ): Promise<{ status: number; ok: boolean; raw: string }> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      let finished = false;
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const finish = (callback: () => void) => {
+        if (finished) return;
+        finished = true;
+        callback();
+      };
 
-      let res: Response;
+      const timer = setTimeout(() => {
+        try {
+          xhr.abort();
+        } catch {}
+
+        const timeoutError: any = new Error("Request timeout");
+        timeoutError.name = "AbortError";
+        finish(() => reject(timeoutError));
+      }, timeoutMs);
+
+      xhr.onreadystatechange = () => {
+        if (xhr.readyState !== 4) return;
+
+        finish(() => {
+          clearTimeout(timer);
+
+          resolve({
+            status: xhr.status,
+            ok: xhr.status >= 200 && xhr.status < 300,
+            raw: xhr.responseText ?? "",
+          });
+        });
+      };
+
+      xhr.onerror = () => {
+        finish(() => {
+          clearTimeout(timer);
+          reject(new Error("Network request failed"));
+        });
+      };
+
+      xhr.ontimeout = () => {
+        const timeoutError: any = new Error("Request timeout");
+        timeoutError.name = "AbortError";
+
+        finish(() => {
+          clearTimeout(timer);
+          reject(timeoutError);
+        });
+      };
 
       try {
-        res = await fetch(CHATBOT_API_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({
-            message: userText,
-
-            userId: session?.user?.id,
-
-            carId: effectiveCarId,
-
-            userCarId: currentCar?.id ?? null,
-
-            connectedCarId,
-
-            currentCar,
-
-            userCars,
-
-            email: session?.user?.email,
-
-            fullName: profile?.full_name ?? null,
-
-            sessionId: activeSessionId,
-
-            language,
-          }),
-          signal: controller.signal,
+        xhr.open("POST", url, true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.setRequestHeader("Accept", "application/json");
+        xhr.timeout = timeoutMs;
+        xhr.send(JSON.stringify(payload));
+      } catch (error) {
+        finish(() => {
+          clearTimeout(timer);
+          reject(error);
         });
-      } finally {
-        clearTimeout(timeoutId);
       }
+    });
+  };
 
-      const raw = (await res.text()).trim();
+  const fetchBotReply = async (userText: string): Promise<string> => {
+    const userId = session?.user?.id;
 
-      if (!res.ok) {
+    if (!userId) {
+      return t.chatLoginRequired;
+    }
+
+    const selectedCar: any =
+      currentCar ??
+      (userCars as any[]).find((car: any) => car?.car_id === effectiveCarId) ??
+      (userCars as any[]).find((car: any) => car?.car_id === connectedCarId) ??
+      null;
+
+    const safeUserCars = Array.isArray(userCars)
+      ? (userCars as any[]).map((car: any) => ({
+          id: car?.id ?? null,
+          car_id: car?.car_id ?? null,
+          name: car?.name ?? car?.car_name ?? null,
+          vin: car?.vin ?? null,
+          plate_number: car?.plate_number ?? null,
+          is_deleted: car?.is_deleted ?? null,
+        }))
+      : [];
+
+    const payload = {
+      userId,
+      user_id: userId,
+      message: userText.trim(),
+      text: userText.trim(),
+      carId: effectiveCarId ?? connectedCarId ?? selectedCar?.car_id ?? null,
+      car_id: effectiveCarId ?? connectedCarId ?? selectedCar?.car_id ?? null,
+      userCarId: selectedCar?.id ?? null,
+      connectedCarId: connectedCarId ?? null,
+      currentCar: selectedCar
+        ? {
+            id: selectedCar?.id ?? null,
+            car_id: selectedCar?.car_id ?? null,
+            name: selectedCar?.name ?? selectedCar?.car_name ?? null,
+            vin: selectedCar?.vin ?? null,
+            plate_number: selectedCar?.plate_number ?? null,
+          }
+        : null,
+      userCars: safeUserCars,
+      email: session?.user?.email ?? null,
+      fullName: profile?.full_name ?? null,
+      sessionId: activeSessionId,
+      language,
+      platform: Platform.OS,
+    };
+
+    try {
+      console.log("CHATBOT request:", {
+        url: CHATBOT_API_URL,
+        userId: payload.userId,
+        carId: payload.carId,
+        userCarId: payload.userCarId,
+        sessionId: payload.sessionId,
+        platform: payload.platform,
+      });
+
+      const { status, ok, raw } = await postJsonWithTimeout(
+        CHATBOT_API_URL,
+        payload,
+        30000,
+      );
+
+      const cleanRaw = raw.trim();
+
+      console.log("CHATBOT response:", {
+        status,
+        ok,
+        raw: cleanRaw.slice(0, 250),
+      });
+
+      if (!ok) {
         throw new Error(
-          `HTTP ${res.status}${raw ? `: ${raw.slice(0, 120)}` : ""}`,
+          `HTTP ${status}${cleanRaw ? `: ${cleanRaw.slice(0, 160)}` : ""}`,
         );
       }
 
-      if (!raw) {
+      if (!cleanRaw) {
         return t.chatNoAssistantReply;
       }
 
       let data: any = null;
 
       try {
-        data = JSON.parse(raw);
+        data = JSON.parse(cleanRaw);
       } catch {
-        return raw;
+        return cleanRaw;
       }
 
       const pickReply = (obj: any): string | null => {
@@ -355,6 +451,8 @@ export default function Chatbot() {
           obj?.message ??
           obj?.answer ??
           obj?.data?.output ??
+          obj?.data?.response ??
+          obj?.data?.reply ??
           obj?.data?.text ??
           null
         );
@@ -362,15 +460,26 @@ export default function Chatbot() {
 
       const reply = Array.isArray(data) ? pickReply(data[0]) : pickReply(data);
 
-      if (typeof reply === "string" && reply.trim()) return reply;
+      if (typeof reply === "string" && reply.trim()) {
+        return reply.trim();
+      }
 
       return JSON.stringify(data);
     } catch (err: any) {
+      console.log("CHATBOT error:", {
+        name: err?.name,
+        message: err?.message,
+        url: CHATBOT_API_URL,
+      });
+
       if (err?.name === "AbortError") {
         return t.chatTimeout;
       }
 
-      if (err?.message?.includes("Network request failed")) {
+      if (
+        err?.message?.includes("Network request failed") ||
+        err?.message?.includes("Failed to fetch")
+      ) {
         return t.chatNetworkError;
       }
 

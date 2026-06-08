@@ -340,11 +340,20 @@ export default function ForgotPasswordScreen() {
       const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
 
       if (error) {
-        console.log("Forgot password error:", error.message);
-
         const message = error.message?.toLowerCase() || "";
 
-        if (message.includes("rate limit") || message.includes("too many")) {
+        console.log("FORGOT PASSWORD SEND ERROR:", {
+          message: error.message,
+          status: error.status,
+          code: error.code,
+          email: cleanEmail,
+        });
+
+        if (
+          message.includes("rate limit") ||
+          message.includes("too many") ||
+          message.includes("429")
+        ) {
           setErrorMessage(t.forgotRateLimit);
           return;
         }

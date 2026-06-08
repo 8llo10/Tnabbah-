@@ -17,6 +17,12 @@ type SaveUserSettingsUpdates = {
   last_car_id?: string | null;
 };
 
+type LocalSettings = {
+  language: AppLanguage;
+  darkModeEnabled: boolean;
+  notificationsEnabled: boolean;
+};
+
 type AppSettingsContextType = {
   settingsLoading: boolean;
   savingSettings: boolean;
@@ -38,9 +44,15 @@ type AppSettingsContextType = {
 
 const AppSettingsContext = createContext<AppSettingsContextType | null>(null);
 
-const APP_DARK_MODE_KEY = "app_dark_mode_enabled";
-const APP_LANGUAGE_KEY = "app_language";
-const APP_NOTIFICATIONS_KEY = "app_notifications_enabled";
+export const APP_DARK_MODE_KEY = "app_dark_mode_enabled";
+export const APP_LANGUAGE_KEY = "app_language";
+export const APP_NOTIFICATIONS_KEY = "app_notifications_enabled";
+
+const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
+  language: "AR",
+  darkModeEnabled: false,
+  notificationsEnabled: true,
+};
 
 export function AppSettingsProvider({
   children,
@@ -52,13 +64,21 @@ export function AppSettingsProvider({
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
 
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState<AppLanguage>("AR");
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    DEFAULT_LOCAL_SETTINGS.notificationsEnabled
+  );
+  const [darkModeEnabled, setDarkModeEnabled] = useState(
+    DEFAULT_LOCAL_SETTINGS.darkModeEnabled
+  );
+  const [selectedLanguage, setSelectedLanguage] = useState<AppLanguage>(
+    DEFAULT_LOCAL_SETTINGS.language
+  );
 
   const realUserId = session?.user?.id;
 
-  const loadLocalSettings = async () => {
+  const loadLocalSettings = async (): Promise<LocalSettings> => {
+    let nextSettings = { ...DEFAULT_LOCAL_SETTINGS };
+
     try {
       const [localDarkMode, localLanguage, localNotifications] =
         await Promise.all([
@@ -68,25 +88,49 @@ export function AppSettingsProvider({
         ]);
 
       if (localDarkMode === "true" || localDarkMode === "false") {
-        setDarkModeEnabled(localDarkMode === "true");
+        nextSettings.darkModeEnabled = localDarkMode === "true";
       }
 
       if (localLanguage === "AR" || localLanguage === "EN") {
-        setSelectedLanguage(localLanguage);
+        nextSettings.language = localLanguage;
       }
 
       if (localNotifications === "true" || localNotifications === "false") {
-        setNotificationsEnabled(localNotifications === "true");
+        nextSettings.notificationsEnabled = localNotifications === "true";
       }
+
+      setDarkModeEnabled(nextSettings.darkModeEnabled);
+      setSelectedLanguage(nextSettings.language);
+      setNotificationsEnabled(nextSettings.notificationsEnabled);
     } catch (error) {
       console.log("Load local settings error:", error);
+    }
+
+    return nextSettings;
+  };
+
+  const saveLocalSettings = async (settings: LocalSettings) => {
+    try {
+      await Promise.all([
+        AsyncStorage.setItem(APP_LANGUAGE_KEY, settings.language),
+        AsyncStorage.setItem(
+          APP_DARK_MODE_KEY,
+          String(settings.darkModeEnabled)
+        ),
+        AsyncStorage.setItem(
+          APP_NOTIFICATIONS_KEY,
+          String(settings.notificationsEnabled)
+        ),
+      ]);
+    } catch (error) {
+      console.log("Save local settings error:", error);
     }
   };
 
   const loadUserSettings = async () => {
     setSettingsLoading(true);
 
-    await loadLocalSettings();
+    const localSettings = await loadLocalSettings();
 
     if (!realUserId) {
       setSettingsLoading(false);
@@ -105,9 +149,9 @@ export function AppSettingsProvider({
       if (!data) {
         const defaultSettings = {
           user_id: realUserId,
-          language: selectedLanguage,
-          dark_mode_enabled: darkModeEnabled,
-          notifications_enabled: notificationsEnabled,
+          language: localSettings.language,
+          dark_mode_enabled: localSettings.darkModeEnabled,
+          notifications_enabled: localSettings.notificationsEnabled,
           last_car_id: null,
           updated_at: new Date().toISOString(),
         };
@@ -122,17 +166,11 @@ export function AppSettingsProvider({
         setDarkModeEnabled(defaultSettings.dark_mode_enabled);
         setNotificationsEnabled(defaultSettings.notifications_enabled);
 
-        await Promise.all([
-          AsyncStorage.setItem(APP_LANGUAGE_KEY, defaultSettings.language),
-          AsyncStorage.setItem(
-            APP_DARK_MODE_KEY,
-            String(defaultSettings.dark_mode_enabled)
-          ),
-          AsyncStorage.setItem(
-            APP_NOTIFICATIONS_KEY,
-            String(defaultSettings.notifications_enabled)
-          ),
-        ]);
+        await saveLocalSettings({
+          language: defaultSettings.language,
+          darkModeEnabled: defaultSettings.dark_mode_enabled,
+          notificationsEnabled: defaultSettings.notifications_enabled,
+        });
 
         return;
       }
@@ -145,11 +183,11 @@ export function AppSettingsProvider({
       setDarkModeEnabled(dbDarkMode);
       setNotificationsEnabled(dbNotifications);
 
-      await Promise.all([
-        AsyncStorage.setItem(APP_LANGUAGE_KEY, dbLanguage),
-        AsyncStorage.setItem(APP_DARK_MODE_KEY, String(dbDarkMode)),
-        AsyncStorage.setItem(APP_NOTIFICATIONS_KEY, String(dbNotifications)),
-      ]);
+      await saveLocalSettings({
+        language: dbLanguage,
+        darkModeEnabled: dbDarkMode,
+        notificationsEnabled: dbNotifications,
+      });
     } catch (error) {
       console.log("Load user settings error:", error);
     } finally {
@@ -203,6 +241,8 @@ export function AppSettingsProvider({
   };
 
   const handleDarkModeChange = async (value: boolean) => {
+    setDarkModeEnabled(value);
+    await AsyncStorage.setItem(APP_DARK_MODE_KEY, String(value));
     await saveUserSettings({ dark_mode_enabled: value });
   };
 
