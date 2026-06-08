@@ -40,8 +40,8 @@ const translations = {
     chatTimeout:
       "انتهت مدة الانتظار. تأكدي من اتصال الإنترنت وحاولي مرة ثانية.",
     chatNetworkError:
-      "فشل الاتصال بالشبكة. تأكدي من اتصال الإنترنت ثم حاولي مرة ثانية.",
-    chatConnectionError: "تعذّر الاتصال بالمساعد.",
+      "تعذر الاتصال بالمساعد من التطبيق. إذا كان الرابط يفتح في Safari، أعيدي بناء تطبيق iOS بعد تفعيل السماح بروابط HTTP.",
+    chatConnectionError: "تعذّر الاتصال بالمساعد. التفاصيل:",
 
     walletTitle: "المحفظة",
 
@@ -519,8 +519,8 @@ const translations = {
       'I did not receive a clear reply from the assistant. Please try again shortly.',
     chatTimeout: "The request timed out. Please check your internet connection and try again.",
     chatNetworkError:
-      "Network connection failed. Please check your internet connection and try again.",
-    chatConnectionError: "Could not connect to the assistant.",
+      "The app could not reach the assistant. If the URL opens in Safari, rebuild the iOS app after enabling HTTP access.",
+    chatConnectionError: "Could not connect to the assistant. Details:",
 
     walletTitle: "Wallet",
 
