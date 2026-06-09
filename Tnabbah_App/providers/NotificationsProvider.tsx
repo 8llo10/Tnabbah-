@@ -60,7 +60,8 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       if (!rows?.length) return;
 
       for (const item of rows) {
-        const isEnglish = settings?.language === "EN";
+
+        const isEnglish = String(settings?.language || "AR").toUpperCase() === "EN";
 
         const title = isEnglish
           ? item.title_en || item.title || "TNABBAH Alert"
@@ -126,13 +127,13 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     await saveUserSettings({ notifications_enabled: false });
   };
 
-  /* useEffect(() => {
+  useEffect(() => {
     checkNotifications();
 
     const interval = setInterval(checkNotifications, 5000);
 
     return () => clearInterval(interval);
-  }, [session?.user?.id]); */
+  }, [session?.user?.id]);
 
   return (
     <NotificationsContext.Provider

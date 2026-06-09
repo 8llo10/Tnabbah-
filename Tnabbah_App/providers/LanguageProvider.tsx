@@ -56,7 +56,7 @@ const translations = {
     walletPending: "غير محفوظ",
     walletSaved: "محفوظ",
     walletSaveReport: "حفظ التقرير",
-    walletIgnore: "تجاهل",
+    walletIgnore: "حذف",
     walletOpenReport: "فتح التقرير",
 
     walletMaintenanceTitle: "الصيانات الدورية",
@@ -535,7 +535,7 @@ const translations = {
     walletPending: "Unsaved",
     walletSaved: "Saved",
     walletSaveReport: "Save Report",
-    walletIgnore: "Ignore",
+    walletIgnore: "Remove",
     walletOpenReport: "Open Report",
 
     walletMaintenanceTitle: "Periodic Maintenance",

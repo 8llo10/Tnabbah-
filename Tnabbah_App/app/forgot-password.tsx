@@ -248,7 +248,7 @@ export default function ForgotPasswordScreen() {
         }),
       ]).start();
 
-      return () => {};
+      return () => { };
     }, [screenOpacity, screenTranslateY, transitionAnim])
   );
 
@@ -498,7 +498,7 @@ export default function ForgotPasswordScreen() {
                   <AnimatedTouchableOpacity
                     style={[
                       styles.resetButtonWrapper,
-                    animatedMainButtonStyle,
+                      animatedMainButtonStyle,
                       loading && styles.resetButtonDisabled,
                     ]}
                     onPress={handleSubmit}

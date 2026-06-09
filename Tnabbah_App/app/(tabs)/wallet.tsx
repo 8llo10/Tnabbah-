@@ -30,6 +30,7 @@ import { useWallet } from "../../providers/WalletProvider";
 import { useLanguage } from "../../providers/LanguageProvider";
 import { useAppSettings } from "../../providers/AppSettingsProvider";
 import { useCars } from "../../providers/CarsProvider";
+import { Calendar } from "react-native-calendars";
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -867,9 +868,7 @@ export default function Wallet() {
                         },
                       ]}
                       activeOpacity={0.84}
-                      onPress={() => {
-                        if (!isPending) openReport(report.id);
-                      }}
+                      onPress={() => openReport(report.id)}
                     >
                       <View
                         style={[
@@ -1095,9 +1094,7 @@ export default function Wallet() {
                         },
                       ]}
                       activeOpacity={0.82}
-                      onPress={() => {
-                        if (!isPending) openReport(report.id);
-                      }}
+                      onPress={() => openReport(report.id)}
                     >
                       <View
                         style={[
@@ -1682,7 +1679,7 @@ export default function Wallet() {
       </ScrollView>
 
       {/* Android uses the native date dialog. iOS uses a clear in-app modal. */}
-      {datePickerVisible && Platform.OS === "android" ? (
+      {/* {datePickerVisible && Platform.OS === "android" ? (
         <DateTimePicker
           value={pendingDate}
           mode="date"
@@ -1700,10 +1697,10 @@ export default function Wallet() {
             }
           }}
         />
-      ) : null}
+      ) : null} */}
 
       <Modal
-        visible={datePickerVisible && Platform.OS === "ios"}
+        visible={datePickerVisible}
         transparent
         animationType="fade"
         onRequestClose={closeDatePicker}
@@ -1763,18 +1760,30 @@ export default function Wallet() {
                 { backgroundColor: theme.soft, borderColor: theme.border },
               ]}
             >
-              <DateTimePicker
-                value={pendingDate}
-                mode="date"
-                display="spinner"
-                textColor={theme.text}
-                onChange={(_, selectedDate) => {
-                  if (selectedDate) {
-                    setPendingDate(selectedDate);
-                  }
+              <Calendar
+                current={formatLocalDate(pendingDate)}
+                onDayPress={(day) => {
+                  setPendingDate(parseLocalDate(day.dateString));
                 }}
-                style={styles.datePicker}
+                markedDates={{
+                  [formatLocalDate(pendingDate)]: {
+                    selected: true,
+                    selectedColor: theme.primary,
+                    selectedTextColor: "#FFFFFF",
+                  },
+                }}
+                theme={{
+                  calendarBackground: theme.surface,
+                  monthTextColor: theme.primary,
+                  todayTextColor: theme.primary,
+                  arrowColor: theme.primary,
+                  selectedDayBackgroundColor: theme.primary,
+                  selectedDayTextColor: "#FFFFFF",
+                  dayTextColor: theme.text,
+                  textDisabledColor: theme.mutedLight,
+                }}
               />
+
             </View>
 
             <TouchableOpacity

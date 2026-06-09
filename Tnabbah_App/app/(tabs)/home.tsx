@@ -3447,4 +3447,4 @@ function createStyles(COLORS: typeof LIGHT_COLORS, isArabic: boolean) {
     },
   });
 }
-/* انا */
+

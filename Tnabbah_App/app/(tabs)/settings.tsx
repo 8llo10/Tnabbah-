@@ -1464,7 +1464,11 @@ export default function Settings() {
 
   const { handleNotificationsChange } = useNotifications();
 
-  const { updateName, deleteAccount, logout } = useAccountSettings();
+  const {
+    updateName,
+    deleteAccount,
+    logout,
+  } = useAccountSettings();
 
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -3313,6 +3317,7 @@ Describe the issue:
             <View style={{ marginTop: 12, gap: 12 }}>
               {userCars.map((car) => {
                 const isCurrent = activeSelectedCarId === car.car_id;
+                const isAndroidCurrent = Platform.OS === "android" && isCurrent;
                 const isSwitchingThisCar = switchingCarId === car.car_id;
                 const isConnectedNow = connectedCarId === car.car_id;
 
@@ -3335,13 +3340,13 @@ Describe the issue:
                     style={({ pressed }) => [
                       styles.carCard,
                       {
-                        backgroundColor: isCurrent
-                          ? "rgba(135,27,23,0.08)"
-                          : theme.subtle,
+                        backgroundColor: theme.subtle,
 
                         borderColor: isCurrent
-                          ? "#5F201D"
+                          ? theme.accent
                           : theme.cardBorder,
+
+                        borderWidth: isCurrent ? 2 : 1,
 
                         transform: [{ scale: isCurrent ? 1.01 : 1 }],
                         shadowOpacity: isCurrent ? 0.12 : 0.03,
@@ -3349,7 +3354,7 @@ Describe the issue:
                         elevation: isCurrent ? 4 : 1,
 
                         opacity: isLockedByConnectedCar ? 0.45 : 1,
-                      }, ,
+                      },
                       pressed && canSelectThisCar && {
                         backgroundColor: "rgba(135,27,23,0.12)",
                       },
@@ -4389,13 +4394,13 @@ Describe the issue:
         isRTL={isRTL}
         onClose={() => setMessageVisible(false)}
       />
-        <EmailChangeSuccessOverlay
-          visible={emailChangeSuccessVisible}
-          title={emailChangeSuccessTitle}
-          message={emailChangeSuccessMessage}
-          isDarkMode={darkModeEnabled}
-          onFinish={() => setEmailChangeSuccessVisible(false)}
-        />
+      <EmailChangeSuccessOverlay
+        visible={emailChangeSuccessVisible}
+        title={emailChangeSuccessTitle}
+        message={emailChangeSuccessMessage}
+        isDarkMode={darkModeEnabled}
+        onFinish={() => setEmailChangeSuccessVisible(false)}
+      />
 
       <BottomEditSheet
         visible={editNameVisible}
