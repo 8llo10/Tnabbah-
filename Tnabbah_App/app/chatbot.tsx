@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
-  Image,
   Platform,
   ScrollView,
   StatusBar,
@@ -31,9 +30,7 @@ import * as Sharing from "expo-sharing";
 import * as Clipboard from "expo-clipboard";
 import { Animated, Alert } from "react-native";
 
-const CHATBOT_API_URL =
-  process.env.EXPO_PUBLIC_CHATBOT_API_URL || "http://207.180.244.27:4010/chat";
-const CHATBOT_ASSISTANT_ICON = require("../assets/images/chatbot-ai-white.png");
+const CHATBOT_API_URL = "http://207.180.244.27:4010/chat";
 
 const SESSION_ID = `session-${Date.now()}-${Math.random()
   .toString(36)
@@ -42,10 +39,11 @@ const SESSION_ID = `session-${Date.now()}-${Math.random()
 
 const CHAT_STORAGE_KEY = "tnabbah_chat_messages";
 
-const CHAT_SESSIONS_KEY = "tnabbah_chat_sessions";
+const makeSessionsKey = (userId?: string | null) =>
+  `tnabbah_chat_sessions_${userId ?? "anon"}`;
 
-const makeMessagesKey = (sessionId: string) =>
-  `tnabbah_chat_messages_${sessionId}`;
+const makeMessagesKey = (userId: string | null | undefined, sessionId: string) =>
+  `tnabbah_chat_messages_${userId ?? "anon"}_${sessionId}`;
 
 const FONT_REGULAR = "Alexandria_400Regular";
 const FONT_SEMIBOLD = "Alexandria_600SemiBold";
@@ -111,6 +109,7 @@ function getCurrentTime(language: "AR" | "EN") {
 
 export default function Chatbot() {
   const { session, profile } = useAuth();
+  const userId = session?.user?.id ?? null;
   const { t, isArabic, language } = useLanguage();
   const {
     activeCarId,
@@ -133,8 +132,8 @@ export default function Chatbot() {
 
   const effectiveCarId = incomingCarId || activeCarId || null;
 
-  const currentCar: any =
-    (userCars as any[]).find((car: any) => car?.car_id === effectiveCarId) || null;
+  const currentCar =
+    userCars.find((car) => car.car_id === effectiveCarId) || null;
 
   const scrollRef = useRef<ScrollView | null>(null);
   const inputRef = useRef<TextInput | null>(null);
@@ -189,8 +188,15 @@ export default function Chatbot() {
   }, []);
 
   useEffect(() => {
-    AsyncStorage.getItem(CHAT_SESSIONS_KEY).then((saved) => {
-      if (!saved) return;
+    AsyncStorage.getItem(makeSessionsKey(userId)).then((saved) => {
+      if (!saved) {
+        const newId = `session-${Date.now()}`;
+        setChatSessions([
+          { id: newId, title: "محادثة جديدة", updatedAt: Date.now() },
+        ]);
+        setActiveSessionId(newId);
+        return;
+      }
 
       try {
         const parsed = JSON.parse(saved);
@@ -201,11 +207,11 @@ export default function Chatbot() {
         }
       } catch { }
     });
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     AsyncStorage.getItem(
-      makeMessagesKey(activeSessionId)
+      makeMessagesKey(userId, activeSessionId)
     ).then((saved) => {
 
       if (!saved) {
@@ -229,21 +235,21 @@ export default function Chatbot() {
         }
       } catch { }
     });
-  }, [activeSessionId]);
+  }, [userId, activeSessionId]);
 
   useEffect(() => {
     AsyncStorage.setItem(
-      makeMessagesKey(activeSessionId),
+      makeMessagesKey(userId, activeSessionId),
       JSON.stringify(messages)
     );
-  }, [messages, activeSessionId]);
+  }, [messages, userId, activeSessionId]);
 
   useEffect(() => {
     AsyncStorage.setItem(
-      CHAT_SESSIONS_KEY,
+      makeSessionsKey(userId),
       JSON.stringify(chatSessions)
     );
-  }, [chatSessions]);
+  }, [chatSessions, userId]);
   /* 
     useEffect(() => {
       AsyncStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
@@ -276,167 +282,71 @@ export default function Chatbot() {
     );
   }, [t.chatWelcome, language]);
 
-  const postJsonWithTimeout = (
-    url: string,
-    payload: Record<string, any>,
-    timeoutMs = 30000,
-  ): Promise<{ status: number; ok: boolean; raw: string }> => {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      let finished = false;
+  const fetchBotReply = async (userText: string): Promise<string> => {
+    try {
+      if (!session?.user?.id) {
+        return t.chatLoginRequired;
+      }
 
-      const finish = (callback: () => void) => {
-        if (finished) return;
-        finished = true;
-        callback();
-      };
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-      const timer = setTimeout(() => {
-        try {
-          xhr.abort();
-        } catch {}
-
-        const timeoutError: any = new Error("Request timeout");
-        timeoutError.name = "AbortError";
-        finish(() => reject(timeoutError));
-      }, timeoutMs);
-
-      xhr.onreadystatechange = () => {
-        if (xhr.readyState !== 4) return;
-
-        finish(() => {
-          clearTimeout(timer);
-
-          resolve({
-            status: xhr.status,
-            ok: xhr.status >= 200 && xhr.status < 300,
-            raw: xhr.responseText ?? "",
-          });
-        });
-      };
-
-      xhr.onerror = () => {
-        finish(() => {
-          clearTimeout(timer);
-          reject(new Error("Network request failed"));
-        });
-      };
-
-      xhr.ontimeout = () => {
-        const timeoutError: any = new Error("Request timeout");
-        timeoutError.name = "AbortError";
-
-        finish(() => {
-          clearTimeout(timer);
-          reject(timeoutError);
-        });
-      };
+      let res: Response;
 
       try {
-        xhr.open("POST", url, true);
-        xhr.setRequestHeader("Content-Type", "application/json");
-        xhr.setRequestHeader("Accept", "application/json");
-        xhr.timeout = timeoutMs;
-        xhr.send(JSON.stringify(payload));
-      } catch (error) {
-        finish(() => {
-          clearTimeout(timer);
-          reject(error);
+        res = await fetch(CHATBOT_API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            message: userText,
+
+            userId: session?.user?.id,
+
+            carId: effectiveCarId,
+
+            userCarId: currentCar?.id ?? null,
+
+            connectedCarId,
+
+            currentCar,
+
+            userCars,
+
+            email: session?.user?.email,
+
+            fullName: profile?.full_name ?? null,
+
+            sessionId: activeSessionId,
+
+            language,
+          }),
+          signal: controller.signal,
         });
+      } finally {
+        clearTimeout(timeoutId);
       }
-    });
-  };
 
-  const fetchBotReply = async (userText: string): Promise<string> => {
-    const userId = session?.user?.id;
+      const raw = (await res.text()).trim();
 
-    if (!userId) {
-      return t.chatLoginRequired;
-    }
-
-    const selectedCar: any =
-      currentCar ??
-      (userCars as any[]).find((car: any) => car?.car_id === effectiveCarId) ??
-      (userCars as any[]).find((car: any) => car?.car_id === connectedCarId) ??
-      null;
-
-    const safeUserCars = Array.isArray(userCars)
-      ? (userCars as any[]).map((car: any) => ({
-          id: car?.id ?? null,
-          car_id: car?.car_id ?? null,
-          name: car?.name ?? car?.car_name ?? null,
-          vin: car?.vin ?? null,
-          plate_number: car?.plate_number ?? null,
-          is_deleted: car?.is_deleted ?? null,
-        }))
-      : [];
-
-    const payload = {
-      userId,
-      user_id: userId,
-      message: userText.trim(),
-      text: userText.trim(),
-      carId: effectiveCarId ?? connectedCarId ?? selectedCar?.car_id ?? null,
-      car_id: effectiveCarId ?? connectedCarId ?? selectedCar?.car_id ?? null,
-      userCarId: selectedCar?.id ?? null,
-      connectedCarId: connectedCarId ?? null,
-      currentCar: selectedCar
-        ? {
-            id: selectedCar?.id ?? null,
-            car_id: selectedCar?.car_id ?? null,
-            name: selectedCar?.name ?? selectedCar?.car_name ?? null,
-            vin: selectedCar?.vin ?? null,
-            plate_number: selectedCar?.plate_number ?? null,
-          }
-        : null,
-      userCars: safeUserCars,
-      email: session?.user?.email ?? null,
-      fullName: profile?.full_name ?? null,
-      sessionId: activeSessionId,
-      language,
-      platform: Platform.OS,
-    };
-
-    try {
-      console.log("CHATBOT request:", {
-        url: CHATBOT_API_URL,
-        userId: payload.userId,
-        carId: payload.carId,
-        userCarId: payload.userCarId,
-        sessionId: payload.sessionId,
-        platform: payload.platform,
-      });
-
-      const { status, ok, raw } = await postJsonWithTimeout(
-        CHATBOT_API_URL,
-        payload,
-        30000,
-      );
-
-      const cleanRaw = raw.trim();
-
-      console.log("CHATBOT response:", {
-        status,
-        ok,
-        raw: cleanRaw.slice(0, 250),
-      });
-
-      if (!ok) {
+      if (!res.ok) {
         throw new Error(
-          `HTTP ${status}${cleanRaw ? `: ${cleanRaw.slice(0, 160)}` : ""}`,
+          `HTTP ${res.status}${raw ? `: ${raw.slice(0, 120)}` : ""}`,
         );
       }
 
-      if (!cleanRaw) {
+      if (!raw) {
         return t.chatNoAssistantReply;
       }
 
       let data: any = null;
 
       try {
-        data = JSON.parse(cleanRaw);
+        data = JSON.parse(raw);
       } catch {
-        return cleanRaw;
+        return raw;
       }
 
       const pickReply = (obj: any): string | null => {
@@ -451,8 +361,6 @@ export default function Chatbot() {
           obj?.message ??
           obj?.answer ??
           obj?.data?.output ??
-          obj?.data?.response ??
-          obj?.data?.reply ??
           obj?.data?.text ??
           null
         );
@@ -460,26 +368,15 @@ export default function Chatbot() {
 
       const reply = Array.isArray(data) ? pickReply(data[0]) : pickReply(data);
 
-      if (typeof reply === "string" && reply.trim()) {
-        return reply.trim();
-      }
+      if (typeof reply === "string" && reply.trim()) return reply;
 
       return JSON.stringify(data);
     } catch (err: any) {
-      console.log("CHATBOT error:", {
-        name: err?.name,
-        message: err?.message,
-        url: CHATBOT_API_URL,
-      });
-
       if (err?.name === "AbortError") {
         return t.chatTimeout;
       }
 
-      if (
-        err?.message?.includes("Network request failed") ||
-        err?.message?.includes("Failed to fetch")
-      ) {
+      if (err?.message?.includes("Network request failed")) {
         return t.chatNetworkError;
       }
 
@@ -578,7 +475,7 @@ export default function Chatbot() {
 
   const clearChat = () => {
     Alert.alert(
-      "حذف جميع المحادثات",
+      "حذف المحادثة",
       "تبغين تحذفين سجل المحادثة؟",
       [
         { text: "إلغاء", style: "cancel" },
@@ -586,7 +483,7 @@ export default function Chatbot() {
           text: "حذف",
           style: "destructive",
           onPress: async () => {
-            await AsyncStorage.removeItem(makeMessagesKey(activeSessionId)); setMessages([
+            await AsyncStorage.removeItem(makeMessagesKey(userId, activeSessionId)); setMessages([
               {
                 id: Date.now(),
                 from: "bot",
@@ -617,10 +514,10 @@ export default function Chatbot() {
 
   const renderAssistantIcon = () => (
     <View style={styles.smallBotIcon}>
-      <Image
-        source={CHATBOT_ASSISTANT_ICON}
-        style={styles.smallBotImage}
-        resizeMode="contain"
+      <Ionicons
+        name="chatbubble-ellipses-outline"
+        size={18}
+        color={COLORS.primary}
       />
     </View>
   );
@@ -742,7 +639,7 @@ export default function Chatbot() {
 
                 <TouchableOpacity
                   onPress={async () => {
-                    await AsyncStorage.removeItem(makeMessagesKey(s.id));
+                    await AsyncStorage.removeItem(makeMessagesKey(userId, s.id));
 
                     await fetch(`${CHATBOT_API_URL.replace("/chat", "")}/chat/session`, {
                       method: "DELETE",
@@ -866,7 +763,7 @@ export default function Chatbot() {
 
                 <TouchableOpacity
                   onPress={async () => {
-                    await AsyncStorage.removeItem(makeMessagesKey(s.id));
+                    await AsyncStorage.removeItem(makeMessagesKey(userId, s.id));
 
                     await fetch(`${CHATBOT_API_URL.replace("/chat", "")}/chat/session`, {
                       method: "DELETE",
@@ -920,13 +817,15 @@ export default function Chatbot() {
         </Animated.View>
       </View>
 
-      <View pointerEvents="none" style={styles.softBackground}>
-        <Animated.View style={[styles.softBlobTop, { opacity: fadeAnim }]} />
-        <Animated.View style={[styles.softBlobBottom, { opacity: fadeAnim }]} />
+      <View pointerEvents="none" style={styles.scanBackground}>
+        <Animated.View style={[styles.scanCircleBig, { opacity: fadeAnim }]} />
+        <Animated.View style={[styles.scanCircleSmall, { opacity: fadeAnim }]} />
+        <View style={styles.scanLine} />
       </View>
 
       <KeyboardAvoidingView
-        style={[styles.keyboardView, isWide && styles.keyboardViewWide, { zIndex: 1 }]} behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={[styles.keyboardView, isWide && styles.keyboardViewWide]}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
         <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
@@ -1163,7 +1062,7 @@ function createStyles(COLORS: AppColors, isArabic: boolean) {
 
     chatArea: {
       flex: 1,
-      backgroundColor: "transparent",
+      backgroundColor: COLORS.background,
     },
 
     chatContent: {
@@ -1179,25 +1078,15 @@ function createStyles(COLORS: AppColors, isArabic: boolean) {
     },
 
     smallBotIcon: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
-      backgroundColor: COLORS.primary,
+      width: 32,
+      height: 32,
+      borderRadius: 13,
+      backgroundColor: COLORS.lightGray,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 1,
-      borderColor: COLORS.primary,
+      borderColor: COLORS.border,
       marginTop: 2,
-      shadowColor: COLORS.primaryDark,
-      shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: Platform.OS === "android" ? 0.08 : 0.12,
-      shadowRadius: 6,
-      elevation: 2,
-    },
-
-    smallBotImage: {
-      width: 22,
-      height: 22,
     },
 
     messageGroup: {
@@ -1273,26 +1162,26 @@ function createStyles(COLORS: AppColors, isArabic: boolean) {
     inputContainer: {
       paddingHorizontal: 18,
       paddingTop: 8,
-      paddingBottom: Platform.OS === "ios" ? 16 : 10,
+      paddingBottom: Platform.OS === "ios" ? 16 : 8,
       borderTopWidth: 0,
       backgroundColor: "transparent",
     },
 
     inputRow: {
-      minHeight: 56,
-      borderRadius: 28,
+      minHeight: 54,
+      borderRadius: 27,
       backgroundColor: COLORS.surface,
       borderWidth: 1,
-      borderColor: "rgba(135, 27, 23, 0.08)",
+      borderColor: COLORS.border,
       paddingLeft: 7,
       paddingRight: 7,
       paddingVertical: 5,
       alignItems: "center",
-      shadowColor: COLORS.primary,
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: Platform.OS === "android" ? 0.08 : 0.06,
-      shadowRadius: 18,
-      elevation: 3,
+      shadowColor: COLORS.shadow,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: COLORS.inputShadowOpacity,
+      shadowRadius: 6,
+      elevation: COLORS.inputShadowOpacity > 0 ? 1 : 0,
     },
 
     input: {
@@ -1385,7 +1274,6 @@ function createStyles(COLORS: AppColors, isArabic: boolean) {
     sidebarOverlay: {
       ...StyleSheet.absoluteFillObject,
       zIndex: 999,
-
     },
 
     sidebarBackdrop: {
@@ -1481,33 +1369,44 @@ function createStyles(COLORS: AppColors, isArabic: boolean) {
       color: COLORS.primary,
       textAlign: "right",
     },
-    softBackground: {
+
+    scanBackground: {
       ...StyleSheet.absoluteFillObject,
       top: 72,
-      bottom: 86,
-      zIndex: 0,
+      opacity: 0.13,
     },
 
-    softBlobTop: {
+    scanCircleBig: {
       position: "absolute",
-      width: 260,
-      height: 260,
-      borderRadius: 130,
-      backgroundColor: "rgba(135,27,23,0.035)",
-      top: 40,
-      right: -95,
+      width: 270,
+      height: 270,
+      borderRadius: 135,
+      borderWidth: 1,
+      borderColor: COLORS.primary,
+      right: -90,
+      top: 120,
     },
 
-    softBlobBottom: {
+    scanCircleSmall: {
       position: "absolute",
-      width: 300,
-      height: 300,
-      borderRadius: 150,
-      backgroundColor: "rgba(135,27,23,0.025)",
-      bottom: -80,
-      left: -120,
+      width: 150,
+      height: 150,
+      borderRadius: 75,
+      borderWidth: 1,
+      borderColor: COLORS.primary,
+      left: -45,
+      top: 310,
     },
 
+    scanLine: {
+      position: "absolute",
+      width: 230,
+      height: 1,
+      backgroundColor: COLORS.primary,
+      right: 18,
+      top: 255,
+      opacity: 0.5,
+    },
     sidebarRow: {
       flexDirection: "row-reverse",
       alignItems: "center",
