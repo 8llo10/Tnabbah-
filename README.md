@@ -1,10 +1,22 @@
 # TNABBAH (تنبَّه)
 
-TNABBAH is an AI-powered smart vehicle diagnostics and monitoring platform designed to help drivers understand their vehicle’s condition in a simple and accessible way.
+AI-Powered Vehicle Diagnostics, Monitoring, and Intelligent Assistance Platform.
 
-The system connects to a vehicle through an OBD-II adapter, collects live diagnostic data, analyzes fault codes and sensor readings, and generates user-friendly reports supported by artificial intelligence.
+TNABBAH is a smart vehicle diagnostics platform that combines OBD-II technology, real-time vehicle monitoring, cloud services, and artificial intelligence to help drivers understand their vehicle's condition in a simple and accessible way.
 
-TNABBAH combines real-time monitoring, vehicle health analysis, maintenance reminders, and an intelligent automotive assistant to help drivers detect problems early, improve vehicle reliability, and make informed maintenance decisions.
+The system connects to a vehicle through an OBD-II adapter, collects live diagnostic data, analyzes fault codes and sensor readings, and generates easy-to-understand reports supported by AI-powered insights.
+
+Designed for both technical and non-technical users, TNABBAH transforms complex automotive data into actionable information that supports safer driving and smarter maintenance decisions.
+
+---
+
+## 🎥 Project Demonstration
+
+Watch TNABBAH in action:
+
+[▶ Watch Demo Video](https://youtu.be/310Nld7MZgo)
+
+
 
 ---
 
