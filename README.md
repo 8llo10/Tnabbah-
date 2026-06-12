@@ -9,12 +9,9 @@ The system connects to a vehicle through an OBD-II adapter, collects live diagno
 Designed for both technical and non-technical users, TNABBAH transforms complex automotive data into actionable information that supports safer driving and smarter maintenance decisions.
 
 ---
-
 ## 🎥 Project Demonstration
 
-Watch TNABBAH in action:
-
-[▶ Watch Demo Video](https://youtu.be/310Nld7MZgo)
+[![TNABBAH Demo](https://img.youtube.com/vi/310Nld7MZgo/maxresdefault.jpg)](https://youtu.be/310Nld7MZgo)
 
 
 
