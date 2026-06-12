@@ -1,58 +1,76 @@
 <div align="center">
 
+<table>
+<tr>
+<td align="center" bgcolor="#F2F2F2">
+
+<br>
+
 <img src="./assets/logo.png" width="180" alt="TNABBAH Logo"/>
 
 # TNABBAH (تنبَّه)
 
-### AI-Powered Vehicle Diagnostics & Intelligent Assistance Platform
+<img src="https://readme-typing-svg.demolab.com?font=Poppins&weight=600&size=24&pause=1200&color=871B17&center=true&vCenter=true&width=750&lines=AI-Powered+Vehicle+Diagnostics;Real-Time+Vehicle+Monitoring;Smart+Insights+for+Everyday+Drivers;OBD-II+%2B+AI+in+One+Platform" alt="Typing Animation" />
+
+<br>
+
+**AI-Powered Vehicle Diagnostics & Intelligent Assistance Platform**
 
 Transforming complex vehicle diagnostics into clear, actionable insights for everyday drivers.
 
-<p>
-  <a href="https://youtu.be/310Nld7MZgo">
-    <img src="https://img.shields.io/badge/Watch%20Demo-YouTube-red?style=for-the-badge" />
-  </a>
-</p>
+<br>
 
-<p>
-  <img src="https://img.shields.io/badge/React%20Native-Mobile%20App-61DAFB?style=flat-square" />
-  <img src="https://img.shields.io/badge/FastAPI-Backend-009688?style=flat-square" />
-  <img src="https://img.shields.io/badge/MQTT-Real--Time-orange?style=flat-square" />
-  <img src="https://img.shields.io/badge/Supabase-Cloud-3ECF8E?style=flat-square" />
-  <img src="https://img.shields.io/badge/AI-Powered-871B17?style=flat-square" />
-</p>
+<a href="https://youtu.be/310Nld7MZgo">
+  <img src="https://img.shields.io/badge/Watch%20Demo-YouTube-871B17?style=for-the-badge&logo=youtube&logoColor=white" />
+</a>
+
+<br><br>
+
+<img src="https://img.shields.io/badge/React%20Native-Mobile%20App-871B17?style=flat-square" />
+<img src="https://img.shields.io/badge/FastAPI-Backend-5F5F5F?style=flat-square" />
+<img src="https://img.shields.io/badge/MQTT-Real--Time-871B17?style=flat-square" />
+<img src="https://img.shields.io/badge/Supabase-Cloud-5F5F5F?style=flat-square" />
+<img src="https://img.shields.io/badge/AI-Powered-871B17?style=flat-square" />
+
+<br><br>
+
+</td>
+</tr>
+</table>
 
 </div>
 
 ---
 
-## 🎬 Project Demonstration
+## Project Demonstration
 
 <div align="center">
 
 <a href="https://youtu.be/310Nld7MZgo">
-  <img src="https://img.youtube.com/vi/310Nld7MZgo/maxresdefault.jpg" width="900" alt="TNABBAH Demo Video"/>
+  <img src="./assets/demo-cover.png" width="850" alt="TNABBAH Demo Video"/>
 </a>
 
-### Click the image above to watch the full demonstration
+<br>
+
+**Click the image above to watch the full demonstration**
 
 </div>
 
 ---
 
-## 🚗 About TNABBAH
+## About TNABBAH
 
-TNABBAH is a smart vehicle diagnostics platform that combines OBD-II communication, cloud infrastructure, and artificial intelligence to make vehicle diagnostics accessible to everyone.
+TNABBAH is a smart vehicle diagnostics platform that combines OBD-II communication, cloud infrastructure, and artificial intelligence to make vehicle diagnostics easier to understand for everyday drivers.
 
 The platform collects live vehicle data, detects diagnostic trouble codes, analyzes vehicle health, and provides clear recommendations through an intelligent automotive assistant designed for both technical and non-technical users.
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 - Real-time vehicle monitoring
 - Live OBD-II sensor readings
-- Diagnostic Trouble Code (DTC) detection
+- Diagnostic Trouble Code detection
 - AI-powered vehicle health analysis
 - Intelligent automotive assistant
 - Arabic and English reports
@@ -65,7 +83,7 @@ The platform collects live vehicle data, detects diagnostic trouble codes, analy
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```text
 Vehicle
@@ -91,7 +109,7 @@ Supabase Cloud Services
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 ### Mobile Application
 - React Native
@@ -105,7 +123,7 @@ Supabase Cloud Services
 
 ### Cloud & Infrastructure
 - Supabase
-- MQTT (Mosquitto)
+- MQTT Mosquitto
 - Contabo VPS
 
 ### Artificial Intelligence
@@ -118,7 +136,7 @@ Supabase Cloud Services
 
 ---
 
-## 🎯 Project Objectives
+## Project Objectives
 
 - Simplify vehicle diagnostics for everyday drivers
 - Detect vehicle issues before they become critical
@@ -129,17 +147,11 @@ Supabase Cloud Services
 
 ---
 
-## 🚀 What Makes TNABBAH Different?
+## What Makes TNABBAH Different?
 
-Unlike traditional diagnostic applications, TNABBAH combines:
+Unlike traditional diagnostic applications, TNABBAH combines real-time diagnostics, artificial intelligence, conversational assistance, maintenance management, and cloud connectivity within one integrated platform.
 
-- Real-time diagnostics
-- Artificial intelligence
-- Conversational assistance
-- Maintenance management
-- Cloud connectivity
-
-within a single integrated platform designed to help drivers understand their vehicles without requiring technical automotive expertise.
+TNABBAH helps drivers understand their vehicles without requiring technical automotive expertise.
 
 ---
 
