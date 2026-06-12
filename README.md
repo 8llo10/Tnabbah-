@@ -11,7 +11,7 @@ Designed for both technical and non-technical users, TNABBAH transforms complex 
 ---
 ## 🎥 Project Demonstration
 
-[![TNABBAH Demo](https://img.youtube.com/vi/310Nld7MZgo/maxresdefault.jpg)](https://youtu.be/310Nld7MZgo)
+[![TNABBAH Demo Video](https://img.youtube.com/vi/310Nld7MZgo/hqdefault.jpg)](https://youtu.be/310Nld7MZgo)
 
 
 
