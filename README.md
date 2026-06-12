@@ -1,45 +1,70 @@
-# TNABBAH (تنبَّه)
+# 🚗 TNABBAH (تنبَّه)
 
-AI-Powered Vehicle Diagnostics, Monitoring, and Intelligent Assistance Platform.
+<div align="center">
 
-TNABBAH is a smart vehicle diagnostics platform that combines OBD-II technology, real-time vehicle monitoring, cloud services, and artificial intelligence to help drivers understand their vehicle's condition in a simple and accessible way.
+### AI-Powered Vehicle Diagnostics & Intelligent Assistance Platform
 
-The system connects to a vehicle through an OBD-II adapter, collects live diagnostic data, analyzes fault codes and sensor readings, and generates easy-to-understand reports supported by AI-powered insights.
+Transforming complex vehicle diagnostics into simple, actionable insights for everyday drivers.
 
-Designed for both technical and non-technical users, TNABBAH transforms complex automotive data into actionable information that supports safer driving and smarter maintenance decisions.
+[🎥 Watch Demo](https://youtu.be/310Nld7MZgo)
 
----
-## 🎥 Project Demonstration
-
-[![TNABBAH Demo Video](https://img.youtube.com/vi/310Nld7MZgo/hqdefault.jpg)](https://youtu.be/310Nld7MZgo)
-
-
+</div>
 
 ---
 
-## Key Features
+## 🎬 Watch TNABBAH in Action
 
-- Real-time OBD-II vehicle monitoring
-- Live sensor and diagnostic data collection
-- Fault code (DTC) detection and interpretation
-- AI-powered vehicle health analysis
-- Arabic and English diagnostic reports
-- Beginner-friendly explanations
-- Maintenance reminders and tracking
-- Intelligent automotive assistant (ChatPot)
-- Multi-vehicle support
-- Cloud-based architecture using MQTT and Supabase
-- Mobile application built with React Native
+<div align="center">
+
+<a href="https://youtu.be/310Nld7MZgo">
+  <img src="https://img.youtube.com/vi/310Nld7MZgo/maxresdefault.jpg" width="800">
+</a>
+
+### 👆 Click the video thumbnail to watch the full demonstration
+
+</div>
 
 ---
 
-## System Architecture
+## ✨ Overview
+
+TNABBAH is an AI-powered smart vehicle diagnostics platform that combines:
+
+✅ OBD-II Vehicle Diagnostics  
+✅ Real-Time Monitoring  
+✅ Artificial Intelligence Analysis  
+✅ Maintenance Management  
+✅ Intelligent Automotive Assistant  
+
+The platform helps drivers understand vehicle issues, monitor vehicle health, receive maintenance reminders, and interact with an AI assistant capable of explaining diagnostics in simple language.
+
+---
+
+## 🔥 Core Features
+
+| Feature | Description |
+|----------|-------------|
+| 🚘 Real-Time Monitoring | Live vehicle sensor readings |
+| 🔍 DTC Detection | Automatic fault code scanning |
+| 🤖 AI Analysis | Intelligent vehicle health assessment |
+| 💬 AI Assistant | Natural-language automotive support |
+| 🌐 Bilingual Reports | Arabic & English reports |
+| 🔔 Maintenance Reminders | Smart maintenance tracking |
+| 🚗 Multi-Vehicle Support | Manage multiple vehicles |
+| ☁️ Cloud Integration | MQTT + Supabase architecture |
+
+---
+
+## 🏗️ System Architecture
 
 ```txt
 Vehicle
    │
    ▼
 OBD-II Adapter
+   │
+   ▼
+TNABBAH Mobile App
    │
    ▼
 MQTT Infrastructure
@@ -52,27 +77,54 @@ AI Analysis Layer
    │
    ▼
 Supabase Cloud Services
-   │
-   ▼
-TNABBAH Mobile Application
 ```
 
 ---
 
-## Technologies Used
+## ⚙️ Technology Stack
 
-- React Native (Expo)
+### 📱 Mobile Application
+- React Native
+- Expo
+- TypeScript
+
+### 🖥️ Backend
 - Node.js
-- Python (FastAPI)
-- MQTT (Mosquitto)
+- FastAPI
+- Python
+
+### ☁️ Cloud Services
 - Supabase
+- MQTT (Mosquitto)
+- Contabo VPS
+
+### 🤖 Artificial Intelligence
 - DeepSeek AI
 - OpenAI SDK
-- JWT Authentication
-- Contabo VPS
+
+### 🚗 Vehicle Communication
+- OBD-II
+- ELM327 BLE Adapter
 
 ---
 
-## Project Goal
+## 🎯 Project Goal
 
-The goal of TNABBAH is to bridge the gap between complex vehicle diagnostics and everyday drivers by transforming technical automotive data into clear, actionable insights that improve safety, reduce maintenance uncertainty, and promote proactive vehicle care.
+To bridge the gap between complex automotive diagnostics and everyday drivers by providing:
+
+- Simple fault explanations
+- AI-powered recommendations
+- Real-time vehicle insights
+- Proactive maintenance support
+
+allowing users to make better and safer vehicle maintenance decisions.
+
+---
+
+<div align="center">
+
+### 🚀 Built with passion by the TNABBAH Team
+
+**خلك دائمًا مُنتبِه.**
+
+</div>
