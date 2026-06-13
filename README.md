@@ -6,11 +6,11 @@
 
 <br>
 
-<img src="./assets/logo.png" width="180" alt="TNABBAH Logo"/>
+<img src="./assets/logo.png" width="200" alt="TNABBAH Logo"/>
 
 # TNABBAH (تنبَّه)
 
-<img src="https://readme-typing-svg.demolab.com?font=Poppins&weight=600&size=24&pause=1200&color=871B17&center=true&vCenter=true&width=750&lines=AI-Powered+Vehicle+Diagnostics;Real-Time+Vehicle+Monitoring;Smart+Insights+for+Everyday+Drivers;OBD-II+%2B+AI+in+One+Platform" alt="Typing Animation" />
+<img src="https://readme-typing-svg.demolab.com?font=Poppins&weight=700&size=32&pause=900&color=871B17&center=true&vCenter=true&width=950&height=80&lines=AI-Powered+Vehicle+Diagnostics;Real-Time+Vehicle+Monitoring;OBD-II+%2B+AI+in+One+Platform;Smart+Insights+for+Everyday+Drivers;From+Fault+Codes+to+Clear+Decisions" alt="Typing Animation" />
 
 <br>
 
@@ -18,7 +18,7 @@
 
 Transforming complex vehicle diagnostics into clear, actionable insights for everyday drivers.
 
-<br>
+<br><br>
 
 <a href="https://youtu.be/310Nld7MZgo">
   <img src="https://img.shields.io/badge/Watch%20Demo-YouTube-871B17?style=for-the-badge&logo=youtube&logoColor=white" />
@@ -60,9 +60,9 @@ Transforming complex vehicle diagnostics into clear, actionable insights for eve
 
 ## About TNABBAH
 
-TNABBAH is a smart vehicle diagnostics platform that combines OBD-II communication, cloud infrastructure, and artificial intelligence to make vehicle diagnostics easier to understand for everyday drivers.
+TNABBAH is a smart vehicle diagnostics platform that combines OBD-II communication, cloud infrastructure, and artificial intelligence to make vehicle diagnostics easier for everyday drivers.
 
-The platform collects live vehicle data, detects diagnostic trouble codes, analyzes vehicle health, and provides clear recommendations through an intelligent automotive assistant designed for both technical and non-technical users.
+It reads live vehicle data, detects fault codes, analyzes vehicle health, and turns technical information into clear reports and recommendations through an intelligent automotive assistant.
 
 ---
 
@@ -78,8 +78,6 @@ The platform collects live vehicle data, detects diagnostic trouble codes, analy
 - Multi-vehicle management
 - MQTT-based real-time communication
 - Cloud synchronization with Supabase
-- User-friendly mobile experience
-- Smart fault interpretation and recommendations
 
 ---
 
@@ -143,22 +141,39 @@ Supabase Cloud Services
 - Transform technical automotive data into understandable insights
 - Support proactive maintenance decisions
 - Improve driver awareness through AI-powered assistance
-- Provide a complete vehicle monitoring ecosystem
 
 ---
 
 ## What Makes TNABBAH Different?
 
-Unlike traditional diagnostic applications, TNABBAH combines real-time diagnostics, artificial intelligence, conversational assistance, maintenance management, and cloud connectivity within one integrated platform.
+TNABBAH brings real-time diagnostics, AI analysis, conversational assistance, maintenance tracking, and cloud connectivity together in one platform.
 
-TNABBAH helps drivers understand their vehicles without requiring technical automotive expertise.
+Instead of showing drivers raw fault codes and technical readings, TNABBAH explains what matters, why it matters, and what action can be taken next.
 
 ---
 
 <div align="center">
 
-### Built as a Software Engineering Graduation Project
+<table>
+<tr>
+<td align="center" bgcolor="#F2F2F2">
+
+<br>
+
+## TNABBAH was built to make vehicle diagnostics smarter, clearer, and closer to every driver.
+
+### From live data to meaningful decisions.
 
 **خلك دائمًا مُنتبِه**
+
+<br>
+
+Built as a Software Engineering Graduation Project.
+
+<br><br>
+
+</td>
+</tr>
+</table>
 
 </div>
