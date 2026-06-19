@@ -1,0 +1,79 @@
+<svg width="1200" height="230" viewBox="0 0 1200 230" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">TNABBAH animated README footer</title>
+  <desc id="desc">Transparent animated burgundy footer for TNABBAH vehicle diagnostics platform.</desc>
+
+  <defs>
+    <linearGradient id="signal" x1="0" y1="0" x2="1200" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#871B17" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#871B17" stop-opacity=".72"/>
+      <stop offset="1" stop-color="#871B17" stop-opacity="0"/>
+    </linearGradient>
+
+    <style>
+      .main { font: 800 30px 'Segoe UI', Arial, sans-serif; fill:#871B17; }
+      .sub { font: 500 18px 'Segoe UI', Arial, sans-serif; fill:#5F5F5F; opacity:.92; }
+      .arabic { font: 800 24px 'Segoe UI', Tahoma, Arial, sans-serif; fill:#871B17; }
+      .small { font: 500 13px 'Segoe UI', Arial, sans-serif; fill:#5F5F5F; opacity:.75; }
+
+      .dash { stroke-dasharray: 16 18; animation: dash 20s linear infinite; }
+      .pulse { animation: pulse 3s ease-in-out infinite; transform-origin:center; }
+      .pulse2 { animation-delay:.8s; }
+      .pulse3 { animation-delay:1.5s; }
+      .drive { animation: drive 11s ease-in-out infinite; transform-origin:center; }
+      .data { animation: dataBlink 3.4s ease-in-out infinite; }
+      .data2 { animation-delay:.75s; }
+      .data3 { animation-delay:1.5s; }
+      .wrench { animation: wrenchFloat 6.6s ease-in-out infinite; transform-origin:center; }
+
+      @keyframes dash { to { stroke-dashoffset: -460; } }
+      @keyframes pulse { 0%,100% { opacity:.12; transform:scale(.92); } 50% { opacity:.42; transform:scale(1.08); } }
+      @keyframes drive {
+        0% { transform: translateX(-130px); opacity:0; }
+        12% { opacity:.76; }
+        50% { transform: translateX(510px) translateY(-5px); opacity:.84; }
+        88% { opacity:.76; }
+        100% { transform: translateX(1250px); opacity:0; }
+      }
+      @keyframes dataBlink { 0%,100% { opacity:.25; } 50% { opacity:.9; } }
+      @keyframes wrenchFloat { 0%,100% { transform:translateY(0) rotate(-7deg); } 50% { transform:translateY(-9px) rotate(7deg); } }
+    </style>
+  </defs>
+
+  <path d="M0 143 C160 107 338 169 517 129 C729 82 880 154 1200 104" stroke="url(#signal)" stroke-width="2.2" class="dash"/>
+  <path d="M0 171 H1200" stroke="#5F5F5F" stroke-opacity=".15" stroke-width="1"/>
+
+  <g transform="translate(74 86)" class="drive">
+    <path d="M22 34 C35 11 51 6 83 6 H137 C169 6 185 16 200 35 L228 40 C237 42 244 50 244 60 V78 H8 V60 C8 47 12 38 22 34Z" fill="#871B17" fill-opacity=".11" stroke="#871B17" stroke-width="3"/>
+    <circle cx="63" cy="79" r="18" fill="#FFFFFF" fill-opacity=".72" stroke="#871B17" stroke-width="3"/>
+    <circle cx="188" cy="79" r="18" fill="#FFFFFF" fill-opacity=".72" stroke="#871B17" stroke-width="3"/>
+    <path d="M54 34 L71 14 H136 C155 14 168 21 180 34 H54Z" fill="#FFFFFF" fill-opacity=".18" stroke="#871B17" stroke-opacity=".45" stroke-width="2"/>
+  </g>
+
+  <g transform="translate(932 54)" class="wrench" opacity=".55">
+    <path d="M41 4 C32 1 21 4 14 12 C8 20 7 30 12 38 L2 48 C-2 52 -2 59 2 63 C6 67 13 67 17 63 L27 53 C35 58 47 56 54 48 C61 41 63 30 58 21 L45 34 L32 21 L41 4Z" fill="#871B17" fill-opacity=".48"/>
+  </g>
+
+  <g transform="translate(154 30)">
+    <circle cx="42" cy="42" r="36" stroke="#871B17" stroke-opacity=".14" stroke-width="2" class="pulse"/>
+    <circle cx="42" cy="42" r="23" stroke="#871B17" stroke-opacity=".22" stroke-width="2" class="pulse pulse2"/>
+    <circle cx="42" cy="42" r="8" fill="#871B17" opacity=".55" class="pulse pulse3"/>
+  </g>
+
+  <g transform="translate(1045 126)">
+    <rect x="0" y="0" width="82" height="34" rx="10" fill="#FFFFFF" fill-opacity=".52" stroke="#871B17" stroke-opacity=".25"/>
+    <text x="41" y="22" text-anchor="middle" class="small data">DTC</text>
+  </g>
+  <g transform="translate(835 22)">
+    <rect x="0" y="0" width="118" height="34" rx="10" fill="#FFFFFF" fill-opacity=".52" stroke="#5F5F5F" stroke-opacity=".22"/>
+    <text x="59" y="22" text-anchor="middle" class="small data data2">HEALTH</text>
+  </g>
+  <g transform="translate(272 146)">
+    <rect x="0" y="0" width="92" height="34" rx="10" fill="#FFFFFF" fill-opacity=".52" stroke="#871B17" stroke-opacity=".22"/>
+    <text x="46" y="22" text-anchor="middle" class="small data data3">OBD-II</text>
+  </g>
+
+  <text x="600" y="84" text-anchor="middle" class="main">From fault codes to clear decisions</text>
+  <text x="600" y="119" text-anchor="middle" class="sub">Built to make vehicle diagnostics smarter, clearer, and closer to every driver.</text>
+  <text x="600" y="153" text-anchor="middle" class="arabic">خلك دائمًا مُنتبِه</text>
+  <text x="600" y="196" text-anchor="middle" class="small">Software Engineering Graduation Project</text>
+</svg>

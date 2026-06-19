@@ -1,0 +1,131 @@
+<svg width="1200" height="310" viewBox="0 0 1200 310" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">TNABBAH animated README header</title>
+  <desc id="desc">Transparent animated burgundy header for an AI powered OBD-II vehicle diagnostics platform.</desc>
+
+  <defs>
+    <linearGradient id="burgundyLine" x1="0" y1="0" x2="1200" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#871B17" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#871B17" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#871B17" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="softFill" x1="160" y1="60" x2="1060" y2="260" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#871B17" stop-opacity=".11"/>
+      <stop offset=".52" stop-color="#5F5F5F" stop-opacity=".055"/>
+      <stop offset="1" stop-color="#871B17" stop-opacity=".09"/>
+    </linearGradient>
+
+    <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <style>
+      .title { font: 800 58px 'Segoe UI', Arial, sans-serif; fill: #871B17; letter-spacing: 1px; }
+      .arabic { font: 700 33px 'Segoe UI', Tahoma, Arial, sans-serif; fill: #5F5F5F; }
+      .subtitle { font: 500 22px 'Segoe UI', Arial, sans-serif; fill: #5F5F5F; opacity: .95; }
+      .mini { font: 600 15px 'Segoe UI', Arial, sans-serif; fill: #871B17; opacity: .9; }
+      .tiny { font: 500 13px 'Segoe UI', Arial, sans-serif; fill: #5F5F5F; opacity: .82; }
+
+      .scan-line { stroke-dasharray: 20 18; animation: scanMove 22s linear infinite; }
+      .scan-line-rev { stroke-dasharray: 9 15; animation: scanMove 30s linear infinite reverse; }
+      .car { animation: carFloat 6.5s ease-in-out infinite; transform-origin: center; }
+      .pulse { animation: pulse 2.8s ease-in-out infinite; transform-origin: center; }
+      .pulse2 { animation-delay: .7s; }
+      .pulse3 { animation-delay: 1.4s; }
+      .obd { animation: obdFloat 7s ease-in-out infinite; transform-origin: center; }
+      .code { animation: codeBlink 3.2s ease-in-out infinite; }
+      .code2 { animation-delay: .9s; }
+      .code3 { animation-delay: 1.7s; }
+      .ai-node { animation: nodeGlow 3.8s ease-in-out infinite; transform-origin: center; }
+      .wheel { animation: wheel 9s linear infinite; transform-origin: center; transform-box: fill-box; }
+
+      @keyframes scanMove { to { stroke-dashoffset: -520; } }
+      @keyframes carFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+      @keyframes pulse { 0%,100% { opacity:.13; transform: scale(.92); } 50% { opacity:.42; transform: scale(1.08); } }
+      @keyframes obdFloat { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-10px) rotate(2deg); } }
+      @keyframes codeBlink { 0%,100% { opacity:.28; } 50% { opacity:.82; } }
+      @keyframes nodeGlow { 0%,100% { opacity:.48; transform: scale(1); } 50% { opacity:.95; transform: scale(1.09); } }
+      @keyframes wheel { to { transform: rotate(360deg); } }
+    </style>
+  </defs>
+
+  <path d="M97 64 C262 10 434 45 590 83 C754 123 890 44 1084 68 C1127 73 1159 87 1184 104 L1184 238 C1076 198 957 232 828 245 C671 260 537 231 393 210 C260 191 146 223 45 256 L45 120 C58 99 73 78 97 64Z" fill="url(#softFill)"/>
+
+  <path d="M0 231 C192 176 346 257 540 202 C742 145 902 227 1200 166" stroke="url(#burgundyLine)" stroke-width="2" class="scan-line"/>
+  <path d="M0 95 C205 48 364 132 548 92 C758 46 940 118 1200 72" stroke="#5F5F5F" stroke-opacity=".23" stroke-width="1.4" class="scan-line-rev"/>
+
+  <g transform="translate(800 82)" opacity=".95">
+    <circle cx="76" cy="76" r="68" stroke="#871B17" stroke-opacity=".12" stroke-width="2" class="pulse"/>
+    <circle cx="76" cy="76" r="48" stroke="#871B17" stroke-opacity=".18" stroke-width="2" class="pulse pulse2"/>
+    <circle cx="76" cy="76" r="27" stroke="#871B17" stroke-opacity=".25" stroke-width="2" class="pulse pulse3"/>
+    <circle cx="76" cy="76" r="10" fill="#871B17" opacity=".72" class="ai-node"/>
+    <circle cx="30" cy="44" r="6" fill="#5F5F5F" opacity=".54" class="ai-node"/>
+    <circle cx="120" cy="42" r="6" fill="#5F5F5F" opacity=".54" class="ai-node"/>
+    <circle cx="117" cy="113" r="6" fill="#5F5F5F" opacity=".54" class="ai-node"/>
+    <circle cx="35" cy="115" r="6" fill="#5F5F5F" opacity=".54" class="ai-node"/>
+    <path d="M76 76 L30 44 M76 76 L120 42 M76 76 L117 113 M76 76 L35 115" stroke="#871B17" stroke-opacity=".26" stroke-width="1.6"/>
+    <text x="76" y="164" text-anchor="middle" class="tiny">AI ANALYSIS</text>
+  </g>
+
+  <g transform="translate(146 174)" class="car" filter="url(#glow)">
+    <path d="M35 54 C52 22 72 9 118 9 H202 C239 9 263 22 284 55 L320 61 C333 63 343 75 343 88 V111 H18 V88 C18 72 21 60 35 54Z" fill="#871B17" fill-opacity=".09" stroke="#871B17" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M77 53 L101 24 H197 C224 24 240 36 255 54 H77Z" fill="#FFFFFF" fill-opacity=".15" stroke="#871B17" stroke-opacity=".55" stroke-width="2.5"/>
+    <circle cx="89" cy="111" r="25" fill="#FFFFFF" fill-opacity=".65" stroke="#871B17" stroke-width="4" class="wheel"/>
+    <circle cx="272" cy="111" r="25" fill="#FFFFFF" fill-opacity=".65" stroke="#871B17" stroke-width="4" class="wheel"/>
+    <circle cx="89" cy="111" r="7" fill="#871B17" opacity=".68"/>
+    <circle cx="272" cy="111" r="7" fill="#871B17" opacity=".68"/>
+    <path d="M154 82 H224" stroke="#871B17" stroke-opacity=".45" stroke-width="3" stroke-linecap="round"/>
+    <path d="M43 77 H78 M285 77 H318" stroke="#871B17" stroke-opacity=".35" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <g transform="translate(622 181)" class="obd">
+    <rect x="0" y="0" width="118" height="70" rx="16" fill="#FFFFFF" fill-opacity=".66" stroke="#871B17" stroke-width="3"/>
+    <rect x="18" y="18" width="82" height="28" rx="7" fill="#871B17" fill-opacity=".12" stroke="#871B17" stroke-opacity=".42" stroke-width="1.8"/>
+    <circle cx="32" cy="56" r="4" fill="#871B17" opacity=".7"/>
+    <circle cx="47" cy="56" r="4" fill="#871B17" opacity=".6"/>
+    <circle cx="62" cy="56" r="4" fill="#871B17" opacity=".5"/>
+    <circle cx="77" cy="56" r="4" fill="#871B17" opacity=".6"/>
+    <circle cx="92" cy="56" r="4" fill="#871B17" opacity=".7"/>
+    <path d="M126 22 C150 31 150 43 126 52" stroke="#871B17" stroke-opacity=".42" stroke-width="3" stroke-linecap="round" class="pulse"/>
+    <path d="M139 10 C177 27 177 56 139 73" stroke="#871B17" stroke-opacity=".25" stroke-width="3" stroke-linecap="round" class="pulse pulse2"/>
+    <text x="59" y="38" text-anchor="middle" class="mini">OBD-II</text>
+  </g>
+
+  <g transform="translate(79 65)">
+    <text x="0" y="0" class="title" dominant-baseline="hanging">TNABBAH</text>
+    <text x="316" y="9" class="arabic" dominant-baseline="hanging">تنبَّه</text>
+    <text x="2" y="76" class="subtitle">AI-Powered Vehicle Diagnostics &amp; Intelligent Assistance Platform</text>
+    <text x="3" y="112" class="tiny">OBD-II Bluetooth • Real-Time Monitoring • Smart Fault Analysis • Clear Driver Insights</text>
+
+    <g transform="translate(3 145)">
+      <rect x="0" y="0" width="118" height="34" rx="17" fill="#871B17" fill-opacity=".10" stroke="#871B17" stroke-opacity=".35"/>
+      <text x="21" y="22" class="mini">Mobile App</text>
+
+      <rect x="132" y="0" width="92" height="34" rx="17" fill="#5F5F5F" fill-opacity=".08" stroke="#5F5F5F" stroke-opacity=".28"/>
+      <text x="154" y="22" class="mini" fill="#5F5F5F">MQTT</text>
+
+      <rect x="238" y="0" width="124" height="34" rx="17" fill="#871B17" fill-opacity=".10" stroke="#871B17" stroke-opacity=".35"/>
+      <text x="264" y="22" class="mini">FastAPI</text>
+
+      <rect x="376" y="0" width="142" height="34" rx="17" fill="#5F5F5F" fill-opacity=".08" stroke="#5F5F5F" stroke-opacity=".28"/>
+      <text x="402" y="22" class="mini" fill="#5F5F5F">Supabase</text>
+    </g>
+  </g>
+
+  <g transform="translate(1001 217)">
+    <rect x="0" y="0" width="114" height="42" rx="12" fill="#FFFFFF" fill-opacity=".58" stroke="#871B17" stroke-opacity=".26"/>
+    <text x="57" y="26" text-anchor="middle" class="tiny code">P0300</text>
+  </g>
+  <g transform="translate(932 33)">
+    <rect x="0" y="0" width="104" height="38" rx="11" fill="#FFFFFF" fill-opacity=".48" stroke="#5F5F5F" stroke-opacity=".22"/>
+    <text x="52" y="24" text-anchor="middle" class="tiny code code2">RPM</text>
+  </g>
+  <g transform="translate(671 54)">
+    <rect x="0" y="0" width="132" height="38" rx="11" fill="#FFFFFF" fill-opacity=".48" stroke="#871B17" stroke-opacity=".20"/>
+    <text x="66" y="24" text-anchor="middle" class="tiny code code3">LIVE DATA</text>
+  </g>
+</svg>
