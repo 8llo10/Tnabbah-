@@ -384,7 +384,7 @@ export default function LoginScreen() {
         }),
       ]).start();
 
-      return () => {};
+      return () => { };
     }, [screenOpacity, screenTranslateY, transitionAnim, keyboardTranslateY])
   );
 
@@ -631,7 +631,12 @@ export default function LoginScreen() {
   }
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+    /* <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}> */
+    <TouchableWithoutFeedback
+      onPress={Platform.OS === "web" ? undefined : Keyboard.dismiss}
+      accessible={false}
+      disabled={Platform.OS === "web"}
+    >
       <View style={styles.container}>
         <Stack.Screen
           options={{
@@ -1115,10 +1120,10 @@ function createStyles({
       marginBottom: isVerySmallScreen
         ? 18
         : isSmallScreen
-        ? 22
-        : isTabletLike
-        ? 34
-        : 28,
+          ? 22
+          : isTabletLike
+            ? 34
+            : 28,
       paddingHorizontal: clamp(width * 0.02, 8, 14),
     },
 
