@@ -400,7 +400,12 @@ export default function ForgotPasswordScreen() {
   }
 
   return (
-    <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}>
+    /* <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}> */
+    <TouchableWithoutFeedback
+      onPress={Platform.OS === "web" ? undefined : dismissKeyboard}
+      accessible={false}
+      disabled={Platform.OS === "web"}
+    >
       <View style={styles.container}>
         <Stack.Screen options={{ gestureEnabled: false }} />
 

@@ -796,7 +796,12 @@ export default function VerifyEmailScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 16}
         >
-          <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}>
+         /*  <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}> */
+            <TouchableWithoutFeedback
+              onPress={Platform.OS === "web" ? undefined : dismissKeyboard}
+              accessible={false}
+              disabled={Platform.OS === "web"}
+            ></TouchableWithoutFeedback>
             <ScrollView
               style={styles.screenScroll}
               contentContainerStyle={styles.screenScrollContent}
