@@ -570,7 +570,12 @@ export default function RegisterScreen() {
   }
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+    /* <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}> */
+    <TouchableWithoutFeedback
+      onPress={Platform.OS === "web" ? undefined : Keyboard.dismiss}
+      accessible={false}
+      disabled={Platform.OS === "web"}
+    >
       <View style={styles.container}>
         <Stack.Screen
           options={{
@@ -1119,7 +1124,7 @@ function createStyles({
     title: {
       fontFamily: FONT_EXTRABOLD,
       fontSize: isVerySmallScreen ? 23 : isSmallScreen ? 25 : 27,
-       color: COLORS.primaryDark,
+      color: COLORS.primaryDark,
       textAlign: "center",
       letterSpacing: -0.35,
       lineHeight: isVerySmallScreen ? 32 : isSmallScreen ? 35 : 38,
