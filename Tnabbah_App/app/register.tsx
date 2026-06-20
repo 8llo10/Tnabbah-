@@ -525,14 +525,29 @@ export default function RegisterScreen() {
             email: cleanEmail,
           });
 
-          router.push({
+          /* router.push({
             pathname: "/verify-email",
             params: {
               email: cleanEmail,
               fullName: cleanName,
               source: "register",
             },
-          } as any);
+          } as any); */
+          if (Platform.OS === "web") {
+            window.location.href =
+              `/verify-email?email=${encodeURIComponent(cleanEmail)}` +
+              `&fullName=${encodeURIComponent(cleanName)}` +
+              `&source=register`;
+          } else {
+            router.push({
+              pathname: "/verify-email",
+              params: {
+                email: cleanEmail,
+                fullName: cleanName,
+                source: "register",
+              },
+            } as any);
+          }
 
           return;
         }
@@ -547,14 +562,32 @@ export default function RegisterScreen() {
       setPassword("");
       setFieldErrors({});
 
-      router.push({
+      /* router.push({
         pathname: "/verify-email",
         params: {
           email: cleanEmail,
           fullName: cleanName,
           source: "register",
         },
-      } as any);
+      } as any); */
+
+      if (Platform.OS === "web") {
+        window.location.href =
+          `/verify-email?email=${encodeURIComponent(cleanEmail)}` +
+          `&fullName=${encodeURIComponent(cleanName)}` +
+          `&source=register`;
+      } else {
+        router.push({
+          pathname: "/verify-email",
+          params: {
+            email: cleanEmail,
+            fullName: cleanName,
+            source: "register",
+          },
+        } as any);
+      }
+
+
     } catch (err) {
       console.log(err);
       setFieldErrors({
