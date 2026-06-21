@@ -470,6 +470,36 @@ export default function LoginScreen() {
     return Object.keys(errors).length === 0;
   };
 
+  const goWebOrApp = (path: string) => {
+    if (Platform.OS === "web") {
+      window.location.href = path;
+      return;
+    }
+
+    router.replace(path as any);
+  };
+
+  const goVerifyEmail = (cleanEmail: string, fullName = "") => {
+    const url =
+      `/verify-email?email=${encodeURIComponent(cleanEmail)}` +
+      `&fullName=${encodeURIComponent(fullName)}` +
+      `&source=login`;
+
+    if (Platform.OS === "web") {
+      window.location.href = url;
+      return;
+    }
+
+    router.push({
+      pathname: "/verify-email",
+      params: {
+        email: cleanEmail,
+        fullName,
+        source: "login",
+      },
+    } as any);
+  };
+
   const handleLogin = async () => {
     try {
       if (!validateForm()) {
@@ -503,14 +533,15 @@ export default function LoginScreen() {
             email: cleanEmail,
           });
 
-          router.push({
+          /* router.push({
             pathname: "/verify-email",
             params: {
               email: cleanEmail,
               fullName: "",
               source: "login",
             },
-          } as any);
+          } as any); */
+          goVerifyEmail(cleanEmail, "");
 
           if (resendError) {
             console.log("RESEND VERIFY ERROR:", resendError);
@@ -547,14 +578,15 @@ export default function LoginScreen() {
           email: cleanEmail,
         });
 
-        router.push({
+        /* router.push({
           pathname: "/verify-email",
           params: {
             email: cleanEmail,
             fullName: user.user_metadata?.full_name || "",
             source: "login",
           },
-        } as any);
+        } as any); */
+        goVerifyEmail(cleanEmail, user.user_metadata?.full_name || "");
 
         return;
       }
@@ -614,7 +646,12 @@ export default function LoginScreen() {
         //   console.log("Push token error:", pushError);
         // }
 
-        smoothReplace("/(tabs)/home");
+        /* smoothReplace("/(tabs)/home"); */
+        if (Platform.OS === "web") {
+          goWebOrApp("/home");
+        } else {
+          smoothReplace("/(tabs)/home");
+        }
       }
     } catch (err) {
       console.log("Login Error:", err);
