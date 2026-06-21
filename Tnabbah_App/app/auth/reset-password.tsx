@@ -462,7 +462,13 @@ export default function ResetPasswordScreen() {
       setResendLoading(true);
       clearMessages();
 
-      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
+      /* const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail); */
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo:
+          Platform.OS === "web"
+            ? "https://tnabbah-2h45.vercel.app/auth/callback"
+            : "tnabbahapp://auth/callback",
+      });
 
       if (error) {
         const message = error.message?.toLowerCase() || "";
