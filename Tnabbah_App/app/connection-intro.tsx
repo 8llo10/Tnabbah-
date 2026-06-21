@@ -4,7 +4,8 @@ import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import LottieView from "lottie-react-native";
 import { Image as ExpoImage } from "expo-image";
-import * as Notifications from "expo-notifications";
+const Notifications =
+  Platform.OS === "web" ? null : require("expo-notifications");
 import {
   ActivityIndicator,
   Animated,
@@ -33,9 +34,27 @@ import {
   Alexandria_800ExtraBold,
   useFonts,
 } from "@expo-google-fonts/alexandria";
-import { Device, State } from "react-native-ble-plx";
+/* import { Device, State } from "react-native-ble-plx";
 import { elmBluetoothService } from "@/services/elmBluetoothService";
-import { vehicleScannerService } from "@/services/vehicleScannerService";
+import { vehicleScannerService } from "@/services/vehicleScannerService"; */
+import type { Device } from "react-native-ble-plx";
+
+const State =
+  Platform.OS === "web"
+    ? {
+      PoweredOn: "PoweredOn",
+      PoweredOff: "PoweredOff",
+      Unauthorized: "Unauthorized",
+      Unsupported: "Unsupported",
+      Resetting: "Resetting",
+    }
+    : require("react-native-ble-plx").State;
+
+const elmBluetoothService =
+  Platform.OS === "web" ? null : require("@/services/elmBluetoothService").elmBluetoothService;
+
+const vehicleScannerService =
+  Platform.OS === "web" ? null : require("@/services/vehicleScannerService").vehicleScannerService;
 import { useLanguage } from "../providers/LanguageProvider";
 import { useAppSettings } from "../providers/AppSettingsProvider";
 import { useCars } from "../providers/CarsProvider";
@@ -163,7 +182,12 @@ export default function ConnectionIntroScreen() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
-  const manager = elmBluetoothService.manager;
+  /*   const manager = elmBluetoothService.manager;
+   */
+  const manager =
+    Platform.OS === "web"
+      ? null
+      : elmBluetoothService.manager;
   const scanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const foundDeviceCountRef = useRef(0);
 
@@ -310,6 +334,7 @@ export default function ConnectionIntroScreen() {
   };
 
   const requestInitialAppPermissions = async () => {
+    if (Platform.OS === "web" || !Notifications) return;
     try {
       await Notifications.requestPermissionsAsync();
 
@@ -326,6 +351,7 @@ export default function ConnectionIntroScreen() {
   };
 
   const stopScan = (showNoDeviceMessage = false) => {
+    if (Platform.OS === "web" || !manager) return;
     manager.stopDeviceScan();
     setIsScanning(false);
 
@@ -340,6 +366,15 @@ export default function ConnectionIntroScreen() {
   };
 
   const startScan = async () => {
+    if (Platform.OS === "web" || !manager) {
+      setShowDeviceList(true);
+      setErrorMessage(
+        isArabic
+          ? "ميزة ربط قطعة OBD غير متاحة في نسخة الويب التجريبية. تتوفر هذه الميزة في التطبيق الرسمي عند إطلاقه بإذن الله."
+          : "OBD device connection is not available in the Beta web version. This feature will be available in the official mobile app upon release."
+      );
+      return;
+    }
     if (isConnecting) return;
 
     try {
@@ -425,6 +460,8 @@ export default function ConnectionIntroScreen() {
       stopScan(false);
     }
   };
+
+
 
   const goBackToPreviousScreen = () => {
     stopScan(false);
@@ -632,7 +669,9 @@ export default function ConnectionIntroScreen() {
   }, [currentStep]);
 
   useEffect(() => {
-    const subscription = manager.onStateChange((state: State) => {
+    if (Platform.OS === "web" || !manager) return;
+
+    const subscription = manager.onStateChange((state: any) => {
       if (currentStep === 3 && state !== State.PoweredOn) {
         setErrorMessage(getBluetoothStateMessage(state));
       }
