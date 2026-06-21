@@ -4,8 +4,6 @@ import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import LottieView from "lottie-react-native";
 import { Image as ExpoImage } from "expo-image";
-const Notifications =
-  Platform.OS === "web" ? null : require("expo-notifications");
 import {
   ActivityIndicator,
   Animated,
@@ -58,7 +56,8 @@ const vehicleScannerService =
 import { useLanguage } from "../providers/LanguageProvider";
 import { useAppSettings } from "../providers/AppSettingsProvider";
 import { useCars } from "../providers/CarsProvider";
-
+const Notifications =
+  Platform.OS === "web" ? null : require("expo-notifications");
 const START_IMAGE_LIGHT = require("../assets/images/obd-connection-start-light.png");
 const START_IMAGE_DARK = require("../assets/images/obd-connection-start-dark.png");
 
@@ -284,7 +283,7 @@ export default function ConnectionIntroScreen() {
   const wait = (ms: number) =>
     new Promise((resolve) => setTimeout(resolve, ms));
 
-  const getBluetoothStateMessage = (state: State) => {
+  const getBluetoothStateMessage = (state: any) => {
     if (state === State.PoweredOff) {
       return t.connectionBluetoothOff;
     }
