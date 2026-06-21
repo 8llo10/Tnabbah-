@@ -10,8 +10,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: Platform.OS === "web" ? undefined : AsyncStorage,
     autoRefreshToken: true,
-    persistSession: Platform.OS !== "web",
-    detectSessionInUrl: false,
+    persistSession: true,
+    detectSessionInUrl: Platform.OS === "web",
   },
 });
 
