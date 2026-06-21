@@ -566,13 +566,38 @@ export default function ConnectionIntroScreen() {
     requestInitialAppPermissions();
   }, []);
 
-  useEffect(() => {
+  /* useEffect(() => {
     // تحميل الصورتين من البداية عشان ما يكون فيه تأخير عند تبديل الوضع
     RNImage.resolveAssetSource(START_IMAGE_LIGHT);
     RNImage.resolveAssetSource(START_IMAGE_DARK);
   }, []);
+ */
 
   useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    try {
+      RNImage.resolveAssetSource(START_IMAGE_LIGHT);
+      RNImage.resolveAssetSource(START_IMAGE_DARK);
+    } catch (error) {
+      console.log("Connection intro image preload error:", error);
+    }
+  }, []);
+
+
+
+  /* useEffect(() => {
+    const backSubscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => true
+    );
+
+    return () => backSubscription.remove();
+  }, []); */
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
     const backSubscription = BackHandler.addEventListener(
       "hardwareBackPress",
       () => true
