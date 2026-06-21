@@ -492,9 +492,16 @@ const translations = {
     home: "الرئيسية",
     wallet: "المحفظة",
     settings: "الإعدادات",
+
+    walletNoVehicleTitle: "لا توجد سيارة مرتبطة بالحساب",
+    walletNoVehicleMessage:
+      "لم يتم العثور على أي سيارة مرتبطة بحسابك حالياً. ستظهر التقارير والصيانات بعد ربط السيارة واستخدامها، حيث يتم إنشاء البيانات بناءً على قراءات السيارة والكيلومترات المقطوعة.",
   },
 
   EN: {
+    walletNoVehicleTitle: "No Vehicle Linked",
+    walletNoVehicleMessage:
+      "No vehicle is currently linked to your account. Reports and maintenance records will appear after connecting and using a vehicle, as data is generated based on vehicle readings and driven mileage.",
     startIntroTitleBefore: "Your safety",
     startIntroTitleAccent: "starts",
     startIntroTitleAfter: "with your car",

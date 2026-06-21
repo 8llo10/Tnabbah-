@@ -380,7 +380,18 @@ export default function Chatbot() {
         return t.chatNetworkError;
       }
 
-      return `${t.chatConnectionError} ${err?.message ?? ""}`.trim();
+      /* return `${t.chatConnectionError} ${err?.message ?? ""}`.trim();  بعدين نحلها المشكله انه ما يلقط رابط الاتشتيتي بي العادي الي بدون الاس بالويب للاسف */
+      return language === "AR"
+        ? `أنت الآن تستخدم النسخة التجريبية (Beta) من تنبّه عبر الويب.
+
+بعض المزايا قد تكون محدودة أو غير متاحة حاليًا، بينما تتوفر التجربة الكاملة في التطبيق الرسمي الذي سيتم إطلاقه قريبًا بإذن الله.
+
+شكرًا لمساهمتك في تجربة تنبّه وتطويره.`
+        : `You are currently using the Beta web version of TNABBAH.
+
+Some features may be limited or unavailable during this testing phase. The full experience will be available in the official mobile application upon release.
+
+Thank you for helping us improve TNABBAH.`;
     }
   };
 

@@ -214,10 +214,36 @@ export default function Wallet() {
 
   const activeUserCarId = activeUserCar?.id ?? null;
 
+
   const { t, isArabic, language } = useLanguage();
   const { darkModeEnabled } = useAppSettings();
 
   const theme = darkModeEnabled ? DARK_WALLET_THEME : LIGHT_WALLET_THEME;
+
+
+  if (!activeUserCarId) {
+    return (
+      <SafeAreaView
+        style={{
+          flex: 1,
+          backgroundColor: theme.bg,
+          justifyContent: "center",
+          alignItems: "center",
+          paddingHorizontal: 24,
+        }}
+      >
+        <Feather name="truck" size={48} color={theme.primary} />
+
+        <Text style={{ marginTop: 16, fontFamily: FONT_BOLD, fontSize: 18, color: theme.text, textAlign: "center" }}>
+          {t.walletNoVehicleTitle}
+        </Text>
+
+        <Text style={{ marginTop: 10, fontFamily: FONT_REGULAR, fontSize: 14, color: theme.muted, textAlign: "center", lineHeight: 24 }}>
+          {t.walletNoVehicleMessage}
+        </Text>
+      </SafeAreaView>
+    );
+  }
 
   const { width, height } = useWindowDimensions();
   const isTabletLike = width >= 768;
