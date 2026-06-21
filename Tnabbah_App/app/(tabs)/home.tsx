@@ -629,13 +629,26 @@ export default function HomeScreen() {
                 setHomeAi(null); */
   }, [activeCarId]);
 
-  useEffect(() => {
+  /* useEffect(() => {
     const source = Image.resolveAssetSource(SCAN_CAR_IMAGE);
 
     if (source?.uri) {
       Image.prefetch(source.uri).catch(() => {
         // الصورة محلية، ولو فشل التحميل المسبق لا نعطل الهوم.
       });
+    }
+  }, []); */
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    try {
+      const source = Image.resolveAssetSource(SCAN_CAR_IMAGE);
+
+      if (source?.uri) {
+        Image.prefetch(source.uri).catch(() => { });
+      }
+    } catch (error) {
+      console.log("Prefetch scan image error:", error);
     }
   }, []);
 
