@@ -649,9 +649,19 @@ export default function VerifyEmailScreen() {
       setResending(true);
       clearMessages();
 
+      /* const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: cleanEmail,
+      }); */
       const { error } = await supabase.auth.resend({
         type: "signup",
         email: cleanEmail,
+        options: {
+          emailRedirectTo:
+            Platform.OS === "web"
+              ? "https://tnabbah-2h45.vercel.app/auth/callback"
+              : "tnabbahapp://auth/callback",
+        },
       });
 
       if (error) {

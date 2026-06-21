@@ -581,7 +581,12 @@ export default function NewPasswordScreen() {
   }
 
   return (
-    <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}>
+    /* <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}> */
+    <TouchableWithoutFeedback
+      onPress={Platform.OS === "web" ? undefined : dismissKeyboard}
+      accessible={false}
+      disabled={Platform.OS === "web"}
+    >
       <View style={styles.container}>
         <StatusBar
           translucent
@@ -688,7 +693,7 @@ export default function NewPasswordScreen() {
                     styles.inputBox,
                     { flexDirection: rowDirection },
                     errorMessage === t.newPasswordMismatch &&
-                      styles.inputBoxError,
+                    styles.inputBoxError,
                   ]}
                 >
                   <Feather

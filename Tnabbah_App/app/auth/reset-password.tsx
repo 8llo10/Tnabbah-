@@ -128,8 +128,8 @@ export default function ResetPasswordScreen() {
       typeof params.email === "string"
         ? params.email
         : Array.isArray(params.email)
-        ? params.email[0]
-        : "";
+          ? params.email[0]
+          : "";
 
     return value.trim().toLowerCase();
   }, [params.email]);
@@ -586,7 +586,12 @@ export default function ResetPasswordScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 16}
         >
-          <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}>
+          {/* <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}> */}
+          <TouchableWithoutFeedback
+            onPress={Platform.OS === "web" ? undefined : dismissKeyboard}
+            accessible={false}
+            disabled={Platform.OS === "web"}
+          >
             <View style={styles.screenContent}>
               <View style={styles.backArea}>
                 <TouchableOpacity
@@ -680,7 +685,7 @@ export default function ResetPasswordScreen() {
                 <AnimatedTouchableOpacity
                   style={[
                     styles.mainButtonWrapper,
-                  animatedMainButtonStyle,
+                    animatedMainButtonStyle,
                     loading && styles.mainButtonDisabled,
                   ]}
                   onPress={handleVerifyOtp}
@@ -696,27 +701,27 @@ export default function ResetPasswordScreen() {
                     <View style={styles.buttonGlassTop} />
 
                     <View style={styles.loadingRow}>
-                        {loading ? (
-                          <ActivityIndicator
-                            size="small"
-                            color={colors.white}
-                          />
-                        ) : (
-                          <Text style={styles.buttonText} allowFontScaling={false}>
-                            {t.resetOtpContinue}
-                          </Text>
-                        )}
-                      </View>
+                      {loading ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={colors.white}
+                        />
+                      ) : (
+                        <Text style={styles.buttonText} allowFontScaling={false}>
+                          {t.resetOtpContinue}
+                        </Text>
+                      )}
+                    </View>
                   </LinearGradient>
                 </AnimatedTouchableOpacity>
 
-                  <View style={styles.loadingStatusArea}>
-                    {loading ? (
-                      <Text style={styles.loadingStatusText} allowFontScaling={false}>
-                        {isArabic ? "جاري التحقق..." : "Verifying code..."}
-                      </Text>
-                    ) : null}
-                  </View>
+                <View style={styles.loadingStatusArea}>
+                  {loading ? (
+                    <Text style={styles.loadingStatusText} allowFontScaling={false}>
+                      {isArabic ? "جاري التحقق..." : "Verifying code..."}
+                    </Text>
+                  ) : null}
+                </View>
 
                 {renderResendArea()}
               </View>

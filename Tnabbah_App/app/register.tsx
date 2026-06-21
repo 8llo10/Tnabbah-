@@ -500,6 +500,15 @@ export default function RegisterScreen() {
       const cleanName = fullName.trim().slice(0, MAX_FIRST_NAME_LENGTH);
       const cleanEmail = email.trim().toLowerCase();
 
+      /* const { error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: {
+          data: {
+            full_name: cleanName,
+          },
+        },
+      }); */
       const { error } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
@@ -507,6 +516,10 @@ export default function RegisterScreen() {
           data: {
             full_name: cleanName,
           },
+          emailRedirectTo:
+            Platform.OS === "web"
+              ? "https://tnabbah-2h45.vercel.app/auth/callback"
+              : "tnabbahapp://auth/callback",
         },
       });
 
@@ -520,9 +533,19 @@ export default function RegisterScreen() {
           message.includes("already exists") ||
           message.includes("user already registered")
         ) {
+          /* await supabase.auth.resend({
+            type: "signup",
+            email: cleanEmail,
+          }); */
           await supabase.auth.resend({
             type: "signup",
             email: cleanEmail,
+            options: {
+              emailRedirectTo:
+                Platform.OS === "web"
+                  ? "https://tnabbah-2h45.vercel.app/auth/callback"
+                  : "tnabbahapp://auth/callback",
+            },
           });
 
           /* router.push({
