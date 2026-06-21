@@ -34,11 +34,25 @@ const FONT_SEMIBOLD = "Alexandria-SemiBold";
 const FONT_BOLD = "Alexandria-Bold";
 const FONT_EXTRABOLD = "Alexandria-Bold";
 
-const API_URL =
+
+
+
+/* const API_URL =
   process.env.EXPO_PUBLIC_DIAGNOSTICS_API || "http://207.180.244.27:8001";
 
 const CORTEX_URL =
-  process.env.EXPO_PUBLIC_CORTEX_API || "http://207.180.244.27:3101";
+  process.env.EXPO_PUBLIC_CORTEX_API || "http://207.180.244.27:3101"; */
+
+const API_URL =
+  process.env.EXPO_PUBLIC_DIAGNOSTICS_API ||
+  (Platform.OS === "web" ? "" : "http://207.180.244.27:8001");
+
+const CORTEX_URL =
+  process.env.EXPO_PUBLIC_CORTEX_API ||
+  (Platform.OS === "web" ? "" : "http://207.180.244.27:3101");
+
+
+
 
 const FLOATING_ASSISTANT_POSITION_KEY = "home_ai_assistant_position";
 const FLOATING_ASSISTANT_WIDTH = 78;
@@ -289,11 +303,11 @@ export default function HomeScreen() {
     connectedCarId || selectedCarId || activeCarId || null;
   const currentCar = Array.isArray(userCars)
     ? userCars.find(
-        (car: any) =>
-          car?.id === activeHomeCarId ||
-          car?.car_id === activeHomeCarId ||
-          car?.vehicle_id === activeHomeCarId,
-      )
+      (car: any) =>
+        car?.id === activeHomeCarId ||
+        car?.car_id === activeHomeCarId ||
+        car?.vehicle_id === activeHomeCarId,
+    )
     : null;
 
   const currentCarName =
@@ -580,9 +594,9 @@ export default function HomeScreen() {
       onMoveShouldSetPanResponderCapture: () => false,
       onShouldBlockNativeResponder: () => false,
       onPanResponderTerminationRequest: () => true,
-      onPanResponderMove: () => {},
-      onPanResponderRelease: () => {},
-      onPanResponderTerminate: () => {},
+      onPanResponderMove: () => { },
+      onPanResponderRelease: () => { },
+      onPanResponderTerminate: () => { },
     }),
   ).current;
 
@@ -1467,7 +1481,7 @@ export default function HomeScreen() {
                               styles.readButton,
                               (pressed ||
                                 pendingNotificationActionIds.has(item.id)) &&
-                                styles.notificationActionPressed,
+                              styles.notificationActionPressed,
                             ]}
                             hitSlop={12}
                             android_ripple={{ color: COLORS.soft }}
@@ -1485,7 +1499,7 @@ export default function HomeScreen() {
                             styles.deleteButton,
                             (pressed ||
                               pendingNotificationActionIds.has(item.id)) &&
-                              styles.notificationActionPressed,
+                            styles.notificationActionPressed,
                           ]}
                           hitSlop={12}
                           android_ripple={{ color: COLORS.soft }}
@@ -1551,7 +1565,7 @@ export default function HomeScreen() {
         <View style={[styles.heroCard, isWide && styles.heroCardWide]}>
           <View style={styles.heroContent}>
             <Text style={styles.heroTitle}>{t.homeScanTitle}</Text>
-            
+
           </View>
 
           {homeAi && (
@@ -1626,7 +1640,7 @@ export default function HomeScreen() {
             subtitle={
               obdConnected
                 ? statusText ||
-                  (isArabic ? "آخر قراءة من السيارة" : "Latest vehicle reading")
+                (isArabic ? "آخر قراءة من السيارة" : "Latest vehicle reading")
                 : isArabic
                   ? "وصّلي القطعة لقراءة الحالة"
                   : "Connect the device to read status"
@@ -1827,7 +1841,7 @@ export default function HomeScreen() {
         animationType="none"
         statusBarTranslucent
         presentationStyle="fullScreen"
-        onRequestClose={() => {}}
+        onRequestClose={() => { }}
       >
         <VehicleScanOverlay
           visible={isChecking}
@@ -1860,43 +1874,43 @@ function VehicleScanOverlay({
 
   const overlayColors = darkMode
     ? {
-        bg: "#151515",
-        surface: "#202020",
-        border: "rgba(255,255,255,0.10)",
-        text: "#FFFFFF",
-        muted: "#D7D7D7",
-        primary: "#B63A34",
-        softTrack: "rgba(170,170,170,0.22)",
-        ring: "rgba(182,58,52,0.50)",
-      }
+      bg: "#151515",
+      surface: "#202020",
+      border: "rgba(255,255,255,0.10)",
+      text: "#FFFFFF",
+      muted: "#D7D7D7",
+      primary: "#B63A34",
+      softTrack: "rgba(170,170,170,0.22)",
+      ring: "rgba(182,58,52,0.50)",
+    }
     : {
-        bg: "#FFFFFF",
-        surface: "#FFFFFF",
-        border: "#EDEDED",
-        text: "#1D1D1F",
-        muted: "#7A7A7A",
-        primary: "#871B17",
-        softTrack: "rgba(150,150,150,0.20)",
-        ring: "rgba(135,27,23,0.46)",
-      };
+      bg: "#FFFFFF",
+      surface: "#FFFFFF",
+      border: "#EDEDED",
+      text: "#1D1D1F",
+      muted: "#7A7A7A",
+      primary: "#871B17",
+      softTrack: "rgba(150,150,150,0.20)",
+      ring: "rgba(135,27,23,0.46)",
+    };
 
   const messages = useMemo(
     () =>
       isArabic
         ? [
-            "🚗 خلّينا نطمن على سيارتك",
-            "🔍 نقرأ بيانات السيارة الآن…",
-            "⚙️ نراجع مؤشرات المحرك…",
-            "🧠 نحلل القراءات بهدوء…",
-            "📝 نجهّز التقرير النهائي…",
-          ]
+          "🚗 خلّينا نطمن على سيارتك",
+          "🔍 نقرأ بيانات السيارة الآن…",
+          "⚙️ نراجع مؤشرات المحرك…",
+          "🧠 نحلل القراءات بهدوء…",
+          "📝 نجهّز التقرير النهائي…",
+        ]
         : [
-            "🚗 Let’s check your car",
-            "🔍 Reading vehicle data…",
-            "⚙️ Reviewing engine signals…",
-            "🧠 Analyzing the readings…",
-            "📝 Preparing your report…",
-          ],
+          "🚗 Let’s check your car",
+          "🔍 Reading vehicle data…",
+          "⚙️ Reviewing engine signals…",
+          "🧠 Analyzing the readings…",
+          "📝 Preparing your report…",
+        ],
     [isArabic],
   );
 
@@ -2171,8 +2185,8 @@ function QuickSummaryCard({
 }: {
   iconPack?: "feather" | "material";
   icon:
-    | keyof typeof Feather.glyphMap
-    | React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  | keyof typeof Feather.glyphMap
+  | React.ComponentProps<typeof MaterialCommunityIcons>["name"];
   title: string;
   value: string;
   subtitle: string;
