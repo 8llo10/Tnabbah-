@@ -1,7 +1,8 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
-import * as Notifications from "expo-notifications";
+const Notifications =
+  Platform.OS === "web" ? null : require("expo-notifications");
 import { router, Stack } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -945,12 +946,31 @@ export default function HomeScreen() {
     }, 4500);
   };
 
-  const showDeviceNotificationForAndroid = async (notification: {
+  /* const showDeviceNotificationForAndroid = async (notification: {
     title: string;
     body: string;
   }) => {
     try {
       if (Platform.OS !== "android") return;
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: notification.title,
+          body: notification.body,
+          sound: true,
+        },
+        trigger: null,
+      });
+    } catch (error) {
+      console.log("Android local notification error:", error);
+    }
+  }; */
+  const showDeviceNotificationForAndroid = async (notification: {
+    title: string;
+    body: string;
+  }) => {
+    try {
+      if (Platform.OS !== "android" || !Notifications) return;
 
       await Notifications.scheduleNotificationAsync({
         content: {
