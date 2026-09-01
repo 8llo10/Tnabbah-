@@ -2082,6 +2082,16 @@
         border-radius: 17px
       }
 
+      body.dark .modalChoice {
+        background: rgba(255, 255, 255, .07);
+        border-color: rgba(255, 255, 255, .10);
+        color: var(--ink);
+      }
+
+      body.dark .modalChoice:hover {
+        background: rgba(255, 255, 255, .12);
+      }
+
       .videoBox {
         padding: 8px
       }
@@ -2471,6 +2481,13 @@
               id="emailText">tanbbahteem@gmail.com</small></span><span>↗</span></a>
         <a class="modalChoice" id="phoneChoice" href="tel:+966500000000"><span><b data-ar="رقم التواصل"
               data-en="Phone">رقم التواصل</b><small id="phoneText">+966500000000</small></span><span>↗</span></a>
+        <a class="modalChoice" id="linkedinChoice" target="_blank" rel="noopener noreferrer">
+          <span>
+            <b data-ar="لينكدإن" data-en="LinkedIn">لينكدإن</b>
+            <small id="linkedinText">View Profile</small>
+          </span>
+          <span>↗</span>
+        </a>
       </div>
       <p class="modalHint" data-ar="عدلي رقم التواصل داخل data-phone لكل اسم إذا تبغين أرقام مختلفة."
         data-en="Edit data-phone for each name if you want different numbers.">عدلي رقم التواصل داخل data-phone لكل اسم
@@ -2487,11 +2504,23 @@
       const name = btn.dataset.name || "TNABBAH";
       const email = btn.dataset.email || "tanbbahteem@gmail.com";
       const phone = btn.dataset.phone || "";
+      const linkedin = btn.dataset.linkedin || "";
       modalName.textContent = name;
       emailChoice.href = `mailto:${email}`; emailText.textContent = email;
       if (phone) { phoneChoice.href = `tel:${phone}`; phoneText.textContent = phone; phoneChoice.classList.remove("disabled"); }
       else { phoneChoice.href = "#"; phoneText.textContent = document.documentElement.lang === "ar" ? "أضيفي الرقم هنا" : "Add phone here"; phoneChoice.classList.add("disabled"); }
       modal.classList.add("open"); modal.setAttribute("aria-hidden", "false");
+
+      if (linkedin) {
+        linkedinChoice.href = linkedin;
+        linkedinText.textContent = "View Profile";
+        linkedinChoice.classList.remove("disabled");
+      } else {
+        linkedinChoice.href = "#";
+        linkedinText.textContent =
+          document.documentElement.lang === "ar" ? "غير متوفر" : "Not available";
+        linkedinChoice.classList.add("disabled");
+      }
     }
     $$(".chooseContact").forEach(btn => btn.addEventListener("click", () => openContactChooser(btn)));
     function hideContactChooser() { modal.classList.remove("open"); modal.setAttribute("aria-hidden", "true") }
