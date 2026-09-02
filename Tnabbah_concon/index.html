@@ -2499,7 +2499,15 @@
     const $ = (s, r = document) => r.querySelector(s); const $$ = (s, r = document) => [...r.querySelectorAll(s)];
     const langBtn = $("#langBtn"), themeBtn = $("#themeBtn");
 
-    const modal = $("#contactModal"), closeModal = $("#closeModal"), modalName = $("#modalName"), emailChoice = $("#emailChoice"), phoneChoice = $("#phoneChoice"), emailText = $("#emailText"), phoneText = $("#phoneText");
+    const modal = $("#contactModal"),
+      closeModal = $("#closeModal"),
+      modalName = $("#modalName"),
+      emailChoice = $("#emailChoice"),
+      phoneChoice = $("#phoneChoice"),
+      linkedinChoice = $("#linkedinChoice"),
+      emailText = $("#emailText"),
+      phoneText = $("#phoneText"),
+      linkedinText = $("#linkedinText");
     function openContactChooser(btn) {
       const name = btn.dataset.name || "TNABBAH";
       const email = btn.dataset.email || "tanbbahteem@gmail.com";
